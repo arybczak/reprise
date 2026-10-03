@@ -1,0 +1,40 @@
+volume: 50
+repeat: 0
+random: 0
+single: 0
+consume: 0
+partition: default
+playlist: 4
+playlistlength: 2
+mixrampdb: 0
+state: play
+lastloadedplaylist: 
+song: 0
+songid: 1
+time: 0:2
+elapsed: 0.251
+bitrate: 0
+duration: 2.000
+audio: 8000:16:1
+nextsong: 1
+nextsongid: 2
+list_OK
+file: a/one.flac
+Last-Modified: 2026-10-03T22:44:31Z
+Added: 2026-10-03T22:44:31Z
+Format: 8000:16:1
+Artist: Foo
+Artist: Bar
+AlbumArtist: Foo
+Album: Baz
+Title: Zażółć gęślą jaźń
+Track: 1/12
+Date: 2001-02-03
+Genre: Rock
+MUSICBRAINZ_TRACKID: 0d6d7a5c-4a9f-4c3b-9b7e-0123456789ab
+Time: 2
+duration: 2.000
+Pos: 0
+Id: 1
+list_OK
+OK

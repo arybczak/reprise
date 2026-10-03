@@ -1,0 +1,424 @@
+-- | Data types of the MPD protocol.
+module MPD.Types
+  ( -- * Songs
+    Song (..)
+  , SongId (..)
+  , SongPos (..)
+  , Seconds (..)
+
+    -- ** Tags
+  , Tag (..)
+  , tagName
+  , tagFromName
+
+    -- * Status
+  , Status (..)
+  , PlayerState (..)
+  , SingleMode (..)
+  , ConsumeMode (..)
+  , ReplayGainMode (..)
+  , PlaylistVersion (..)
+
+    -- * Statistics
+  , Stats (..)
+
+    -- * Outputs
+  , Output (..)
+
+    -- * Idle
+  , Subsystem (..)
+  , subsystemName
+  , subsystemFromName
+
+    -- * Server version
+  , Version (..)
+
+    -- * Errors
+  , MpdError (..)
+  , Ack (..)
+  , AckCode (..)
+  , ConnectionError (..)
+  ) where
+
+import Data.Fixed
+import Data.Map.Strict qualified as M
+import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Time
+import Data.Word
+
+----------------------------------------
+-- Songs
+
+-- | A song as MPD describes it, e.g. in the queue or the database.
+--
+-- @since 0.1.0.0
+data Song = Song
+  { file :: Text
+  -- ^ The URI of the song, relative to the music directory for local files.
+  , tags :: M.Map Tag [Text]
+  -- ^ The values of each tag, in the order MPD sent them.
+  , duration :: Maybe Seconds
+  , lastModified :: Maybe UTCTime
+  , format :: Maybe Text
+  -- ^ The audio format, e.g. @44100:16:2@.
+  , position :: Maybe SongPos
+  -- ^ The position in the queue, for a song in the queue.
+  , songId :: Maybe SongId
+  -- ^ The id in the queue, for a song in the queue.
+  , priority :: Int
+  -- ^ The priority in the queue, 0 unless set.
+  }
+  deriving stock (Eq, Show)
+
+-- | The id of a song in the queue. It doesn't change when the song moves.
+--
+-- @since 0.1.0.0
+newtype SongId = SongId Int
+  deriving newtype (Eq, Ord, Show)
+
+-- | The position of a song in the queue, from 0.
+--
+-- @since 0.1.0.0
+newtype SongPos = SongPos Int
+  deriving newtype (Eq, Ord, Show, Enum, Num, Real, Integral)
+
+-- | A duration or a point in time within a song. MPD sends them with a
+-- precision of milliseconds.
+--
+-- @since 0.1.0.0
+newtype Seconds = Seconds Milli
+  deriving newtype (Eq, Ord, Show, Num, Real, Fractional, RealFrac)
+
+----------------------------------------
+-- Tags
+
+-- | The tags MPD knows. MPD doesn't send a tag that its configuration
+-- disables.
+--
+-- @since 0.1.0.0
+data Tag
+  = Artist
+  | ArtistSort
+  | Album
+  | AlbumSort
+  | AlbumArtist
+  | AlbumArtistSort
+  | Title
+  | TitleSort
+  | Track
+  | Name
+  | Genre
+  | Mood
+  | Date
+  | OriginalDate
+  | Composer
+  | ComposerSort
+  | Performer
+  | Conductor
+  | Work
+  | Movement
+  | MovementNumber
+  | ShowMovement
+  | Ensemble
+  | Location
+  | Grouping
+  | Comment
+  | Disc
+  | Label
+  | MusicBrainzArtistId
+  | MusicBrainzAlbumId
+  | MusicBrainzAlbumArtistId
+  | MusicBrainzTrackId
+  | MusicBrainzReleaseTrackId
+  | MusicBrainzWorkId
+  | MusicBrainzReleaseGroupId
+  deriving stock (Eq, Ord, Show, Enum, Bounded)
+
+-- | The name of a tag in the protocol.
+--
+-- @since 0.1.0.0
+tagName :: Tag -> Text
+tagName = \case
+  Artist -> "Artist"
+  ArtistSort -> "ArtistSort"
+  Album -> "Album"
+  AlbumSort -> "AlbumSort"
+  AlbumArtist -> "AlbumArtist"
+  AlbumArtistSort -> "AlbumArtistSort"
+  Title -> "Title"
+  TitleSort -> "TitleSort"
+  Track -> "Track"
+  Name -> "Name"
+  Genre -> "Genre"
+  Mood -> "Mood"
+  Date -> "Date"
+  OriginalDate -> "OriginalDate"
+  Composer -> "Composer"
+  ComposerSort -> "ComposerSort"
+  Performer -> "Performer"
+  Conductor -> "Conductor"
+  Work -> "Work"
+  Movement -> "Movement"
+  MovementNumber -> "MovementNumber"
+  ShowMovement -> "ShowMovement"
+  Ensemble -> "Ensemble"
+  Location -> "Location"
+  Grouping -> "Grouping"
+  Comment -> "Comment"
+  Disc -> "Disc"
+  Label -> "Label"
+  MusicBrainzArtistId -> "MUSICBRAINZ_ARTISTID"
+  MusicBrainzAlbumId -> "MUSICBRAINZ_ALBUMID"
+  MusicBrainzAlbumArtistId -> "MUSICBRAINZ_ALBUMARTISTID"
+  MusicBrainzTrackId -> "MUSICBRAINZ_TRACKID"
+  MusicBrainzReleaseTrackId -> "MUSICBRAINZ_RELEASETRACKID"
+  MusicBrainzWorkId -> "MUSICBRAINZ_WORKID"
+  MusicBrainzReleaseGroupId -> "MUSICBRAINZ_RELEASEGROUPID"
+
+-- | The tag with the given name. MPD compares tag names without regard to
+-- case, and so does this function.
+--
+-- @since 0.1.0.0
+tagFromName :: Text -> Maybe Tag
+tagFromName name = M.lookup (T.toCaseFold name) tagsByName
+  where
+    tagsByName :: M.Map Text Tag
+    tagsByName = M.fromList [(T.toCaseFold (tagName t), t) | t <- [minBound .. maxBound]]
+
+----------------------------------------
+-- Status
+
+-- | The reply to @status@.
+--
+-- @since 0.1.0.0
+data Status = Status
+  { volume :: Maybe Int
+  -- ^ 'Nothing' if MPD has no mixer.
+  , repeat :: Bool
+  , random :: Bool
+  , single :: SingleMode
+  , consume :: ConsumeMode
+  , playlistVersion :: PlaylistVersion
+  , playlistLength :: Int
+  , state :: PlayerState
+  , currentPosition :: Maybe SongPos
+  , currentId :: Maybe SongId
+  , nextPosition :: Maybe SongPos
+  , nextId :: Maybe SongId
+  , elapsed :: Maybe Seconds
+  , duration :: Maybe Seconds
+  , bitrate :: Maybe Int
+  -- ^ In kbit/s.
+  , crossfade :: Int
+  -- ^ In seconds.
+  , audio :: Maybe Text
+  -- ^ The audio format, e.g. @44100:16:2@.
+  , updatingDb :: Maybe Int
+  -- ^ The job id of a running database update.
+  , error :: Maybe Text
+  }
+  deriving stock (Eq, Show)
+
+-- | @since 0.1.0.0
+data PlayerState = Playing | Paused | Stopped
+  deriving stock (Eq, Ord, Show, Enum, Bounded)
+
+-- | @since 0.1.0.0
+data SingleMode = SingleOff | SingleOn | SingleOneshot
+  deriving stock (Eq, Ord, Show, Enum, Bounded)
+
+-- | 'ConsumeOneshot' needs MPD 0.24.
+--
+-- @since 0.1.0.0
+data ConsumeMode = ConsumeOff | ConsumeOn | ConsumeOneshot
+  deriving stock (Eq, Ord, Show, Enum, Bounded)
+
+-- | @since 0.1.0.0
+data ReplayGainMode = ReplayGainOff | ReplayGainTrack | ReplayGainAlbum | ReplayGainAuto
+  deriving stock (Eq, Ord, Show, Enum, Bounded)
+
+-- | The version of the queue. MPD increments it on every change of the queue.
+--
+-- @since 0.1.0.0
+newtype PlaylistVersion = PlaylistVersion Word32
+  deriving newtype (Eq, Ord, Show)
+
+----------------------------------------
+-- Statistics
+
+-- | The reply to @stats@.
+--
+-- @since 0.1.0.0
+data Stats = Stats
+  { artists :: Int
+  , albums :: Int
+  , songs :: Int
+  , uptime :: Int
+  -- ^ In seconds.
+  , playtime :: Int
+  -- ^ In seconds.
+  , dbPlaytime :: Int
+  -- ^ The length of all songs in the database, in seconds.
+  , dbUpdate :: Maybe UTCTime
+  -- ^ The time of the last database update.
+  }
+  deriving stock (Eq, Show)
+
+----------------------------------------
+-- Outputs
+
+-- | An audio output.
+--
+-- @since 0.1.0.0
+data Output = Output
+  { outputId :: Int
+  , name :: Text
+  , plugin :: Text
+  , enabled :: Bool
+  , attributes :: M.Map Text Text
+  }
+  deriving stock (Eq, Show)
+
+----------------------------------------
+-- Idle
+
+-- | A part of MPD that @idle@ reports changes of.
+--
+-- @since 0.1.0.0
+data Subsystem
+  = DatabaseSubsystem
+  | UpdateSubsystem
+  | StoredPlaylistSubsystem
+  | -- | The queue.
+    PlaylistSubsystem
+  | PlayerSubsystem
+  | MixerSubsystem
+  | OutputSubsystem
+  | OptionsSubsystem
+  | PartitionSubsystem
+  | StickerSubsystem
+  | SubscriptionSubsystem
+  | MessageSubsystem
+  | NeighborSubsystem
+  | MountSubsystem
+  | -- | A subsystem of a newer MPD.
+    OtherSubsystem Text
+  deriving stock (Eq, Ord, Show)
+
+-- | The name of a subsystem in the protocol.
+--
+-- @since 0.1.0.0
+subsystemName :: Subsystem -> Text
+subsystemName = \case
+  DatabaseSubsystem -> "database"
+  UpdateSubsystem -> "update"
+  StoredPlaylistSubsystem -> "stored_playlist"
+  PlaylistSubsystem -> "playlist"
+  PlayerSubsystem -> "player"
+  MixerSubsystem -> "mixer"
+  OutputSubsystem -> "output"
+  OptionsSubsystem -> "options"
+  PartitionSubsystem -> "partition"
+  StickerSubsystem -> "sticker"
+  SubscriptionSubsystem -> "subscription"
+  MessageSubsystem -> "message"
+  NeighborSubsystem -> "neighbor"
+  MountSubsystem -> "mount"
+  OtherSubsystem name -> name
+
+-- | The subsystem with the given name.
+--
+-- @since 0.1.0.0
+subsystemFromName :: Text -> Subsystem
+subsystemFromName name = M.findWithDefault (OtherSubsystem name) name subsystemsByName
+  where
+    subsystemsByName :: M.Map Text Subsystem
+    subsystemsByName =
+      M.fromList
+        [ (subsystemName s, s)
+        | s <-
+            [ DatabaseSubsystem
+            , UpdateSubsystem
+            , StoredPlaylistSubsystem
+            , PlaylistSubsystem
+            , PlayerSubsystem
+            , MixerSubsystem
+            , OutputSubsystem
+            , OptionsSubsystem
+            , PartitionSubsystem
+            , StickerSubsystem
+            , SubscriptionSubsystem
+            , MessageSubsystem
+            , NeighborSubsystem
+            , MountSubsystem
+            ]
+        ]
+
+----------------------------------------
+-- Server version
+
+-- | The protocol version that MPD sends when a client connects.
+--
+-- @since 0.1.0.0
+data Version = Version Int Int Int
+  deriving stock (Eq, Ord, Show)
+
+----------------------------------------
+-- Errors
+
+-- | @since 0.1.0.0
+data MpdError
+  = -- | MPD refused a command.
+    AckError Ack
+  | -- | The reply wasn't what the command expects.
+    ProtocolError Text
+  | -- | The connection doesn't work. Close it and connect again.
+    ConnectionError ConnectionError
+  deriving stock (Eq, Show)
+
+-- | An @ACK@ reply.
+--
+-- @since 0.1.0.0
+data Ack = Ack
+  { code :: AckCode
+  , index :: Int
+  -- ^ The position of the failed command in a command list, 0 otherwise.
+  , command :: Text
+  -- ^ The name of the failed command.
+  , message :: Text
+  }
+  deriving stock (Eq, Show)
+
+-- | @since 0.1.0.0
+data AckCode
+  = AckNotList
+  | AckArg
+  | AckPassword
+  | AckPermission
+  | AckUnknown
+  | AckNoExist
+  | AckPlaylistMax
+  | AckSystem
+  | AckPlaylistLoad
+  | AckUpdateAlready
+  | AckPlayerSync
+  | AckExist
+  | -- | A code of a newer MPD.
+    AckOther Int
+  deriving stock (Eq, Show)
+
+-- | @since 0.1.0.0
+data ConnectionError
+  = -- | The connection couldn't be opened, or MPD didn't greet as expected.
+    ConnectFailed Text
+  | -- | MPD is older than 0.23.
+    UnsupportedVersion Version
+  | -- | MPD closed the connection before it began a reply. MPD closes a
+    -- connection that was unused for longer than its @connection_timeout@,
+    -- without running the command that arrives after that.
+    Closed
+  | -- | An I/O error, or the connection closed in the middle of a reply.
+    Broken Text
+  | TimedOut
+  deriving stock (Eq, Show)

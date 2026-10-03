@@ -1,0 +1,84 @@
+cabal-version:      3.8
+build-type:         Simple
+name:               reprise
+version:            0.1.0.0
+license:            BSD-3-Clause
+license-file:       LICENSE
+category:           Sound
+maintainer:         andrzej@rybczak.net
+author:             Andrzej Rybczak
+synopsis:           A terminal client for the Music Player Daemon.
+
+description:
+  A terminal client for the <https://www.musicpd.org Music Player Daemon>
+  (MPD), the successor of ncmpcpp.
+
+extra-doc-files:
+  CHANGELOG.md
+  README.md
+
+tested-with: GHC ^>= { 9.6, 9.8, 9.10, 9.12, 9.14 }
+
+bug-reports: https://github.com/arybczak/reprise/issues
+source-repository head
+  type:     git
+  location: https://github.com/arybczak/reprise.git
+  subdir:   reprise
+
+common language
+    ghc-options:        -Wall
+                        -Wcompat
+                        -Werror=missing-deriving-strategies
+                        -Werror=prepositive-qualified-module
+
+    default-language:   GHC2021
+
+    default-extensions: DataKinds
+                        DeepSubsumption
+                        DerivingStrategies
+                        DuplicateRecordFields
+                        LambdaCase
+                        NoFieldSelectors
+                        NoStarIsType
+                        OverloadedLabels
+                        OverloadedRecordDot
+                        OverloadedStrings
+                        RoleAnnotations
+                        StrictData
+                        TypeFamilies
+                        UndecidableInstances
+
+library
+    import:         language
+
+    build-depends:    base                >= 4.18      && < 5
+                    , mpd-protocol        >= 0.1.0.0
+
+    hs-source-dirs:  src
+
+    exposed-modules: Reprise.Main
+
+executable reprise
+    import:         language
+
+    ghc-options:    -threaded
+
+    build-depends:    base
+                    , reprise
+
+    hs-source-dirs: app
+    main-is:        Main.hs
+
+test-suite test
+    import:         language
+
+    ghc-options:    -threaded
+
+    build-depends:    base
+                    , reprise
+                    , tasty
+
+    hs-source-dirs: tests
+
+    type:           exitcode-stdio-1.0
+    main-is:        Main.hs

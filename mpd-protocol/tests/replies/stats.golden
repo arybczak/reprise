@@ -1,0 +1,11 @@
+Right
+    ( Stats
+        { artists = 2
+        , albums = 1
+        , songs = 2
+        , uptime = 1
+        , playtime = 2
+        , dbPlaytime = 5
+        , dbUpdate = Just 2026-10-03 22:44:31 UTC
+        }
+    )

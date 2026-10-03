@@ -1,0 +1,10 @@
+Left
+    ( AckError
+        ( Ack
+            { code = AckArg
+            , index = 0
+            , command = "play"
+            , message = "Bad song index"
+            }
+        )
+    )

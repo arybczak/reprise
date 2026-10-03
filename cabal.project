@@ -1,0 +1,4 @@
+packages:
+  mpd-protocol/*.cabal
+  mpd-test-server/*.cabal
+  reprise/*.cabal

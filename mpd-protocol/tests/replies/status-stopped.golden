@@ -1,0 +1,23 @@
+Right
+    ( Status
+        { volume = Just 50
+        , repeat = False
+        , random = False
+        , single = SingleOff
+        , consume = ConsumeOff
+        , playlistVersion = 4
+        , playlistLength = 2
+        , state = Stopped
+        , currentPosition = Nothing
+        , currentId = Nothing
+        , nextPosition = Nothing
+        , nextId = Nothing
+        , elapsed = Nothing
+        , duration = Nothing
+        , bitrate = Nothing
+        , crossfade = 0
+        , audio = Nothing
+        , updatingDb = Nothing
+        , error = Nothing
+        }
+    )

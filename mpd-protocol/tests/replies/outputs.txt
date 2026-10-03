@@ -1,0 +1,5 @@
+outputid: 0
+outputname: null
+plugin: null
+outputenabled: 1
+OK

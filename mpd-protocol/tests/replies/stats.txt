@@ -1,0 +1,8 @@
+uptime: 1
+playtime: 2
+artists: 2
+albums: 1
+songs: 2
+db_playtime: 5
+db_update: 1791067471
+OK

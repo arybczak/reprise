@@ -1,0 +1,9 @@
+Right
+    [ Output
+        { outputId = 0
+        , name = "null"
+        , plugin = "null"
+        , enabled = True
+        , attributes = fromList []
+        }
+    ]

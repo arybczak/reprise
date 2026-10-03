@@ -1,0 +1,12 @@
+volume: 50
+repeat: 0
+random: 0
+single: 0
+consume: 0
+partition: default
+playlist: 4
+playlistlength: 2
+mixrampdb: 0
+state: stop
+lastloadedplaylist: 
+OK
