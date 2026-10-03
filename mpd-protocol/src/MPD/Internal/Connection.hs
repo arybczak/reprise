@@ -19,12 +19,10 @@ module MPD.Internal.Connection
   ) where
 
 import Control.Exception
-import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Char8 qualified as BS8
 import Data.IORef
-import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Word
 import Network.Socket qualified as N
@@ -43,7 +41,7 @@ import MPD.Types
 -- @since 0.1.0.0
 data Connection = Connection
   { socket :: N.Socket
-  , buffer :: IORef ByteString
+  , buffer :: IORef BS.ByteString
   -- ^ Bytes that arrived after the last line that was read.
   , chunkSize :: Int
   , timeout :: Maybe Seconds
@@ -61,7 +59,7 @@ data Address
 -- | @since 0.1.0.0
 data Settings = Settings
   { address :: Address
-  , password :: Maybe Text
+  , password :: Maybe T.Text
   , timeout :: Maybe Seconds
   -- ^ How long to wait for a connection or a reply. 'Nothing' waits
   -- forever. @idle@ always waits forever.
@@ -132,7 +130,7 @@ connect settings = withTimeout settings.timeout . handleIO connectFailed $ do
     connectFailed :: IOException -> MpdError
     connectFailed = ConnectionError . ConnectFailed . T.pack . displayException
 
-    parseGreeting :: ByteString -> Maybe Version
+    parseGreeting :: BS.ByteString -> Maybe Version
     parseGreeting l = do
       v <- BS.stripPrefix "OK MPD " l
       case map BS8.readInt (BS8.split '.' v) of
@@ -157,7 +155,7 @@ exchange conn request = handleIO broken $ do
     readReply :: IO (Either MpdError [[Field]])
     readReply = go True []
       where
-        go :: Bool -> [ByteString] -> IO (Either MpdError [[Field]])
+        go :: Bool -> [BS.ByteString] -> IO (Either MpdError [[Field]])
         go first acc =
           readLine conn.socket conn.chunkSize conn.buffer >>= \case
             Nothing
@@ -197,7 +195,7 @@ withTimeout = \case
     microsecondsPerSecond = 1000000
 
 -- | Read a line without its newline. 'Nothing' if the connection closed.
-readLine :: N.Socket -> Int -> IORef ByteString -> IO (Maybe ByteString)
+readLine :: N.Socket -> Int -> IORef BS.ByteString -> IO (Maybe BS.ByteString)
 readLine sock chunkSize buffer = do
   buf <- readIORef buffer
   case BS.elemIndex newline buf of

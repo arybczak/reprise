@@ -42,10 +42,10 @@ module MPD.Types
 
 import Data.Fixed
 import Data.Map.Strict qualified as M
-import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time
 import Data.Word
+import GHC.Generics
 
 ----------------------------------------
 -- Songs
@@ -54,13 +54,13 @@ import Data.Word
 --
 -- @since 0.1.0.0
 data Song = Song
-  { file :: Text
+  { file :: T.Text
   -- ^ The URI of the song, relative to the music directory for local files.
-  , tags :: M.Map Tag [Text]
+  , tags :: M.Map Tag [T.Text]
   -- ^ The values of each tag, in the order MPD sent them.
   , duration :: Maybe Seconds
   , lastModified :: Maybe UTCTime
-  , format :: Maybe Text
+  , format :: Maybe T.Text
   -- ^ The audio format, e.g. @44100:16:2@.
   , position :: Maybe SongPos
   -- ^ The position in the queue, for a song in the queue.
@@ -69,7 +69,7 @@ data Song = Song
   , priority :: Int
   -- ^ The priority in the queue, 0 unless set.
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 -- | The id of a song in the queue. It doesn't change when the song moves.
 --
@@ -138,7 +138,7 @@ data Tag
 -- | The name of a tag in the protocol.
 --
 -- @since 0.1.0.0
-tagName :: Tag -> Text
+tagName :: Tag -> T.Text
 tagName = \case
   Artist -> "Artist"
   ArtistSort -> "ArtistSort"
@@ -180,10 +180,10 @@ tagName = \case
 -- case, and so does this function.
 --
 -- @since 0.1.0.0
-tagFromName :: Text -> Maybe Tag
+tagFromName :: T.Text -> Maybe Tag
 tagFromName name = M.lookup (T.toCaseFold name) tagsByName
   where
-    tagsByName :: M.Map Text Tag
+    tagsByName :: M.Map T.Text Tag
     tagsByName = M.fromList [(T.toCaseFold (tagName t), t) | t <- [minBound .. maxBound]]
 
 ----------------------------------------
@@ -212,13 +212,13 @@ data Status = Status
   -- ^ In kbit/s.
   , crossfade :: Int
   -- ^ In seconds.
-  , audio :: Maybe Text
+  , audio :: Maybe T.Text
   -- ^ The audio format, e.g. @44100:16:2@.
   , updatingDb :: Maybe Int
   -- ^ The job id of a running database update.
-  , error :: Maybe Text
+  , error :: Maybe T.Text
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 -- | @since 0.1.0.0
 data PlayerState = Playing | Paused | Stopped
@@ -263,7 +263,7 @@ data Stats = Stats
   , dbUpdate :: Maybe UTCTime
   -- ^ The time of the last database update.
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 ----------------------------------------
 -- Outputs
@@ -273,12 +273,12 @@ data Stats = Stats
 -- @since 0.1.0.0
 data Output = Output
   { outputId :: Int
-  , name :: Text
-  , plugin :: Text
+  , name :: T.Text
+  , plugin :: T.Text
   , enabled :: Bool
-  , attributes :: M.Map Text Text
+  , attributes :: M.Map T.Text T.Text
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 ----------------------------------------
 -- Idle
@@ -303,13 +303,13 @@ data Subsystem
   | NeighborSubsystem
   | MountSubsystem
   | -- | A subsystem of a newer MPD.
-    OtherSubsystem Text
+    OtherSubsystem T.Text
   deriving stock (Eq, Ord, Show)
 
 -- | The name of a subsystem in the protocol.
 --
 -- @since 0.1.0.0
-subsystemName :: Subsystem -> Text
+subsystemName :: Subsystem -> T.Text
 subsystemName = \case
   DatabaseSubsystem -> "database"
   UpdateSubsystem -> "update"
@@ -330,10 +330,10 @@ subsystemName = \case
 -- | The subsystem with the given name.
 --
 -- @since 0.1.0.0
-subsystemFromName :: Text -> Subsystem
+subsystemFromName :: T.Text -> Subsystem
 subsystemFromName name = M.findWithDefault (OtherSubsystem name) name subsystemsByName
   where
-    subsystemsByName :: M.Map Text Subsystem
+    subsystemsByName :: M.Map T.Text Subsystem
     subsystemsByName =
       M.fromList
         [ (subsystemName s, s)
@@ -372,7 +372,7 @@ data MpdError
   = -- | MPD refused a command.
     AckError Ack
   | -- | The reply wasn't what the command expects.
-    ProtocolError Text
+    ProtocolError T.Text
   | -- | The connection doesn't work. Close it and connect again.
     ConnectionError ConnectionError
   deriving stock (Eq, Show)
@@ -384,11 +384,11 @@ data Ack = Ack
   { code :: AckCode
   , index :: Int
   -- ^ The position of the failed command in a command list, 0 otherwise.
-  , command :: Text
+  , command :: T.Text
   -- ^ The name of the failed command.
-  , message :: Text
+  , message :: T.Text
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 -- | @since 0.1.0.0
 data AckCode
@@ -411,7 +411,7 @@ data AckCode
 -- | @since 0.1.0.0
 data ConnectionError
   = -- | The connection couldn't be opened, or MPD didn't greet as expected.
-    ConnectFailed Text
+    ConnectFailed T.Text
   | -- | MPD is older than 0.23.
     UnsupportedVersion Version
   | -- | MPD closed the connection before it began a reply. MPD closes a
@@ -419,6 +419,6 @@ data ConnectionError
     -- without running the command that arrives after that.
     Closed
   | -- | An I/O error, or the connection closed in the middle of a reply.
-    Broken Text
+    Broken T.Text
   | TimedOut
   deriving stock (Eq, Show)

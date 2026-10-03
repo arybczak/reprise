@@ -77,7 +77,6 @@ module MPD.Command
   , ping
   ) where
 
-import Data.Text (Text)
 import Data.Text qualified as T
 
 import MPD.Protocol.Request
@@ -90,7 +89,7 @@ import MPD.Types
 -- | A command, or a command list, with a result of type @a@.
 --
 -- @since 0.1.0.0
-data Command a = Command [Request] ([[Field]] -> Either Text (a, [[Field]]))
+data Command a = Command [Request] ([[Field]] -> Either T.Text (a, [[Field]]))
 
 -- | @since 0.1.0.0
 instance Functor Command where
@@ -114,11 +113,11 @@ instance Applicative Command where
 --
 -- @since 0.1.0.0
 command
-  :: Text
+  :: T.Text
   -- ^ The name.
-  -> [Text]
+  -> [T.Text]
   -- ^ The arguments, unquoted.
-  -> ([Field] -> Either Text a)
+  -> ([Field] -> Either T.Text a)
   -- ^ The parser.
   -> Command a
 command name args parse = Command [Request name args] $ \case
@@ -244,13 +243,13 @@ plChanges v = command "plchanges" [toArgument v] parseSongs
 -- | Add a song or a directory, at the end or at a position.
 --
 -- @since 0.1.0.0
-add :: Text -> Maybe Position -> Command ()
+add :: T.Text -> Maybe Position -> Command ()
 add uri pos = command "add" (uri : maybe [] (pure . toArgument) pos) noReply
 
 -- | Add a song, at the end or at a position, and return its id.
 --
 -- @since 0.1.0.0
-addId :: Text -> Maybe Position -> Command SongId
+addId :: T.Text -> Maybe Position -> Command SongId
 addId uri pos = command "addid" (uri : maybe [] (pure . toArgument) pos) $ \fields ->
   SongId <$> required "Id" readInt (fieldMap fields)
 
@@ -387,7 +386,7 @@ replayGainStatus = command "replay_gain_status" [] $ \fields ->
 -- Returns the job id, which 'updatingDb' shows while the update runs.
 --
 -- @since 0.1.0.0
-update :: Maybe Text -> Command Int
+update :: Maybe T.Text -> Command Int
 update uri = command "update" (maybe [] pure uri) $ \fields ->
   required "updating_db" readInt (fieldMap fields)
 
@@ -413,7 +412,7 @@ disableOutput i = command "disableoutput" [toArgument i] noReply
 -- 'AckPermission'.
 --
 -- @since 0.1.0.0
-password :: Text -> Command ()
+password :: T.Text -> Command ()
 password p = command "password" [p] noReply
 
 -- | @since 0.1.0.0
@@ -423,7 +422,7 @@ ping = command "ping" [] noReply
 ----------------------------------------
 -- Helpers
 
-noReply :: [Field] -> Either Text ()
+noReply :: [Field] -> Either T.Text ()
 noReply = \case
   [] -> Right ()
   f : _ -> Left $ "unexpected key: " <> decode f.key

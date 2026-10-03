@@ -34,14 +34,12 @@ module MPD.Protocol.Response
   ) where
 
 import Control.Applicative hiding (optional)
-import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BS8
 import Data.Fixed
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Proxy
-import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Time
@@ -58,15 +56,15 @@ import MPD.Types
 --
 -- @since 0.1.0.0
 data Field = Field
-  { key :: ByteString
-  , value :: ByteString
+  { key :: BS.ByteString
+  , value :: BS.ByteString
   }
   deriving stock (Eq, Show)
 
 -- | Whether a line (without its newline) ends a reply.
 --
 -- @since 0.1.0.0
-isFinalLine :: ByteString -> Bool
+isFinalLine :: BS.ByteString -> Bool
 isFinalLine l = l == "OK" || "ACK " `BS.isPrefixOf` l
 
 -- | Parse the lines of one reply, without their newlines. The last line must
@@ -77,10 +75,10 @@ isFinalLine l = l == "OK" || "ACK " `BS.isPrefixOf` l
 -- list of @n@ commands has @n + 1@ parts, the last one empty.
 --
 -- @since 0.1.0.0
-parseReply :: [ByteString] -> Either MpdError [[Field]]
+parseReply :: [BS.ByteString] -> Either MpdError [[Field]]
 parseReply = go [] []
   where
-    go :: [[Field]] -> [Field] -> [ByteString] -> Either MpdError [[Field]]
+    go :: [[Field]] -> [Field] -> [BS.ByteString] -> Either MpdError [[Field]]
     go parts fields = \case
       [] -> Left $ ProtocolError "the reply ended without OK or ACK"
       l : ls
@@ -99,7 +97,7 @@ parseReply = go [] []
 -- | Parse an @ACK [code\@index] {command} message@ line.
 --
 -- @since 0.1.0.0
-parseAck :: ByteString -> Maybe Ack
+parseAck :: BS.ByteString -> Maybe Ack
 parseAck l0 = do
   l1 <- BS.stripPrefix "ACK [" l0
   (code, l2) <- BS8.readInt l1
@@ -138,7 +136,7 @@ parseAck l0 = do
 -- | The values of each key, in the order of the reply.
 --
 -- @since 0.1.0.0
-type FieldMap = M.Map ByteString [ByteString]
+type FieldMap = M.Map BS.ByteString [BS.ByteString]
 
 -- | @since 0.1.0.0
 fieldMap :: [Field] -> FieldMap
@@ -147,7 +145,7 @@ fieldMap fields = M.fromListWith (flip (++)) [(f.key, [f.value]) | f <- fields]
 -- | The first value of a key that must be present.
 --
 -- @since 0.1.0.0
-required :: ByteString -> (ByteString -> Maybe a) -> FieldMap -> Either Text a
+required :: BS.ByteString -> (BS.ByteString -> Maybe a) -> FieldMap -> Either T.Text a
 required k parse m = case M.lookup k m of
   Just (v : _) -> parseValue k parse v
   _ -> Left $ "missing key: " <> decode k
@@ -155,12 +153,14 @@ required k parse m = case M.lookup k m of
 -- | The first value of a key that may be absent.
 --
 -- @since 0.1.0.0
-optional :: ByteString -> (ByteString -> Maybe a) -> FieldMap -> Either Text (Maybe a)
+optional
+  :: BS.ByteString -> (BS.ByteString -> Maybe a) -> FieldMap -> Either T.Text (Maybe a)
 optional k parse m = case M.lookup k m of
   Just (v : _) -> Just <$> parseValue k parse v
   _ -> Right Nothing
 
-parseValue :: ByteString -> (ByteString -> Maybe a) -> ByteString -> Either Text a
+parseValue
+  :: BS.ByteString -> (BS.ByteString -> Maybe a) -> BS.ByteString -> Either T.Text a
 parseValue k parse v = case parse v of
   Just a -> Right a
   Nothing -> Left $ "bad value of " <> decode k <> ": " <> decode v
@@ -169,7 +169,7 @@ parseValue k parse v = case parse v of
 -- accepts, e.g. @file@ for songs.
 --
 -- @since 0.1.0.0
-splitOn :: (ByteString -> Bool) -> [Field] -> Either Text [[Field]]
+splitOn :: (BS.ByteString -> Bool) -> [Field] -> Either T.Text [[Field]]
 splitOn isStart = \case
   [] -> Right []
   f : fs
@@ -182,20 +182,20 @@ splitOn isStart = \case
 -- doesn't make the whole reply fail.
 --
 -- @since 0.1.0.0
-decode :: ByteString -> Text
+decode :: BS.ByteString -> T.Text
 decode = T.decodeUtf8Lenient
 
 ----------------------------------------
 -- Values
 
 -- | @since 0.1.0.0
-readInt :: ByteString -> Maybe Int
+readInt :: BS.ByteString -> Maybe Int
 readInt s = case BS8.readInt s of
   Just (n, rest) | BS.null rest -> Just n
   _ -> Nothing
 
 -- | @since 0.1.0.0
-readBool :: ByteString -> Maybe Bool
+readBool :: BS.ByteString -> Maybe Bool
 readBool = \case
   "0" -> Just False
   "1" -> Just True
@@ -205,7 +205,7 @@ readBool = \case
 -- are dropped.
 --
 -- @since 0.1.0.0
-readSeconds :: ByteString -> Maybe Seconds
+readSeconds :: BS.ByteString -> Maybe Seconds
 readSeconds s = case BS8.break (== '.') s of
   (whole, frac) -> do
     w <- readDigits whole
@@ -222,7 +222,7 @@ readSeconds s = case BS8.break (== '.') s of
     precision :: Int
     precision = length . takeWhile (> 1) $ iterate (`div` 10) scale
 
-    readDigits :: ByteString -> Maybe Integer
+    readDigits :: BS.ByteString -> Maybe Integer
     readDigits d
       | not (BS.null d) && BS8.all (\c -> c >= '0' && c <= '9') d = fst <$> BS8.readInteger d
       | otherwise = Nothing
@@ -230,7 +230,7 @@ readSeconds s = case BS8.break (== '.') s of
 -- | An ISO 8601 time, e.g. @2024-01-02T03:04:05Z@.
 --
 -- @since 0.1.0.0
-readTime :: ByteString -> Maybe UTCTime
+readTime :: BS.ByteString -> Maybe UTCTime
 readTime = iso8601ParseM . T.unpack . decode
 
 ----------------------------------------
@@ -239,7 +239,7 @@ readTime = iso8601ParseM . T.unpack . decode
 -- | Parse one song. The first field must be @file@.
 --
 -- @since 0.1.0.0
-parseSong :: [Field] -> Either Text Song
+parseSong :: [Field] -> Either T.Text Song
 parseSong = \case
   Field "file" file : rest -> do
     let m = fieldMap rest
@@ -263,10 +263,10 @@ parseSong = \case
         }
   _ -> Left "a song doesn't start with the file key"
   where
-    tagsByKey :: M.Map ByteString Tag
+    tagsByKey :: M.Map BS.ByteString Tag
     tagsByKey = M.fromList [(T.encodeUtf8 (tagName t), t) | t <- [minBound .. maxBound]]
 
-    lookupFirst :: ByteString -> FieldMap -> Maybe ByteString
+    lookupFirst :: BS.ByteString -> FieldMap -> Maybe BS.ByteString
     lookupFirst k m = case M.lookup k m of
       Just (v : _) -> Just v
       _ -> Nothing
@@ -274,11 +274,11 @@ parseSong = \case
 -- | Parse a list of songs, e.g. the reply to @playlistinfo@.
 --
 -- @since 0.1.0.0
-parseSongs :: [Field] -> Either Text [Song]
+parseSongs :: [Field] -> Either T.Text [Song]
 parseSongs fields = traverse parseSong =<< splitOn (== "file") fields
 
 -- | @since 0.1.0.0
-parseStatus :: [Field] -> Either Text Status
+parseStatus :: [Field] -> Either T.Text Status
 parseStatus fields = do
   let m = fieldMap fields
   volume <- optional "volume" readInt m
@@ -326,14 +326,14 @@ parseStatus fields = do
       , error = decode <$> err
       }
   where
-    readState :: ByteString -> Maybe PlayerState
+    readState :: BS.ByteString -> Maybe PlayerState
     readState = \case
       "play" -> Just Playing
       "pause" -> Just Paused
       "stop" -> Just Stopped
       _ -> Nothing
 
-    readVersion :: ByteString -> Maybe PlaylistVersion
+    readVersion :: BS.ByteString -> Maybe PlaylistVersion
     readVersion s = case BS8.readInteger s of
       Just (n, rest)
         | BS.null rest && n >= 0 && n <= toInteger (maxBound @Word32) ->
@@ -341,7 +341,7 @@ parseStatus fields = do
       _ -> Nothing
 
 -- | @since 0.1.0.0
-parseStats :: [Field] -> Either Text Stats
+parseStats :: [Field] -> Either T.Text Stats
 parseStats fields = do
   let m = fieldMap fields
   artists <- required "artists" readInt m
@@ -363,10 +363,10 @@ parseStats fields = do
       }
 
 -- | @since 0.1.0.0
-parseOutputs :: [Field] -> Either Text [Output]
+parseOutputs :: [Field] -> Either T.Text [Output]
 parseOutputs fields = traverse parseOutput =<< splitOn (== "outputid") fields
   where
-    parseOutput :: [Field] -> Either Text Output
+    parseOutput :: [Field] -> Either T.Text Output
     parseOutput entry = do
       let m = fieldMap entry
       outputId <- required "outputid" readInt m
@@ -390,13 +390,13 @@ parseOutputs fields = traverse parseOutput =<< splitOn (== "outputid") fields
 -- | Parse the reply to @idle@.
 --
 -- @since 0.1.0.0
-parseSubsystems :: [Field] -> Either Text [Subsystem]
+parseSubsystems :: [Field] -> Either T.Text [Subsystem]
 parseSubsystems = traverse $ \case
   Field "changed" v -> Right . subsystemFromName $ decode v
   f -> Left $ "unexpected key: " <> decode f.key
 
 -- | @since 0.1.0.0
-parseSingleMode :: ByteString -> Maybe SingleMode
+parseSingleMode :: BS.ByteString -> Maybe SingleMode
 parseSingleMode = \case
   "0" -> Just SingleOff
   "1" -> Just SingleOn
@@ -404,7 +404,7 @@ parseSingleMode = \case
   _ -> Nothing
 
 -- | @since 0.1.0.0
-parseConsumeMode :: ByteString -> Maybe ConsumeMode
+parseConsumeMode :: BS.ByteString -> Maybe ConsumeMode
 parseConsumeMode = \case
   "0" -> Just ConsumeOff
   "1" -> Just ConsumeOn
@@ -412,7 +412,7 @@ parseConsumeMode = \case
   _ -> Nothing
 
 -- | @since 0.1.0.0
-parseReplayGainMode :: ByteString -> Maybe ReplayGainMode
+parseReplayGainMode :: BS.ByteString -> Maybe ReplayGainMode
 parseReplayGainMode = \case
   "off" -> Just ReplayGainOff
   "track" -> Just ReplayGainTrack

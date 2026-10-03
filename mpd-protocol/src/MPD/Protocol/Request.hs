@@ -12,7 +12,6 @@ module MPD.Protocol.Request
 
 import Data.ByteString.Builder qualified as B
 import Data.Fixed
-import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 
@@ -22,8 +21,8 @@ import MPD.Types
 --
 -- @since 0.1.0.0
 data Request = Request
-  { command :: Text
-  , arguments :: [Text]
+  { command :: T.Text
+  , arguments :: [T.Text]
   }
   deriving stock (Eq, Show)
 
@@ -49,10 +48,10 @@ renderRequests = \case
 -- backslashes before double quotes and backslashes.
 --
 -- @since 0.1.0.0
-quote :: Text -> B.Builder
+quote :: T.Text -> B.Builder
 quote t = B.char7 '"' <> T.encodeUtf8Builder (T.concatMap escape t) <> B.char7 '"'
   where
-    escape :: Char -> Text
+    escape :: Char -> T.Text
     escape c
       | c == '"' || c == '\\' = T.pack ['\\', c]
       | otherwise = T.singleton c
@@ -61,10 +60,10 @@ quote t = B.char7 '"' <> T.encodeUtf8Builder (T.concatMap escape t) <> B.char7 '
 --
 -- @since 0.1.0.0
 class Argument a where
-  toArgument :: a -> Text
+  toArgument :: a -> T.Text
 
 -- | @since 0.1.0.0
-instance Argument Text where
+instance Argument T.Text where
   toArgument = id
 
 -- | @since 0.1.0.0

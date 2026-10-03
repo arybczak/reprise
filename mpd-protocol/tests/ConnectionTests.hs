@@ -4,7 +4,6 @@ import Control.Concurrent
 import Control.Exception
 import Data.Foldable
 import Data.Map.Strict qualified as M
-import Data.Text (Text)
 import Data.Text qualified as T
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -330,7 +329,7 @@ testTimeout = 10
 addAll :: Command ()
 addAll = addFiles [T.pack s.path | s <- songs]
 
-addFiles :: [Text] -> Command ()
+addFiles :: [T.Text] -> Command ()
 addFiles = traverse_ (`add` Nothing)
 
 withConn :: TestServer -> (Connection -> IO a) -> IO a
@@ -343,7 +342,7 @@ ok action =
     Right a -> pure a
     Left err -> assertFailure $ "MPD error: " <> show err
 
-assertQueue :: Connection -> String -> [Text] -> Assertion
+assertQueue :: Connection -> String -> [T.Text] -> Assertion
 assertQueue conn msg files = do
   queue <- ok $ run conn playlistInfo
   assertEqual msg files (map (.file) queue)

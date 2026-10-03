@@ -19,10 +19,8 @@ module MPD.TestServer
 import Control.Concurrent
 import Control.Exception
 import Control.Monad
-import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BS8
-import Data.Text (Text)
 import Data.Text qualified as T
 import Network.Socket qualified as N
 import Network.Socket.ByteString qualified as N
@@ -40,7 +38,7 @@ import System.Process
 data TestSong = TestSong
   { path :: FilePath
   -- ^ Relative to the music directory.
-  , tags :: [(Text, Text)]
+  , tags :: [(T.Text, T.Text)]
   -- ^ Vorbis comments, e.g. @("ARTIST", "x")@. A name may repeat.
   , seconds :: Int
   }
@@ -141,13 +139,13 @@ resetTestServer server =
 
 -- | Send one command line on a new connection, and return the lines of the
 -- reply before @OK@. An @ACK@ throws an exception.
-rawCommand :: TestServer -> ByteString -> IO [ByteString]
+rawCommand :: TestServer -> BS.ByteString -> IO [BS.ByteString]
 rawCommand server line = withRawConnection server $ \conn -> rawExchange conn line
 
 ----------------------------------------
 -- Helpers
 
-data RawConnection = RawConnection N.Socket (MVar ByteString)
+data RawConnection = RawConnection N.Socket (MVar BS.ByteString)
 
 withRawConnection :: TestServer -> (RawConnection -> IO a) -> IO a
 withRawConnection server action =
@@ -160,7 +158,7 @@ withRawConnection server action =
       $ "test server: unexpected greeting " <> show greeting
     action conn
 
-rawExchange :: RawConnection -> ByteString -> IO [ByteString]
+rawExchange :: RawConnection -> BS.ByteString -> IO [BS.ByteString]
 rawExchange conn@(RawConnection sock _) line = do
   N.sendAll sock (line <> "\n")
   let loop acc = do
@@ -171,10 +169,10 @@ rawExchange conn@(RawConnection sock _) line = do
           | otherwise -> loop (l : acc)
   loop []
 
-readLine :: RawConnection -> IO ByteString
+readLine :: RawConnection -> IO BS.ByteString
 readLine (RawConnection sock buffer) = modifyMVar buffer go
   where
-    go :: ByteString -> IO (ByteString, ByteString)
+    go :: BS.ByteString -> IO (BS.ByteString, BS.ByteString)
     go buf = case BS8.elemIndex '\n' buf of
       Just i -> pure (BS.drop (i + 1) buf, BS.take i buf)
       Nothing -> do
