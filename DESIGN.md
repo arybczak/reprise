@@ -265,7 +265,12 @@ Dropped config options are listed in [Configuration](#dropped-options).
 
 ### Packages and modules
 
-There are two packages in one cabal project.
+There are two packages in one cabal project, plus `mpd-test-server`, which
+is not released. It starts a real `mpd` for the test suites of both packages
+(see [Testing](#testing)). It talks to MPD with a few raw protocol lines
+rather than through `mpd-protocol`, for two reasons: cabal's solver rejects a
+package whose test suite depends on a package that depends on it, and a
+harness that shares the library's code would share its bugs.
 
 The module tables below are a starting layout, not a fixed one. Module
 boundaries, names and types are expected to change while the code is written.
@@ -1260,7 +1265,7 @@ has the same author.
 
 ```
 reprise/                          repository root
-├── cabal.project                 packages: mpd-protocol/*.cabal, reprise/*.cabal
+├── cabal.project                 the three packages, the yamlet pin
 ├── fourmolu.yaml                 copied from effectful
 ├── .gitignore                    copied from effectful
 ├── .github/
@@ -1273,6 +1278,9 @@ reprise/                          repository root
 │   ├── CHANGELOG.md, LICENSE, README.md
 │   ├── src/MPD/...
 │   └── tests/Main.hs, ...Tests.hs
+├── mpd-test-server/
+│   ├── mpd-test-server.cabal
+│   └── src/MPD/TestServer.hs
 └── reprise/
     ├── reprise.cabal
     ├── CHANGELOG.md, LICENSE, README.md
