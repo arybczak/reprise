@@ -17,6 +17,9 @@ extra-doc-files:
   CHANGELOG.md
   README.md
 
+extra-source-files:
+  tests/golden/*.txt
+
 tested-with: GHC ^>= { 9.6, 9.8, 9.10, 9.12, 9.14 }
 
 bug-reports: https://github.com/arybczak/reprise/issues
@@ -51,12 +54,48 @@ common language
 library
     import:         language
 
-    build-depends:    base                >= 4.18      && < 5
-                    , mpd-protocol        >= 0.1.0.0
+    build-depends:    base                 >= 4.18      && < 5
+                    , brick                >= 2.4
+                    , bytestring           >= 0.11.4
+                    , containers           >= 0.6.7
+                    , directory            >= 1.3.8
+                    , effectful-core       >= 2.5
+                    , filepath             >= 1.4.100
+                    , mpd-protocol         >= 0.1.0.0
+                    , network              >= 3.1.2
+                    , optics-core          >= 0.4.1
+                    , optparse-applicative >= 0.18
+                    , stm                  >= 2.5.1
+                    , text                 >= 2.0.2
+                    , time                 >= 1.12
+                    , vty                  >= 6.2
+                    , vty-unix             >= 0.2
+                    , yamlet               >= 1.0
 
     hs-source-dirs:  src
 
-    exposed-modules: Reprise.Main
+    exposed-modules: Reprise.Action
+                     Reprise.App
+                     Reprise.Config
+                     Reprise.Effect.Mpd
+                     Reprise.Effect.MpdRequest
+                     Reprise.Effect.UiRequest
+                     Reprise.Event
+                     Reprise.Format
+                     Reprise.Handler
+                     Reprise.Keymap
+                     Reprise.Keys
+                     Reprise.Main
+                     Reprise.Mpd.Address
+                     Reprise.Mpd.Mirror
+                     Reprise.Mpd.Worker
+                     Reprise.State
+                     Reprise.Style
+                     Reprise.UI.Layout
+                     Reprise.UI.SongList
+
+    other-modules:   Paths_reprise
+    autogen-modules: Paths_reprise
 
 executable reprise
     import:         language
@@ -75,10 +114,34 @@ test-suite test
     ghc-options:    -threaded
 
     build-depends:    base
+                    , bytestring
+                    , containers
+                    , filepath
+                    , mpd-protocol
+                    , mpd-test-server
+                    , optics-core
+                    , QuickCheck
                     , reprise
                     , tasty
+                    , tasty-golden
+                    , tasty-hunit
+                    , tasty-quickcheck
+                    , text
+                    , vty
 
     hs-source-dirs: tests
 
     type:           exitcode-stdio-1.0
     main-is:        Main.hs
+
+    other-modules:  ActionTests
+                    AddressTests
+                    ConfigTests
+                    FormatTests
+                    HandlerTests
+                    KeymapTests
+                    KeysTests
+                    LayoutTests
+                    MirrorTests
+                    StyleTests
+                    Utils

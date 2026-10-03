@@ -1,0 +1,50 @@
+-- | Requests of MPD commands. An action never waits for a reply: a request
+-- carries a continuation that turns the reply into an event.
+module Reprise.Effect.MpdRequest
+  ( -- * Effect
+    MpdRequest (..)
+  , PendingRequest (..)
+  , pendingRequestLines
+
+    -- ** Handlers
+  , collectMpdRequests
+
+    -- ** Operations
+  , request
+  , mutate
+  ) where
+
+import Effectful
+import Effectful.Dispatch.Dynamic
+import Effectful.State.Static.Local
+import MPD.Command
+import MPD.Protocol.Request
+import MPD.Types
+
+import Reprise.Event
+
+data MpdRequest :: Effect where
+  RequestCommand :: Command a -> (Either MpdError a -> AppEvent) -> MpdRequest m ()
+
+type instance DispatchOf MpdRequest = Dynamic
+
+-- | A command with its continuation.
+data PendingRequest = forall a. PendingRequest (Command a) (Either MpdError a -> AppEvent)
+
+-- | The request lines of a pending request, e.g. for a test.
+pendingRequestLines :: PendingRequest -> [Request]
+pendingRequestLines (PendingRequest cmd _) = commandRequests cmd
+
+-- | Collect the requests, in the order the action made them.
+collectMpdRequests :: Eff (MpdRequest : es) a -> Eff es (a, [PendingRequest])
+collectMpdRequests = reinterpret (fmap (fmap reverse) . runState []) $ \_ -> \case
+  RequestCommand cmd k -> modify (PendingRequest cmd k :)
+
+-- | Request a command, with a continuation for its reply.
+request :: MpdRequest :> es => Command a -> (Either MpdError a -> AppEvent) -> Eff es ()
+request cmd k = send $ RequestCommand cmd k
+
+-- | Request a command that changes MPD's state. Its effect comes back
+-- through idle, so only an error is reported.
+mutate :: MpdRequest :> es => Command () -> Eff es ()
+mutate cmd = request cmd MpdDone

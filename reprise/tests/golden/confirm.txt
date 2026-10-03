@@ -1,0 +1,12 @@
+Queue (6 songs, 1h 10m)                                              Volume: 50%
+────────────────────────────────────────────────────────────────────────────────
+Some Artist    1      First Song                           Great Album      1:01
+Some Artist    2      Second Song                          Great Album      3:05
+Some Artist    3      A third song with a title that does… Great Album      4:00
+Zespół | Gość  1/12   Zażółć gęślą jaźń                    Płyta           1:02…
+日本のバンド          曲                                   <empty>          0:30
+<empty>               5.flac                               <empty>          0:05
+
+
+▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+Clear 6 songs from the queue? [y/n]

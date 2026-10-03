@@ -2,3 +2,9 @@ packages:
   mpd-protocol/*.cabal
   mpd-test-server/*.cabal
   reprise/*.cabal
+
+-- yamlet is not on Hackage yet.
+source-repository-package
+  type: git
+  location: https://github.com/arybczak/yamlet.git
+  tag: 7065c7a71a2f178a6f3028d6be9abf95c81b7845
