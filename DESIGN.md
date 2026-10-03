@@ -306,20 +306,23 @@ dependencies.
 |---|---|
 | `Main` (`app/Main.hs`) | Only calls `Reprise.Main.main`, so the tests can import everything else from the library |
 | `Reprise.Main` | CLI options (optparse-applicative), loading the config, starting the workers and brick |
-| `Reprise.Effect.*` | The app's own effects (`MpdRequest`, `UiRequest`, ...), one module each |
-| `Reprise.Config` | Config types, yamlet decoders, defaults |
+| `Reprise.App` | The brick application: a thin adapter between brick's events and the handlers |
+| `Reprise.Effect.*` | The app's own effects (`MpdRequest`, `UiRequest`, `Mpd`), one module each |
+| `Reprise.Config` | Config types, yamlet decoders, defaults, the default keymaps |
 | `Reprise.Format` | The format language: parser and renderer to styled spans. Pure, with golden tests |
 | `Reprise.Style` | Parsing styles into vty `Attr` |
 | `Reprise.Keys` | Key spec parsing (`ctrl-x`, `alt-shift-tab`, ...) |
 | `Reprise.Keymap` | Keymaps, key sequences and lookup |
-| `Reprise.Action` | The action registry: name, argument parser, description, handler, and whether the action is destructive |
+| `Reprise.Action` | The action registry: actions as data, with their names, argument parsers, descriptions, and whether they are destructive |
+| `Reprise.Handler` | The handlers of events and actions |
 | `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
-| `Reprise.Event` | The brick custom event type |
+| `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
+| `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Filter` | Find and filter: ICU regular expressions, diacritics folding, "ignore leading the" collation |
-| `Reprise.UI.SongList` | Custom list widget: a `Seq` of items with selection, filter and find, rendered classic or in columns for a given view |
-| `Reprise.UI.Layout` | Header, status bar, progress bar, the main view, popups |
+| `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns |
+| `Reprise.UI.Layout` | Header, status bar, progress bar, the main view, the which-key panel, popups |
 | `Reprise.UI.Prompt` | Prompt modes on top of `Brick.Widgets.Edit` |
 | `Reprise.Screen.*` | `Queue`, `Browser`, `SearchEngine`, `Outputs`, `Help`. Later: `MediaLibrary`, `PlaylistEditor`, `Lyrics`, `SongInfo`, `ServerInfo`, ... |
 
@@ -355,6 +358,12 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
   for it. A reply to a query that a newer one has replaced, e.g. the listing
   of a directory the user has already left, is dropped.
 
+MPD closes a connection that was unused for longer than its
+`connection_timeout`, 60 seconds by default, and the command connection is
+often unused that long. MPD closes it before it reads the next command, so a
+command that finds the connection closed before any reply runs once more on a
+new connection.
+
 A key runs exactly one action, so there are no chains to keep in order. When
 one operation needs a reply before its next step, it is a single action that
 continues inside its continuation. An example is "add and play", which runs
@@ -376,20 +385,40 @@ used in two places:
    `(State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()`.
    - `MpdRequest` queues commands with continuations.
    - `UiRequest` covers what only brick can do: halting, suspending for an
-     external program, the terminal title.
+     external program, the terminal title, and timers that send an event
+     later. The timers end a seek, expire messages, and redraw the elapsed
+     time.
    - Prompts and confirmations are state, not requests. An action can't stop
      halfway and wait for the user, because brick is the outer loop. So it
      opens a prompt with a continuation, e.g. `confirm msg onYes`, and the
      pending prompt lives in `AppState`. When the user answers, the
-     continuation runs as a new action.
-   - The brick handler is a thin adapter. It reads the state, runs the action
+     continuation runs.
+   - **Every continuation is an `AppEvent`**: of an MPD reply, of a timer and
+     of a prompt. The state holds them, so they must be data: a function in
+     `AppState` would need the effects, whose operations carry the
+     continuations, and the modules would form a cycle. As data, they also
+     have `Eq` and `Show` for the tests.
+   - The brick handler is a thin adapter. It reads the state, runs the event
      with handlers that collect the requests, writes the new state back, and
      then performs the collected requests.
-   - Tests run the same actions with pure handlers, without MPD or a terminal.
+   - Tests run the same events with pure handlers, without MPD or a terminal.
      This is the main payoff.
-2. **Worker threads are ordinary `Eff` programs** with IO-backed effects (MPD
-   connection, concurrency, HTTP, process, logging). The whole program runs
-   inside `runEff`.
+2. **Worker threads are ordinary `Eff` programs** with IO-backed effects (the
+   MPD connection, and later HTTP, processes and logging). Each thread runs
+   its own `runEff`.
+
+Actions are data, in `Reprise.Action`, and their handlers are in
+`Reprise.Handler`. The config holds actions in its keymaps, and the handlers
+need `AppState`, which holds the config, so an action with its handler inside
+would make the modules a cycle too.
+
+The screen is drawn as one vty image from the state, with brick as the event
+loop around it. The image is a pure function of the state, so the snapshot
+tests render it to text.
+
+The elapsed time is redrawn by a timer, not by polling. After each event, the
+handler computes when the screen next changes, the next whole second or the
+next cell of the progress bar, and sets a timer for then.
 
 The worker threads use `mpd-protocol` through a small `Mpd` effect. Actions
 never use it directly; they go through `MpdRequest`.
@@ -1239,7 +1268,8 @@ The layers, from cheapest to most expensive:
    - after each `idle` notification, checks that the mirror equals the
      server's `playlistinfo`.
 5. **Screens: a few golden snapshots.** Render a screen at a fixed terminal
-   size to text and compare it with a stored file. Only a handful, for layout
+   size to text, without the styles, and compare it with a stored file. Only
+   a handful, for layout
    regressions (the which-key panel, popups, the column widths). The pure
    pieces underneath already have their own tests.
 
@@ -1412,6 +1442,10 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
    - Keymaps with key sequences and the which-key panel, with bindings for
      playback.
    - From here on, reprise replaces ncmpcpp for the author's daily use.
+   - Moved to milestone 3: album separators, and the actions that need
+     selection or a text prompt (crop, moving the selected songs, priority,
+     `seek_to`, `set_volume`, the password prompt). Until then, the queue
+     moves and deletes the song under the cursor.
 3. **Library navigation.**
    - Browser, including stored playlists.
    - Selection, find, filter, prompts, add and play.
