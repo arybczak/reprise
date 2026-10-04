@@ -14,6 +14,7 @@ module Reprise.Handler
   ) where
 
 import Control.Applicative
+import Control.Exception
 import Control.Monad
 import Data.Char hiding (Space)
 import Data.Foldable
@@ -36,7 +37,6 @@ import Reprise.Format
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.LineEdit
-import Reprise.Mpd.Error
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
@@ -132,7 +132,7 @@ handleEvent = \case
         ReplayGainAlbum -> "album"
         ReplayGainAuto -> "auto"
   MpdDone -> keepScreen
-  MpdFailed _ err -> showError $ describeMpdError err
+  MpdFailed _ err -> showError $ T.pack (displayException err)
   Tick token ->
     getsS (.tick) >>= \case
       Just (t, _) | t == token -> modifyS $ #tick .~ Nothing

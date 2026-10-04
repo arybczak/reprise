@@ -9,7 +9,6 @@ module Reprise.Mpd.Protocol.Internal.Connection
   , Settings (..)
   , connect
   , close
-  , minimumVersion
 
     -- * Round trips
   , exchange
@@ -120,11 +119,6 @@ connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
       case map BS8.readInt (BS8.split '.' v) of
         [Just (major, ""), Just (minor, ""), Just (patch, "")] -> Just $ Version major minor patch
         _ -> Nothing
-
--- | The oldest version of MPD that the library supports. It needs the
--- relative positions of 0.23.
-minimumVersion :: Version
-minimumVersion = Version 0 23 0
 
 close :: Connection -> IO ()
 close conn = N.close conn.socket

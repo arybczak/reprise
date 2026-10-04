@@ -20,4 +20,5 @@ A client library for the protocol of the
   ```
 
 - `idle` and `noidle` are in `Reprise.Mpd.Protocol.Idle`.
-- The API is plain `IO`. The operations throw `MpdError` when they fail.
+- The API is plain `IO`. The operations throw `MpdError` when they fail, and
+  its `displayException` describes the failure for people.

@@ -32,6 +32,7 @@ module Reprise.Mpd.Protocol.Types
 
     -- * Server version
   , Version (..)
+  , minimumVersion
 
     -- * Errors
   , MpdError (..)
@@ -342,6 +343,11 @@ data Version = Version Int Int Int
   deriving stock (Eq, Ord, Show, Generic)
   deriving anyclass (NFData)
 
+-- | The oldest version of MPD that the library supports. It needs the
+-- relative positions of 0.23.
+minimumVersion :: Version
+minimumVersion = Version 0 23 0
+
 ----------------------------------------
 -- Errors
 
@@ -356,7 +362,27 @@ data MpdError
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
 
-instance Exception MpdError
+-- | 'displayException' describes the error for people, e.g. in a status
+-- bar or a log.
+instance Exception MpdError where
+  displayException =
+    T.unpack . \case
+      AckError ack -> ack.command <> ": " <> ack.message
+      ProtocolError err -> "Protocol error: " <> err
+      ConnectionError err -> case err of
+        ConnectFailed reason -> "Can't connect to MPD: " <> reason
+        UnsupportedVersion v ->
+          "MPD "
+            <> showVersion v
+            <> " is too old, "
+            <> showVersion minimumVersion
+            <> " or newer is needed"
+        Closed -> "MPD closed the connection"
+        Broken reason -> "The connection to MPD broke: " <> reason
+        TimedOut -> "MPD didn't reply in time"
+    where
+      showVersion :: Version -> T.Text
+      showVersion (Version a b c) = T.intercalate "." (map (T.pack . show) [a, b, c])
 
 -- | An @ACK@ reply.
 data Ack = Ack

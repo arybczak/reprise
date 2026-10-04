@@ -1,5 +1,6 @@
 module ResponseTests (responseTests) where
 
+import Control.Exception
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BS8
 import Data.ByteString.Lazy qualified as BL
@@ -34,6 +35,7 @@ responseTests =
         , goldenIdle
         ]
     , testCase "parseAck" test_parseAck
+    , testCase "errors for people" test_displayError
     , testCase "readSeconds" test_readSeconds
     , testCase "readTime" test_readTime
     , testCase "malformed replies" test_malformedReplies
@@ -66,6 +68,18 @@ test_parseAck = do
     (Just $ Ack (AckOther 99) 0 "a" "b")
     (parseAck "ACK [99@0] {a} b")
   assertEqual "malformed" Nothing (parseAck "ACK 50 play")
+
+-- | Errors read as sentences, not as Haskell values.
+test_displayError :: Assertion
+test_displayError = do
+  assertEqual
+    "ACK"
+    "play: Bad song index"
+    (displayException . AckError $ Ack AckArg 0 "play" "Bad song index")
+  assertEqual
+    "too old"
+    "MPD 0.22.0 is too old, 0.23.0 or newer is needed"
+    (displayException . ConnectionError $ UnsupportedVersion (Version 0 22 0))
 
 test_readSeconds :: Assertion
 test_readSeconds = do

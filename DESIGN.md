@@ -342,7 +342,8 @@ modules are under `Reprise.Mpd.Protocol`.
   `MpdError`, also for an I/O error of the socket, so a caller catches one
   type. An operation normally succeeds: a failure is a lost connection, a
   timeout, a protocol violation, or an `ACK`, which a correct client rarely
-  causes. A caller that expects an `ACK` catches it.
+  causes. A caller that expects an `ACK` catches it. `displayException`
+  describes an `MpdError` for people, which reprise shows and logs.
 - **The pure parsers return `Either`,** e.g. `parseReply` and
   `parseCommandReply`.
 
@@ -365,7 +366,6 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
-| `Reprise.Mpd.Error` | What reprise shows and logs when a call to MPD fails |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded. Later "ignore leading the" collation |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |

@@ -18,7 +18,6 @@ import Effectful.Exception
 import Reprise.Effect.Mpd
 import Reprise.Effect.MpdRequest
 import Reprise.Event
-import Reprise.Mpd.Error
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Types
 
@@ -47,7 +46,7 @@ idleWorker w = forever $ do
   where
     disconnected :: IOE :> es => MpdError -> Eff es ()
     disconnected err = do
-      liftIO . w.emit . MpdDisconnected $ describeMpdError err
+      liftIO . w.emit . MpdDisconnected $ T.pack (displayException err)
       liftIO $ threadDelay retryInterval
 
 -- | Run the requests one at a time and send the events of their replies.
@@ -75,4 +74,4 @@ commandWorker w = forever $ do
       err -> throwIO err
 
 logError :: IOE :> es => Workers -> MpdError -> Eff es ()
-logError w = liftIO . w.logLine . describeMpdError
+logError w = liftIO . w.logLine . T.pack . displayException
