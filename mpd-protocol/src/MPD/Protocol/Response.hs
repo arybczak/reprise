@@ -54,8 +54,6 @@ import MPD.Types
 -- Replies
 
 -- | A @key: value@ line of a reply.
---
--- @since 0.1.0.0
 data Field = Field
   { key :: BS.ByteString
   , value :: BS.ByteString
@@ -63,8 +61,6 @@ data Field = Field
   deriving stock (Eq, Show)
 
 -- | Whether a line (without its newline) ends a reply.
---
--- @since 0.1.0.0
 isFinalLine :: BS.ByteString -> Bool
 isFinalLine l = l == "OK" || "ACK " `BS.isPrefixOf` l
 
@@ -74,8 +70,6 @@ isFinalLine l = l == "OK" || "ACK " `BS.isPrefixOf` l
 -- The result has the fields of each part of the reply, split at @list_OK@.
 -- The part after the last @list_OK@ is included, so the reply to a command
 -- list of @n@ commands has @n + 1@ parts, the last one empty.
---
--- @since 0.1.0.0
 parseReply :: [BS.ByteString] -> Either MpdError [[Field]]
 parseReply = go [] []
   where
@@ -96,8 +90,6 @@ parseReply = go [] []
               | otherwise -> Left . ProtocolError $ "malformed line: " <> decode l
 
 -- | Parse an @ACK [code\@index] {command} message@ line.
---
--- @since 0.1.0.0
 parseAck :: BS.ByteString -> Maybe Ack
 parseAck l0 = do
   l1 <- BS.stripPrefix "ACK [" l0
@@ -135,25 +127,18 @@ parseAck l0 = do
 -- Fields
 
 -- | The values of each key, in the order of the reply.
---
--- @since 0.1.0.0
 type FieldMap = M.Map BS.ByteString [BS.ByteString]
 
--- | @since 0.1.0.0
 fieldMap :: [Field] -> FieldMap
 fieldMap fields = M.fromListWith (flip (++)) [(f.key, [f.value]) | f <- fields]
 
 -- | The first value of a key that must be present.
---
--- @since 0.1.0.0
 required :: BS.ByteString -> (BS.ByteString -> Maybe a) -> FieldMap -> Either T.Text a
 required k parse m = case M.lookup k m of
   Just (v : _) -> parseValue k parse v
   _ -> Left $ "missing key: " <> decode k
 
 -- | The first value of a key that may be absent.
---
--- @since 0.1.0.0
 optional
   :: BS.ByteString -> (BS.ByteString -> Maybe a) -> FieldMap -> Either T.Text (Maybe a)
 optional k parse m = case M.lookup k m of
@@ -168,8 +153,6 @@ parseValue k parse v = case parse v of
 
 -- | Split fields into entries, each starting at a key that the predicate
 -- accepts, e.g. @file@ for songs.
---
--- @since 0.1.0.0
 splitOn :: (BS.ByteString -> Bool) -> [Field] -> Either T.Text [[Field]]
 splitOn isStart = \case
   [] -> Right []
@@ -181,21 +164,17 @@ splitOn isStart = \case
 
 -- | Decode a value as UTF-8. Invalid bytes become U+FFFD, so a broken tag
 -- doesn't make the whole reply fail.
---
--- @since 0.1.0.0
 decode :: BS.ByteString -> T.Text
 decode = T.decodeUtf8Lenient
 
 ----------------------------------------
 -- Values
 
--- | @since 0.1.0.0
 readInt :: BS.ByteString -> Maybe Int
 readInt s = case BS8.readInt s of
   Just (n, rest) | BS.null rest -> Just n
   _ -> Nothing
 
--- | @since 0.1.0.0
 readBool :: BS.ByteString -> Maybe Bool
 readBool = \case
   "0" -> Just False
@@ -204,8 +183,6 @@ readBool = \case
 
 -- | A non-negative decimal number. Digits past the precision of 'Seconds'
 -- are dropped.
---
--- @since 0.1.0.0
 readSeconds :: BS.ByteString -> Maybe Seconds
 readSeconds s = case BS8.break (== '.') s of
   (whole, frac) -> do
@@ -229,8 +206,6 @@ readSeconds s = case BS8.break (== '.') s of
       | otherwise = Nothing
 
 -- | An ISO 8601 time, e.g. @2024-01-02T03:04:05Z@.
---
--- @since 0.1.0.0
 readTime :: BS.ByteString -> Maybe Time.UTCTime
 readTime = iso8601ParseM . T.unpack . decode
 
@@ -242,8 +217,6 @@ readTime = iso8601ParseM . T.unpack . decode
 -- the slice is in.
 
 -- | Parse one song. The first field must be @file@.
---
--- @since 0.1.0.0
 parseSong :: [Field] -> Either T.Text Song
 parseSong = parseSingle song
 
@@ -281,12 +254,9 @@ song = \case
       _ -> Nothing
 
 -- | Parse a list of songs, e.g. the reply to @playlistinfo@.
---
--- @since 0.1.0.0
 parseSongs :: [Field] -> Either T.Text [Song]
 parseSongs fields = parseAll song =<< splitOn (== "file") fields
 
--- | @since 0.1.0.0
 parseStatus :: [Field] -> Either T.Text Status
 parseStatus = parseSingle $ \fields -> do
   let m = fieldMap fields
@@ -349,7 +319,6 @@ parseStatus = parseSingle $ \fields -> do
             Just . PlaylistVersion $ fromInteger n
       _ -> Nothing
 
--- | @since 0.1.0.0
 parseStats :: [Field] -> Either T.Text Stats
 parseStats = parseSingle $ \fields -> do
   let m = fieldMap fields
@@ -371,7 +340,6 @@ parseStats = parseSingle $ \fields -> do
       , dbUpdate = posixSecondsToUTCTime . fromIntegral <$> dbUpdate
       }
 
--- | @since 0.1.0.0
 parseOutputs :: [Field] -> Either T.Text [Output]
 parseOutputs fields = parseAll parseOutput =<< splitOn (== "outputid") fields
   where
@@ -397,8 +365,6 @@ parseOutputs fields = parseAll parseOutput =<< splitOn (== "outputid") fields
           }
 
 -- | Parse the reply to @idle@.
---
--- @since 0.1.0.0
 parseSubsystems :: [Field] -> Either T.Text [Subsystem]
 parseSubsystems = parseAll $ \case
   Field "changed" v -> Right . subsystemFromName $ decode v
@@ -414,7 +380,6 @@ parseSingle parse input = do
 parseAll :: NFData b => (a -> Either T.Text b) -> [a] -> Either T.Text [b]
 parseAll = parseSingle . traverse
 
--- | @since 0.1.0.0
 parseSingleMode :: BS.ByteString -> Maybe SingleMode
 parseSingleMode = \case
   "0" -> Just SingleOff
@@ -422,7 +387,6 @@ parseSingleMode = \case
   "oneshot" -> Just SingleOneshot
   _ -> Nothing
 
--- | @since 0.1.0.0
 parseConsumeMode :: BS.ByteString -> Maybe ConsumeMode
 parseConsumeMode = \case
   "0" -> Just ConsumeOff
@@ -430,7 +394,6 @@ parseConsumeMode = \case
   "oneshot" -> Just ConsumeOneshot
   _ -> Nothing
 
--- | @since 0.1.0.0
 parseReplayGainMode :: BS.ByteString -> Maybe ReplayGainMode
 parseReplayGainMode = \case
   "off" -> Just ReplayGainOff

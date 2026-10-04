@@ -1426,7 +1426,8 @@ Settings that effectful doesn't have:
 - **Documentation.**
   - Argument docs with `-- ^` on the line under the argument.
   - `@since` annotations in `mpd-protocol`, which is a library others can
-    use. reprise is an application and doesn't need them.
+    use, for what is added after its first release. Everything in the first
+    release has none. reprise is an application and doesn't need them.
 - **Internal modules.** In `mpd-protocol`, modules that are exposed only for
   the tests live under `MPD.Internal.*` and carry
   `{-# OPTIONS_HADDOCK not-home #-}`.

@@ -53,8 +53,6 @@ import GHC.Generics
 -- Songs
 
 -- | A song as MPD describes it, e.g. in the queue or the database.
---
--- @since 0.1.0.0
 data Song = Song
   { file :: T.Text
   -- ^ The URI of the song, relative to the music directory for local files.
@@ -75,21 +73,15 @@ data Song = Song
   deriving anyclass (NFData)
 
 -- | The id of a song in the queue. It doesn't change when the song moves.
---
--- @since 0.1.0.0
 newtype SongId = SongId Int
   deriving newtype (Eq, Ord, Show, NFData)
 
 -- | The position of a song in the queue, from 0.
---
--- @since 0.1.0.0
 newtype SongPos = SongPos Int
   deriving newtype (Eq, Ord, Show, Enum, Num, Real, Integral, NFData)
 
 -- | A duration or a point in time within a song. MPD sends them with a
 -- precision of milliseconds.
---
--- @since 0.1.0.0
 newtype Seconds = Seconds Milli
   deriving newtype (Eq, Ord, Show, Num, Real, Fractional, RealFrac, NFData)
 
@@ -98,8 +90,6 @@ newtype Seconds = Seconds Milli
 
 -- | The tags MPD knows. MPD doesn't send a tag that its configuration
 -- disables.
---
--- @since 0.1.0.0
 data Tag
   = Artist
   | ArtistSort
@@ -140,8 +130,6 @@ data Tag
   deriving anyclass (NFData)
 
 -- | The name of a tag in the protocol.
---
--- @since 0.1.0.0
 tagName :: Tag -> T.Text
 tagName = \case
   Artist -> "Artist"
@@ -182,8 +170,6 @@ tagName = \case
 
 -- | The tag with the given name. MPD compares tag names without regard to
 -- case, and so does this function.
---
--- @since 0.1.0.0
 tagFromName :: T.Text -> Maybe Tag
 tagFromName name = M.lookup (T.toCaseFold name) tagsByName
   where
@@ -194,8 +180,6 @@ tagFromName name = M.lookup (T.toCaseFold name) tagsByName
 -- Status
 
 -- | The reply to @status@.
---
--- @since 0.1.0.0
 data Status = Status
   { volume :: Maybe Int
   -- ^ 'Nothing' if MPD has no mixer.
@@ -225,31 +209,24 @@ data Status = Status
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
 
--- | @since 0.1.0.0
 data PlayerState = Playing | Paused | Stopped
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving anyclass (NFData)
 
--- | @since 0.1.0.0
 data SingleMode = SingleOff | SingleOn | SingleOneshot
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving anyclass (NFData)
 
 -- | 'ConsumeOneshot' needs MPD 0.24.
---
--- @since 0.1.0.0
 data ConsumeMode = ConsumeOff | ConsumeOn | ConsumeOneshot
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving anyclass (NFData)
 
--- | @since 0.1.0.0
 data ReplayGainMode = ReplayGainOff | ReplayGainTrack | ReplayGainAlbum | ReplayGainAuto
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving anyclass (NFData)
 
 -- | The version of the queue. MPD increments it on every change of the queue.
---
--- @since 0.1.0.0
 newtype PlaylistVersion = PlaylistVersion Word32
   deriving newtype (Eq, Ord, Show, NFData)
 
@@ -257,8 +234,6 @@ newtype PlaylistVersion = PlaylistVersion Word32
 -- Statistics
 
 -- | The reply to @stats@.
---
--- @since 0.1.0.0
 data Stats = Stats
   { artists :: Int
   , albums :: Int
@@ -279,8 +254,6 @@ data Stats = Stats
 -- Outputs
 
 -- | An audio output.
---
--- @since 0.1.0.0
 data Output = Output
   { outputId :: Int
   , name :: T.Text
@@ -295,8 +268,6 @@ data Output = Output
 -- Idle
 
 -- | A part of MPD that @idle@ reports changes of.
---
--- @since 0.1.0.0
 data Subsystem
   = DatabaseSubsystem
   | UpdateSubsystem
@@ -319,8 +290,6 @@ data Subsystem
   deriving anyclass (NFData)
 
 -- | The name of a subsystem in the protocol.
---
--- @since 0.1.0.0
 subsystemName :: Subsystem -> T.Text
 subsystemName = \case
   DatabaseSubsystem -> "database"
@@ -340,8 +309,6 @@ subsystemName = \case
   OtherSubsystem name -> name
 
 -- | The subsystem with the given name.
---
--- @since 0.1.0.0
 subsystemFromName :: T.Text -> Subsystem
 subsystemFromName name = M.findWithDefault (OtherSubsystem name) name subsystemsByName
   where
@@ -371,8 +338,6 @@ subsystemFromName name = M.findWithDefault (OtherSubsystem name) name subsystems
 -- Server version
 
 -- | The protocol version that MPD sends when a client connects.
---
--- @since 0.1.0.0
 data Version = Version Int Int Int
   deriving stock (Eq, Ord, Show, Generic)
   deriving anyclass (NFData)
@@ -381,8 +346,6 @@ data Version = Version Int Int Int
 -- Errors
 
 -- | The exception that the operations of a connection throw.
---
--- @since 0.1.0.0
 data MpdError
   = -- | MPD refused a command.
     AckError Ack
@@ -393,12 +356,9 @@ data MpdError
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
 
--- | @since 0.1.0.0
 instance Exception MpdError
 
 -- | An @ACK@ reply.
---
--- @since 0.1.0.0
 data Ack = Ack
   { code :: AckCode
   , index :: Int
@@ -410,7 +370,6 @@ data Ack = Ack
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
 
--- | @since 0.1.0.0
 data AckCode
   = AckNotList
   | AckArg
@@ -429,7 +388,6 @@ data AckCode
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
 
--- | @since 0.1.0.0
 data ConnectionError
   = -- | The connection couldn't be opened, or MPD didn't greet as expected.
     ConnectFailed T.Text

@@ -37,8 +37,6 @@ import MPD.Types
 
 -- | A connection to MPD. It is not safe to use from more than one thread at a
 -- time, except for 'MPD.Idle.noidle'.
---
--- @since 0.1.0.0
 data Connection = Connection
   { socket :: N.Socket
   , buffer :: IORef BS.ByteString
@@ -49,14 +47,11 @@ data Connection = Connection
   }
 
 -- | Where MPD listens.
---
--- @since 0.1.0.0
 data Address
   = TcpAddress N.HostName N.PortNumber
   | UnixAddress FilePath
   deriving stock (Eq, Show)
 
--- | @since 0.1.0.0
 data Settings = Settings
   { address :: Address
   , password :: Maybe T.Text
@@ -68,8 +63,6 @@ data Settings = Settings
 
 -- | Open a connection, check the version of MPD and send the password.
 -- Throws 'MpdError'.
---
--- @since 0.1.0.0
 connect :: Settings -> IO Connection
 connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
   bracketOnError open N.close $ \sock -> do
@@ -133,7 +126,6 @@ connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
 minimumVersion :: Version
 minimumVersion = Version 0 23 0
 
--- | @since 0.1.0.0
 close :: Connection -> IO ()
 close conn = N.close conn.socket
 

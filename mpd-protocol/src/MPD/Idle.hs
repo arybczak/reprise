@@ -13,8 +13,6 @@ import MPD.Types
 
 -- | Wait until one of the subsystems changes, or any subsystem for an empty
 -- list, and return the subsystems that changed. There is no timeout.
---
--- @since 0.1.0.0
 idle :: Connection -> [Subsystem] -> IO [Subsystem]
 idle conn subsystems =
   exchange conn (renderRequest $ Request "idle" (map subsystemName subsystems)) >>= \case
@@ -23,7 +21,5 @@ idle conn subsystems =
 
 -- | Make a running 'idle' return at once. Unlike any other operation, it is
 -- safe to call from another thread while 'idle' waits.
---
--- @since 0.1.0.0
 noidle :: Connection -> IO ()
 noidle conn = sendRaw conn . renderRequest $ Request "noidle" []
