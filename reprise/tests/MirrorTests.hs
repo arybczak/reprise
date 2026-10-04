@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiWayIf #-}
+
 module MirrorTests (mirrorTests) where
 
 import Control.Exception
@@ -26,6 +28,7 @@ mirrorTests =
     , testCase "the queue is cut to its length" test_truncate
     , testCase "a gap is an error" test_gap
     , testCase "elapsed time" test_elapsed
+    , testCase "lengths follow the queue and the current song" test_lengths
     , withResource (startTestServer testSongs) stopTestServer $ \getServer ->
         testProperty "the mirror follows a real queue" (prop_sync getServer)
     ]
@@ -74,6 +77,19 @@ test_elapsed = do
   assertEqual "not past the end" (Just 60) (elapsedAt 1000 playing)
   assertEqual "paused" (Just 10) (elapsedAt 102.5 paused)
 
+test_lengths :: Assertion
+test_lengths = do
+  -- Songs of 60 s, and one without a length.
+  let songs = [queued 0 "a", queued 1 "b", queued 2 "c" & #duration .~ Nothing, queued 3 "d"]
+      m = setQueue 0 (statusOf Stopped Nothing 4) songs emptyMirror
+  assertEqual "total" 180 m.totalLength
+  assertEqual "from the current song without one" 180 m.lengthFromCurrent
+  let playing = setStatus 0 (statusOf Playing (Just 1) 4) m
+  assertEqual "from the current song" 120 playing.lengthFromCurrent
+  r <- expectRight $ applyQueueChanges 0 (statusOf Playing (Just 1) 2) [] playing
+  assertEqual "total after a cut" 120 r.totalLength
+  assertEqual "from the current song after a cut" 60 r.lengthFromCurrent
+
 -- | Random queue operations on a real server, in batches. After each batch,
 -- the mirror fetches the changes since its version as reprise does, and must
 -- equal the server's queue.
@@ -100,14 +116,18 @@ prop_sync getServer = forAllShrink (listOf genBatch) shrinkList' $ \batches ->
                 run conn $ (,) <$> MPD.Command.status <*> maybe playlistInfo plChanges m.queueVersion
               m' <- either (fail . T.unpack) pure $ applyQueueChanges 0 st changes m
               actual <- run conn playlistInfo
-              if toList m'.queue == actual
-                then loop m' rest
-                else
-                  pure . Left $
-                    "mirror: "
-                      <> show (map (.file) (toList m'.queue))
-                      <> "\nserver: "
-                      <> show (map (.file) actual)
+              let actualLength = sum [d | Just d <- map (.duration) actual]
+              if
+                | toList m'.queue /= actual ->
+                    pure . Left $
+                      "mirror: "
+                        <> show (map (.file) (toList m'.queue))
+                        <> "\nserver: "
+                        <> show (map (.file) actual)
+                | m'.totalLength /= actualLength ->
+                    pure . Left $
+                      "total length: " <> show m'.totalLength <> ", server: " <> show actualLength
+                | otherwise -> loop m' rest
       (st, q) <- run conn $ (,) <$> MPD.Command.status <*> playlistInfo
       loop (setQueue 0 st q emptyMirror) batches
     case r of

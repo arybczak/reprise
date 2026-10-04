@@ -66,11 +66,10 @@ screenTitle :: AppState -> ScreenName -> T.Text
 screenTitle s = \case
   QueueScreen ->
     let q = s.mirror.queue
-        total = sum (mapMaybe (.duration) (toList q))
-        remaining = case (currentPosition s.mirror, displayedElapsed s) of
-          (Just p, e) ->
-            sum (mapMaybe (.duration) (toList (Seq.drop p q))) - fromMaybe 0 e
-          _ -> total
+        total = s.mirror.totalLength
+        remaining = case currentPosition s.mirror of
+          Just _ -> s.mirror.lengthFromCurrent - fromMaybe 0 (displayedElapsed s)
+          Nothing -> total
         count = T.pack (show (Seq.length q)) <> if Seq.length q == 1 then " song" else " songs"
         times =
           [formatTotal total | total > 0]

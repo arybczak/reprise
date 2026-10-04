@@ -17,6 +17,7 @@ module Reprise.Mpd.Mirror
 
 import Data.Foldable
 import Data.List qualified as L
+import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import GHC.Generics
@@ -31,18 +32,25 @@ data Mirror = Mirror
   , queueVersion :: Maybe PlaylistVersion
   -- ^ The version of the queue that 'queue' mirrors. The status may be
   -- newer, until the changes of the queue arrive.
+  , totalLength :: Seconds
+  -- ^ The length of the songs of the queue. The header shows it on every
+  -- redraw, so it is summed only when the queue changes.
+  , lengthFromCurrent :: Seconds
+  -- ^ The length of the current song and the songs after it, or of the
+  -- whole queue without a current song. It is summed when the status
+  -- arrives.
   }
   deriving stock (Eq, Show, Generic)
 
 emptyMirror :: Mirror
-emptyMirror = Mirror Nothing 0 Seq.empty Nothing
+emptyMirror = Mirror Nothing 0 Seq.empty Nothing 0 0
 
 -- | Replace the whole queue.
 setQueue :: Double -> Status -> [Song] -> Mirror -> Mirror
 setQueue now st songs m =
   setStatus now st $
     m
-      & #queue .~ Seq.fromList songs
+      & withQueue (Seq.fromList songs)
       & #queueVersion ?~ st.playlistVersion
 
 -- | Apply the reply to @plchanges@, which MPD sent with the status in one
@@ -53,7 +61,7 @@ applyQueueChanges now st changes m = do
   q <- foldlM apply m.queue (L.sortOn (.position) changes)
   pure . setStatus now st $
     m
-      & #queue .~ Seq.take st.playlistLength q
+      & withQueue (Seq.take st.playlistLength q)
       & #queueVersion ?~ st.playlistVersion
   where
     apply :: Seq.Seq Song -> Song -> Either T.Text (Seq.Seq Song)
@@ -70,6 +78,19 @@ setStatus now st m =
   m
     & #status ?~ st
     & #statusTime .~ now
+    & #lengthFromCurrent .~ case st.currentPosition of
+      Just (SongPos p) -> songsLength (Seq.drop p m.queue)
+      Nothing -> m.totalLength
+
+withQueue :: Seq.Seq Song -> Mirror -> Mirror
+withQueue q m =
+  m
+    & #queue .~ q
+    & #totalLength .~ songsLength q
+
+-- | Songs without a length count as 0.
+songsLength :: Seq.Seq Song -> Seconds
+songsLength = foldl' (\acc song -> acc + fromMaybe 0 song.duration) 0
 
 currentPosition :: Mirror -> Maybe Int
 currentPosition m = do
