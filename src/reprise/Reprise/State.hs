@@ -17,6 +17,7 @@ module Reprise.State
   , PendingKeys (..)
   , SeekState (..)
   , QueueState (..)
+  , FindRows (..)
   , Toggles (..)
 
     -- * Views
@@ -32,6 +33,7 @@ module Reprise.State
   ) where
 
 import Data.Map.Strict qualified as M
+import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
 import GHC.Generics
@@ -149,6 +151,18 @@ data QueueState = QueueState
   -- the next range.
   , findPattern :: Maybe T.Text
   -- ^ The pattern of the last find, for the next and the previous match.
+  , findRows :: Maybe FindRows
+  }
+  deriving stock (Eq, Show, Generic)
+
+-- | The rows of the queue as finds match them, for the version of the queue
+-- and the display that they were made for. A find runs on every key, and
+-- without a match near the start it goes through every row.
+data FindRows = FindRows
+  { version :: Maybe PlaylistVersion
+  , display :: Display
+  , rows :: Seq.Seq Folded
+  -- ^ Made lazily, as finds reach them.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -210,7 +224,7 @@ initialState config keymaps colorMode =
     , colorMode = colorMode
     , connection = Connecting
     , mirror = emptyMirror
-    , queueState = QueueState S.empty [] Nothing
+    , queueState = QueueState S.empty [] Nothing Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display

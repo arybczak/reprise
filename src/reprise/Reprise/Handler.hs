@@ -351,14 +351,14 @@ startFind direction = do
 -- find with a note on what it found.
 findAsYouType :: App es => Finding -> T.Text -> Eff es Finding
 findAsYouType f text = do
-  s <- getS
+  rows <- queueRows
   note <-
     if T.null text
       then restoreView f.origin >> pure Nothing
       else case compilePattern text of
         -- The cursor stays until the pattern is complete again.
         Left err -> pure (Just err)
-        Right p -> case search p f.direction (fst f.origin) (queueTexts s) of
+        Right p -> case search p f.direction (fst f.origin) rows of
           Left err -> pure (Just err)
           Right Nothing -> restoreView f.origin >> pure (Just "no match")
           Right (Just found) -> do
@@ -382,12 +382,13 @@ acceptFind f text
 -- | Move to the next or the previous match of the last pattern.
 findAgain :: App es => Direction -> Eff es ()
 findAgain direction = do
+  rows <- queueRows
   s <- getS
   case s.queueState.findPattern of
     Nothing -> showMessage "Nothing was found yet"
     Just text -> case compilePattern text of
       Left err -> showError (capitalize err)
-      Right p -> case search p direction (focusedView s).cursor (queueTexts s) of
+      Right p -> case search p direction (focusedView s).cursor rows of
         Left err -> showError (capitalize err)
         Right Nothing -> showMessage $ "No match for " <> text
         Right (Just found) -> do
@@ -401,9 +402,19 @@ wrapNote direction found
       Backward -> "wrapped around to the bottom"
   | otherwise = Nothing
 
--- | The rows of the queue as text, which find matches.
-queueTexts :: AppState -> Seq.Seq T.Text
-queueTexts s = rowText s.config.lists s.config.songs s.toggles.queueDisplay <$> s.mirror.queue
+-- | The rows of the queue as finds match them: the ones of the last find,
+-- unless the queue or its display changed since.
+queueRows :: App es => Eff es (Seq.Seq Folded)
+queueRows = do
+  s <- getS
+  case s.queueState.findRows of
+    Just r
+      | r.version == s.mirror.queueVersion && r.display == s.toggles.queueDisplay -> pure r.rows
+    _ -> do
+      let display = s.toggles.queueDisplay
+          rows = foldText . rowText s.config.lists s.config.songs display <$> s.mirror.queue
+      modifyS $ #queueState % #findRows ?~ FindRows s.mirror.queueVersion display rows
+      pure rows
 
 restoreView :: App es => (Int, Int) -> Eff es ()
 restoreView (c, o) = modifyView $ (#cursor .~ c) . (#offset .~ o)
@@ -563,11 +574,12 @@ select = \case
   SelectAlbum -> selectGroup albumKey "Album"
   SelectArtist -> selectGroup artistKey "Artist"
   SelectFound -> do
+    rows <- queueRows
     s <- getS
     case compilePattern <$> s.queueState.findPattern of
       Nothing -> showMessage "Nothing was found yet"
       Just (Left err) -> showError (capitalize err)
-      Just (Right p) -> case matchAll p (queueTexts s) of
+      Just (Right p) -> case matchAll p rows of
         Left err -> showError (capitalize err)
         Right found -> do
           let ps = [i | (i, True) <- zip [0 ..] (toList found)]

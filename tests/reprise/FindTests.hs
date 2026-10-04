@@ -29,7 +29,7 @@ test_matching = do
   assertEqual "a letter of its own" (Right False) (match "zolw" "żółw")
   where
     match :: T.Text -> T.Text -> Either T.Text Bool
-    match p t = either (Left . ("compile: " <>)) (`matches` t) (compilePattern p)
+    match p t = either (Left . ("compile: " <>)) (`matches` foldText t) (compilePattern p)
 
 test_incomplete :: Assertion
 test_incomplete = do
@@ -49,13 +49,13 @@ test_tooSlow = case compilePattern "(a+)+$" of
     assertEqual
       "error"
       (Left "the pattern is too slow")
-      (matches p (T.replicate 40 "a" <> "b"))
+      (matches p (foldText (T.replicate 40 "a" <> "b")))
 
 test_search :: Assertion
 test_search = case compilePattern "a" of
   Left err -> assertFailure (T.unpack err)
   Right p -> do
-    let items = Seq.fromList ["a", "b", "a", "b"]
+    let items = folded ["a", "b", "a", "b"]
     assertEqual "forward" (Right (Just (Found 2 False))) (search p Forward 0 items)
     assertEqual "forward around" (Right (Just (Found 0 True))) (search p Forward 2 items)
     assertEqual "backward" (Right (Just (Found 0 False))) (search p Backward 2 items)
@@ -63,6 +63,9 @@ test_search = case compilePattern "a" of
     assertEqual
       "only the start"
       (Right (Just (Found 0 True)))
-      (search p Forward 0 (Seq.fromList ["a", "b"]))
-    assertEqual "nothing" (Right Nothing) (search p Forward 0 (Seq.fromList ["b", "c"]))
+      (search p Forward 0 (folded ["a", "b"]))
+    assertEqual "nothing" (Right Nothing) (search p Forward 0 (folded ["b", "c"]))
     assertEqual "empty" (Right Nothing) (search p Backward 0 Seq.empty)
+  where
+    folded :: [T.Text] -> Seq.Seq Folded
+    folded = Seq.fromList . map foldText

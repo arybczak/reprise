@@ -3,6 +3,8 @@
 module Reprise.Find
   ( Pattern
   , compilePattern
+  , Folded
+  , foldText
   , matches
   , matchAll
   , Direction (..)
@@ -36,13 +38,21 @@ compilePattern t
     folded :: T.Text
     folded = foldDiacritics t
 
+-- | Text that patterns match, with its diacritics folded, so that text
+-- matched more than once is folded once.
+newtype Folded = Folded T.Text
+  deriving stock (Eq, Show)
+
+foldText :: T.Text -> Folded
+foldText = Folded . foldDiacritics
+
 -- | Whether the pattern matches somewhere in the text, or why the match
 -- stopped.
-matches :: Pattern -> T.Text -> Either T.Text Bool
+matches :: Pattern -> Folded -> Either T.Text Bool
 matches p t = withMatcher p ($ t)
 
 -- | 'matches' for each text.
-matchAll :: Pattern -> Seq.Seq T.Text -> Either T.Text (Seq.Seq Bool)
+matchAll :: Pattern -> Seq.Seq Folded -> Either T.Text (Seq.Seq Bool)
 matchAll p ts = withMatcher p (`traverse` ts)
 
 data Direction = Forward | Backward
@@ -58,7 +68,7 @@ data Found = Found
 
 -- | The first item after the given index that matches, in the direction,
 -- going around the end of the list. The item at the index comes last.
-search :: Pattern -> Direction -> Int -> Seq.Seq T.Text -> Either T.Text (Maybe Found)
+search :: Pattern -> Direction -> Int -> Seq.Seq Folded -> Either T.Text (Maybe Found)
 search p direction start items = withMatcher p $ \match -> go match order
   where
     n :: Int
@@ -72,7 +82,7 @@ search p direction start items = withMatcher p $ \match -> go match order
         [(i, False) | i <- [start - 1, start - 2 .. 0]]
           <> [(i, True) | i <- [n - 1, n - 2 .. max 0 start]]
 
-    go :: (T.Text -> IO Bool) -> [(Int, Bool)] -> IO (Maybe Found)
+    go :: (Folded -> IO Bool) -> [(Int, Bool)] -> IO (Maybe Found)
     go match = \case
       [] -> pure Nothing
       (i, w) : rest -> do
@@ -84,11 +94,11 @@ search p direction start items = withMatcher p $ \match -> go match order
 -- text-icu's pure matching clones the matcher for every match, and a clone
 -- loses the limit, so this uses its IO interface the way the pure one
 -- does. ICU reports a match over the limit with an exception.
-withMatcher :: Pattern -> ((T.Text -> IO Bool) -> IO a) -> Either T.Text a
+withMatcher :: Pattern -> ((Folded -> IO Bool) -> IO a) -> Either T.Text a
 withMatcher (Pattern p) act = unsafePerformIO $ do
   let run = do
         matcher <- Regex.regex matchOptions p
-        act $ \t -> Regex.setText matcher (foldDiacritics t) >> Regex.find matcher 0
+        act $ \(Folded t) -> Regex.setText matcher t >> Regex.find matcher 0
   try run >>= \case
     Right a -> pure (Right a)
     Left err

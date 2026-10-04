@@ -58,6 +58,7 @@ handlerTests =
     , testCase "a prompt takes the keys" test_promptKeys
     , testCase "find as you type" test_findAsYouType
     , testCase "find the next and the previous match" test_findAgain
+    , testCase "find after the rows change" test_findRowsChange
     , testCase "select the found songs" test_selectFound
     , testCase "the help screen has no selection" test_selectOnHelp
     , testCase "songs that leave the queue leave the selection" test_selectionPruned
@@ -236,6 +237,20 @@ test_findAgain = do
     "nothing yet"
     (Just "Nothing was found yet")
     ((.text) <$> (keys ["."] fresh).state.message)
+
+-- | A find matches the rows of the queue and the display of now, not the
+-- ones of an earlier find.
+test_findRowsChange :: Assertion
+test_findRowsChange = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) titled
+      missed = (keys ("/" : typed "delta" <> ["enter"]) s).state
+      added = statusOf Stopped Nothing 6 & #playlistVersion .~ PlaylistVersion 2
+      changed =
+        (runEvents 0 [QueueFetched (added, titled <> [song 5 [(Title, ["delta"])] 60])] missed).state
+  assertEqual "a song added since" 5 (focusedView (keys ["."] changed).state).cursor
+  -- Only the classic display joins the artist and the title with " - ".
+  let classic = keys ("/" : typed "A - alpha" <> ["enter", "ctrl-t", "d", "."]) s
+  assertEqual "another display" 3 (focusedView classic.state).cursor
 
 test_selectFound :: Assertion
 test_selectFound = do

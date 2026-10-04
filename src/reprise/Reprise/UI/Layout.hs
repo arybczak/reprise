@@ -172,7 +172,9 @@ queueView s v =
         Just (Prompt _ (Line edit (ForFind _)))
           | Right p <- compilePattern (lineEditText edit)
           , Right matched <-
-              matchAll p (rowText s.config.lists s.config.songs s.toggles.queueDisplay <$> visible) ->
+              matchAll
+                p
+                (foldText . rowText s.config.lists s.config.songs s.toggles.queueDisplay <$> visible) ->
               toList matched
         _ -> repeat False
       row (i, isFound) song =

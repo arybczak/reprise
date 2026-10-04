@@ -818,7 +818,7 @@ the pieces:
 - **"Ignore leading the" sorting:** strip the article, then compare with a
   `Collator` (`collator`, `collate`, `sortKey`).
 
-Two details for incremental find:
+Details for incremental find:
 - **Compile with `regex'`, not `regex`.** While the user types, the pattern is
   often invalid for a moment, e.g. right after `(`. `regex'` returns an
   `Either`, so the status bar shows "incomplete pattern" and find resumes once
@@ -832,6 +832,11 @@ Two details for incremental find:
 - **An empty pattern is not a pattern.** ICU rejects it with an exception
   rather than a parse error, so the empty prompt of a find must not reach
   ICU.
+- **The rows are kept between finds.** A find runs on every key, and without
+  a match near its start it goes through the whole queue. The text of each
+  row, with its diacritics folded, is made once, when a find first reaches
+  it, and kept until the queue or its display changes. In a queue of 4254
+  songs, this took a key that finds nothing from 6.9 ms to 1.8 ms.
 
 There is no plain-text mode. To match a literal string with special
 characters, escape them (`AC/DC \(Live\)`) or quote it with ICU's `\Q...\E`.
