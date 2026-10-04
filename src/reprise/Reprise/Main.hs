@@ -18,13 +18,13 @@ import Effectful
 import Graphics.Vty qualified as V
 import Graphics.Vty.Platform.Unix qualified as V
 import Options.Applicative
-import Paths_reprise qualified as Paths
 import System.Directory
 import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
 
+import Paths_reprise qualified as Paths
 import Reprise.App
 import Reprise.Config
 import Reprise.Effect.Mpd

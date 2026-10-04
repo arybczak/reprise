@@ -15,11 +15,10 @@ import LayoutTests
 import LineEditTests
 import MirrorTests
 import QueueTests
+import Reprise.Width
 import StyleTests
 import WidthTests
 import WorkerTests
-
-import Reprise.Width
 
 main :: IO ()
 main = do
