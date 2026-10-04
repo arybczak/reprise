@@ -136,7 +136,7 @@ ncmpcpp.
   neighbours show on both sides: jumping to the playing song or following
   it, moving to the previous or next album or artist, and later finding.
   Moving by a line or a page scrolls only as far as the cursor needs.
-- Selection: item, range, reverse, clear, album, found items.
+- Selection: item, range, reverse, clear, album, artist, found items.
   - An action applies to the selected items, or to the item under the cursor
     without a selection.
   - The queue keeps the selection by song id, so it follows the songs when
@@ -149,6 +149,9 @@ ncmpcpp.
   - Select album selects the songs around the cursor with the same album
     artist (or artist) and album. ncmpcpp compares the album only, so two
     albums called "Greatest Hits" next to each other were one.
+  - Select artist selects the songs around the cursor with the same artist,
+    as the previous and next artist moves compare them. ncmpcpp has no such
+    action.
   - Shuffling the selection needs selected songs next to each other, because
     MPD shuffles a range.
 - Incremental find (next/previous), wrapping around at the end.
@@ -1097,6 +1100,7 @@ keys:
       i: select invert
       c: select none
       a: select album
+      A: select artist           # as { and } are the shifted [ and ]
       f: select found
     ctrl-t:
       name: toggle

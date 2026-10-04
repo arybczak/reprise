@@ -99,6 +99,7 @@ data SelectTarget
   | SelectInvert
   | SelectNone
   | SelectAlbum
+  | SelectArtist
   | SelectFound
   deriving stock (Eq, Show)
 
@@ -302,6 +303,7 @@ registry =
       , ("invert", SelectInvert)
       , ("none", SelectNone)
       , ("album", SelectAlbum)
+      , ("artist", SelectArtist)
       , ("found", SelectFound)
       ]
 
@@ -414,6 +416,7 @@ renderAction = \case
     SelectInvert -> "select invert"
     SelectNone -> "select none"
     SelectAlbum -> "select album"
+    SelectArtist -> "select artist"
     SelectFound -> "select found"
   Activate -> "activate"
   AddOrRemove -> "add_or_remove"
@@ -508,6 +511,7 @@ describeAction = \case
     SelectInvert -> "invert selection"
     SelectNone -> "clear selection"
     SelectAlbum -> "select the album around the cursor"
+    SelectArtist -> "select the artist around the cursor"
     SelectFound -> "select found items"
   Activate -> "activate"
   AddOrRemove -> "add or remove"

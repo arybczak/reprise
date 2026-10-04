@@ -49,6 +49,7 @@ handlerTests =
     , testCase "select a range" test_selectRange
     , testCase "invert and clear the selection" test_selectInvertNone
     , testCase "select an album" test_selectAlbum
+    , testCase "select an artist" test_selectArtist
     , testCase "the help screen has no selection" test_selectOnHelp
     , testCase "songs that leave the queue leave the selection" test_selectionPruned
     , testCase "delete the marked songs" test_delete
@@ -127,6 +128,18 @@ test_selectAlbum = do
       s = testState (80, 24) (statusOf Stopped Nothing 5) q
       r = keys ["down", "down", "down", "ctrl-s", "a"] s
   assertEqual "album" (ids [3, 4]) r.state.queueState.selection
+
+test_selectArtist :: Assertion
+test_selectArtist = do
+  let by a pos = song pos [(Artist, [a]), (Album, [T.pack (show pos)])] 60
+      q = [by "x" 0, by "y" 1, by "y" 2, by "y" 3, by "x" 4]
+      s = testState (80, 24) (statusOf Stopped Nothing 5) q
+      r = keys ["down", "down", "ctrl-s", "A"] s
+  assertEqual "artist" (ids [2, 3, 4]) r.state.queueState.selection
+  assertEqual
+    "message"
+    (Just "Artist around the cursor selected")
+    ((.text) <$> r.state.message)
 
 test_selectOnHelp :: Assertion
 test_selectOnHelp = do

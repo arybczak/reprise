@@ -670,6 +670,7 @@ defaultKeymaps =
               , char 'i' ~> Select SelectInvert
               , char 'c' ~> Select SelectNone
               , char 'a' ~> Select SelectAlbum
+              , char 'A' ~> Select SelectArtist
               , char 'f' ~> Select SelectFound
               ]
           , group

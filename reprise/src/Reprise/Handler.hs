@@ -429,18 +429,23 @@ select = \case
   SelectNone -> do
     modifySelection (const S.empty)
     showMessage "Selection cleared"
-  SelectAlbum -> do
-    s <- getS
-    let q = s.mirror.queue
-        c = (focusedView s).cursor
-    forM_ (Seq.lookup c q) $ \song -> do
-      let sameAlbum i = (albumKey <$> Seq.lookup i q) == Just (albumKey song)
-          earlier = takeWhile sameAlbum [c - 1, c - 2 .. 0]
-          later = takeWhile sameAlbum [c + 1 .. Seq.length q - 1]
-      addToSelection (earlier <> [c] <> later)
-      showMessage "Album around the cursor selected"
+  SelectAlbum -> selectGroup albumKey "Album"
+  SelectArtist -> selectGroup artistKey "Artist"
   SelectFound -> notAvailable "Selecting the found songs"
   where
+    -- The songs next to each other around the cursor with its song's key.
+    selectGroup :: (App es, Eq k) => (Song -> k) -> T.Text -> Eff es ()
+    selectGroup key name = do
+      s <- getS
+      let q = s.mirror.queue
+          c = (focusedView s).cursor
+      forM_ (Seq.lookup c q) $ \song -> do
+        let same i = (key <$> Seq.lookup i q) == Just (key song)
+            earlier = takeWhile same [c - 1, c - 2 .. 0]
+            later = takeWhile same [c + 1 .. Seq.length q - 1]
+        addToSelection (earlier <> [c] <> later)
+        showMessage $ name <> " around the cursor selected"
+
     -- The first and the last song.
     rangeEnds :: Int
     rangeEnds = 2
@@ -583,8 +588,8 @@ moveCursor t = do
     scroll :: App es => Int -> Eff es ()
     scroll delta = modifyView $ #offset %~ (+ delta)
 
-    artistKey :: Song -> Maybe [T.Text]
-    artistKey song = M.lookup Artist song.tags
+artistKey :: Song -> Maybe [T.Text]
+artistKey song = M.lookup Artist song.tags
 
 -- | What tells albums apart: the album artist, or the artist without one,
 -- and the album. The album alone would join albums of different artists
