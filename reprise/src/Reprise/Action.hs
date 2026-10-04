@@ -26,17 +26,13 @@ module Reprise.Action
   , ActionSpec (..)
   , registry
   , parseAction
+  , actionHint
   , renderAction
   , describeAction
   , isDestructive
-
-    -- * Arguments
-  , parseSeekTarget
-  , parseVolume
-  , parsePriority
-  , natural
   ) where
 
+import Control.Monad
 import Data.Char
 import Data.List qualified as L
 import Data.Text qualified as T
@@ -61,27 +57,28 @@ data Action
   | Next
   | Replay
   | Seek SeekStep
-  | SeekToPrompt
   | Volume VolumeChange
-  | SetVolume
-  | SetCrossfade
+  | -- | Seconds.
+    Crossfade Int
   | Find FindTarget
   | Filter
   | Show ScreenName
   | NextScreen [ScreenName]
   | PreviousScreen [ScreenName]
-  | CommandPrompt
+  | -- | The @:@ prompt, with the start of its line, e.g. an action's name
+    -- whose arguments the user then types.
+    CommandPrompt T.Text
   | Quit
   | Add AddPosition
   | AddAndPlay
-  | AddPath
+  | AddPath T.Text
   | Clear
   | Shuffle
   | Save
   | Toggle ToggleTarget
   | Update UpdateScope
   | MoveSelection MoveSelectionTarget
-  | Priority (Maybe Int)
+  | Priority Int
   | NextSortMode
   deriving stock (Eq, Show)
 
@@ -192,7 +189,8 @@ data ActionSpec = ActionSpec
   { name :: T.Text
   , usage :: T.Text
   -- ^ The arguments, e.g. @+N | -N | N@.
-  , parse :: [Argument] -> Either T.Text Action
+  , parse :: T.Text -> Either T.Text Action
+  -- ^ Parse the text after the name.
   }
 
 -- | An argument: a word, or a list in brackets, e.g. @[browser, outputs]@.
@@ -219,10 +217,8 @@ registry =
   , spec "next" "" $ none Next
   , spec "replay" "" $ none Replay
   , spec "seek" "+Ns | -Ns | m:ss | N%" $ one (fmap Seek . seekStep)
-  , spec "seek_to" "" $ none SeekToPrompt
   , spec "volume" "+N | -N | N" $ one (fmap Volume . volumeChange)
-  , spec "set_volume" "" $ none SetVolume
-  , spec "set_crossfade" "" $ none SetCrossfade
+  , spec "crossfade" "SECONDS" $ one (fmap Crossfade . natural)
   , spec "find" "forward | backward | next | previous" $
       one
         ( fmap Find
@@ -238,7 +234,7 @@ registry =
   , spec "show" "SCREEN" $ one (fmap Show . screenFromName)
   , spec "next_screen" "[SCREEN, ...]" $ screenList NextScreen
   , spec "previous_screen" "[SCREEN, ...]" $ screenList PreviousScreen
-  , spec "command" "" $ none CommandPrompt
+  , ActionSpec "command" "[START OF THE LINE]" (Right . CommandPrompt)
   , spec "quit" "" $ none Quit
   , spec "add" "end | next | beginning" $
       one
@@ -246,7 +242,9 @@ registry =
             . choice "position" [("end", AddEnd), ("next", AddNext), ("beginning", AddBeginning)]
         )
   , spec "add_and_play" "" $ none AddAndPlay
-  , spec "add_path" "" $ none AddPath
+  , -- A path can hold spaces and brackets, so it is the rest of the line.
+    ActionSpec "add_path" "PATH" $ \t ->
+      if T.null t then Left "expected a path" else Right (AddPath t)
   , spec "clear" "" $ none Clear
   , spec "shuffle" "" $ none Shuffle
   , spec "save" "" $ none Save
@@ -266,15 +264,13 @@ registry =
           , ("cursor", MoveSelectionToCursor)
           , ("end", MoveSelectionToEnd)
           ]
-  , spec "priority" "[N]" $ \case
-      [] -> Right (Priority Nothing)
-      [Word w] -> Priority . Just <$> parsePriority w
-      _ -> Left "expected at most one argument"
+  , spec "priority" "0-255" $ one (fmap Priority . priority)
   , spec "next_sort_mode" "" $ none NextSortMode
   ]
   where
+    -- An action whose arguments are words and lists.
     spec :: T.Text -> T.Text -> ([Argument] -> Either T.Text Action) -> ActionSpec
-    spec = ActionSpec
+    spec name usage f = ActionSpec name usage (tokenize >=> f)
 
     alternatives :: [T.Text] -> T.Text
     alternatives = T.intercalate " | "
@@ -328,42 +324,37 @@ registry =
     volumeChange w = case T.uncons w of
       Just ('+', n) -> VolumeBy <$> natural n
       Just ('-', n) -> VolumeBy . negate <$> natural n
-      _ -> VolumeTo <$> parseVolume w
+      _ -> do
+        v <- natural w
+        if v <= maxVolume then Right (VolumeTo v) else Left "a volume is from 0 to 100"
 
     seekStep :: T.Text -> Either T.Text SeekStep
     seekStep w
+      | Just n <- T.stripSuffix "%" w = do
+          p <- natural n
+          if p <= 100 then Right (SeekToPercent p) else Left "a percentage is from 0 to 100"
       | Just (sign, rest) <- T.uncons w
       , sign `elem` ['+', '-'] = do
           n <- maybe (Left "expected seconds with an s, e.g. +5s") natural (T.stripSuffix "s" rest)
           Right . SeekBy $ if sign == '-' then negate n else n
-      | otherwise = parseSeekTarget w
+      | otherwise = SeekToSecond <$> clockTime w
 
--- | A position in a song: @m:ss@, @h:mm:ss@ or a percentage, @N%@.
-parseSeekTarget :: T.Text -> Either T.Text SeekStep
-parseSeekTarget w
-  | Just n <- T.stripSuffix "%" w = do
-      p <- natural n
-      if p <= 100 then Right (SeekToPercent p) else Left "a percentage is from 0 to 100"
-  | otherwise = case T.splitOn ":" w of
+    clockTime :: T.Text -> Either T.Text Int
+    clockTime w = case T.splitOn ":" w of
       parts@(_ : _ : _)
         | length parts <= 3 -> do
             ns <- traverse natural parts
-            Right . SeekToSecond $ foldl (\acc n -> acc * 60 + n) 0 ns
-      _ -> Left "expected m:ss or N%"
+            Right $ foldl (\acc n -> acc * 60 + n) 0 ns
+      _ -> Left "expected +Ns, -Ns, m:ss or N%"
 
-parseVolume :: T.Text -> Either T.Text Int
-parseVolume w = do
-  v <- natural w
-  if v <= maxVolume then Right v else Left "a volume is from 0 to 100"
-  where
+    priority :: T.Text -> Either T.Text Int
+    priority w = do
+      p <- natural w
+      if p <= maxPriority then Right p else Left "a priority is from 0 to 255"
+
     maxVolume :: Int
     maxVolume = 100
 
-parsePriority :: T.Text -> Either T.Text Int
-parsePriority w = do
-  p <- natural w
-  if p <= maxPriority then Right p else Left "a priority is from 0 to 255"
-  where
     -- MPD's priorities are from 0 to 255.
     maxPriority :: Int
     maxPriority = 255
@@ -385,21 +376,31 @@ moveTargets =
 -- | Parse an action with its arguments, e.g. @volume +2@ or
 -- @next_screen [browser, media_library]@.
 parseAction :: T.Text -> Either T.Text Action
-parseAction input = do
-  ws <- tokenize input
-  case ws of
-    [] -> Left "expected an action"
-    List _ : _ -> Left "expected an action name"
-    Word name : args -> case L.find (\s -> s.name == name) registry of
-      Just s -> case s.parse args of
-        Right a -> Right a
-        Left err -> Left $ name <> ": " <> err <> "; usage: " <> T.strip (name <> " " <> s.usage)
-      Nothing -> Left $ "unknown action " <> name <> suggestion name
+parseAction input = case T.break isSpace (T.strip input) of
+  ("", _) -> Left "expected an action"
+  (name, rest) -> case findSpec name of
+    Just s -> case s.parse (T.strip rest) of
+      Right a -> Right a
+      Left err -> Left $ name <> ": " <> err <> "; usage: " <> usageOf s
+    Nothing -> Left $ "unknown action " <> name <> suggestion name
   where
     suggestion :: T.Text -> T.Text
     suggestion name = case L.sortOn snd [(s.name, distance name s.name) | s <- registry] of
       (best, d) : _ | d <= max 1 (T.length name `div` 2) -> ", did you mean " <> best <> "?"
       _ -> ""
+
+-- | What the @:@ prompt shows while the user types a line: what the line
+-- would do, or how to write the action that it names.
+actionHint :: T.Text -> T.Text
+actionHint input = case parseAction input of
+  Right a -> describeAction a
+  Left _ -> maybe "" usageOf . findSpec . fst $ T.break isSpace (T.strip input)
+
+findSpec :: T.Text -> Maybe ActionSpec
+findSpec name = L.find (\s -> s.name == name) registry
+
+usageOf :: ActionSpec -> T.Text
+usageOf s = T.strip (s.name <> " " <> s.usage)
 
 tokenize :: T.Text -> Either T.Text [Argument]
 tokenize t0 = go (T.stripStart t0)
@@ -446,15 +447,13 @@ renderAction = \case
   Seek t ->
     "seek " <> case t of
       SeekBy n -> signed n <> "s"
-      SeekToSecond n -> T.pack (show (n `div` 60)) <> ":" <> T.justifyRight 2 '0' (T.pack (show (n `mod` 60)))
+      SeekToSecond n -> clock n
       SeekToPercent n -> T.pack (show n) <> "%"
-  SeekToPrompt -> "seek_to"
   Volume v ->
     "volume " <> case v of
       VolumeBy n -> signed n
       VolumeTo n -> T.pack (show n)
-  SetVolume -> "set_volume"
-  SetCrossfade -> "set_crossfade"
+  Crossfade n -> "crossfade " <> T.pack (show n)
   Find t ->
     "find " <> case t of
       FindForward -> "forward"
@@ -465,7 +464,7 @@ renderAction = \case
   Show s -> "show " <> screenName s
   NextScreen ss -> "next_screen " <> screenList ss
   PreviousScreen ss -> "previous_screen " <> screenList ss
-  CommandPrompt -> "command"
+  CommandPrompt t -> T.strip ("command " <> t)
   Quit -> "quit"
   Add p ->
     "add " <> case p of
@@ -473,7 +472,7 @@ renderAction = \case
       AddNext -> "next"
       AddBeginning -> "beginning"
   AddAndPlay -> "add_and_play"
-  AddPath -> "add_path"
+  AddPath p -> "add_path " <> p
   Clear -> "clear"
   Shuffle -> "shuffle"
   Save -> "save"
@@ -488,11 +487,14 @@ renderAction = \case
       MoveSelectionDown -> "down"
       MoveSelectionToCursor -> "cursor"
       MoveSelectionToEnd -> "end"
-  Priority p -> T.strip $ "priority " <> maybe "" (T.pack . show) p
+  Priority p -> "priority " <> T.pack (show p)
   NextSortMode -> "next_sort_mode"
   where
     screenList :: [ScreenName] -> T.Text
     screenList ss = "[" <> T.intercalate ", " (map screenName ss) <> "]"
+
+clock :: Int -> T.Text
+clock n = T.pack (show (n `div` 60)) <> ":" <> T.justifyRight 2 '0' (T.pack (show (n `mod` 60)))
 
 moveName :: MoveTarget -> T.Text
 moveName t = maybe "?" fst $ L.find ((== t) . snd) moveTargets
@@ -540,13 +542,12 @@ describeAction = \case
   Replay -> "replay song"
   Seek t -> case t of
     SeekBy n -> "seek " <> signed n <> "s"
-    _ -> renderAction (Seek t)
-  SeekToPrompt -> "seek to a time"
+    SeekToSecond n -> "seek to " <> clock n
+    SeekToPercent n -> "seek to " <> T.pack (show n) <> "%"
   Volume v -> case v of
     VolumeBy n -> "change volume by " <> signed n
     VolumeTo n -> "set volume to " <> T.pack (show n)
-  SetVolume -> "set volume"
-  SetCrossfade -> "set crossfade"
+  Crossfade n -> "set crossfade to " <> T.pack (show n) <> "s"
   Find t -> case t of
     FindForward -> "find forward"
     FindBackward -> "find backward"
@@ -556,14 +557,16 @@ describeAction = \case
   Show s -> "show " <> T.replace "_" " " (screenName s)
   NextScreen _ -> "next screen"
   PreviousScreen _ -> "previous screen"
-  CommandPrompt -> "run a command"
+  CommandPrompt t
+    | T.null t -> "run an action"
+    | otherwise -> ":" <> t <> " …"
   Quit -> "quit"
   Add p -> case p of
     AddEnd -> "add at the end"
     AddNext -> "add after the playing song"
     AddBeginning -> "add at the beginning"
   AddAndPlay -> "add and play"
-  AddPath -> "add a path"
+  AddPath p -> "add " <> p
   Clear -> "clear"
   Shuffle -> "shuffle"
   Save -> "save as a playlist"
@@ -576,7 +579,7 @@ describeAction = \case
     MoveSelectionDown -> "move selection down"
     MoveSelectionToCursor -> "move selection above the cursor"
     MoveSelectionToEnd -> "move selection to the end"
-  Priority p -> maybe "set priority" (("set priority " <>) . T.pack . show) p
+  Priority p -> "set priority " <> T.pack (show p)
   NextSortMode -> "next sort mode"
 
 -- | Whether the action may throw away something the user didn't point at,

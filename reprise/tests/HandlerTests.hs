@@ -149,11 +149,15 @@ test_promptAnswers = do
     [[Request "add" ["a/b.flac"]]]
     (requested ["ctrl-a", "/"] "a/b.flac")
   assertEqual "run a command" [[Request "setvol" ["30"]]] (requested [":"] "volume 30")
+  assertEqual
+    "the start of the line"
+    (Just (Prompt ":" (Line (LineEdit "volume " "") ForCommand)))
+    (keys ["ctrl-p", "v"] s).state.prompt
   let invalid = answer ["ctrl-p", "v"] "140"
   assertEqual "invalid" [] invalid.requests
   assertEqual
     "error"
-    (Just ("set_volume: a volume is from 0 to 100", True))
+    (Just ("volume: a volume is from 0 to 100; usage: volume +N | -N | N", True))
     ((\m -> (m.text, m.isError)) <$> invalid.state.message)
   assertEqual "closed" Nothing invalid.state.prompt
   assertEqual
@@ -163,7 +167,7 @@ test_promptAnswers = do
   assertEqual
     "empty"
     ([], Nothing)
-    (let r = answer ["ctrl-p", "v"] "" in (r.requests, r.state.message))
+    (let r = answer [":"] "" in (r.requests, r.state.message))
 
 test_promptKeys :: Assertion
 test_promptKeys = do

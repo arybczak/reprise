@@ -100,12 +100,8 @@ data PromptInput
   deriving stock (Eq, Show)
 
 data LinePurpose
-  = ForSeek
-  | ForVolume
-  | ForCrossfade
-  | ForPriority
-  | ForPath
-  | ForCommand
+  = -- | The @:@ prompt, which runs an action.
+    ForCommand
   | ForFind Finding
   deriving stock (Eq, Show)
 

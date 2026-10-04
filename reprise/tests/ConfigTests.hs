@@ -53,7 +53,7 @@ test_defaultKeymaps = do
     (lookupKeys global (keys ["ctrl-t", "r"]))
   assertEqual
     "the queue's own group"
-    (Bound (Priority Nothing))
+    (Bound (CommandPrompt "priority"))
     (lookupKeys global (keys ["ctrl-q", "p"]))
   assertEqual
     "the global group in the queue"

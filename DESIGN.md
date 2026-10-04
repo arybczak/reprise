@@ -665,8 +665,7 @@ can be measured wrong.
 
 ### Prompts
 
-Prompts (find, filter, `:`, confirmations, `seek_to`, ...) sit in the status
-bar. While a prompt is open, keys go to it, not to the keymaps. `enter`
+Prompts (find, filter, `:`, confirmations) sit in the status bar. While a prompt is open, keys go to it, not to the keymaps. `enter`
 accepts, `escape` or `ctrl-g` cancels.
 
 A line prompt edits its line with Emacs-style keys, and the terminal's cursor
@@ -680,11 +679,20 @@ shows where:
 The editor is reprise's own pure code, not brick's editor. brick's editor
 handles events in brick's monad, outside the handlers that the tests run.
 
-The line prompts so far: `seek_to` (`m:ss` or `N%`), `set_volume`,
-`set_crossfade`, `priority` without a value, `add_path`, and `:`, which runs
-an action. Completion in `:` comes later. An answer that doesn't parse shows
-an error, e.g. "set_volume: a volume is from 0 to 100". An empty answer does
-nothing.
+The `:` prompt runs an action. It is also how a key asks for a value: the
+`command` action takes the start of the line, so `ctrl-p g: command seek`
+opens `:seek ` and the user types the time. One prompt and the registry's
+parsers serve every action with arguments, instead of a prompt action for
+each, such as ncmpcpp's `set_volume`. Any action with arguments can become
+an "ask me" binding without new code.
+- **A hint** on the right of the line tells how to go on: the usage of the
+  action that the line names, e.g. `seek +Ns | -Ns | m:ss | N%`, and, once
+  the line parses, what `enter` will do, e.g. "seek to 1:30". The line comes
+  first; the hint gets the room that is left.
+- **An answer that doesn't parse** shows the registry's error with the usage.
+  An empty line does nothing.
+- **Arguments** are words and lists, except for `add_path` and `command`,
+  which take the rest of the line, because a path holds spaces and brackets.
 
 Find (`/`, `?`):
 - **On every key,** the cursor moves to the first match after where the find
@@ -759,8 +767,9 @@ After a prefix key, a panel lists the possible next keys.
   sequences quickly, a delay becomes a config option. Then the delay is a user
   preference, not a hardcoded value.
 
-The `:` prompt uses the same idea: as the user types, it completes action names
-from the registry and shows each one's description and arguments.
+The `:` prompt uses the same idea: as the user types, it shows the action's
+usage or description (see [Prompts](#prompts)). Completing action names from
+the registry comes later.
 
 ### Destructive actions
 
@@ -1130,7 +1139,7 @@ keys:
       n: add next                # after the playing song
       b: add beginning
       p: add_and_play
-      /: add_path                # prompts for a path
+      /: command add_path        # asks for the path in the : prompt
     ctrl-q:
       name: queue
       c: clear
@@ -1158,10 +1167,10 @@ keys:
       b: toggle bitrate
     ctrl-p:
       name: playback
-      g: seek_to                 # prompts for m:ss or N%
+      g: command seek            # asks for m:ss, N% or ±Ns
       r: replay
-      v: set_volume
-      x: set_crossfade
+      v: command volume
+      x: command crossfade
     ctrl-d:
       name: database
       u: update current
@@ -1175,7 +1184,7 @@ keys:
     ctrl-q:                      # merged with the global ctrl-q group
       m: move_selection cursor
       e: move_selection end
-      p: priority                # prompts for 0–255
+      p: command priority        # asks for 0–255
 
   browser:
     backspace: parent

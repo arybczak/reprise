@@ -313,27 +313,16 @@ handlePromptKey p k = case p.input of
     close :: App es => Eff es ()
     close = modifyS $ #prompt .~ Nothing
 
--- | Run what a line prompt asked for. An empty answer does nothing, except
--- in find.
+-- | Run what a line prompt asked for. An empty line of @:@ does nothing.
 answer :: App es => LinePurpose -> T.Text -> Eff es ()
 answer purpose text = case purpose of
   ForFind f -> acceptFind f text
-  _ | T.null t -> pure ()
-  ForSeek -> orError SeekToPrompt (runAction . Seek) (parseSeekTarget t)
-  ForVolume -> orError SetVolume (runAction . Volume . VolumeTo) (parseVolume t)
-  ForCrossfade -> orError SetCrossfade (mutate . setCrossfade) (natural t)
-  ForPriority -> orError (Priority Nothing) (runAction . Priority . Just) (parsePriority t)
-  ForPath -> mutate $ add t Nothing
-  ForCommand -> either showError runAction (parseAction t)
-  where
-    t :: T.Text
-    t = T.strip text
+  ForCommand
+    | T.null (T.strip text) -> pure ()
+    | otherwise -> either showError runAction (parseAction text)
 
-    orError :: App es => Action -> (a -> Eff es ()) -> Either T.Text a -> Eff es ()
-    orError action = either (showError . ((renderAction action <> ": ") <>))
-
-openLine :: App es => T.Text -> LinePurpose -> Eff es ()
-openLine question purpose = modifyS $ #prompt ?~ Prompt question (Line emptyLineEdit purpose)
+openLine :: App es => T.Text -> LineEdit -> LinePurpose -> Eff es ()
+openLine question edit purpose = modifyS $ #prompt ?~ Prompt question (Line edit purpose)
 
 ----------------------------------------
 -- Find
@@ -341,7 +330,7 @@ openLine question purpose = modifyS $ #prompt ?~ Prompt question (Line emptyLine
 startFind :: App es => Direction -> Eff es ()
 startFind direction = do
   v <- getsS focusedView
-  openLine question . ForFind $ Finding direction (v.cursor, v.offset) Nothing
+  openLine question emptyLineEdit . ForFind $ Finding direction (v.cursor, v.offset) Nothing
   where
     question :: T.Text
     question = case direction of
@@ -430,23 +419,21 @@ runAction = \case
   action@Delete -> onQueue action $ do
     ps <- getsS markedPositions
     mutate $ deletePositions ps
-  action@(Priority (Just p)) -> onQueue action $ do
+  action@(Priority p) -> onQueue action $ do
     s <- getS
     let ids = mapMaybe (\i -> Seq.lookup i s.mirror.queue >>= (.songId)) (markedPositions s)
     mutate $ prioId p ids
     showMessage $ "Priority " <> T.pack (show p) <> " set for " <> countSongs (length ids)
   action@(MoveSelection t) -> onQueue action $ moveSelection t
-  action@(Priority Nothing) -> onQueue action $ openLine "Set priority [0-255]: " ForPriority
   action@(Find t) -> onQueue action $ case t of
     FindForward -> startFind Forward
     FindBackward -> startFind Backward
     FindNext -> findAgain Forward
     FindPrevious -> findAgain Backward
-  SeekToPrompt -> openLine "Seek to (m:ss or N%): " ForSeek
-  SetVolume -> openLine "Set volume to: " ForVolume
-  SetCrossfade -> openLine "Set crossfade to: " ForCrossfade
-  AddPath -> openLine "Add path: " ForPath
-  CommandPrompt -> openLine ":" ForCommand
+  Crossfade n -> mutate $ setCrossfade n
+  AddPath path -> mutate $ add path Nothing
+  CommandPrompt start ->
+    openLine ":" (LineEdit (if T.null start then start else start <> " ") "") ForCommand
   Pause -> withStatus $ \st -> mutate $ case st.state of
     Playing -> pause True
     Paused -> pause False

@@ -13,6 +13,7 @@ actionTests =
     [ testCase "parse" test_parse
     , testCase "render then parse" test_renderParse
     , testCase "errors" test_errors
+    , testCase "the hint of the : prompt" test_hint
     ]
 
 test_parse :: Assertion
@@ -56,10 +57,20 @@ test_renderParse =
     , Toggle ToggleAlbumSeparators
     , Update UpdateAll
     , MoveSelection MoveSelectionToEnd
-    , Priority Nothing
-    , Priority (Just 5)
-    , CommandPrompt
+    , Priority 5
+    , Crossfade 3
+    , CommandPrompt ""
+    , CommandPrompt "seek"
+    , AddPath "A/[2001] B/01 c  d.flac"
     ]
+
+test_hint :: Assertion
+test_hint = do
+  assertEqual "the usage" "seek +Ns | -Ns | m:ss | N%" (actionHint "seek ")
+  assertEqual "while the arguments are wrong" "volume +N | -N | N" (actionHint "volume 1x")
+  assertEqual "what it will do" "seek to 1:30" (actionHint "seek 1:30")
+  assertEqual "an action without arguments" "quit" (actionHint "quit")
+  assertEqual "not an action yet" "" (actionHint "se")
 
 test_errors :: Assertion
 test_errors = do

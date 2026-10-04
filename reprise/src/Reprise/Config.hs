@@ -648,7 +648,7 @@ defaultKeymaps =
           , plain Tab ~> NextScreen [BrowserScreen, MediaLibraryScreen]
           , shift Tab ~> PreviousScreen [BrowserScreen, MediaLibraryScreen]
           , plain (Function 1) ~> Show HelpScreen
-          , char ':' ~> CommandPrompt
+          , char ':' ~> CommandPrompt ""
           , char 'q' ~> Quit
           , group
               (ctrl 'a')
@@ -657,7 +657,7 @@ defaultKeymaps =
               , char 'n' ~> Add AddNext
               , char 'b' ~> Add AddBeginning
               , char 'p' ~> AddAndPlay
-              , char '/' ~> AddPath
+              , char '/' ~> CommandPrompt "add_path"
               ]
           , group
               (ctrl 'q')
@@ -693,10 +693,10 @@ defaultKeymaps =
           , group
               (ctrl 'p')
               "playback"
-              [ char 'g' ~> SeekToPrompt
+              [ char 'g' ~> CommandPrompt "seek"
               , char 'r' ~> Replay
-              , char 'v' ~> SetVolume
-              , char 'x' ~> SetCrossfade
+              , char 'v' ~> CommandPrompt "volume"
+              , char 'x' ~> CommandPrompt "crossfade"
               ]
           , group
               (ctrl 'd')
@@ -720,7 +720,7 @@ defaultKeymaps =
                     "queue"
                     [ char 'm' ~> MoveSelection MoveSelectionToCursor
                     , char 'e' ~> MoveSelection MoveSelectionToEnd
-                    , char 'p' ~> Priority Nothing
+                    , char 'p' ~> CommandPrompt "priority"
                     ]
                 ]
             )

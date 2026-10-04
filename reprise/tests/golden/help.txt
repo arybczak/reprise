@@ -10,7 +10,7 @@ Global
 2           show browser
 3           show search engine
 7           show outputs
-:           run a command
+:           run an action
 <           previous song
 >           next song
 ?           find backward

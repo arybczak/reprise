@@ -47,8 +47,18 @@ layoutTests =
 test_promptLine :: Assertion
 test_promptLine = do
   let s = press ["ctrl-p", "v", "4", "0", "left"] (playing (40, 12))
-  assertEqual "the line" (Just "Set volume to: 40") (T.stripEnd <$> lastLine s)
-  assertEqual "the cursor" (Just (16, 11)) (promptCursor s)
+  assertEqual
+    "the line and the hint"
+    (Just (True, True))
+    ( (\l -> (":volume 40 " `T.isPrefixOf` l, " set volume to 40" `T.isSuffixOf` l))
+        <$> lastLine s
+    )
+  assertEqual "the cursor" (Just (9, 11)) (promptCursor s)
+  let narrow = press ["ctrl-p", "v", "4", "0"] (playing (20, 12))
+  assertEqual
+    "the hint gives way to the line"
+    (Just (True, True))
+    ((\l -> (":volume 40 " `T.isPrefixOf` l, " set vol…" `T.isSuffixOf` l)) <$> lastLine narrow)
   let notFound = press ["/", "x", "y", "z"] (playing (40, 12))
   assertEqual
     "the note"

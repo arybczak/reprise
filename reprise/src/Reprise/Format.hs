@@ -32,6 +32,7 @@ module Reprise.Format
   , truncateToWidth
   , fitSpans
   , takeWidth
+  , ellipsis
   , formatDuration
   ) where
 

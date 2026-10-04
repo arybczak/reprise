@@ -297,10 +297,17 @@ data PromptLine = PromptLine
 
 promptLine :: AppState -> T.Text -> LineEdit -> LinePurpose -> PromptLine
 promptLine s question edit purpose =
-  let note = case purpose of
-        ForFind f -> maybe "" (\n -> " " <> n) f.note
-        _ -> ""
-      room = max 1 (fst s.terminalSize - textWidth question - textWidth note)
+  let w = fst s.terminalSize
+      fullNote = case purpose of
+        ForCommand -> actionHint (lineEditText edit)
+        ForFind f -> fromMaybe "" f.note
+      -- The line and a column for the cursor come first, then a space and
+      -- as much of the note as fits.
+      noteRoom = w - textWidth question - textWidth (lineEditText edit) - 2
+      note
+        | T.null fullNote || noteRoom < textWidth ellipsis = ""
+        | otherwise = " " <> truncateToWidth noteRoom fullNote
+      room = max 1 (w - textWidth question - textWidth note)
       (shown, column) = visibleLine room edit
   in PromptLine shown (textWidth question + column) note
 
