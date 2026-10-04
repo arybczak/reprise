@@ -42,7 +42,7 @@ import Data.Maybe
 import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
-import Data.Time
+import Data.Time qualified as Time
 import Data.Time.Clock.POSIX
 import Data.Time.Format.ISO8601
 import Data.Word
@@ -230,7 +230,7 @@ readSeconds s = case BS8.break (== '.') s of
 -- | An ISO 8601 time, e.g. @2024-01-02T03:04:05Z@.
 --
 -- @since 0.1.0.0
-readTime :: BS.ByteString -> Maybe UTCTime
+readTime :: BS.ByteString -> Maybe Time.UTCTime
 readTime = iso8601ParseM . T.unpack . decode
 
 ----------------------------------------

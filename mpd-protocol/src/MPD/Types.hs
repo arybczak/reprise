@@ -43,7 +43,7 @@ module MPD.Types
 import Data.Fixed
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
-import Data.Time
+import Data.Time qualified as Time
 import Data.Word
 import GHC.Generics
 
@@ -59,7 +59,7 @@ data Song = Song
   , tags :: M.Map Tag [T.Text]
   -- ^ The values of each tag, in the order MPD sent them.
   , duration :: Maybe Seconds
-  , lastModified :: Maybe UTCTime
+  , lastModified :: Maybe Time.UTCTime
   , format :: Maybe T.Text
   -- ^ The audio format, e.g. @44100:16:2@.
   , position :: Maybe SongPos
@@ -260,7 +260,7 @@ data Stats = Stats
   -- ^ In seconds.
   , dbPlaytime :: Int
   -- ^ The length of all songs in the database, in seconds.
-  , dbUpdate :: Maybe UTCTime
+  , dbUpdate :: Maybe Time.UTCTime
   -- ^ The time of the last database update.
   }
   deriving stock (Eq, Show, Generic)
