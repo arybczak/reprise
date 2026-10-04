@@ -20,6 +20,7 @@ common language
     ghc-options:        -Wall
                         -Wcompat
                         -Werror=missing-deriving-strategies
+                        -Werror=name-shadowing
                         -Werror=prepositive-qualified-module
 
     default-language:   GHC2021

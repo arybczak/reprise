@@ -162,7 +162,8 @@ operation :: Operation -> Command ()
 operation = \case
   AddSong i pos -> add (T.pack (testSongs !! i).path) (At . SongPos <$> pos)
   DeleteRange start len -> delete (Range (SongPos start) (Just (SongPos (start + len))))
-  MoveRange start len to -> move (Range (SongPos start) (Just (SongPos (start + len)))) (At (SongPos to))
+  MoveRange start len target ->
+    move (Range (SongPos start) (Just (SongPos (start + len)))) (At (SongPos target))
   ShuffleAll -> shuffle Nothing
   Clear -> clear
   Priority p pos -> prio p [onePosition (SongPos pos)]
