@@ -93,6 +93,9 @@ library
                      Reprise.Style
                      Reprise.UI.Layout
                      Reprise.UI.SongList
+                     Reprise.Width
+
+    c-sources:       cbits/width.c
 
     other-modules:   Paths_reprise
     autogen-modules: Paths_reprise
@@ -144,4 +147,5 @@ test-suite test
                     LayoutTests
                     MirrorTests
                     StyleTests
+                    WidthTests
                     Utils

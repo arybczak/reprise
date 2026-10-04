@@ -32,6 +32,7 @@ import Reprise.Mpd.Address
 import Reprise.Mpd.Worker
 import Reprise.State
 import Reprise.Style
+import Reprise.Width
 
 data Options = Options
   { host :: Maybe T.Text
@@ -78,6 +79,7 @@ main = do
       r <- try @SomeException . runEff . runMpd settings $ worker workers
       either (logLine . ("A worker failed: " <>) . T.pack . displayException) pure r
       threadDelay retryInterval
+  installWidthTable
   let buildVty = V.mkVty V.defaultConfig
   vty <- buildVty
   void $

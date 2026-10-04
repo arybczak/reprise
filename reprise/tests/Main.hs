@@ -12,9 +12,14 @@ import KeysTests
 import LayoutTests
 import MirrorTests
 import StyleTests
+import WidthTests
+
+import Reprise.Width
 
 main :: IO ()
-main =
+main = do
+  -- As reprise does at the start.
+  installWidthTable
   defaultMain $
     testGroup
       "reprise"
@@ -28,4 +33,5 @@ main =
       , layoutTests
       , mirrorTests
       , styleTests
+      , widthTests
       ]

@@ -587,6 +587,22 @@ From top to bottom, as in ncmpcpp's classic design:
 Without a mixer in MPD, the volume shows as "n/a" and the volume actions say
 so.
 
+### Character widths
+
+vty computes every width with its built-in table from Unicode 5.0, in which
+an emoji is narrow. Terminals draw it wide, so a row with one would overflow
+the line. At the start, reprise installs a table built from the C library's
+`wcwidth`, in the user's locale or `C.UTF-8`, as ncmpcpp measures with
+`wcwidth`. Building it takes about 0.1 s. Without a UTF-8 locale, vty keeps
+its built-in table.
+
+reprise doesn't read vty's own config, so a table that `vty-build-width-table`
+measured in a terminal isn't used. A terminal can disagree with the C
+library, e.g. when it draws ambiguous-width characters wide, but ncmpcpp had
+the same limit and it never showed. Widths are for single characters, so a
+sequence that a terminal draws as one emoji, e.g. with a zero-width joiner,
+can be measured wrong.
+
 ### Prompts
 
 Prompts (find, filter, `:`, confirmations, `seek_to`, ...) use brick's line

@@ -1,0 +1,37 @@
+module WidthTests (widthTests) where
+
+import Control.Monad
+import Data.Text qualified as T
+import MPD.Types
+import Test.Tasty
+import Test.Tasty.HUnit
+
+import Reprise.Format
+import Reprise.UI.Layout
+import Reprise.Width
+import Utils
+
+widthTests :: TestTree
+widthTests =
+  testGroup
+    "Width"
+    [ testCase "an emoji is wide" test_emoji
+    , testCase "a row with an emoji fits the terminal" test_emojiRowFits
+    ]
+
+test_emoji :: Assertion
+test_emoji = assertEqual "width" 2 (textWidth "🌍")
+
+-- | The C library is the oracle for the terminal's widths.
+test_emojiRowFits :: Assertion
+test_emojiRowFits = do
+  width <- systemWidth >>= maybe (assertFailure "no UTF-8 locale") pure
+  let title = "Hello 🌍 world, with a title long enough to fill its column"
+      s =
+        testState
+          (80, 6)
+          (statusOf Playing (Just 0) 1)
+          [song 0 [(Artist, ["A"]), (Title, [title])] 60]
+  forM_ (imageLines (renderScreen s)) $ \line -> do
+    w <- sum <$> mapM width (T.unpack line)
+    assertBool ("wider than the terminal: " <> T.unpack line) (w <= 80)
