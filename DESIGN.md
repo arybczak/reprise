@@ -59,7 +59,7 @@ contributors.
   but an Emacs-like window framework must stay possible (see
   [Screens and views](#screens-and-views)).
 
-Out of scope for now: visualizer, tag editor, tiny tag editor, clock screen.
+Out of scope for now: visualizer, clock screen. The tag editor comes later.
 
 ## Terms
 
@@ -193,6 +193,11 @@ Implemented when the author misses them.
 - Load, add, rename, delete, move, crop, clear.
 - Until then, the browser can browse, load and delete stored playlists.
 
+**Tag editor and tiny tag editor**
+- They write tags into the files with TagLib, so the music directory option
+  comes back with them.
+- The tag editor's screen key is `6`, as in ncmpcpp.
+
 **Lyrics**
 - Local cache and the `tags` source come first.
 - ncmpcpp's web fetchers are all Google "I'm Feeling Lucky" scrapes, which
@@ -206,7 +211,7 @@ Implemented when the author misses them.
 
 **Smaller screens and actions**
 - Song info screen, using MPD tags only. Bitrate, sample rate and ReplayGain
-  read directly from the file need TagLib, which is out of scope.
+  read directly from the file need TagLib, which comes with the tag editor.
 - Server info popup.
 - Selected items adder popup. MPD 0.23 relative positions (`addid uri +0`)
   make "after current song" trivial.
@@ -236,8 +241,7 @@ format decide, since formats can apply bold too (`<bold>...</>`).
 
 ### Dropped
 
-**Visualizer, tag editor, tiny tag editor, clock** are out of scope, with their
-options.
+**Visualizer, clock** are out of scope, with their options.
 
 **Split screens** (locked screen, master/slave)
 - They are constrained, rarely used, and caused a lot of maintenance and
@@ -973,9 +977,9 @@ Without a host in the config, reprise tries these in order:
    `/run/mpd/socket`;
 3. `localhost:6600`.
 
-There is no music directory option. No core feature needs it: the tag editor is
-out of scope and file deletion is never implemented. It comes back only with a
-feature that reads files directly, such as lyrics stored next to the song.
+There is no music directory option yet. No core feature needs it, and file
+deletion is never implemented. It comes back with the first feature that reads
+files directly: the tag editor, or lyrics stored next to the song.
 
 ### Keymaps
 
@@ -1046,11 +1050,12 @@ keys:
     ",": find previous
     ctrl-f: filter
 
-    # screens; 4 and 5 are kept for the media library and the playlist editor
+    # screens; 4, 5 and 6 are kept for the media library, the playlist editor
+    # and the tag editor
     1: show queue
     2: show browser
     3: show search_engine
-    6: show outputs
+    7: show outputs
     tab: next_screen [browser, media_library]
     shift-tab: previous_screen [browser, media_library]
     f1: show help
@@ -1132,8 +1137,6 @@ Compared to ncmpcpp:
 - **`shift-up`/`shift-down`** toggle the selection and move, without the
   binding chains ncmpcpp needs for it.
 - **`g`, `u`, `A`, `a`, `w` and `e` are free** for later features.
-- **Outputs moved from `7` to `6`,** so screen numbers have no gaps now that
-  the tag editor is gone.
 - **`escape` is not bound to pause.** That was the author's own binding, and
   pausing by accident is a surprising result of trying to back out of
   something.
@@ -1220,9 +1223,9 @@ How the author's ncmpcpp settings were translated:
 
 #### Dropped options
 
-Options for dropped features go with them: the visualizer, tag editor, clock
-and split screen options, `allow_for_physical_item_deletion`,
-`show_hidden_files_in_local_browser`, `mpd_music_dir`.
+Options for dropped features go with them: the visualizer, clock and split
+screen options, `allow_for_physical_item_deletion`,
+`show_hidden_files_in_local_browser`.
 
 **Dead or obsolete**
 - `visualizer_fifo_path` (not registered any more) and `lyrics_db` (unused).
@@ -1273,7 +1276,8 @@ and split screen options, `allow_for_physical_item_deletion`,
   `$EDITOR`. The author sets mcedit in their own config.
 - **The options of other later features:** `lyrics_fetchers` (genius is gone,
   and the fetchers get redesigned), `follow_now_playing_lyrics`,
-  `lines_scrolled` and `mouse_list_scroll_whole_page`.
+  `lines_scrolled`, `mouse_list_scroll_whole_page`, `mpd_music_dir` and the
+  tag editor's options.
 
 ## Testing
 

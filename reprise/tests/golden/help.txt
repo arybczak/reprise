@@ -9,7 +9,7 @@ Global
 1           show queue
 2           show browser
 3           show search engine
-6           show outputs
+7           show outputs
 :           run a command
 <           previous song
 >           next song
