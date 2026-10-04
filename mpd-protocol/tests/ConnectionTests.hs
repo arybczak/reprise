@@ -56,7 +56,7 @@ songs =
           , ("ARTIST", "Bar")
           , ("ALBUM", "Baz")
           , ("TITLE", "Zażółć")
-          , ("TRACKNUMBER", "1/12")
+          , ("TRACKNUMBER", "1")
           ]
       , seconds = 60
       }
@@ -139,7 +139,7 @@ test_songTags server = withConn server $ \conn -> do
         [ (Artist, ["Foo", "Bar"])
         , (Album, ["Baz"])
         , (Title, ["Zażółć"])
-        , (Track, ["1/12"])
+        , (Track, ["1"])
         ]
     )
     song.tags
