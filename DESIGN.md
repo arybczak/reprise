@@ -1507,3 +1507,19 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
   restart is cheap, and the screens' state comes back from MPD.
 - **Scripting** is not planned. The action registry is what a scripting layer
   would expose (see [Key bindings](#key-bindings)).
+- **The memory of songs** waits until it matters. With a queue of 4254 songs,
+  reprise kept 6.2 MB of live data, about 1.5 KB per song, and about 47–50 MB
+  resident, which ncmpcpp uses too (55 MB). The live data was about 3 MB of
+  strings and 1.9 MB of tag maps and lists; GHC keeps a heap of about twice
+  the live data.
+  - **Sharing equal tag values** comes with the media library, whose
+    `listallinfo` loads the whole database. The parser keeps a table of the
+    values of one reply, so that each artist, album, date or genre is decoded
+    and stored once. Measure on a real database first.
+  - **Reusing songs in the mirror** comes with the queue operations of
+    milestone 3. A move sends every song whose position changed in
+    `plchanges`, as new values. The mirror can keep its old song when only
+    the position differs, which keeps the sharing and saves allocations.
+  - **Tuning GHC's runtime** (nursery size, heap growth factor) is not
+    planned. Each setting is a constant that needs a reason, for a few
+    megabytes at most.
