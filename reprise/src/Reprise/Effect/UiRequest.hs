@@ -35,7 +35,7 @@ data UiCommand
 
 -- | Collect the requests, in the order the action made them.
 collectUiRequests :: Eff (UiRequest : es) a -> Eff es (a, [UiCommand])
-collectUiRequests = reinterpret runOutput $ \_ -> \case
+collectUiRequests = reinterpret_ runOutput $ \case
   UiRequest c -> output c
 
 halt :: UiRequest :> es => Eff es ()

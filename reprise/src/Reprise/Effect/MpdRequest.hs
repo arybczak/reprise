@@ -37,7 +37,7 @@ pendingRequestLines (PendingRequest cmd _) = commandRequests cmd
 
 -- | Collect the requests, in the order the action made them.
 collectMpdRequests :: Eff (MpdRequest : es) a -> Eff es (a, [PendingRequest])
-collectMpdRequests = reinterpret runOutput $ \_ -> \case
+collectMpdRequests = reinterpret_ runOutput $ \case
   RequestCommand cmd k -> output $ PendingRequest cmd k
 
 -- | Request a command, with a continuation for its reply.

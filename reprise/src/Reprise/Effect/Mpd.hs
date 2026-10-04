@@ -45,7 +45,7 @@ runMpd settings action = do
         readIORef ref >>= \case
           Just conn -> f conn
           Nothing -> connected >>= either (pure . Left) f
-  let handled = interpretWith action $ \_ -> \case
+  let handled = interpretWith_ action $ \case
         Connect -> liftIO $ do
           disconnect
           fmap serverVersion <$> connected
