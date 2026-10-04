@@ -2,6 +2,8 @@ module WidthTests (widthTests) where
 
 import Control.Monad
 import Data.Text qualified as T
+import Graphics.Vty.UnicodeWidthTable.Query qualified as V
+import Graphics.Vty.UnicodeWidthTable.Types qualified as V
 import MPD.Types
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -17,7 +19,15 @@ widthTests =
     "Width"
     [ testCase "an emoji is wide" test_emoji
     , testCase "a row with an emoji fits the terminal" test_emojiRowFits
+    , testCase "the ranges are vty's" test_sameRanges
     ]
+
+test_sameRanges :: Assertion
+test_sameRanges = do
+  width <- systemWidth >>= maybe (assertFailure "no UTF-8 locale") pure
+  ours <- widthRanges width V.defaultUnicodeTableUpperBound
+  vtys <- V.buildUnicodeWidthTable width V.defaultUnicodeTableUpperBound
+  assertEqual "ranges" (V.unicodeWidthTableRanges vtys) ours
 
 test_emoji :: Assertion
 test_emoji = assertEqual "width" 2 (textWidth "🌍")
