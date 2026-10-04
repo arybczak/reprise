@@ -8,6 +8,7 @@ import Optics.Core
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import Reprise.Action
 import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Keys
@@ -35,7 +36,56 @@ handlerTests =
     , testCase "follow the playing song" test_followPlaying
     , testCase "an MPD error shows in the status bar" test_mpdError
     , testCase "a redraw for the elapsed time" test_tick
+    , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
+    , testCase "the help screen scrolls" test_helpScrolls
+    , testCase "a verb that the help screen lacks" test_helpLacksVerb
+    , testCase "follow playing while the help screen shows" test_followBehindHelp
+    , testCase "jump to playing from the help screen" test_jumpFromHelp
     ]
+
+test_helpKeepsPosition :: Assertion
+test_helpKeepsPosition = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 30) (songs 30)
+      help = keys ["end", "f1"] s
+  assertEqual "help" HelpScreen (focusedView help.state).screen
+  assertEqual "help starts at the top" 0 (focusedView help.state).offset
+  let back = keys ["1"] help.state
+  assertEqual "queue" QueueScreen (focusedView back.state).screen
+  assertEqual "cursor" 29 (focusedView back.state).cursor
+  assertEqual "offset" 10 (focusedView back.state).offset
+
+test_helpScrolls :: Assertion
+test_helpScrolls = do
+  let s = keys ["f1"] $ testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
+      offsetAfter ks = (focusedView (keys ks s.state).state).offset
+  assertEqual "down" 1 (offsetAfter ["down"])
+  assertEqual "not above the top" 0 (offsetAfter ["up"])
+  assertEqual "page" 20 (offsetAfter ["page_down"])
+  let end = offsetAfter ["end"]
+  assertEqual "not past the end" end (offsetAfter ["end", "down"])
+  assertBool "the last page" (end > 20)
+
+test_helpLacksVerb :: Assertion
+test_helpLacksVerb = do
+  let s = keys ["f1"] $ testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+      r = keys ["delete"] s.state
+  assertEqual "nothing deleted" [] r.requests
+  assertEqual "message" (Just "The help screen has no delete") ((.text) <$> r.state.message)
+
+test_followBehindHelp :: Assertion
+test_followBehindHelp = do
+  let s = keys ["ctrl-t", "f", "f1"] $ testState (80, 24) (statusOf Playing (Just 0) 5) (songs 5)
+      r = runEvents 0 [StatusFetched (Right (statusOf Playing (Just 3) 5))] s.state
+  assertEqual "help stays" HelpScreen (focusedView r.state).screen
+  assertEqual "help doesn't move" 0 (focusedView r.state).offset
+  assertEqual "the queue follows" 3 (focusedView (keys ["1"] r.state).state).cursor
+
+test_jumpFromHelp :: Assertion
+test_jumpFromHelp = do
+  let s = keys ["f1"] $ testState (80, 24) (statusOf Playing (Just 4) 5) (songs 5)
+      r = keys ["up", "o"] s.state
+  assertEqual "queue" QueueScreen (focusedView r.state).screen
+  assertEqual "cursor" 4 (focusedView r.state).cursor
 
 test_jumpAtStart :: Assertion
 test_jumpAtStart = do

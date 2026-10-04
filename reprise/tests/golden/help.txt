@@ -1,0 +1,24 @@
+Help                                                                 Volume: 50%
+────────────────────────────────────────────────────────────────────────────────
+Global
++           change volume by +2
+,           find previous
+-           change volume by -2
+.           find next
+/           find forward
+1           show queue
+2           show browser
+3           show search engine
+6           show outputs
+:           run a command
+<           previous song
+>           next song
+?           find backward
+[           move previous album
+]           move next album
+b           seek -1s
+f           seek +1s
+o           jump to the playing song
+p           pause or resume
+▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

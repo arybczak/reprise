@@ -22,6 +22,7 @@ import Reprise.Handler
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.Mpd.Mirror
+import Reprise.Screen.Help
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.SongList
@@ -124,7 +125,14 @@ mainView s =
       h = mainHeight s.terminalSize
   in V.resize w h $ case v.screen of
        QueueScreen -> queueView s v
+       HelpScreen -> helpView s v
        _ -> V.emptyImage
+
+helpView :: AppState -> View -> V.Image
+helpView s v =
+  let ls = helpLines s.keymaps
+      render = renderHelpLine s.colorMode s.config.styles (keyColumnWidth ls) v.width
+  in V.vertCat . map render . take v.height $ drop v.offset ls
 
 queueView :: AppState -> View -> V.Image
 queueView s v =

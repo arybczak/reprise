@@ -1,0 +1,24 @@
+Help                                                                 Volume: 50%
+────────────────────────────────────────────────────────────────────────────────
+q           quit
+s           stop
+{           move previous artist
+}           move next artist
+space       add or remove
+enter       activate
+tab         next screen
+up          move up
+down        move down
+left        change volume by -2
+right       change volume by +2
+home        move first
+end         move last
+page_up     move page up
+page_down   move page down
+insert      toggle selection
+delete      delete
+f1          show help
+ctrl-f      filter
+shift-tab   previous screen
+▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

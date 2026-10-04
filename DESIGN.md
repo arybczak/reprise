@@ -151,7 +151,10 @@ ncmpcpp.
 
 **Other screens**
 - Outputs screen (enable/disable). It is small and used often.
-- Help screen, generated from the keymaps.
+- Help screen, generated from the keymaps. It has a section for the global
+  keymap and for each screen's keymap, and each group of a prefix key gets
+  its own heading with the whole key sequences, e.g. `ctrl-t r`. It is text
+  without a cursor, so the movement actions scroll it.
 
 ### Later
 
@@ -473,6 +476,10 @@ without building any of the framework:
      listing, the selection.
    - A view holds how that content is shown: the cursor, the scroll offset,
      the size it was last rendered at.
+   - A view remembers the cursor and the offset of each screen it showed, so
+     switching back returns to the same place, as an Emacs window does with
+     its previous buffers. A change of a screen that the view doesn't show,
+     e.g. following the playing song, moves the remembered position.
    - Today there is exactly one view. A second view of the queue would only
      need a second view record.
 2. **Size comes from the view.** Page up/down, centering and scrolling read
@@ -1467,7 +1474,8 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
    - Selection, find, filter, prompts, add and play.
 4. **Feature parity for the core.**
    - Search engine, columns display in the other screens.
-   - Outputs, help, the `:` prompt with completion.
+   - Outputs, the `:` prompt with completion. The help screen came with
+     milestone 2.
 5. **Later features**, in the order the author misses them.
 
 ## Postponed decisions

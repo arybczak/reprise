@@ -7,6 +7,7 @@ import AddressTests
 import ConfigTests
 import FormatTests
 import HandlerTests
+import HelpTests
 import KeymapTests
 import KeysTests
 import LayoutTests
@@ -28,6 +29,7 @@ main = do
       , configTests
       , formatTests
       , handlerTests
+      , helpTests
       , keymapTests
       , keysTests
       , layoutTests

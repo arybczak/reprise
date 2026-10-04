@@ -25,6 +25,8 @@ layoutTests =
     , snapshot "confirm" $ press ["ctrl-q", "c"] (playing (80, 12))
     , snapshot "stopped" $ testState (80, 8) (statusOf Stopped Nothing 2) (take 2 queue)
     , snapshot "empty" $ testState (80, 6) (statusOf Stopped Nothing 0) []
+    , snapshot "help" $ press ["f1"] (playing (80, 24))
+    , snapshot "help-scrolled" $ press ["f1", "page_down"] (playing (80, 24))
     ]
 
 -- | Render the screen at a fixed monotonic time and compare its text with a

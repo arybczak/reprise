@@ -24,7 +24,6 @@ module Reprise.Handler
 
 import Control.Applicative
 import Control.Monad
-import Data.Foldable
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Sequence qualified as Seq
@@ -45,6 +44,7 @@ import Reprise.Format
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.Mpd.Mirror
+import Reprise.Screen.Help
 import Reprise.State
 
 -- | The effects of the handlers.
@@ -289,9 +289,13 @@ handlePromptKey p k = case p of
 runAction :: App es => Action -> Eff es ()
 runAction = \case
   Move t -> moveCursor t
-  JumpToPlaying -> jumpToPlaying
-  Activate -> withSongUnderCursor $ \song -> forM_ song.songId (mutate . playId)
-  Delete -> withSongUnderCursor $ \song -> forM_ song.songId (mutate . deleteId)
+  JumpToPlaying -> do
+    modifyView $ switchScreen QueueScreen
+    jumpToPlaying
+  action@Activate -> onQueue action . withSongUnderCursor $ \song ->
+    forM_ song.songId (mutate . playId)
+  action@Delete -> onQueue action . withSongUnderCursor $ \song ->
+    forM_ song.songId (mutate . deleteId)
   Pause -> withStatus $ \st -> mutate $ case st.state of
     Playing -> pause True
     Paused -> pause False
@@ -309,8 +313,9 @@ runAction = \case
       VolumeBy n -> changeVolume n
       VolumeTo n -> setVolume n
   Toggle t -> toggle t
-  Show QueueScreen -> modifyView $ #screen .~ QueueScreen
-  Show screen -> notAvailable $ "The " <> T.replace "_" " " (screenName screen) <> " screen"
+  Show screen
+    | screen `elem` [QueueScreen, HelpScreen] -> modifyView $ switchScreen screen
+    | otherwise -> notAvailable $ "The " <> screenText screen
   Quit -> halt
   Clear -> do
     n <- getsS (queueLength . (.mirror))
@@ -325,12 +330,24 @@ runAction = \case
   Update _ -> do
     mutate . void $ update Nothing
     showMessage "Updating the database"
-  MoveSelection MoveSelectionUp -> moveSongUnderCursor (-1)
-  MoveSelection MoveSelectionDown -> moveSongUnderCursor 1
+  action@(MoveSelection MoveSelectionUp) -> onQueue action $ moveSongUnderCursor (-1)
+  action@(MoveSelection MoveSelectionDown) -> onQueue action $ moveSongUnderCursor 1
   action -> notAvailable $ "The action " <> renderAction action
   where
     songs :: Int -> T.Text
     songs n = T.pack (show n) <> if n == 1 then " song" else " songs"
+
+-- | Run a verb that only the queue implements so far. Another screen says
+-- that it doesn't implement it, instead of acting on the queue.
+onQueue :: App es => Action -> Eff es () -> Eff es ()
+onQueue action k = do
+  screen <- getsS ((.screen) . focusedView)
+  if screen == QueueScreen
+    then k
+    else showMessage $ "The " <> screenText screen <> " has no " <> renderAction action
+
+screenText :: ScreenName -> T.Text
+screenText screen = T.replace "_" " " (screenName screen) <> " screen"
 
 -- | Run a destructive action that the user confirmed.
 runConfirmed :: App es => Action -> Eff es ()
@@ -353,8 +370,15 @@ withSongUnderCursor k = do
   s <- getS
   forM_ (Seq.lookup (focusedView s).cursor s.mirror.queue) k
 
+-- | Move the queue's cursor to the playing song, also while the view shows
+-- another screen.
 jumpToPlaying :: App es => Eff es ()
-jumpToPlaying = getsS (currentPosition . (.mirror)) >>= traverse_ setCursor
+jumpToPlaying = do
+  s <- getS
+  forM_ (currentPosition s.mirror) $ \p ->
+    if (focusedView s).screen == QueueScreen
+      then setCursor p
+      else modifyS $ #views % ix s.focus % #positions % at QueueScreen ?~ (p, 0)
 
 toggle :: App es => ToggleTarget -> Eff es ()
 toggle = \case
@@ -401,18 +425,31 @@ moveCursor t = do
       h = max 1 (listHeight s view_)
       q = s.mirror.queue
       c = view_.cursor
-  setCursor $ case t of
-    MoveUp -> c - 1
-    MoveDown -> c + 1
-    MovePageUp -> c - h
-    MovePageDown -> c + h
-    MoveFirst -> 0
-    MoveLast -> Seq.length q - 1
-    MovePreviousAlbum -> previousGroup albumKey q c
-    MoveNextAlbum -> nextGroup albumKey q c
-    MovePreviousArtist -> previousGroup artistKey q c
-    MoveNextArtist -> nextGroup artistKey q c
+  case view_.screen of
+    QueueScreen -> setCursor $ case t of
+      MoveUp -> c - 1
+      MoveDown -> c + 1
+      MovePageUp -> c - h
+      MovePageDown -> c + h
+      MoveFirst -> 0
+      MoveLast -> Seq.length q - 1
+      MovePreviousAlbum -> previousGroup albumKey q c
+      MoveNextAlbum -> nextGroup albumKey q c
+      MovePreviousArtist -> previousGroup artistKey q c
+      MoveNextArtist -> nextGroup artistKey q c
+    -- A text without items scrolls.
+    screen -> case t of
+      MoveUp -> scroll (-1)
+      MoveDown -> scroll 1
+      MovePageUp -> scroll (-h)
+      MovePageDown -> scroll h
+      MoveFirst -> modifyView $ #offset .~ 0
+      MoveLast -> modifyView $ #offset .~ screenLength s screen
+      _ -> showMessage $ "The " <> screenText screen <> " has no " <> renderAction (Move t)
   where
+    scroll :: App es => Int -> Eff es ()
+    scroll delta = modifyView $ #offset %~ (+ delta)
+
     albumKey :: Song -> (Maybe [T.Text], Maybe [T.Text])
     albumKey song =
       ( M.lookup AlbumArtist song.tags <|> M.lookup Artist song.tags
@@ -447,28 +484,39 @@ setCursor :: App es => Int -> Eff es ()
 setCursor c = modifyView $ #cursor .~ c
 
 -- | Change the focused view, then keep its cursor in the list and visible.
+-- A screen of text has no cursor, so only its offset is kept in the text.
 modifyView :: App es => (View -> View) -> Eff es ()
 modifyView f = do
   s <- getS
-  let n = Seq.length s.mirror.queue
-      centered = s.config.lists.keepCursorCentered
+  let centered = s.config.lists.keepCursorCentered
   modifyS $
     #views % ix s.focus %~ \v ->
       let v' = f v
+          n = screenLength s v'.screen
           h = max 1 (listHeight s v')
           c = max 0 (min (n - 1) v'.cursor)
           o
+            | v'.screen /= QueueScreen = v'.offset
             | centered = c - h `div` 2
             | c < v'.offset = c
             | c >= v'.offset + h = c - h + 1
             | otherwise = v'.offset
       in v' & #cursor .~ c & #offset .~ max 0 (min (n - h) o)
 
+-- | The number of items or lines of a screen.
+screenLength :: AppState -> ScreenName -> Int
+screenLength s = \case
+  QueueScreen -> Seq.length s.mirror.queue
+  HelpScreen -> length (helpLines s.keymaps)
+  _ -> 0
+
 -- | The number of rows of the list in a view: the titles of the columns
 -- take one.
 listHeight :: AppState -> View -> Int
 listHeight s v
-  | s.toggles.queueDisplay == Columns && s.config.songs.columns.showTitles =
+  | v.screen == QueueScreen
+  , s.toggles.queueDisplay == Columns
+  , s.config.songs.columns.showTitles =
       max 0 (v.height - 1)
   | otherwise = v.height
 

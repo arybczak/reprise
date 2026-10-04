@@ -18,6 +18,8 @@ module Reprise.State
     -- * Views
   , ViewId (..)
   , View (..)
+  , newView
+  , switchScreen
   , Layout (..)
   , focusedView
   , focusedViewId
@@ -128,8 +130,27 @@ data View = View
   -- ^ The index of the first visible item.
   , width :: Int
   , height :: Int
+  , positions :: M.Map ScreenName (Int, Int)
+  -- ^ The cursor and the offset of each other screen that the view showed,
+  -- for when it shows the screen again.
   }
   deriving stock (Eq, Show, Generic)
+
+-- | A view of a screen from its start.
+newView :: ScreenName -> View
+newView s = View s 0 0 0 0 M.empty
+
+-- | Show another screen in a view, at the position where the view left it.
+switchScreen :: ScreenName -> View -> View
+switchScreen s v
+  | s == v.screen = v
+  | otherwise =
+      let (c, o) = M.findWithDefault (0, 0) s v.positions
+      in v
+           & #positions %~ (M.insert v.screen (v.cursor, v.offset) . M.delete s)
+           & #screen .~ s
+           & #cursor .~ c
+           & #offset .~ o
 
 -- | The arrangement of the views. A window tree would add a split.
 newtype Layout = Single ViewId
@@ -150,7 +171,7 @@ initialState config keymaps colorMode =
           , followPlaying = config.queue.followPlaying
           , showBitrate = config.statusBar.showBitrate
           }
-    , views = M.singleton mainView (View config.startupScreen 0 0 0 0)
+    , views = M.singleton mainView (newView config.startupScreen)
     , layout = Single mainView
     , focus = mainView
     , terminalSize = (0, 0)
@@ -174,7 +195,7 @@ focusedViewId s = s.focus
 
 -- | The view that actions and key lookups target.
 focusedView :: AppState -> View
-focusedView s = M.findWithDefault (View QueueScreen 0 0 0 0) s.focus s.views
+focusedView s = M.findWithDefault (newView QueueScreen) s.focus s.views
 
 -- | The height of the main area: the terminal without the header (2
 -- lines), the progress bar and the status bar.
