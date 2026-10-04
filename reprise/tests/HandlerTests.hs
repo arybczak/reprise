@@ -36,6 +36,7 @@ handlerTests =
     , testCase "follow the playing song" test_followPlaying
     , testCase "an MPD error shows in the status bar" test_mpdError
     , testCase "a redraw for the elapsed time" test_tick
+    , testCase "a lost connection clears the player status" test_disconnectClears
     , testCase "jump to playing centers the cursor" test_jumpCenters
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
     , testCase "the help screen scrolls" test_helpScrolls
@@ -43,6 +44,17 @@ handlerTests =
     , testCase "follow playing while the help screen shows" test_followBehindHelp
     , testCase "jump to playing from the help screen" test_jumpFromHelp
     ]
+
+test_disconnectClears :: Assertion
+test_disconnectClears = do
+  let s = keys ["f"] $ testState (80, 24) (statusOf Playing (Just 1) 3) (songs 3)
+      r = runEvents 0 [MpdDisconnected "gone"] s.state
+  assertEqual "no status" Nothing r.state.mirror.status
+  assertEqual "no seek" Nothing ((.target) <$> r.state.seek)
+  assertEqual "the queue stays" 3 (length r.state.mirror.queue)
+  let paused = keys ["p"] r.state
+  assertEqual "no request" [] paused.requests
+  assertEqual "message" (Just "Not connected to MPD") ((.text) <$> paused.state.message)
 
 test_jumpCenters :: Assertion
 test_jumpCenters = do

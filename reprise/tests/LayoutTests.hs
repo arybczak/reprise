@@ -25,6 +25,8 @@ layoutTests =
     , snapshot "confirm" $ press ["ctrl-q", "c"] (playing (80, 12))
     , snapshot "stopped" $ testState (80, 8) (statusOf Stopped Nothing 2) (take 2 queue)
     , snapshot "empty" $ testState (80, 6) (statusOf Stopped Nothing 0) []
+    , snapshot "disconnected" . (.state) $
+        runEvents 0 [MpdDisconnected "gone"] (playing (80, 12))
     , snapshot "help" $ press ["f1"] (playing (80, 24))
     , snapshot "help-scrolled" $ press ["f1", "page_down"] (playing (80, 24))
     ]

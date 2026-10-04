@@ -447,7 +447,11 @@ never use it directly; they go through `MpdRequest`.
   clear error. A missing config file is not an error; the defaults apply.
 - **Lost connection.** The header shows that reprise is disconnected, and both
   connections retry every second, as ncmpcpp does. The screens keep their
-  content until the connection is back, then the mirror is fetched again.
+  content until the connection is back, then the mirror is fetched again. The
+  player's status is cleared instead: a frozen "Playing" would look like a
+  hang, and MPD may not be playing at all. So the status bar, the progress
+  bar and the mode flags are empty, and actions that need the status say
+  that reprise isn't connected.
 - **MPD errors** (`ACK` replies) appear in the status bar, with the command
   that failed.
 - **Permission errors** (`ACK [4@...]`) prompt for the password, send it, and

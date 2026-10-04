@@ -101,7 +101,13 @@ handleEvent = \case
   MpdConnected v -> do
     modifyS $ #connection .~ Connected v
     fetchQueue
-  MpdDisconnected reason -> modifyS $ #connection .~ Disconnected reason
+  -- The player's status would be stale, but the queue stays to look at
+  -- until the connection is back.
+  MpdDisconnected reason ->
+    modifyS $
+      (#connection .~ Disconnected reason)
+        . (#mirror % #status .~ Nothing)
+        . (#seek .~ Nothing)
   MpdChanged subsystems
     | PlaylistSubsystem `elem` subsystems -> fetchQueueChanges
     | any (`elem` statusSubsystems) subsystems -> request status StatusFetched
