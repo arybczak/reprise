@@ -16,7 +16,7 @@ module Reprise.Effect.MpdRequest
 
 import Effectful
 import Effectful.Dispatch.Dynamic
-import Effectful.State.Static.Local
+import Effectful.Output.Static.Local.List
 import MPD.Command
 import MPD.Protocol.Request
 import MPD.Types
@@ -37,8 +37,8 @@ pendingRequestLines (PendingRequest cmd _) = commandRequests cmd
 
 -- | Collect the requests, in the order the action made them.
 collectMpdRequests :: Eff (MpdRequest : es) a -> Eff es (a, [PendingRequest])
-collectMpdRequests = reinterpret (fmap (fmap reverse) . runState []) $ \_ -> \case
-  RequestCommand cmd k -> modify (PendingRequest cmd k :)
+collectMpdRequests = reinterpret runOutput $ \_ -> \case
+  RequestCommand cmd k -> output $ PendingRequest cmd k
 
 -- | Request a command, with a continuation for its reply.
 request :: MpdRequest :> es => Command a -> (Either MpdError a -> AppEvent) -> Eff es ()
