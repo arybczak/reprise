@@ -1429,7 +1429,7 @@ has the same author.
 
 ```
 reprise/                          repository root
-├── cabal.project                 the three packages, the yamlet pin
+├── cabal.project                 the three packages, the yamlet and vty-unix pins
 ├── fourmolu.yaml                 copied from effectful
 ├── .gitignore                    copied from effectful
 ├── .github/
@@ -1459,6 +1459,11 @@ yamlet is not on Hackage yet. Until it is, `cabal.project` pulls it in as a
 `source-repository-package` at a fixed commit. The remote repository has no
 tags, so the pin is the newest commit of its `master` at the time of pinning.
 CI can only fetch it if the yamlet repository is public too, which it is.
+
+vty-unix is pinned the same way, to a fork that caches the escape sequences
+of colors and row starts. vty-unix evaluated them anew for every color change
+and every row, which made scrolling a list cost about 40% more CPU. The fix is
+sent upstream; the pin goes once a release of vty-unix has it.
 
 ### Cabal files
 
