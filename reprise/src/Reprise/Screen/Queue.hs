@@ -8,6 +8,7 @@ module Reprise.Screen.Queue
   , moveBefore
   ) where
 
+import Control.Monad
 import Data.Foldable
 import Data.List.NonEmpty qualified as NE
 import MPD.Command
@@ -34,30 +35,35 @@ deletePositions ps = for_ (reverse (runs ps)) $ \(a, b) ->
 -- other. A run at the top stays.
 moveUp :: [Int] -> Command ()
 moveUp ps = for_ (runs ps) $ \(a, b) ->
-  if a > 0 then move (onePosition (SongPos (a - 1))) (At (SongPos b)) else pure ()
+  when (a > 0) $ move (onePosition (SongPos (a - 1))) (At (SongPos b))
 
 -- | Move the songs at the positions down by one, in a queue of the given
 -- length. A run at the bottom stays.
 moveDown :: Int -> [Int] -> Command ()
 moveDown len ps = for_ (runs ps) $ \(a, b) ->
-  if b < len - 1 then move (onePosition (SongPos (b + 1))) (At (SongPos a)) else pure ()
+  when (b < len - 1) $ move (onePosition (SongPos (b + 1))) (At (SongPos a))
 
 -- | Move the songs at the positions, in their order, to just before the song
 -- at a position, or to the end for the length of the queue. 'Nothing' if
 -- the position is among the songs, as ncmpcpp does.
 --
--- When the songs move down, they go from the last; when they move up, from
--- the first. Then each move leaves the positions of the songs still to
--- move as they were.
+-- Each run moves as one range. When the songs move down, the runs go from
+-- the last; when they move up, from the first. Then each move leaves the
+-- positions of the runs still to move as they were. A run that is in place
+-- already doesn't move.
 moveBefore :: [Int] -> Int -> Maybe (Command ())
 moveBefore ps target = do
   songs <- NE.nonEmpty ps
   let k = length ps
+      -- Each run with the number of songs before it.
+      indexed = zip (scanl (+) 0 [b - a + 1 | (a, b) <- runs ps]) (runs ps)
   if
     | target > NE.last songs ->
-        Just $ for_ (reverse (zip [0 ..] ps)) $ \(i, p) ->
-          move (onePosition (SongPos p)) (At (SongPos (target - k + i)))
+        Just $ for_ (reverse indexed) $ \(i, r) -> moveRun r (target - k + i)
     | target < NE.head songs ->
-        Just $ for_ (zip [0 ..] ps) $ \(i, p) ->
-          move (onePosition (SongPos p)) (At (SongPos (target + i)))
+        Just $ for_ indexed $ \(i, r) -> moveRun r (target + i)
     | otherwise -> Nothing
+  where
+    moveRun :: (Int, Int) -> Int -> Command ()
+    moveRun (a, b) to =
+      when (a /= to) $ move (Range (SongPos a) (Just (SongPos (b + 1)))) (At (SongPos to))

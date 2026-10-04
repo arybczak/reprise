@@ -60,6 +60,11 @@ test_moveBefore = do
     "up, from the first song"
     (Just [Request "move" ["2:3", "0"], Request "move" ["4:5", "1"]])
     (commandRequests <$> moveBefore [2, 4] 0)
+  assertEqual
+    "a run as one range"
+    (Just [Request "move" ["4:5", "5"], Request "move" ["1:3", "3"]])
+    (commandRequests <$> moveBefore [1, 2, 4] 6)
+  assertEqual "in place already" (Just []) (commandRequests <$> moveBefore [3, 4] 5)
 
 ----------------------------------------
 -- Model
