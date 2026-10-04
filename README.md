@@ -21,3 +21,10 @@ The test suites need `mpd` and `flac` on the `PATH`:
 ```
 cabal test all
 ```
+
+The benchmarks measure what was slow once. [DESIGN.md](DESIGN.md#benchmarks)
+describes how to compare them before and after a change:
+
+```
+cabal bench all
+```

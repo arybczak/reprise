@@ -1425,6 +1425,31 @@ Tools:
 
 CI installs `mpd` and `flac` for layers 3 and 4 (see [CI](#ci)).
 
+### Benchmarks
+
+Two `tasty-bench` suites measure what was slow once, on a queue of 4254
+songs and a terminal of 160×45:
+- **`mpd-protocol-bench`** parses the reply to `playlistinfo` of the whole
+  queue, and to `plchanges` after a delete in the middle, which has every
+  song after the deleted one.
+- **`reprise-bench`** handles a key, the change of the queue after such a
+  delete, and the keys of a find that matches nothing, which goes through the
+  whole queue. It also makes a frame of the queue, and vty writes a frame for
+  xterm-256color, which covers the pin of vty-unix.
+
+CI builds the suites but doesn't run them, because timings on shared
+machines are too noisy to fail a build on. To check a change, save the
+timings of a suite before it and compare after, e.g. for `reprise-bench`:
+
+```
+cabal bench reprise-bench --benchmark-options='--csv reprise.csv'
+cabal bench reprise-bench --benchmark-options='--baseline reprise.csv --fail-if-slower 20'
+```
+
+A benchmark that is more than 20% slower than in the saved file fails. Each
+suite needs a file of its own, because the suites write the same file
+otherwise.
+
 ## Project structure and conventions
 
 The repository follows the
@@ -1445,6 +1470,9 @@ reprise/                          repository root
 ├── CHANGELOG.md, LICENSE, README.md
 ├── DESIGN.md                     this document
 ├── app/Main.hs
+├── bench/
+│   ├── mpd-protocol/Main.hs
+│   └── reprise/Main.hs
 ├── cbits/width.c
 ├── src/
 │   ├── mpd-protocol/             README.md, Reprise/Mpd/Protocol/...

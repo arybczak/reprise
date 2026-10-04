@@ -252,3 +252,35 @@ test-suite reprise-tests
                     WidthTests
                     WorkerTests
                     Utils
+
+benchmark mpd-protocol-bench
+    import:         language
+
+    build-depends:    base
+                    , bytestring
+                    , reprise:mpd-protocol
+                    , tasty-bench
+
+    hs-source-dirs: bench/mpd-protocol
+
+    type:           exitcode-stdio-1.0
+    main-is:        Main.hs
+
+benchmark reprise-bench
+    import:         language
+
+    build-depends:    base
+                    , containers
+                    , deepseq
+                    , reprise
+                    , reprise:mpd-protocol
+                    , tasty-bench
+                    , text
+                    , unix
+                    , vty
+                    , vty-unix
+
+    hs-source-dirs: bench/reprise
+
+    type:           exitcode-stdio-1.0
+    main-is:        Main.hs
