@@ -693,8 +693,8 @@ defaultKeymaps =
           , group
               (ctrl 'p')
               "playback"
-              [ char 'g' ~> CommandPrompt "seek"
-              , char 'r' ~> Replay
+              [ char 'r' ~> Replay
+              , char 's' ~> CommandPrompt "seek"
               , char 'v' ~> CommandPrompt "volume"
               , char 'x' ~> CommandPrompt "crossfade"
               ]

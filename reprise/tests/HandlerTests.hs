@@ -141,7 +141,7 @@ test_promptAnswers = do
       answer ks text = keys (ks <> typed text <> ["enter"]) s
       requested ks text = (answer ks text).requests
   assertEqual "set volume" [[Request "setvol" ["40"]]] (requested ["ctrl-p", "v"] "40")
-  assertEqual "seek to" [[Request "seekcur" ["90"]]] (requested ["ctrl-p", "g"] "1:30")
+  assertEqual "seek to" [[Request "seekcur" ["90"]]] (requested ["ctrl-p", "s"] "1:30")
   assertEqual "set crossfade" [[Request "crossfade" ["5"]]] (requested ["ctrl-p", "x"] "5")
   assertEqual "priority" [[Request "prioid" ["7", "1"]]] (requested ["ctrl-q", "p"] "7")
   assertEqual

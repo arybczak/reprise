@@ -680,7 +680,7 @@ The editor is reprise's own pure code, not brick's editor. brick's editor
 handles events in brick's monad, outside the handlers that the tests run.
 
 The `:` prompt runs an action. It is also how a key asks for a value: the
-`command` action takes the start of the line, so `ctrl-p g: command seek`
+`command` action takes the start of the line, so `ctrl-p s: command seek`
 opens `:seek ` and the user types the time. One prompt and the registry's
 parsers serve every action with arguments, instead of a prompt action for
 each, such as ncmpcpp's `set_volume`. Any action with arguments can become
@@ -1167,8 +1167,8 @@ keys:
       b: toggle bitrate
     ctrl-p:
       name: playback
-      g: command seek            # asks for m:ss, N% or ±Ns
       r: replay
+      s: command seek            # asks for m:ss, N% or ±Ns
       v: command volume
       x: command crossfade
     ctrl-d:
