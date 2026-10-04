@@ -34,6 +34,7 @@ module MPD.Protocol.Response
   ) where
 
 import Control.Applicative hiding (optional)
+import Control.DeepSeq
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BS8
 import Data.Fixed
@@ -236,11 +237,19 @@ readTime = iso8601ParseM . T.unpack . decode
 ----------------------------------------
 -- Replies of commands
 
+-- The parsers of this section return fully evaluated values. A value left
+-- lazy would keep its slice of the reply, and with it the whole buffer that
+-- the slice is in.
+
 -- | Parse one song. The first field must be @file@.
 --
 -- @since 0.1.0.0
 parseSong :: [Field] -> Either T.Text Song
-parseSong = \case
+parseSong = parseSingle song
+
+-- | A song, before it is evaluated.
+song :: [Field] -> Either T.Text Song
+song = \case
   Field "file" file : rest -> do
     let m = fieldMap rest
     duration <- optional "duration" readSeconds m
@@ -275,11 +284,11 @@ parseSong = \case
 --
 -- @since 0.1.0.0
 parseSongs :: [Field] -> Either T.Text [Song]
-parseSongs fields = traverse parseSong =<< splitOn (== "file") fields
+parseSongs fields = parseAll song =<< splitOn (== "file") fields
 
 -- | @since 0.1.0.0
 parseStatus :: [Field] -> Either T.Text Status
-parseStatus fields = do
+parseStatus = parseSingle $ \fields -> do
   let m = fieldMap fields
   volume <- optional "volume" readInt m
   repeat_ <- required "repeat" readBool m
@@ -342,7 +351,7 @@ parseStatus fields = do
 
 -- | @since 0.1.0.0
 parseStats :: [Field] -> Either T.Text Stats
-parseStats fields = do
+parseStats = parseSingle $ \fields -> do
   let m = fieldMap fields
   artists <- required "artists" readInt m
   albums <- required "albums" readInt m
@@ -364,7 +373,7 @@ parseStats fields = do
 
 -- | @since 0.1.0.0
 parseOutputs :: [Field] -> Either T.Text [Output]
-parseOutputs fields = traverse parseOutput =<< splitOn (== "outputid") fields
+parseOutputs fields = parseAll parseOutput =<< splitOn (== "outputid") fields
   where
     parseOutput :: [Field] -> Either T.Text Output
     parseOutput entry = do
@@ -391,9 +400,19 @@ parseOutputs fields = traverse parseOutput =<< splitOn (== "outputid") fields
 --
 -- @since 0.1.0.0
 parseSubsystems :: [Field] -> Either T.Text [Subsystem]
-parseSubsystems = traverse $ \case
+parseSubsystems = parseAll $ \case
   Field "changed" v -> Right . subsystemFromName $ decode v
   f -> Left $ "unexpected key: " <> decode f.key
+
+-- | Parse a value, and return it fully evaluated.
+parseSingle :: NFData b => (a -> Either T.Text b) -> a -> Either T.Text b
+parseSingle parse input = do
+  value <- parse input
+  pure $!! value
+
+-- | Parse each entry, and return the list fully evaluated.
+parseAll :: NFData b => (a -> Either T.Text b) -> [a] -> Either T.Text [b]
+parseAll = parseSingle . traverse
 
 -- | @since 0.1.0.0
 parseSingleMode :: BS.ByteString -> Maybe SingleMode

@@ -40,6 +40,7 @@ module MPD.Types
   , ConnectionError (..)
   ) where
 
+import Control.DeepSeq
 import Control.Exception
 import Data.Fixed
 import Data.Map.Strict qualified as M
@@ -71,25 +72,26 @@ data Song = Song
   -- ^ The priority in the queue, 0 unless set.
   }
   deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 -- | The id of a song in the queue. It doesn't change when the song moves.
 --
 -- @since 0.1.0.0
 newtype SongId = SongId Int
-  deriving newtype (Eq, Ord, Show)
+  deriving newtype (Eq, Ord, Show, NFData)
 
 -- | The position of a song in the queue, from 0.
 --
 -- @since 0.1.0.0
 newtype SongPos = SongPos Int
-  deriving newtype (Eq, Ord, Show, Enum, Num, Real, Integral)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Real, Integral, NFData)
 
 -- | A duration or a point in time within a song. MPD sends them with a
 -- precision of milliseconds.
 --
 -- @since 0.1.0.0
 newtype Seconds = Seconds Milli
-  deriving newtype (Eq, Ord, Show, Num, Real, Fractional, RealFrac)
+  deriving newtype (Eq, Ord, Show, Num, Real, Fractional, RealFrac, NFData)
 
 ----------------------------------------
 -- Tags
@@ -134,7 +136,8 @@ data Tag
   | MusicBrainzReleaseTrackId
   | MusicBrainzWorkId
   | MusicBrainzReleaseGroupId
-  deriving stock (Eq, Ord, Show, Enum, Bounded)
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving anyclass (NFData)
 
 -- | The name of a tag in the protocol.
 --
@@ -220,30 +223,35 @@ data Status = Status
   , error :: Maybe T.Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 -- | @since 0.1.0.0
 data PlayerState = Playing | Paused | Stopped
-  deriving stock (Eq, Ord, Show, Enum, Bounded)
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving anyclass (NFData)
 
 -- | @since 0.1.0.0
 data SingleMode = SingleOff | SingleOn | SingleOneshot
-  deriving stock (Eq, Ord, Show, Enum, Bounded)
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving anyclass (NFData)
 
 -- | 'ConsumeOneshot' needs MPD 0.24.
 --
 -- @since 0.1.0.0
 data ConsumeMode = ConsumeOff | ConsumeOn | ConsumeOneshot
-  deriving stock (Eq, Ord, Show, Enum, Bounded)
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving anyclass (NFData)
 
 -- | @since 0.1.0.0
 data ReplayGainMode = ReplayGainOff | ReplayGainTrack | ReplayGainAlbum | ReplayGainAuto
-  deriving stock (Eq, Ord, Show, Enum, Bounded)
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving anyclass (NFData)
 
 -- | The version of the queue. MPD increments it on every change of the queue.
 --
 -- @since 0.1.0.0
 newtype PlaylistVersion = PlaylistVersion Word32
-  deriving newtype (Eq, Ord, Show)
+  deriving newtype (Eq, Ord, Show, NFData)
 
 ----------------------------------------
 -- Statistics
@@ -265,6 +273,7 @@ data Stats = Stats
   -- ^ The time of the last database update.
   }
   deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 ----------------------------------------
 -- Outputs
@@ -280,6 +289,7 @@ data Output = Output
   , attributes :: M.Map T.Text T.Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 ----------------------------------------
 -- Idle
@@ -305,7 +315,8 @@ data Subsystem
   | MountSubsystem
   | -- | A subsystem of a newer MPD.
     OtherSubsystem T.Text
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (NFData)
 
 -- | The name of a subsystem in the protocol.
 --
@@ -363,7 +374,8 @@ subsystemFromName name = M.findWithDefault (OtherSubsystem name) name subsystems
 --
 -- @since 0.1.0.0
 data Version = Version Int Int Int
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (NFData)
 
 ----------------------------------------
 -- Errors
@@ -378,7 +390,8 @@ data MpdError
     ProtocolError T.Text
   | -- | The connection doesn't work. Close it and connect again.
     ConnectionError ConnectionError
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 -- | @since 0.1.0.0
 instance Exception MpdError
@@ -395,6 +408,7 @@ data Ack = Ack
   , message :: T.Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 -- | @since 0.1.0.0
 data AckCode
@@ -412,7 +426,8 @@ data AckCode
   | AckExist
   | -- | A code of a newer MPD.
     AckOther Int
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 -- | @since 0.1.0.0
 data ConnectionError
@@ -427,4 +442,5 @@ data ConnectionError
   | -- | An I/O error, or the connection closed in the middle of a reply.
     Broken T.Text
   | TimedOut
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)

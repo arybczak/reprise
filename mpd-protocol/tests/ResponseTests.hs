@@ -13,6 +13,7 @@ import Text.Pretty.Simple
 import MPD.Command
 import MPD.Protocol.Response
 import MPD.Types
+import Thunks
 
 responseTests :: TestTree
 responseTests =
@@ -37,7 +38,19 @@ responseTests =
     , testCase "empty value" test_emptyValue
     , testCase "unknown subsystem" test_unknownSubsystem
     , testCase "volume without a mixer" test_volumeWithoutMixer
+    , testCase "parsed songs hold no thunks" test_songsEvaluated
     ]
+
+-- | A thunk in a parsed song would keep its slice of the reply, and with it
+-- the whole buffer that the slice is in, until something forces it.
+test_songsEvaluated :: Assertion
+test_songsEvaluated = do
+  reply <- BS.readFile (replyFile "playlistinfo" ".txt")
+  songs <-
+    either (assertFailure . show) pure $
+      parseCommandReply playlistInfo =<< parseReply (BS8.lines reply)
+  found <- thunks songs
+  assertEqual "thunks" [] found
 
 test_parseAck :: Assertion
 test_parseAck = do
