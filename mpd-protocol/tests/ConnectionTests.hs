@@ -44,6 +44,9 @@ connectionTests =
         , ("noidle", test_noidle)
         ]
 
+-- | The songs play in real time, so a song that ended during a test would
+-- change the current song under it, e.g. on a busy machine. Each lasts long
+-- enough that none ends during a test.
 songs :: [TestSong]
 songs =
   [ TestSong
@@ -55,10 +58,10 @@ songs =
           , ("TITLE", "Zażółć")
           , ("TRACKNUMBER", "1/12")
           ]
-      , seconds = 2
+      , seconds = 60
       }
-  , (testSong "a/two.flac") {seconds = 2}
-  , (testSong "b/three.flac") {seconds = 3}
+  , (testSong "a/two.flac") {seconds = 60}
+  , (testSong "b/three.flac") {seconds = 90}
   ]
 
 test_connectUnix :: TestServer -> Assertion
@@ -129,7 +132,7 @@ test_songTags server = withConn server $ \conn -> do
   [song] <- run conn playlistInfo
   assertEqual "id" (Just i) song.songId
   assertEqual "position" (Just 0) song.position
-  assertEqual "duration" (Just 2) song.duration
+  assertEqual "duration" (Just 60) song.duration
   assertEqual
     "tags"
     ( M.fromList
@@ -273,7 +276,7 @@ test_stats server = withConn server $ \conn -> do
   assertEqual "songs" 3 s.songs
   assertEqual "albums" 1 s.albums
   assertEqual "artists" 2 s.artists
-  assertEqual "length of all songs" 7 s.dbPlaytime
+  assertEqual "length of all songs" 210 s.dbPlaytime
 
 test_outputs :: TestServer -> Assertion
 test_outputs server = withConn server $ \conn -> do
