@@ -138,6 +138,9 @@ data ListsConfig = ListsConfig
   , playingStyle :: Style
   , keepCursorCentered :: Bool
   , ignoreLeadingThe :: Bool
+  , missingTag :: T.Text
+  , missingTagStyle :: Style
+  -- ^ Not in the columns display, where the marker has the column's style.
   , tagSeparator :: T.Text
   }
   deriving stock (Eq, Show, Generic)
@@ -316,6 +319,8 @@ defaultLists =
     , playingStyle = style "bold"
     , keepCursorCentered = False
     , ignoreLeadingThe = False
+    , missingTag = "<empty>"
+    , missingTagStyle = style "cyan"
     , tagSeparator = " | "
     }
 

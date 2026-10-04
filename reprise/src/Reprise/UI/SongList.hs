@@ -61,12 +61,17 @@ renderRow ctx flags song = case ctx.display of
     attr = toAttr ctx.colorMode
 
     render :: Format Style -> [Span Style]
-    render = renderFormat ctx.lists.tagSeparator song
+    render = renderFormat (renderContext ctx.lists) song
 
+    -- A column's color tells what the column is, so the marker of a
+    -- missing tag takes the column's style rather than its own.
     column :: Column -> Int -> V.Image
     column c w =
       let base = ctx.lists.style <> c.style
-      in padded attr (base, overlay) c.align w . fitSpans w $ render c.format
+          columnContext =
+            RenderContext ctx.lists.tagSeparator [Span Nothing ctx.lists.missingTag]
+      in padded attr (base, overlay) c.align w . fitSpans w $
+           renderFormat columnContext song c.format
 
     styles :: (Style, Style)
     styles = (ctx.lists.style, overlay)
@@ -93,6 +98,9 @@ renderTitles ctx =
     title c w =
       padded attr (ctx.lists.style <> c.style, mempty) c.align w $
         fitSpans w [Span Nothing c.title]
+
+renderContext :: ListsConfig -> RenderContext Style
+renderContext lists = RenderContext lists.tagSeparator [Span (Just lists.missingTagStyle) lists.missingTag]
 
 -- | Spans in a cell of exactly the given width, aligned and padded with
 -- spaces. Each span's style is the base, its own style, then the overlay.

@@ -87,10 +87,9 @@ test_plainRejectsStyles =
 
 test_missingTags :: Assertion
 test_missingTags = do
-  assertEqual "only the tag at the top level" " - t" (plain "%{artist} - %{title}" titled)
-  assertEqual "the sequence in brackets" "t" (plain "[%{artist} - ]%{title}" titled)
+  assertEqual "marker at the top level" "<empty> - t" (plain "%{artist} - %{title}" titled)
+  assertEqual "nothing in brackets" "t" (plain "[%{artist} - ]%{title}" titled)
   assertEqual "only the bracket is missing" "x t" (plain "x [%{artist} ]%{title}" titled)
-  assertEqual "a marker" "<empty> - t" (plain "[%{artist}|%<empty>] - %{title}" titled)
 
 test_alternatives :: Assertion
 test_alternatives = do
@@ -112,18 +111,19 @@ test_statusBarFormat = do
 
 test_styles :: Assertion
 test_styles = do
+  let ctx = RenderContext " | " [Span (Just (style "cyan")) "?"]
   assertEqual
     "nested styles combine"
     [Span (Just (style "red")) "a", Span (Just (style "red bold")) "b"]
-    (renderFormat " | " titled (styled "<red>a<bold>b</></>"))
+    (renderFormat ctx titled (styled "<red>a<bold>b</></>"))
   assertEqual
     "neighbours with the same style merge"
     [Span Nothing "a t"]
-    (renderFormat " | " titled (styled "a %{title}"))
+    (renderFormat ctx titled (styled "a %{title}"))
   assertEqual
-    "a missing tag in a styled span"
-    [Span (Just (style "bold")) "x"]
-    (renderFormat " | " titled (styled "<bold>%{artist}x</>"))
+    "the marker gets the surrounding style laid under its own"
+    [Span (Just (style "cyan bold")) "?"]
+    (renderFormat ctx titled (styled "<bold>%{artist}</>"))
 
 test_fields :: Assertion
 test_fields = do
@@ -171,7 +171,7 @@ styled = either (error . show) id . parseStyledFormat
 
 plain :: T.Text -> Song -> T.Text
 plain fmt s = case parsePlainFormat fmt of
-  Right f -> renderPlain " | " s f
+  Right f -> renderPlain (RenderContext " | " [Span Nothing "<empty>"]) s f
   Left err -> error (show err)
 
 song :: T.Text -> [(Tag, [T.Text])] -> Song

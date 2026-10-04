@@ -13,6 +13,7 @@ import Test.Tasty.HUnit
 
 import Reprise.Config
 import Reprise.Event
+import Reprise.Handler
 import Reprise.Keys
 import Reprise.State
 import Reprise.Style
@@ -36,7 +37,34 @@ layoutTests =
     , snapshot "help-scrolled" $ press ["f1", "page_down"] (playing (80, 24))
     , testCase "flags end a column before the edge" test_flags
     , testCase "the title has its own style" test_titleStyle
+    , testCase "the marker of a missing tag in columns" test_markerInColumns
+    , testCase "the marker of a missing tag in the classic display" test_markerInClassic
     ]
+
+-- | The marker takes the style of its column, not the marker's style.
+test_markerInColumns :: Assertion
+test_markerInColumns = do
+  let untagged = song 0 [] 60
+  -- The artist column has the style 221, which vty numbers from 16.
+  assertMarkerColor "artist column" (V.Color240 205) $
+    testState (80, 6) (statusOf Stopped Nothing 1) [untagged]
+
+test_markerInClassic :: Assertion
+test_markerInClassic = do
+  let noLength = song 0 [(Title, ["t"])] 60 & #duration .~ Nothing
+  -- The marker's style is cyan.
+  assertMarkerColor "length" (V.ISOColor 6) . press ["ctrl-t", "d"] $
+    testState (80, 6) (statusOf Stopped Nothing 1) [noLength]
+
+-- | The color of the marker, with the cursor hidden, so that its style
+-- doesn't cover the row's.
+assertMarkerColor :: String -> V.Color -> AppState -> Assertion
+assertMarkerColor msg color s0 =
+  let s = s0 & #lastInput .~ s0.now - cursorHideDelay
+  in -- vty joins the marker with the padding after it when their styles match.
+     case [a | (a, t) <- imageSpans (renderScreen s), "<empty>" `T.isPrefixOf` T.stripStart t] of
+       a : _ -> assertEqual msg (V.SetTo color) (V.attrForeColor a)
+       [] -> assertFailure $ msg <> ": no marker"
 
 test_titleStyle :: Assertion
 test_titleStyle = do

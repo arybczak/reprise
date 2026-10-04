@@ -787,10 +787,9 @@ Rendering returns either "missing" or a list of styled text spans.
   `[...]`.
 - `[...]` tries its alternatives in order. It renders the first one that is not
   missing, or nothing.
-- A missing tag outside any `[...]` renders as nothing, and the rest of the
-  format stays. A marker for a missing tag is an alternative, e.g.
-  `[%{album}|<cyan>%<empty></>]`, so there is no option for one. Different
-  places want different markers anyway, e.g. none in a narrow column.
+- A missing tag outside any `[...]` renders as `lists.missing_tag`, with
+  `lists.missing_tag_style`. In the columns display, the marker takes the
+  column's style instead, so that it looks like the rest of the column.
 
 That is the whole algebra: one pass and no dry runs. Styles are ranges in the
 syntax tree, so they can't be unbalanced.
@@ -899,6 +898,8 @@ lists:                           # every list screen
   playing_style: bold
   keep_cursor_centered: false
   ignore_leading_the: false
+  missing_tag: '<empty>'
+  missing_tag_style: cyan        # not in columns, which use their own style
   tag_separator: ' | '
 
 queue:
@@ -1177,6 +1178,7 @@ Many single-character keys collide with YAML syntax:
 | `now_playing_prefix`/`suffix` | `lists.playing_style` |
 | `centered_cursor` | `lists.keep_cursor_centered` |
 | `ignore_leading_the` | `lists.ignore_leading_the` |
+| `empty_tag_marker`, `empty_tag_color` | `lists.missing_tag`, `lists.missing_tag_style` |
 | `tags_separator` | `lists.tag_separator` |
 | `playlist_display_mode` | `queue.display` |
 | `playlist_separate_albums` | `queue.album_separators` |
@@ -1224,11 +1226,6 @@ and split screen options, `allow_for_physical_item_deletion`,
 - `screen_switcher_mode` → `tab: next_screen [browser, media_library]`.
 - `space_add_mode` → two actions, `add` and `add_or_remove`; space is bound to
   `add_or_remove`.
-
-**Replaced by the format language**
-- `empty_tag_marker`, `empty_tag_color` → an alternative in the format, e.g.
-  `[%{album}|<cyan>%<empty></>]`. A missing tag renders as nothing otherwise
-  (see [Semantics](#semantics)).
 
 **One choice is clearly right**
 
