@@ -29,16 +29,16 @@ import Reprise.Style
 import Reprise.UI.SongList
 
 -- | The screen as one image of the terminal's size.
-renderScreen :: AppState -> V.Image
-renderScreen s
+renderScreen :: AppEnv -> AppState -> V.Image
+renderScreen env s
   | w <= 0 || h <= 0 = V.emptyImage
   | otherwise =
       V.crop w h . V.vertCat $
-        [ headerTitle s
-        , headerLine s
-        , withPanel s (mainView s)
-        , progressBar s
-        , statusBar s
+        [ headerTitle env s
+        , headerLine env s
+        , withPanel env s (mainView env s)
+        , progressBar env s
+        , statusBar env s
         ]
   where
     (w, h) = s.terminalSize
@@ -46,14 +46,14 @@ renderScreen s
 ----------------------------------------
 -- Header
 
-headerTitle :: AppState -> V.Image
-headerTitle s = line s s.config.header.style left right
+headerTitle :: AppEnv -> AppState -> V.Image
+headerTitle env s = line env s env.config.header.style left right
   where
     left :: [Span Style]
-    left = [Span (Just s.config.header.titleStyle) (screenTitle s (focusedView s).screen)]
+    left = [Span (Just env.config.header.titleStyle) (screenTitle env s (focusedView s).screen)]
 
     right :: [Span Style]
-    right = [Span (Just s.config.header.volumeStyle) state]
+    right = [Span (Just env.config.header.volumeStyle) state]
 
     state :: T.Text
     state = case s.connection of
@@ -63,8 +63,8 @@ headerTitle s = line s s.config.header.style left right
         Just v -> "Volume: " <> T.pack (show v) <> "%"
         Nothing -> "Volume: n/a"
 
-screenTitle :: AppState -> ScreenName -> T.Text
-screenTitle s = \case
+screenTitle :: AppEnv -> AppState -> ScreenName -> T.Text
+screenTitle env s = \case
   QueueScreen ->
     let q = s.mirror.queue
         total = s.mirror.totalLength
@@ -74,7 +74,7 @@ screenTitle s = \case
         count = T.pack (show (Seq.length q)) <> if Seq.length q == 1 then " song" else " songs"
         times =
           [formatTotal total | total > 0]
-            <> [formatTotal remaining <> " left" | s.config.queue.showRemainingTime, remaining > 0]
+            <> [formatTotal remaining <> " left" | env.config.queue.showRemainingTime, remaining > 0]
     in "Queue (" <> T.intercalate ", " (count : times) <> ")"
   other -> T.toTitle (T.replace "_" " " (screenName other))
 
@@ -91,10 +91,10 @@ formatTotal secs =
        [] -> "0s"
        _ -> T.unwords [T.pack (show n) <> unit | (n, unit) <- significant, n > 0]
 
-headerLine :: AppState -> V.Image
-headerLine s =
+headerLine :: AppEnv -> AppState -> V.Image
+headerLine env s =
   let (w, _) = s.terminalSize
-      lineAttr = attr s s.config.header.lineStyle
+      lineAttr = attr env env.config.header.lineStyle
       flagsText = flags s
       rule n = V.charFill lineAttr '─' n 1
   in if T.null flagsText
@@ -105,7 +105,7 @@ headerLine s =
          let flagsImage =
                V.horizCat
                  [ V.text' lineAttr "["
-                 , V.text' (attr s s.config.header.flagsStyle) flagsText
+                 , V.text' (attr env env.config.header.flagsStyle) flagsText
                  , V.text' lineAttr "]"
                  ]
              margin = 1
@@ -133,29 +133,29 @@ flags s = case s.mirror.status of
 ----------------------------------------
 -- Main view
 
-mainView :: AppState -> V.Image
-mainView s =
+mainView :: AppEnv -> AppState -> V.Image
+mainView env s =
   let v = focusedView s
       (w, _) = s.terminalSize
       h = mainHeight s.terminalSize
   in V.resize w h $ case v.screen of
-       QueueScreen -> queueView s v
-       HelpScreen -> helpView s v
+       QueueScreen -> queueView env s v
+       HelpScreen -> helpView env v
        _ -> V.emptyImage
 
 -- | The which-key panel over the bottom rows of the main view, while a key
 -- sequence is pending.
-withPanel :: AppState -> V.Image -> V.Image
-withPanel s mainImage = case s.pendingKeys of
+withPanel :: AppEnv -> AppState -> V.Image -> V.Image
+withPanel env s mainImage = case s.pendingKeys of
   Nothing -> mainImage
   Just pending ->
-    let panel = whichKeyPanel s (whichKeyEntries pending.layers)
+    let panel = whichKeyPanel env s (whichKeyEntries pending.layers)
         h = mainHeight s.terminalSize
         panelHeight = min h (V.imageHeight panel)
     in V.cropBottom (h - panelHeight) mainImage V.<-> V.cropTop panelHeight panel
 
-whichKeyPanel :: AppState -> [WhichKeyEntry] -> V.Image
-whichKeyPanel s entries =
+whichKeyPanel :: AppEnv -> AppState -> [WhichKeyEntry] -> V.Image
+whichKeyPanel env s entries =
   let (w, _) = s.terminalSize
       cells = map cell entries
       cellWidth = maximum (1 : map fst cells) + gap
@@ -173,8 +173,8 @@ whichKeyPanel s entries =
       let keyText = renderKeySpec e.key
           style = if e.fromScreen then boldStyle else mempty
           img =
-            V.text' (attr s (s.config.styles.value <> style)) keyText
-              V.<|> V.text' (attr s style) ("  " <> e.description)
+            V.text' (attr env (env.config.styles.value <> style)) keyText
+              V.<|> V.text' (attr env style) ("  " <> e.description)
       in (V.imageWidth img, img)
 
     -- The screen's own entries.
@@ -189,12 +189,12 @@ whichKeyPanel s entries =
 ----------------------------------------
 -- Progress bar
 
-progressBar :: AppState -> V.Image
-progressBar s =
+progressBar :: AppEnv -> AppState -> V.Image
+progressBar env s =
   let (w, _) = s.terminalSize
-      cfg = s.config.progressBar
-      remainingAttr = attr s cfg.style
-      elapsedAttr = attr s cfg.elapsedStyle
+      cfg = env.config.progressBar
+      remainingAttr = attr env cfg.style
+      elapsedAttr = attr env cfg.elapsedStyle
       fraction = do
         st <- s.mirror.status
         guardMaybe (st.state /= Stopped)
@@ -219,21 +219,21 @@ progressBar s =
 ----------------------------------------
 -- Status bar
 
-statusBar :: AppState -> V.Image
-statusBar s = case (s.prompt, s.pendingKeys, s.message) of
+statusBar :: AppEnv -> AppState -> V.Image
+statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
   (Just (Prompt question (YesNo _)), _, _) -> plain (question <> " [y/n]")
   (Just (Prompt question (Line edit purpose)), _, _) ->
     let p = promptLine s question edit purpose
-    in line s cfg.style [Span Nothing question, Span Nothing p.shown] [Span Nothing p.note]
+    in line env s cfg.style [Span Nothing question, Span Nothing p.shown] [Span Nothing p.note]
   (_, Just pending, _) -> plain (T.unwords (map renderKeySpec pending.keys) <> " -")
-  (_, _, Just m) -> line s cfg.style [Span (if m.isError then Just errorStyle else Nothing) m.text] []
-  _ -> playerStatus s
+  (_, _, Just m) -> line env s cfg.style [Span (if m.isError then Just errorStyle else Nothing) m.text] []
+  _ -> playerStatus env s
   where
     cfg :: StatusBarConfig
-    cfg = s.config.statusBar
+    cfg = env.config.statusBar
 
     plain :: T.Text -> V.Image
-    plain t = line s cfg.style [Span Nothing t] []
+    plain t = line env s cfg.style [Span Nothing t] []
 
     errorStyle :: Style
     errorStyle = mempty & #foreground ?~ Color red
@@ -275,8 +275,8 @@ promptCursor s = case s.prompt of
     Just ((promptLine s question edit purpose).cursorColumn, snd s.terminalSize - 1)
   _ -> Nothing
 
-playerStatus :: AppState -> V.Image
-playerStatus s = case (s.mirror.status, currentSong s.mirror) of
+playerStatus :: AppEnv -> AppState -> V.Image
+playerStatus env s = case (s.mirror.status, currentSong s.mirror) of
   (Just st, Just song)
     | st.state /= Stopped ->
         let label = case st.state of
@@ -298,17 +298,17 @@ playerStatus s = case (s.mirror.status, currentSong s.mirror) of
             shown
               | spansWidth songSpans <= room = songSpans
               | otherwise = [Span Nothing (scroll room (floor e) (spansText songSpans))]
-        in line s cfg.style (Span (Just cfg.stateStyle) label : shown) right
-  _ -> line s cfg.style [] []
+        in line env s cfg.style (Span (Just cfg.stateStyle) label : shown) right
+  _ -> line env s cfg.style [] []
   where
     cfg :: StatusBarConfig
-    cfg = s.config.statusBar
+    cfg = env.config.statusBar
 
     ctx :: RenderContext Style
     ctx =
       RenderContext
-        s.config.lists.tagSeparator
-        [Span (Just s.config.lists.missingTagStyle) s.config.lists.missingTag]
+        env.config.lists.tagSeparator
+        [Span (Just env.config.lists.missingTagStyle) env.config.lists.missingTag]
 
 -- | Text that doesn't fit, scrolled by one character for each second.
 scroll :: Int -> Int -> T.Text -> T.Text
@@ -326,16 +326,16 @@ scroll room seconds t =
 
 -- | A line of the terminal's width with spans on the left and on the right,
 -- over a base style.
-line :: AppState -> Style -> [Span Style] -> [Span Style] -> V.Image
-line s base left right =
+line :: AppEnv -> AppState -> Style -> [Span Style] -> [Span Style] -> V.Image
+line env s base left right =
   let (w, _) = s.terminalSize
       rightWidth = min w (spansWidth right)
       leftWidth = max 0 (w - rightWidth)
-      a = attr s
+      a = attr env
   in V.horizCat
        [ padded a (base, mempty) AlignLeft leftWidth (fitSpans leftWidth left)
        , padded a (base, mempty) AlignRight rightWidth (fitSpans rightWidth right)
        ]
 
-attr :: AppState -> Style -> V.Attr
-attr s = toAttr s.colorMode
+attr :: AppEnv -> Style -> V.Attr
+attr env = toAttr env.colorMode

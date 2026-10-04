@@ -42,6 +42,6 @@ test_emojiRowFits = do
           (80, 6)
           (statusOf Playing (Just 0) 1)
           [song 0 [(Artist, ["A"]), (Title, [title])] 60]
-  forM_ (imageLines (renderScreen s)) $ \line -> do
+  forM_ (imageLines (renderScreen testAppEnv s)) $ \line -> do
     w <- sum <$> mapM width (T.unpack line)
     assertBool ("wider than the terminal: " <> T.unpack line) (w <= 80)

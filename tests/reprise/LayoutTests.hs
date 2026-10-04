@@ -73,7 +73,7 @@ test_promptLine = do
     (T.stripEnd <$> lastLine (press ["/"] (playing (40, 12))))
   where
     lastLine :: AppState -> Maybe T.Text
-    lastLine s = case reverse (imageLines (renderScreen s)) of
+    lastLine s = case reverse (imageLines (renderScreen testAppEnv s)) of
       l : _ -> Just l
       [] -> Nothing
 
@@ -85,7 +85,7 @@ test_foundStyle = do
       s = s0 & #lastInput .~ s0.now - cursorHideDelay
       underlined title =
         [ V.attrStyle a == V.SetTo V.underline
-        | (a, t) <- imageSpans (renderScreen s)
+        | (a, t) <- imageSpans (renderScreen testAppEnv s)
         , T.strip t == title
         ]
   assertEqual "found" [True] (underlined "alpha")
@@ -96,7 +96,7 @@ test_foundStyle = do
     "only while typing"
     [False]
     [ V.attrStyle a == V.SetTo V.underline
-    | (a, t) <- imageSpans (renderScreen done)
+    | (a, t) <- imageSpans (renderScreen testAppEnv done)
     , T.strip t == "alpha"
     ]
 
@@ -107,7 +107,7 @@ test_selected = do
       s = s0 & #lastInput .~ s0.now - cursorHideDelay
       background title =
         [ V.attrBackColor a
-        | (a, t) <- imageSpans (renderScreen s)
+        | (a, t) <- imageSpans (renderScreen testAppEnv s)
         , title `T.isInfixOf` t
         ]
   -- The selected style is yellow on 24, which vty numbers from 16. vty
@@ -136,24 +136,27 @@ assertMarkerColor :: String -> V.Color -> AppState -> Assertion
 assertMarkerColor msg color s0 =
   let s = s0 & #lastInput .~ s0.now - cursorHideDelay
   in -- vty joins the marker with the padding after it when their styles match.
-     case [a | (a, t) <- imageSpans (renderScreen s), "<empty>" `T.isPrefixOf` T.stripStart t] of
+     case [ a
+          | (a, t) <- imageSpans (renderScreen testAppEnv s)
+          , "<empty>" `T.isPrefixOf` T.stripStart t
+          ] of
        a : _ -> assertEqual msg (V.SetTo color) (V.attrForeColor a)
        [] -> assertFailure $ msg <> ": no marker"
 
 test_titleStyle :: Assertion
 test_titleStyle = do
   let s = playing (80, 12)
-      titleAttrs = [a | (a, t) <- imageSpans (renderScreen s), "Queue (" `T.isPrefixOf` t]
+      titleAttrs = [a | (a, t) <- imageSpans (renderScreen testAppEnv s), "Queue (" `T.isPrefixOf` t]
   assertEqual "bold by default" [V.SetTo V.bold] (map V.attrStyle titleAttrs)
-  let red = s & #config % #header % #titleStyle .~ Style (Just (Color 1)) Nothing mempty
-      redAttrs = [a | (a, t) <- imageSpans (renderScreen red), "Queue (" `T.isPrefixOf` t]
+  let red = testAppEnv & #config % #header % #titleStyle .~ Style (Just (Color 1)) Nothing mempty
+      redAttrs = [a | (a, t) <- imageSpans (renderScreen red s), "Queue (" `T.isPrefixOf` t]
   assertEqual "configured" [V.SetTo (V.ISOColor 1)] (map V.attrForeColor redAttrs)
 
 -- | As in ncmpcpp.
 test_flags :: Assertion
 test_flags = do
   let st = statusOf Playing (Just 1) (length queue) & #repeat .~ True & #random .~ True
-  case imageLines . renderScreen $ testState (20, 6) st queue of
+  case imageLines . renderScreen testAppEnv $ testState (20, 6) st queue of
     _ : flagsLine : _ -> assertEqual "line" "───────────────[rz]─" flagsLine
     ls -> assertFailure $ "too few lines: " <> show ls
 
@@ -163,7 +166,7 @@ snapshot :: String -> AppState -> TestTree
 snapshot name s =
   goldenVsString name ("tests" </> "reprise" </> "golden" </> name <> ".txt")
     $ pure . BL.fromStrict . T.encodeUtf8 . T.unlines . imageLines
-    $ renderScreen s
+    $ renderScreen testAppEnv s
 
 playing :: (Int, Int) -> AppState
 playing size = testState size (statusOf Playing (Just 1) (length queue)) queue

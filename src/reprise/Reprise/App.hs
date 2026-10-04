@@ -1,7 +1,7 @@
 -- | The brick application: a thin adapter that runs each event through the
 -- pure handlers and then performs the requests they collected.
 module Reprise.App
-  ( Env (..)
+  ( Channels (..)
   , app
   , eventChannelSize
   ) where
@@ -24,7 +24,8 @@ import Reprise.Keys
 import Reprise.State
 import Reprise.UI.Layout
 
-data Env = Env
+-- | Where the requests of the handlers go, and where events come from.
+data Channels = Channels
   { requests :: TQueue PendingRequest
   , events :: B.BChan AppEvent
   }
@@ -35,33 +36,33 @@ data Env = Env
 eventChannelSize :: Int
 eventChannelSize = 20
 
-app :: Env -> B.App AppState AppEvent ()
-app env =
+app :: AppEnv -> Channels -> B.App AppState AppEvent ()
+app env channels =
   B.App
     { B.appDraw = \s ->
         [ maybe id (\(x, y) -> B.showCursor () (B.Location (x, y))) (promptCursor s) $
-            B.raw (renderScreen s)
+            B.raw (renderScreen env s)
         ]
     , B.appChooseCursor = B.showFirstCursor
     , B.appHandleEvent = \case
-        B.AppEvent e -> dispatch env e
-        B.VtyEvent (V.EvKey k mods) -> forM_ (fromVtyKey k mods) (dispatch env . KeyPressed)
-        B.VtyEvent (V.EvResize w h) -> dispatch env (Resized w h)
+        B.AppEvent e -> dispatch env channels e
+        B.VtyEvent (V.EvKey k mods) -> forM_ (fromVtyKey k mods) (dispatch env channels . KeyPressed)
+        B.VtyEvent (V.EvResize w h) -> dispatch env channels (Resized w h)
         _ -> pure ()
     , B.appStartEvent = do
         vty <- B.getVtyHandle
         (w, h) <- liftIO . V.displayBounds $ V.outputIface vty
-        dispatch env (Resized w h)
+        dispatch env channels (Resized w h)
     , B.appAttrMap = const $ B.attrMap V.defAttr []
     }
 
-dispatch :: Env -> AppEvent -> B.EventM () AppState ()
-dispatch env event = do
+dispatch :: AppEnv -> Channels -> AppEvent -> B.EventM () AppState ()
+dispatch env channels event = do
   now <- liftIO getMonotonicTime
   s <- B.get
-  let (s', requests, commands) = runEvent now event s
+  let (s', requests, commands) = runEvent env now event s
   B.put s'
-  liftIO . atomically $ mapM_ (writeTQueue env.requests) requests
+  liftIO . atomically $ mapM_ (writeTQueue channels.requests) requests
   forM_ commands $ \case
     Halt -> B.halt
     SetTitle title -> do
@@ -69,7 +70,7 @@ dispatch env event = do
       liftIO $ V.setWindowTitle vty (T.unpack title)
     After delay e -> liftIO . void . forkIO $ do
       threadDelay (ceiling (delay * microsecondsPerSecond))
-      B.writeBChan env.events e
+      B.writeBChan channels.events e
     KeepScreen -> B.continueWithoutRedraw
   where
     microsecondsPerSecond :: Double

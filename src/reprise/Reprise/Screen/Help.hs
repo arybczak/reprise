@@ -21,28 +21,29 @@ import Reprise.State
 import Reprise.Style
 import Reprise.UI.SongList
 
-helpView :: AppState -> View -> V.Image
-helpView s v =
-  let ls = helpLines s.keymaps
-      render = renderHelpLine s.colorMode s.config.styles (keyColumnWidth ls) v.width
+helpView :: AppEnv -> View -> V.Image
+helpView env v =
+  let ls = helpLines env.keymaps
+      render = renderHelpLine env.colorMode env.config.styles (keyColumnWidth ls) v.width
   in V.vertCat . map render . take v.height $ drop v.offset ls
 
 -- | The help screen is text without items, so a move scrolls it.
 scrollHelp :: App es => MoveTarget -> Eff es ()
 scrollHelp t = do
+  env <- getAppEnv
   s <- getS
-  let h = max 1 (listHeight s (focusedView s))
+  let h = max 1 (listHeight env s (focusedView s))
   case t of
     MoveUp -> scroll (-1)
     MoveDown -> scroll 1
     MovePageUp -> scroll (-h)
     MovePageDown -> scroll h
-    MoveFirst -> modifyView $ #offset .~ 0
-    MoveLast -> modifyView $ #offset .~ screenLength s HelpScreen
+    MoveFirst -> modifyWithEnv . modifyView $ #offset .~ 0
+    MoveLast -> modifyWithEnv . modifyView $ #offset .~ screenLength env s HelpScreen
     _ -> showMessage $ "The " <> screenText HelpScreen <> " has no " <> renderAction (Move t)
   where
     scroll :: App es => Int -> Eff es ()
-    scroll delta = modifyView $ #offset %~ (+ delta)
+    scroll delta = modifyWithEnv . modifyView $ #offset %~ (+ delta)
 
 -- | A line of the given width. The keys of all entries share a column as
 -- wide as the longest key sequence.

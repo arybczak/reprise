@@ -42,7 +42,7 @@ main =
         ]
     , bgroup
         "screen"
-        [ bench "a frame of the queue" $ nf renderScreen scrolled
+        [ bench "a frame of the queue" $ nf (renderScreen defaultEnv) scrolled
         , env xterm $ \ ~(Terminal out dc frame) ->
             bench "the output of a whole frame for xterm-256color" . whnfIO $ do
               -- Without the last frame, vty writes every row.
@@ -51,12 +51,21 @@ main =
         ]
     ]
 
+-- | The default config and keymaps, with colors.
+defaultEnv :: AppEnv
+defaultEnv =
+  AppEnv
+    { config = defaultConfig
+    , keymaps = keymapsOf defaultConfig.keys
+    , colorMode = WithColors
+    }
+
 -- | The state after the queue arrived from MPD.
 loaded :: AppState
 loaded =
   L.foldl'
     (flip handle)
-    (initialState defaultConfig (keymapsOf defaultConfig.keys) WithColors)
+    (initialState defaultConfig)
     [ uncurry Resized terminalSize
     , MpdConnected (Version 0 24 0)
     , QueueFetched (statusOf 1 queueLength, [song p p | p <- [0 .. queueLength - 1]])
@@ -97,13 +106,13 @@ xterm = do
         , V.settingTermName = "xterm-256color"
         }
   dc <- V.displayContext out terminalSize
-  pure (Terminal out dc (renderScreen scrolled))
+  pure (Terminal out dc (renderScreen defaultEnv scrolled))
 
 ----------------------------------------
 -- Helpers
 
 handle :: AppEvent -> AppState -> AppState
-handle e s = let (s', _, _) = runEvent 1 e s in s'
+handle e s = let (s', _, _) = runEvent defaultEnv 1 e s in s'
 
 key :: T.Text -> AppEvent
 key = KeyPressed . either (error . T.unpack) id . parseKeySpec

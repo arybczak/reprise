@@ -14,6 +14,7 @@ import Data.Maybe
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Effectful
+import Effectful.Input.Static
 import Effectful.State.Static.Local
 import Optics.Core
 
@@ -38,12 +39,14 @@ import Reprise.State
 
 -- | Handle an event at a monotonic time, with pure handlers that collect the
 -- requests.
-runEvent :: Double -> AppEvent -> AppState -> (AppState, [PendingRequest], [UiCommand])
-runEvent now event s =
+runEvent
+  :: AppEnv -> Double -> AppEvent -> AppState -> (AppState, [PendingRequest], [UiCommand])
+runEvent env now event s =
   let ((((), s'), requests), commands) =
         runPureEff
           . collectUiRequests
           . collectMpdRequests
+          . runInput env
           . runState (s & #now .~ now)
           $ do
             handleEvent event
@@ -73,7 +76,7 @@ handleEvent = \case
   KeyPressed k -> handleKey k
   Resized w h -> do
     modifyS $ layoutViews . (#terminalSize .~ (w, h))
-    modifyView id
+    modifyWithEnv (modifyView id)
   MpdConnected v -> do
     modifyS $ #connection .~ Connected v
     fetchQueue
@@ -168,8 +171,8 @@ updateMirror f = do
   -- Songs that left the queue leave the selection.
   when (new.queueVersion /= old.queueVersion) $ do
     let ids = S.fromList . mapMaybe (.songId) $ toList new.queue
-    modifySelection (`S.intersection` ids)
-  modifyView id
+    modifyS $ modifySelection (`S.intersection` ids)
+  modifyWithEnv (modifyView id)
   s <- getS
   let oldId = old.status >>= (.currentId)
       newId = new.status >>= (.currentId)
@@ -177,8 +180,8 @@ updateMirror f = do
   if
     | loaded && not s.jumpedToPlaying -> do
         modifyS $ #jumpedToPlaying .~ True
-        jumpToPlaying
-    | s.toggles.followPlaying && oldId /= newId -> jumpToPlaying
+        modifyWithEnv jumpToPlaying
+    | s.toggles.followPlaying && oldId /= newId -> modifyWithEnv jumpToPlaying
     | otherwise -> pure ()
   case (old.status, new.status) of
     (Just a, Just b) -> reportOptions a b
@@ -218,6 +221,7 @@ onOff b = if b then "on" else "off"
 
 handleKey :: App es => KeySpec -> Eff es ()
 handleKey k = do
+  env <- getAppEnv
   s <- getS
   modifyS $ #lastInput .~ s.now
   unless s.cursorTimer $ do
@@ -229,7 +233,7 @@ handleKey k = do
       Just pending
         | isCancel k -> modifyS $ #pendingKeys .~ Nothing
         | otherwise -> continue pending.layers (pending.keys <> [k])
-      Nothing -> continue (startLayers (focusedView s).screen s.keymaps) [k]
+      Nothing -> continue (startLayers (focusedView s).screen env.keymaps) [k]
   where
     continue :: App es => Layers -> [KeySpec] -> Eff es ()
     continue layers keys = case lookupKey layers k of
@@ -268,7 +272,7 @@ handlePromptKey p k = case p.input of
     | isCancel k -> do
         close
         case purpose of
-          ForFind f -> restoreView f.origin
+          ForFind f -> modifyWithEnv (restoreView f.origin)
           _ -> pure ()
     | Just edit' <- editLine k edit -> do
         purpose' <- case purpose of
@@ -296,26 +300,27 @@ runAction = \case
   Move t -> do
     screen <- getsS ((.screen) . focusedView)
     case screen of
-      QueueScreen -> moveQueueCursor t
+      QueueScreen -> modifyWithEnv (moveQueueCursor t)
       HelpScreen -> scrollHelp t
       _ -> showMessage $ "The " <> screenText screen <> " has no " <> renderAction (Move t)
   JumpToPlaying -> do
-    modifyView $ switchScreen QueueScreen
-    jumpToPlaying
+    modifyWithEnv . modifyView $ switchScreen QueueScreen
+    modifyWithEnv jumpToPlaying
   action@Activate -> onQueue action activate
   action@(Select t) -> onQueue action $ select t
   action@Delete -> onQueue action deleteMarked
   action@(Priority p) -> onQueue action $ prioritize p
   action@(MoveSelection t) -> onQueue action $ moveSelection t
   action@(Find t) -> onQueue action $ case t of
-    FindForward -> startFind Forward
-    FindBackward -> startFind Backward
+    FindForward -> modifyS (startFind Forward)
+    FindBackward -> modifyS (startFind Backward)
     FindNext -> findAgain Forward
     FindPrevious -> findAgain Backward
   Crossfade n -> mutate $ setCrossfade n
   AddPath path -> mutate $ add path Nothing
   CommandPrompt start ->
-    openLine ":" (LineEdit (if T.null start then start else start <> " ") "") ForCommand
+    modifyS $
+      openLine ":" (LineEdit (if T.null start then start else start <> " ") "") ForCommand
   Pause -> withStatus $ \st -> mutate $ case st.state of
     Playing -> pause True
     Paused -> pause False
@@ -334,14 +339,15 @@ runAction = \case
       VolumeTo n -> setVolume n
   Toggle t -> toggle t
   Show screen
-    | screen `elem` [QueueScreen, HelpScreen] -> modifyView $ switchScreen screen
+    | screen `elem` [QueueScreen, HelpScreen] ->
+        modifyWithEnv . modifyView $ switchScreen screen
     | otherwise -> notAvailable $ "The " <> screenText screen
   Quit -> halt
   Clear -> do
     n <- getsS (queueLength . (.mirror))
     if n == 0
       then showMessage "The queue is empty"
-      else confirm ("Clear " <> countSongs n <> " from the queue?") (Confirmed Clear)
+      else modifyS $ confirm ("Clear " <> countSongs n <> " from the queue?") (Confirmed Clear)
   -- Shuffling the selected songs loses nothing the user didn't point at, so
   -- only shuffling the whole queue asks first.
   Shuffle -> do
@@ -352,7 +358,8 @@ runAction = \case
         | (focusedView s).screen /= QueueScreen || null (selectedPositions s) ->
             if n < 2
               then showMessage "There is nothing to shuffle"
-              else confirm ("Shuffle " <> countSongs n <> " in the queue?") (Confirmed Shuffle)
+              else
+                modifyS $ confirm ("Shuffle " <> countSongs n <> " in the queue?") (Confirmed Shuffle)
       [(a, b)] -> do
         mutate . shuffle . Just $ Range (SongPos a) (Just (SongPos (b + 1)))
         showMessage $ "Shuffled " <> countSongs (b - a + 1)
@@ -378,8 +385,8 @@ runConfirmed = \case
   Shuffle -> mutate $ shuffle Nothing
   _ -> pure ()
 
-confirm :: App es => T.Text -> AppEvent -> Eff es ()
-confirm question onYes = modifyS $ #prompt ?~ Prompt question (YesNo onYes)
+confirm :: T.Text -> AppEvent -> AppState -> AppState
+confirm question onYes = #prompt ?~ Prompt question (YesNo onYes)
 
 withStatus :: App es => (Status -> Eff es ()) -> Eff es ()
 withStatus k =
@@ -403,7 +410,7 @@ toggle = \case
       #toggles % #queueDisplay %~ \case
         Classic -> Columns
         Columns -> Classic
-    modifyView id
+    modifyWithEnv (modifyView id)
     d <- getsS (.toggles.queueDisplay)
     showMessage $
       "Display: " <> case d of
@@ -413,7 +420,7 @@ toggle = \case
   ToggleFollowPlaying -> do
     localToggle "Follow playing" #followPlaying
     follow <- getsS (.toggles.followPlaying)
-    when follow jumpToPlaying
+    when follow (modifyWithEnv jumpToPlaying)
   ToggleBitrate -> localToggle "Bitrate" #showBitrate
   where
     localToggle :: App es => T.Text -> Lens' Toggles Bool -> Eff es ()
@@ -499,12 +506,13 @@ nextRedraw s = do
 
 updateWindowTitle :: App es => Eff es ()
 updateWindowTitle = do
+  env <- getAppEnv
   s <- getS
-  forM_ s.config.windowTitle $ \fmt -> do
+  forM_ env.config.windowTitle $ \fmt -> do
     let title = case (currentSong s.mirror, (.state) <$> s.mirror.status) of
           (Just song, Just st) | st /= Stopped -> renderPlain ctx song fmt
           _ -> "reprise"
-        ctx = RenderContext s.config.lists.tagSeparator [Span Nothing s.config.lists.missingTag]
+        ctx = RenderContext env.config.lists.tagSeparator [Span Nothing env.config.lists.missingTag]
     when (s.windowTitle /= Just title) $ do
       modifyS $ #windowTitle ?~ title
       setTitle title

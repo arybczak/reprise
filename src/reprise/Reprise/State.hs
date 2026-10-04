@@ -5,8 +5,11 @@
 -- there is one view, but nothing assumes it: actions find their view with
 -- 'focusedView', and only the layout code reads the terminal size.
 module Reprise.State
-  ( -- * State
-    AppState (..)
+  ( -- * Settings
+    AppEnv (..)
+
+    -- * State
+  , AppState (..)
   , initialState
   , ConnectionState (..)
   , Prompt (..)
@@ -56,11 +59,18 @@ import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
 import Reprise.Style
 
-data AppState = AppState
+-- | What doesn't change while reprise runs. The handlers read it through
+-- the 'Effectful.Input.Static.Input' effect, so none of them can change it.
+data AppEnv = AppEnv
   { config :: Config
   , keymaps :: Keymaps
+  -- ^ The keymaps of the config, with the user's overrides.
   , colorMode :: ColorMode
-  , connection :: ConnectionState
+  }
+  deriving stock (Show, Generic)
+
+data AppState = AppState
+  { connection :: ConnectionState
   , mirror :: Mirror
   , queueState :: QueueState
   , toggles :: Toggles
@@ -222,13 +232,10 @@ switchScreen s v
 newtype Layout = Single ViewId
   deriving stock (Eq, Show)
 
-initialState :: Config -> Keymaps -> ColorMode -> AppState
-initialState config keymaps colorMode =
+initialState :: Config -> AppState
+initialState config =
   AppState
-    { config = config
-    , keymaps = keymaps
-    , colorMode = colorMode
-    , connection = Connecting
+    { connection = Connecting
     , mirror = emptyMirror
     , queueState = QueueState S.empty [] Nothing Nothing
     , toggles =
@@ -285,11 +292,11 @@ layoutViews s = case s.layout of
 
 -- | The number of rows of the list in a view: the titles of the columns
 -- take one.
-listHeight :: AppState -> View -> Int
-listHeight s v
+listHeight :: AppEnv -> AppState -> View -> Int
+listHeight env s v
   | v.screen == QueueScreen
   , s.toggles.queueDisplay == Columns
-  , s.config.songs.columns.showTitles =
+  , env.config.songs.columns.showTitles =
       max 0 (v.height - 1)
   | otherwise = v.height
 

@@ -363,7 +363,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Action` | The action registry: actions as data, with their names, argument parsers, descriptions, and whether they are destructive |
 | `Reprise.Handler` | The handlers of events, keys, prompts and the actions of every screen, e.g. playback and toggles. It passes the actions of a screen on to the screen's module |
 | `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
-| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
+| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps and the colors. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
@@ -459,7 +459,15 @@ brick handlers don't run in `Eff`. brick stays the outer loop, and effectful is
 used in two places:
 
 1. **Actions are `Eff` code with a small, mostly pure stack,** for example
-   `(State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()`.
+   `(State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()`.
+   - `AppState` is what changes while reprise runs. `AppEnv` is what doesn't:
+     the config, the keymaps and the colors of the terminal. The handlers
+     read it through `Input`, which, unlike `Reader`, has no `local`, so no
+     handler can change it, not even for a part of its work.
+   - Logic that only changes the state is a pure function, e.g.
+     `jumpTo :: Int -> AppEnv -> AppState -> AppState`, and the handlers
+     apply it. Only what messages the user or requests something from MPD
+     or brick is `Eff` code.
    - `MpdRequest` queues commands with continuations.
    - `UiRequest` covers what only brick can do: halting, suspending for an
      external program, the terminal title, timers that send an event later,
@@ -491,13 +499,12 @@ used in two places:
 
 Actions are data, in `Reprise.Action`, and their handlers are in
 `Reprise.Handler` and the modules of the screens. The config holds actions in
-its keymaps, and the handlers
-need `AppState`, which holds the config, so an action with its handler inside
-would make the modules a cycle too.
+its keymaps, and the handlers need `AppEnv`, which holds the config, so an
+action with its handler inside would make the modules a cycle too.
 
-The screen is drawn as one vty image from the state, with brick as the event
-loop around it. The image is a pure function of the state, so the snapshot
-tests render it to text.
+The screen is drawn as one vty image from the state and the environment, with
+brick as the event loop around it. The image is a pure function of them, so
+the snapshot tests render it to text.
 
 The elapsed time is redrawn by a timer, not by polling. After each event, the
 handler computes when the screen next changes, the next whole second or the

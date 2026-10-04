@@ -5,6 +5,7 @@ module Utils
   , statusOf
 
     -- * State
+  , testAppEnv
   , testState
   , runEvents
   , Result (..)
@@ -78,11 +79,19 @@ statusOf st current queueLen =
 ----------------------------------------
 -- State
 
--- | The state with the default config and keymaps, a terminal of the given
--- size, and a queue that MPD sent.
+-- | The default config and keymaps, with colors.
+testAppEnv :: AppEnv
+testAppEnv =
+  AppEnv
+    { config = defaultConfig
+    , keymaps = keymapsOf defaultConfig.keys
+    , colorMode = WithColors
+    }
+
+-- | The state with a terminal of the given size and a queue that MPD sent.
 testState :: (Int, Int) -> Status -> [Song] -> AppState
 testState size st songs =
-  let s0 = initialState defaultConfig (keymapsOf defaultConfig.keys) WithColors
+  let s0 = initialState defaultConfig
       events =
         [ Resized (fst size) (snd size)
         , MpdConnected (Version 0 24 0)
@@ -103,7 +112,7 @@ runEvents now events s0 = L.foldl' step (Result s0 [] [] []) events
   where
     step :: Result -> AppEvent -> Result
     step r e =
-      let (s, ps, cs) = runEvent now e r.state
+      let (s, ps, cs) = runEvent testAppEnv now e r.state
       in Result s (r.requests <> map pendingRequestLines ps) (r.pending <> ps) (r.commands <> cs)
 
 ----------------------------------------

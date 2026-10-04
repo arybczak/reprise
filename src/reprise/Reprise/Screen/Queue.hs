@@ -55,22 +55,22 @@ import Reprise.UI.SongList
 ----------------------------------------
 -- Drawing
 
-queueView :: AppState -> View -> V.Image
-queueView s v =
+queueView :: AppEnv -> AppState -> View -> V.Image
+queueView env s v =
   let ctx =
         RowContext
-          { colorMode = s.colorMode
-          , lists = s.config.lists
-          , songs = s.config.songs
+          { colorMode = env.colorMode
+          , lists = env.config.lists
+          , songs = env.config.songs
           , display = s.toggles.queueDisplay
           , width = v.width
           }
       titles
-        | s.toggles.queueDisplay == Columns && s.config.songs.columns.showTitles =
+        | s.toggles.queueDisplay == Columns && env.config.songs.columns.showTitles =
             [renderTitles ctx]
         | otherwise = []
       playingId = s.mirror.status >>= (.currentId)
-      visible = Seq.take (listHeight s v) (Seq.drop v.offset s.mirror.queue)
+      visible = Seq.take (listHeight env s v) (Seq.drop v.offset s.mirror.queue)
       -- The matches of a find show while the user types it.
       found = case s.prompt of
         Just (Prompt _ (Line edit (ForFind _)))
@@ -78,7 +78,7 @@ queueView s v =
           , Right matched <-
               matchAll
                 p
-                (foldText . rowText s.config.lists s.config.songs s.toggles.queueDisplay <$> visible) ->
+                (foldText . rowText env.config.lists env.config.songs s.toggles.queueDisplay <$> visible) ->
               toList matched
         _ -> repeat False
       row (i, isFound) song =
@@ -96,35 +96,34 @@ queueView s v =
 ----------------------------------------
 -- Moving
 
-moveQueueCursor :: App es => MoveTarget -> Eff es ()
-moveQueueCursor t = do
-  s <- getS
-  let h = max 1 (listHeight s (focusedView s))
+moveQueueCursor :: MoveTarget -> AppEnv -> AppState -> AppState
+moveQueueCursor t env s =
+  let h = max 1 (listHeight env s (focusedView s))
       q = s.mirror.queue
       c = (focusedView s).cursor
-  case t of
-    MoveUp -> setCursor (c - 1)
-    MoveDown -> setCursor (c + 1)
-    MovePageUp -> setCursor (c - h)
-    MovePageDown -> setCursor (c + h)
-    MoveFirst -> setCursor 0
-    MoveLast -> setCursor (Seq.length q - 1)
-    MovePreviousAlbum -> jumpTo $ previousGroup albumKey q c
-    MoveNextAlbum -> jumpTo $ nextGroup albumKey q c
-    MovePreviousArtist -> jumpTo $ previousGroup artistKey q c
-    MoveNextArtist -> jumpTo $ nextGroup artistKey q c
+  in case t of
+       MoveUp -> setCursor (c - 1) env s
+       MoveDown -> setCursor (c + 1) env s
+       MovePageUp -> setCursor (c - h) env s
+       MovePageDown -> setCursor (c + h) env s
+       MoveFirst -> setCursor 0 env s
+       MoveLast -> setCursor (Seq.length q - 1) env s
+       MovePreviousAlbum -> jumpTo (previousGroup albumKey q c) env s
+       MoveNextAlbum -> jumpTo (nextGroup albumKey q c) env s
+       MovePreviousArtist -> jumpTo (previousGroup artistKey q c) env s
+       MoveNextArtist -> jumpTo (nextGroup artistKey q c) env s
 
 -- | Move the queue's cursor to the playing song in the middle of the list,
 -- also while the view shows another screen.
-jumpToPlaying :: App es => Eff es ()
-jumpToPlaying = do
-  s <- getS
+jumpToPlaying :: AppEnv -> AppState -> AppState
+jumpToPlaying env s =
   let v = focusedView s
-      h = listHeight s (v & #screen .~ QueueScreen)
-  forM_ (currentPosition s.mirror) $ \p ->
-    if v.screen == QueueScreen
-      then jumpTo p
-      else modifyS $ #views % ix s.focus % #positions % at QueueScreen ?~ (p, p - h `div` 2)
+      h = listHeight env s (v & #screen .~ QueueScreen)
+  in case currentPosition s.mirror of
+       Nothing -> s
+       Just p
+         | v.screen == QueueScreen -> jumpTo p env s
+         | otherwise -> s & #views % ix s.focus % #positions % at QueueScreen ?~ (p, p - h `div` 2)
 
 -- | What tells artists apart: the album artist, or the artist without one,
 -- so that a compilation whose songs have different artists is one artist.
@@ -180,11 +179,11 @@ select = \case
   SelectItem andMove -> do
     withSongUnderCursor $ \song -> forM_ song.songId $ \i -> do
       selected <- getsS ((i `S.member`) . (.queueState.selection))
-      modifySelection $ if selected then S.delete i else S.insert i
+      modifyS . modifySelection $ if selected then S.delete i else S.insert i
       modifyS $
         #queueState % #lastSelected %~ \ends ->
           (if selected then id else take rangeEnds . (i :)) (filter (/= i) ends)
-    forM_ andMove moveQueueCursor
+    forM_ andMove (modifyWithEnv . moveQueueCursor)
   -- Between the last two songs that the user selected, so that a range
   -- doesn't swallow the songs between it and an earlier selection. Without
   -- them, between the first and the last selected song, as in ncmpcpp.
@@ -201,10 +200,10 @@ select = \case
         showMessage "Range selected"
   SelectInvert -> do
     ids <- getsS (S.fromList . mapMaybe (.songId) . toList . (.mirror.queue))
-    modifySelection (ids S.\\)
+    modifyS $ modifySelection (ids S.\\)
     showMessage "Selection inverted"
   SelectNone -> do
-    modifySelection (const S.empty)
+    modifyS $ modifySelection (const S.empty)
     showMessage "Selection cleared"
   SelectAlbum -> selectGroup albumKey "Album"
   SelectArtist -> selectGroup artistKey "Artist"
@@ -242,10 +241,10 @@ select = \case
     addToSelection ps = do
       q <- getsS (.mirror.queue)
       let ids = S.fromList $ mapMaybe (\i -> Seq.lookup i q >>= (.songId)) ps
-      modifySelection (S.union ids)
+      modifyS $ modifySelection (S.union ids)
 
-modifySelection :: App es => (S.Set SongId -> S.Set SongId) -> Eff es ()
-modifySelection f = modifyS $ #queueState % #selection %~ f
+modifySelection :: (S.Set SongId -> S.Set SongId) -> AppState -> AppState
+modifySelection f = #queueState % #selection %~ f
 
 withSongUnderCursor :: App es => (Song -> Eff es ()) -> Eff es ()
 withSongUnderCursor k = do
@@ -281,7 +280,7 @@ moveSelection t = do
       follow :: App es => (Int -> Int -> Bool) -> Int -> Eff es ()
       follow moves delta =
         when (or [moves a b && c >= a && c <= b | (a, b) <- runs ps]) $
-          setCursor (c + delta)
+          modifyWithEnv (setCursor (c + delta))
   case t of
     MoveSelectionUp -> do
       mutate $ moveUp ps
@@ -299,10 +298,14 @@ moveSelection t = do
 ----------------------------------------
 -- Finding
 
-startFind :: App es => Direction -> Eff es ()
-startFind direction = do
-  v <- getsS focusedView
-  openLine question emptyLineEdit . ForFind $ Finding direction (v.cursor, v.offset) Nothing
+startFind :: Direction -> AppState -> AppState
+startFind direction s =
+  let v = focusedView s
+  in openLine
+       question
+       emptyLineEdit
+       (ForFind $ Finding direction (v.cursor, v.offset) Nothing)
+       s
   where
     question :: T.Text
     question = case direction of
@@ -317,15 +320,15 @@ findAsYouType f text = do
   rows <- queueRows
   note <-
     if T.null text
-      then restoreView f.origin >> pure Nothing
+      then modifyWithEnv (restoreView f.origin) >> pure Nothing
       else case compilePattern text of
         -- The cursor stays until the pattern is complete again.
         Left err -> pure (Just err)
         Right p -> case search p f.direction (fst f.origin) rows of
           Left err -> pure (Just err)
-          Right Nothing -> restoreView f.origin >> pure (Just "no match")
+          Right Nothing -> modifyWithEnv (restoreView f.origin) >> pure (Just "no match")
           Right (Just found) -> do
-            jumpTo found.index
+            modifyWithEnv (jumpTo found.index)
             pure (wrapNote f.direction found)
   pure $ f & #note .~ note
 
@@ -336,7 +339,7 @@ acceptFind f text
   | T.null text = findAgain f.direction
   | otherwise = case compilePattern text of
       Left _ -> do
-        restoreView f.origin
+        modifyWithEnv (restoreView f.origin)
         showError $ "Invalid pattern: " <> text
       Right _ -> do
         modifyS $ #queueState % #findPattern ?~ text
@@ -355,7 +358,7 @@ findAgain direction = do
         Left err -> showError (capitalize err)
         Right Nothing -> showMessage $ "No match for " <> text
         Right (Just found) -> do
-          jumpTo found.index
+          modifyWithEnv (jumpTo found.index)
           forM_ (wrapNote direction found) (showMessage . capitalize)
 
 wrapNote :: Direction -> Found -> Maybe T.Text
@@ -369,13 +372,14 @@ wrapNote direction found
 -- unless the queue or its display changed since.
 queueRows :: App es => Eff es (Seq.Seq Folded)
 queueRows = do
+  env <- getAppEnv
   s <- getS
   case s.queueState.findRows of
     Just r
       | r.version == s.mirror.queueVersion && r.display == s.toggles.queueDisplay -> pure r.rows
     _ -> do
       let display = s.toggles.queueDisplay
-          rows = foldText . rowText s.config.lists s.config.songs display <$> s.mirror.queue
+          rows = foldText . rowText env.config.lists env.config.songs display <$> s.mirror.queue
       modifyS $ #queueState % #findRows ?~ FindRows s.mirror.queueVersion display rows
       pure rows
 

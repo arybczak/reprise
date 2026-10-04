@@ -1,7 +1,7 @@
 -- | What the handlers of events and the screens share: the effects, access
--- to the state, messages and the views. The screens import this module, and
--- it imports no screen, so that "Reprise.Handler" can pass actions on to
--- the screens.
+-- to the state and the settings, messages, prompts and the views. The
+-- screens import this module, and it imports no screen, so that
+-- "Reprise.Handler" can pass actions on to the screens.
 module Reprise.Handler.Core
   ( -- * Effects
     App
@@ -10,6 +10,8 @@ module Reprise.Handler.Core
   , getS
   , getsS
   , modifyS
+  , getAppEnv
+  , modifyWithEnv
   , newToken
 
     -- * Messages
@@ -33,6 +35,7 @@ module Reprise.Handler.Core
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Effectful
+import Effectful.Input.Static
 import Effectful.State.Static.Local
 import Optics.Core
 
@@ -47,7 +50,8 @@ import Reprise.Mpd.Mirror
 import Reprise.State
 
 -- | The effects of the handlers.
-type App es = (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+type App es =
+  (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
 
 ----------------------------------------
 -- State
@@ -60,6 +64,13 @@ getsS = gets @AppState
 
 modifyS :: App es => (AppState -> AppState) -> Eff es ()
 modifyS = modify @AppState
+
+getAppEnv :: App es => Eff es AppEnv
+getAppEnv = input
+
+-- | Change the state with a function that reads the settings too.
+modifyWithEnv :: App es => (AppEnv -> AppState -> AppState) -> Eff es ()
+modifyWithEnv f = getAppEnv >>= modifyS . f
 
 newToken :: App es => Eff es Int
 newToken = state @AppState $ \s -> (s.nextToken, s & #nextToken %~ (+ 1))
@@ -98,51 +109,49 @@ screenText screen = T.replace "_" " " (screenName screen) <> " screen"
 
 -- | Open a line prompt for a purpose, which "Reprise.Handler" runs with the
 -- answer.
-openLine :: App es => T.Text -> LineEdit -> LinePurpose -> Eff es ()
-openLine question edit purpose = modifyS $ #prompt ?~ Prompt question (Line edit purpose)
+openLine :: T.Text -> LineEdit -> LinePurpose -> AppState -> AppState
+openLine question edit purpose = #prompt ?~ Prompt question (Line edit purpose)
 
 ----------------------------------------
 -- Views
 
 -- | Move the cursor of the focused view and scroll it into view.
-setCursor :: App es => Int -> Eff es ()
-setCursor c = modifyView $ #cursor .~ c
+setCursor :: Int -> AppEnv -> AppState -> AppState
+setCursor c = modifyView (#cursor .~ c)
 
 -- | Move the cursor to an item in the middle of the list, as every jump
 -- does, so that the item's neighbours show on both sides.
-jumpTo :: App es => Int -> Eff es ()
-jumpTo p = do
-  h <- getsS (\s -> listHeight s (focusedView s))
-  -- modifyView brings the offset back into the list.
-  modifyView $ (#cursor .~ p) . (#offset .~ p - h `div` 2)
+jumpTo :: Int -> AppEnv -> AppState -> AppState
+jumpTo p env s =
+  let h = listHeight env s (focusedView s)
+  in -- modifyView brings the offset back into the list.
+     modifyView ((#cursor .~ p) . (#offset .~ p - h `div` 2)) env s
 
 -- | Bring back a cursor and an offset, e.g. after a cancelled find.
-restoreView :: App es => (Int, Int) -> Eff es ()
+restoreView :: (Int, Int) -> AppEnv -> AppState -> AppState
 restoreView (c, o) = modifyView $ (#cursor .~ c) . (#offset .~ o)
 
 -- | Change the focused view, then keep its cursor in the list and visible.
 -- A screen of text has no cursor, so only its offset is kept in the text.
-modifyView :: App es => (View -> View) -> Eff es ()
-modifyView f = do
-  s <- getS
-  let centered = s.config.lists.keepCursorCentered
-  modifyS $
-    #views % ix s.focus %~ \v ->
+modifyView :: (View -> View) -> AppEnv -> AppState -> AppState
+modifyView f env s =
+  s
+    & #views % ix s.focus %~ \v ->
       let v' = f v
-          n = screenLength s v'.screen
-          h = max 1 (listHeight s v')
+          n = screenLength env s v'.screen
+          h = max 1 (listHeight env s v')
           c = max 0 (min (n - 1) v'.cursor)
           o
             | v'.screen /= QueueScreen = v'.offset
-            | centered = c - h `div` 2
+            | env.config.lists.keepCursorCentered = c - h `div` 2
             | c < v'.offset = c
             | c >= v'.offset + h = c - h + 1
             | otherwise = v'.offset
       in v' & #cursor .~ c & #offset .~ max 0 (min (n - h) o)
 
 -- | The number of items or lines of a screen.
-screenLength :: AppState -> ScreenName -> Int
-screenLength s = \case
+screenLength :: AppEnv -> AppState -> ScreenName -> Int
+screenLength env s = \case
   QueueScreen -> Seq.length s.mirror.queue
-  HelpScreen -> length (helpLines s.keymaps)
+  HelpScreen -> length (helpLines env.keymaps)
   _ -> 0

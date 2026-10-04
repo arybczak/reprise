@@ -103,8 +103,11 @@ main = do
       vty
       buildVty
       (Just events)
-      (app Env {requests = requests, events = events})
-      (initialState config (keymapsOf config.keys) colorMode)
+      ( app
+          AppEnv {config = config, keymaps = keymapsOf config.keys, colorMode = colorMode}
+          Channels {requests = requests, events = events}
+      )
+      (initialState config)
 
 sources :: Options -> IO Sources
 sources opts = do
