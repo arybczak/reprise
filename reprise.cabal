@@ -119,6 +119,7 @@ library
                      Reprise.Keys
                      Reprise.LineEdit
                      Reprise.Mpd.Address
+                     Reprise.Mpd.Error
                      Reprise.Mpd.Mirror
                      Reprise.Mpd.Worker
                      Reprise.Screen.Help

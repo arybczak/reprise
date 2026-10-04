@@ -361,10 +361,11 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Keymap` | Keymaps, key sequences and lookup |
 | `Reprise.Action` | The action registry: actions as data, with their names, argument parsers, descriptions, and whether they are destructive |
 | `Reprise.Handler` | The handlers of events and actions |
-| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt |
+| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
+| `Reprise.Mpd.Error` | What reprise shows and logs when a call to MPD fails |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded. Later "ignore leading the" collation |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |

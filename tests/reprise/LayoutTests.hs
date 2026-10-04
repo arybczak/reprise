@@ -12,7 +12,6 @@ import Test.Tasty.HUnit
 
 import Reprise.Config
 import Reprise.Event
-import Reprise.Handler
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Types
 import Reprise.State

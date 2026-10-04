@@ -10,7 +10,6 @@ import Test.Tasty.HUnit
 import Reprise.Action
 import Reprise.Effect.UiRequest
 import Reprise.Event
-import Reprise.Handler
 import Reprise.Keys
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror

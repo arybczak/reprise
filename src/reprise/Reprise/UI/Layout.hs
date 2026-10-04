@@ -19,7 +19,6 @@ import Reprise.Action
 import Reprise.Config
 import Reprise.Find
 import Reprise.Format
-import Reprise.Handler
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.LineEdit

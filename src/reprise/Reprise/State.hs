@@ -30,6 +30,12 @@ module Reprise.State
   , focusedViewId
   , layoutViews
   , mainHeight
+  , listHeight
+
+    -- * Queries
+  , cursorVisible
+  , cursorHideDelay
+  , displayedElapsed
   ) where
 
 import Data.Map.Strict qualified as M
@@ -276,3 +282,33 @@ layoutViews s = case s.layout of
                  & #width .~ fst s.terminalSize
                  & #height .~ mainHeight s.terminalSize
            )
+
+-- | The number of rows of the list in a view: the titles of the columns
+-- take one.
+listHeight :: AppState -> View -> Int
+listHeight s v
+  | v.screen == QueueScreen
+  , s.toggles.queueDisplay == Columns
+  , s.config.songs.columns.showTitles =
+      max 0 (v.height - 1)
+  | otherwise = v.height
+
+----------------------------------------
+-- Queries
+
+-- | Whether the queue shows its cursor: it hides it a while after the last
+-- key.
+cursorVisible :: AppState -> Bool
+cursorVisible s = s.now - s.lastInput < cursorHideDelay
+
+-- | How long after the last key the queue hides its cursor. ncmpcpp's
+-- default @playlist_disable_highlight_delay@.
+cursorHideDelay :: Double
+cursorHideDelay = 5
+
+-- | The elapsed time to show: the target of a seek in progress, or the
+-- interpolated elapsed time.
+displayedElapsed :: AppState -> Maybe Seconds
+displayedElapsed s = case s.seek of
+  Just sk -> Just sk.target
+  Nothing -> elapsedAt s.now s.mirror

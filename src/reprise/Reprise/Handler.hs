@@ -8,16 +8,9 @@ module Reprise.Handler
   , handleEvent
   , runAction
 
-    -- * Queries
-  , listHeight
-  , displayedElapsed
-  , cursorVisible
-  , describeMpdError
-
     -- * Constants
   , seekCommitDelay
   , messageTimeout
-  , cursorHideDelay
   ) where
 
 import Control.Applicative
@@ -43,6 +36,7 @@ import Reprise.Format
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.LineEdit
+import Reprise.Mpd.Error
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
@@ -87,11 +81,6 @@ seekAccelerationPeriod = 2
 -- @message_delay_time@.
 messageTimeout :: Double
 messageTimeout = 5
-
--- | How long after the last key the queue hides its cursor. ncmpcpp's
--- default @playlist_disable_highlight_delay@.
-cursorHideDelay :: Double
-cursorHideDelay = 5
 
 ----------------------------------------
 -- Events
@@ -174,20 +163,6 @@ afterEvent :: App es => Eff es ()
 afterEvent = do
   scheduleTick
   updateWindowTitle
-
-describeMpdError :: MpdError -> T.Text
-describeMpdError = \case
-  AckError ack -> ack.command <> ": " <> ack.message
-  ProtocolError err -> "Protocol error: " <> err
-  ConnectionError err -> case err of
-    ConnectFailed reason -> "Can't connect to MPD: " <> reason
-    UnsupportedVersion (Version a b c) ->
-      "MPD "
-        <> T.intercalate "." (map (T.pack . show) [a, b, c])
-        <> " is too old, reprise needs 0.23 or newer"
-    Closed -> "MPD closed the connection"
-    Broken reason -> "The connection to MPD broke: " <> reason
-    TimedOut -> "MPD didn't reply in time"
 
 fetchQueue :: App es => Eff es ()
 fetchQueue = request ((,) <$> status <*> playlistInfo) QueueFetched
@@ -803,21 +778,6 @@ screenLength s = \case
   HelpScreen -> length (helpLines s.keymaps)
   _ -> 0
 
--- | The number of rows of the list in a view: the titles of the columns
--- take one.
-listHeight :: AppState -> View -> Int
-listHeight s v
-  | v.screen == QueueScreen
-  , s.toggles.queueDisplay == Columns
-  , s.config.songs.columns.showTitles =
-      max 0 (v.height - 1)
-  | otherwise = v.height
-
--- | Whether the queue shows its cursor: it hides it a while after the last
--- key.
-cursorVisible :: AppState -> Bool
-cursorVisible s = s.now - s.lastInput < cursorHideDelay
-
 ----------------------------------------
 -- Seeking
 
@@ -859,13 +819,6 @@ commitSeek token =
 
 currentDuration :: AppState -> Maybe Seconds
 currentDuration s = s.mirror.status >>= (.duration)
-
--- | The elapsed time to show: the target of a seek in progress, or the
--- interpolated elapsed time.
-displayedElapsed :: AppState -> Maybe Seconds
-displayedElapsed s = case s.seek of
-  Just sk -> Just sk.target
-  Nothing -> elapsedAt s.now s.mirror
 
 ----------------------------------------
 -- Redraws

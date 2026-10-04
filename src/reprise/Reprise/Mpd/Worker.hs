@@ -18,7 +18,7 @@ import Effectful.Exception
 import Reprise.Effect.Mpd
 import Reprise.Effect.MpdRequest
 import Reprise.Event
-import Reprise.Handler
+import Reprise.Mpd.Error
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Types
 
