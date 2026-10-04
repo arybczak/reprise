@@ -94,12 +94,27 @@ formatTotal secs =
 headerLine :: AppState -> V.Image
 headerLine s =
   let (w, _) = s.terminalSize
+      lineAttr = attr s s.config.header.lineStyle
       flagsText = flags s
-      flagsImage
-        | T.null flagsText = V.emptyImage
-        | otherwise = V.text' (attr s s.config.header.flagsStyle) ("[" <> flagsText <> "]")
-      lineWidth = max 0 (w - V.imageWidth flagsImage)
-  in V.charFill (attr s s.config.header.lineStyle) '─' lineWidth 1 V.<|> flagsImage
+      rule n = V.charFill lineAttr '─' n 1
+  in if T.null flagsText
+       then rule w
+       else
+         -- The brackets are part of the line, and the line goes on for a
+         -- column after them, as in ncmpcpp.
+         let flagsImage =
+               V.horizCat
+                 [ V.text' lineAttr "["
+                 , V.text' (attr s s.config.header.flagsStyle) flagsText
+                 , V.text' lineAttr "]"
+                 ]
+             margin = 1
+         in V.crop w 1 $
+              V.horizCat
+                [ rule (max 0 (w - V.imageWidth flagsImage - margin))
+                , flagsImage
+                , rule margin
+                ]
 
 flags :: AppState -> T.Text
 flags s = case s.mirror.status of

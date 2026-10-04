@@ -4,9 +4,11 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import MPD.Types
+import Optics.Core
 import System.FilePath
 import Test.Tasty
 import Test.Tasty.Golden
+import Test.Tasty.HUnit
 
 import Reprise.Event
 import Reprise.Keys
@@ -29,7 +31,16 @@ layoutTests =
         runEvents 0 [MpdDisconnected "gone"] (playing (80, 12))
     , snapshot "help" $ press ["f1"] (playing (80, 24))
     , snapshot "help-scrolled" $ press ["f1", "page_down"] (playing (80, 24))
+    , testCase "flags end a column before the edge" test_flags
     ]
+
+-- | As in ncmpcpp.
+test_flags :: Assertion
+test_flags = do
+  let st = statusOf Playing (Just 1) (length queue) & #repeat .~ True & #random .~ True
+  case imageLines . renderScreen $ testState (20, 6) st queue of
+    _ : flagsLine : _ -> assertEqual "line" "───────────────[rz]─" flagsLine
+    ls -> assertFailure $ "too few lines: " <> show ls
 
 -- | Render the screen at a fixed monotonic time and compare its text with a
 -- golden file.
