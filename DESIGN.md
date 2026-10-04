@@ -115,7 +115,7 @@ ncmpcpp.
   title.
 - Jump to the playing song, or follow it automatically. Both put the song in
   the middle of the list, as does the jump at the start.
-- Delete, move, crop, clear, shuffle, reverse, set priority.
+- Delete, move, crop, clear, shuffle, set priority.
 
 **Browser (MPD database)**
 - `lsinfo` navigation, with a `..` entry.
@@ -273,6 +273,9 @@ them (see [Key bindings](#key-bindings)).
 **ncmpcpp's file formats:** the config file, the bindings file and the format
 language (`%a`, `{...}|{...}`, `$(color)`, `$b`, `$R`). An importer for the old
 files could come later, if ever.
+
+**Reversing the queue** (`reverse_playlist`). It is rarely useful, and MPD
+has no command for it.
 
 **Old compatibility tricks**
 - MPD versions older than 0.23. In return reprise gets filter expressions,
@@ -726,7 +729,7 @@ or if it changes a stored playlist, which lives on disk:
 |---|---|
 | Clear the queue | Removes every song |
 | Crop the queue | Removes every song that isn't selected |
-| Shuffle, reverse or sort the whole queue | Loses the current order |
+| Shuffle or sort the whole queue | Loses the current order |
 | Delete a stored playlist | Removes it from disk |
 | Save over an existing stored playlist | Replaces its contents |
 | Clear or crop a stored playlist, or remove songs from it | Changes it on disk |
@@ -734,7 +737,7 @@ or if it changes a stored playlist, which lives on disk:
 Not destructive:
 - deleting the selected or highlighted songs from the queue (the user pointed
   at them);
-- shuffling, reversing or sorting only the selected songs;
+- shuffling or sorting only the selected songs;
 - moving songs;
 - playback controls.
 
@@ -1081,7 +1084,6 @@ keys:
       c: clear
       k: crop                    # keep only the selected songs
       s: shuffle
-      r: reverse
       w: save                    # as a stored playlist
     ctrl-s:
       name: selection
@@ -1137,8 +1139,8 @@ until then. `ctrl-g` and `escape` cancel a pending prefix.
 Compared to ncmpcpp:
 - **Toggles left the single keys:** `r` `z` `y` `R` `x` `Y` `#` `P` `!` `U`
   are under `ctrl-t`.
-- **Queue operations left the single keys:** `c` `C` `Z` `ctrl-r` `M` `S`
-  `ctrl-p` are under `ctrl-q`.
+- **Queue operations left the single keys:** `c` `C` `Z` `M` `S` `ctrl-p`
+  are under `ctrl-q`. `ctrl-r` (reverse) is gone.
 - **Selection left the single keys:** `v` `V` `B` `ctrl-v` `ctrl-_` are under
   `ctrl-s`.
 - **`shift-up`/`shift-down`** toggle the selection and move, without the

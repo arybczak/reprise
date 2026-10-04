@@ -72,7 +72,6 @@ data Action
   | Clear
   | Crop
   | Shuffle
-  | Reverse
   | Save
   | Toggle ToggleTarget
   | Update UpdateScope
@@ -245,7 +244,6 @@ registry =
   , spec "clear" "" $ none Clear
   , spec "crop" "" $ none Crop
   , spec "shuffle" "" $ none Shuffle
-  , spec "reverse" "" $ none Reverse
   , spec "save" "" $ none Save
   , spec "toggle" (alternatives ("crossfade N" : map fst toggleTargets)) $ \case
       [Word "crossfade", Word n] -> Toggle . ToggleCrossfade <$> natural n
@@ -464,7 +462,6 @@ renderAction = \case
   Clear -> "clear"
   Crop -> "crop"
   Shuffle -> "shuffle"
-  Reverse -> "reverse"
   Save -> "save"
   Toggle t -> "toggle " <> toggleName t
   Update s ->
@@ -555,7 +552,6 @@ describeAction = \case
   Clear -> "clear"
   Crop -> "crop to the selection"
   Shuffle -> "shuffle"
-  Reverse -> "reverse"
   Save -> "save as a playlist"
   Toggle t -> "toggle " <> T.replace "_" " " (toggleName t)
   Update s -> case s of
@@ -577,7 +573,6 @@ isDestructive = \case
   Clear -> True
   Crop -> True
   Shuffle -> True
-  Reverse -> True
   Save -> True
   _ -> False
 

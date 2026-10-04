@@ -52,7 +52,7 @@ import Reprise.Action
 import Reprise.Format
 import Reprise.Keymap
 import Reprise.Keys
-import Reprise.Style hiding (Reverse)
+import Reprise.Style
 
 ----------------------------------------
 -- Configuration
@@ -662,7 +662,6 @@ defaultKeymaps =
               [ char 'c' ~> Clear
               , char 'k' ~> Crop
               , char 's' ~> Shuffle
-              , char 'r' ~> Reverse
               , char 'w' ~> Save
               ]
           , group
