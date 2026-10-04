@@ -113,8 +113,8 @@ ncmpcpp.
 - Classic and columns display.
 - Now playing highlight, album separators, total and remaining time in the
   title.
-- Jump to the playing song, or follow it automatically. Both put the song in
-  the middle of the list, as does the jump at the start.
+- Jump to the playing song, or follow it automatically, and jump to it at
+  the start.
 - Delete, move, clear, shuffle, set priority.
 
 **Browser (MPD database)**
@@ -132,6 +132,10 @@ ncmpcpp.
   run on the client, because the queue is already loaded.
 
 **Lists in general**
+- A jump to an item puts it in the middle of the list, so that its
+  neighbours show on both sides: jumping to the playing song or following
+  it, moving to the previous or next album or artist, and later finding.
+  Moving by a line or a page scrolls only as far as the cursor needs.
 - Selection: item, range, reverse, clear, album, found items.
   - An action applies to the selected items, or to the item under the cursor
     without a selection.

@@ -500,12 +500,18 @@ jumpToPlaying = do
   s <- getS
   let v = focusedView s
       h = listHeight s (v & #screen .~ QueueScreen)
-  forM_ (currentPosition s.mirror) $ \p -> do
-    -- modifyView brings the offset back into the list.
-    let centered = p - h `div` 2
+  forM_ (currentPosition s.mirror) $ \p ->
     if v.screen == QueueScreen
-      then modifyView $ (#cursor .~ p) . (#offset .~ centered)
-      else modifyS $ #views % ix s.focus % #positions % at QueueScreen ?~ (p, centered)
+      then jumpTo p
+      else modifyS $ #views % ix s.focus % #positions % at QueueScreen ?~ (p, p - h `div` 2)
+
+-- | Move the cursor to an item in the middle of the list, as every jump
+-- does, so that the item's neighbours show on both sides.
+jumpTo :: App es => Int -> Eff es ()
+jumpTo p = do
+  h <- getsS (\s -> listHeight s (focusedView s))
+  -- modifyView brings the offset back into the list.
+  modifyView $ (#cursor .~ p) . (#offset .~ p - h `div` 2)
 
 toggle :: App es => ToggleTarget -> Eff es ()
 toggle = \case
@@ -553,17 +559,17 @@ moveCursor t = do
       q = s.mirror.queue
       c = view_.cursor
   case view_.screen of
-    QueueScreen -> setCursor $ case t of
-      MoveUp -> c - 1
-      MoveDown -> c + 1
-      MovePageUp -> c - h
-      MovePageDown -> c + h
-      MoveFirst -> 0
-      MoveLast -> Seq.length q - 1
-      MovePreviousAlbum -> previousGroup albumKey q c
-      MoveNextAlbum -> nextGroup albumKey q c
-      MovePreviousArtist -> previousGroup artistKey q c
-      MoveNextArtist -> nextGroup artistKey q c
+    QueueScreen -> case t of
+      MoveUp -> setCursor (c - 1)
+      MoveDown -> setCursor (c + 1)
+      MovePageUp -> setCursor (c - h)
+      MovePageDown -> setCursor (c + h)
+      MoveFirst -> setCursor 0
+      MoveLast -> setCursor (Seq.length q - 1)
+      MovePreviousAlbum -> jumpTo $ previousGroup albumKey q c
+      MoveNextAlbum -> jumpTo $ nextGroup albumKey q c
+      MovePreviousArtist -> jumpTo $ previousGroup artistKey q c
+      MoveNextArtist -> jumpTo $ nextGroup artistKey q c
     -- A text without items scrolls.
     screen -> case t of
       MoveUp -> scroll (-1)

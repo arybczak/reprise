@@ -375,6 +375,12 @@ test_albumNavigation = do
   assertEqual "next twice" 4 (cursorAfter ["]", "]"])
   assertEqual "start of the album" 2 (cursorAfter ["down", "down", "down", "["])
   assertEqual "previous album" 0 (cursorAfter ["down", "down", "["])
+  -- 24 rows leave 20 for the list.
+  let albums = [album (T.pack (show (i `div` 5))) i | i <- [0 .. 49]]
+      far =
+        focusedView . (.state) . keys (replicate 6 "]") $
+          testState (80, 24) (statusOf Stopped Nothing 50) albums
+  assertEqual "a jump centers the cursor" (30, 20) (far.cursor, far.offset)
 
 test_activate :: Assertion
 test_activate = do
