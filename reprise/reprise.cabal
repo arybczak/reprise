@@ -42,6 +42,7 @@ common language
                         DerivingStrategies
                         DuplicateRecordFields
                         LambdaCase
+                        MultiWayIf
                         NoFieldSelectors
                         NoStarIsType
                         OverloadedLabels
@@ -91,6 +92,7 @@ library
                      Reprise.Mpd.Mirror
                      Reprise.Mpd.Worker
                      Reprise.Screen.Help
+                     Reprise.Screen.Queue
                      Reprise.State
                      Reprise.Style
                      Reprise.UI.Layout
@@ -152,6 +154,7 @@ test-suite test
                     KeysTests
                     LayoutTests
                     MirrorTests
+                    QueueTests
                     StyleTests
                     WidthTests
                     WorkerTests

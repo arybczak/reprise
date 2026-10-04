@@ -13,6 +13,7 @@ module Reprise.State
   , Message (..)
   , PendingKeys (..)
   , SeekState (..)
+  , QueueState (..)
   , Toggles (..)
 
     -- * Views
@@ -28,6 +29,7 @@ module Reprise.State
   ) where
 
 import Data.Map.Strict qualified as M
+import Data.Set qualified as S
 import Data.Text qualified as T
 import GHC.Generics
 import MPD.Types
@@ -47,6 +49,7 @@ data AppState = AppState
   , colorMode :: ColorMode
   , connection :: ConnectionState
   , mirror :: Mirror
+  , queueState :: QueueState
   , toggles :: Toggles
   , views :: M.Map ViewId View
   , layout :: Layout
@@ -103,6 +106,14 @@ data SeekState = SeekState
   { target :: Seconds
   , started :: Double
   , token :: Int
+  }
+  deriving stock (Eq, Show, Generic)
+
+-- | The content of the queue screen that isn't MPD's: the songs come from
+-- the mirror.
+newtype QueueState = QueueState
+  { selection :: S.Set SongId
+  -- ^ By id, so that the selection follows the songs when they move.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -164,6 +175,7 @@ initialState config keymaps colorMode =
     , colorMode = colorMode
     , connection = Connecting
     , mirror = emptyMirror
+    , queueState = QueueState S.empty
     , toggles =
         Toggles
           { queueDisplay = config.queue.display

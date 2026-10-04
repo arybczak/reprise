@@ -12,6 +12,7 @@ import KeymapTests
 import KeysTests
 import LayoutTests
 import MirrorTests
+import QueueTests
 import StyleTests
 import WidthTests
 import WorkerTests
@@ -35,6 +36,7 @@ main = do
       , keysTests
       , layoutTests
       , mirrorTests
+      , queueTests
       , styleTests
       , widthTests
       , workerTests

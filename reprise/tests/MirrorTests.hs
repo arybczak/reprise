@@ -1,5 +1,3 @@
-{-# LANGUAGE MultiWayIf #-}
-
 module MirrorTests (mirrorTests) where
 
 import Control.Exception

@@ -169,7 +169,7 @@ queueView s v =
           ctx
           RowFlags
             { playing = isJust playingId && song.songId == playingId
-            , selected = False
+            , selected = maybe False (`S.member` s.queueState.selection) song.songId
             , cursor = i == v.cursor && cursorVisible s
             }
           song

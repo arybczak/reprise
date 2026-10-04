@@ -48,6 +48,7 @@ common language
                         DerivingStrategies
                         DuplicateRecordFields
                         LambdaCase
+                        MultiWayIf
                         NoFieldSelectors
                         NoStarIsType
                         OverloadedRecordDot

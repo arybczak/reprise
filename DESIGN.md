@@ -133,6 +133,17 @@ ncmpcpp.
 
 **Lists in general**
 - Selection: item, range, reverse, clear, album, found items.
+  - An action applies to the selected items, or to the item under the cursor
+    without a selection.
+  - The queue keeps the selection by song id, so it follows the songs when
+    they move and loses the songs that leave the queue.
+  - Select range fills the selection between its first and last item, as in
+    ncmpcpp.
+  - Select album selects the songs around the cursor with the same album
+    artist (or artist) and album. ncmpcpp compares the album only, so two
+    albums called "Greatest Hits" next to each other were one.
+  - Shuffling the selection needs selected songs next to each other, because
+    MPD shuffles a range.
 - Incremental find (next/previous), wrapping around at the end.
 - Filter.
 - Find and filter always ignore diacritics.
@@ -1395,6 +1406,10 @@ Settings that effectful doesn't have:
 - `OverloadedStrings`, because reprise and mpd-protocol work with `Text`
   everywhere (yamlet, brick, the protocol).
 - `OverloadedLabels`, for the optics labels (see [Code](#code)).
+- `MultiWayIf`, for conditions that guards in a `case` would only make
+  longer.
+- `DeriveAnyClass` in `mpd-protocol`, for its `NFData` instances. Deriving
+  strategies are always explicit, so it is unambiguous.
 - `StrictData`. yamlet's `requiredField` throws when it is evaluated, so a
   config field whose `yamlDefault` uses it must be marked lazy with `~`. This
   is rare, because every config field has a real default.
@@ -1488,10 +1503,10 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
    - Keymaps with key sequences and the which-key panel, with bindings for
      playback.
    - From here on, reprise replaces ncmpcpp for the author's daily use.
-   - Moved to milestone 3: album separators, and the actions that need
-     selection or a text prompt (crop, moving the selected songs, priority,
-     `seek_to`, `set_volume`, the password prompt). Until then, the queue
-     moves and deletes the song under the cursor.
+   - Moved to milestone 3: album separators, and the actions that need a
+     text prompt (`seek_to`, `set_volume`, `priority` without a value, the
+     password prompt). The selection in the queue, and crop, moving the
+     selected songs and priority, came after milestone 2.
 3. **Library navigation.**
    - Browser, including stored playlists.
    - Selection, find, filter, prompts, add and play.

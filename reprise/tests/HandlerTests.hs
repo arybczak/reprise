@@ -1,6 +1,7 @@
 module HandlerTests (handlerTests) where
 
 import Data.Foldable
+import Data.Set qualified as S
 import Data.Text qualified as T
 import MPD.Protocol.Request
 import MPD.Types
@@ -44,7 +45,148 @@ handlerTests =
     , testCase "a verb that the help screen lacks" test_helpLacksVerb
     , testCase "follow playing while the help screen shows" test_followBehindHelp
     , testCase "jump to playing from the help screen" test_jumpFromHelp
+    , testCase "select songs one by one" test_selectItem
+    , testCase "select a range" test_selectRange
+    , testCase "invert and clear the selection" test_selectInvertNone
+    , testCase "select an album" test_selectAlbum
+    , testCase "the help screen has no selection" test_selectOnHelp
+    , testCase "songs that leave the queue leave the selection" test_selectionPruned
+    , testCase "delete the marked songs" test_delete
+    , testCase "crop to the marked songs" test_crop
+    , testCase "move the marked songs up and down" test_moveSelection
+    , testCase "move the selection to the cursor and the end" test_moveSelectionTo
+    , testCase "shuffle the selection" test_shuffleSelection
     ]
+
+test_selectItem :: Assertion
+test_selectItem = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+      r = keys ["space", "space"] s
+  assertEqual "selected and moved" (ids [1, 2]) r.state.queueState.selection
+  assertEqual "cursor" 2 (focusedView r.state).cursor
+  assertEqual
+    "toggled off"
+    (ids [])
+    (keys ["insert", "insert"] s).state.queueState.selection
+
+test_selectRange :: Assertion
+test_selectRange = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+      r = keys ["down", "insert", "down", "down", "down", "insert", "ctrl-s", "r"] s
+  assertEqual "filled" (ids [2 .. 5]) r.state.queueState.selection
+  assertEqual
+    "without a selection"
+    (Just "Select the first and the last song of the range first")
+    ((.text) <$> (keys ["ctrl-s", "r"] s).state.message)
+
+test_selectInvertNone :: Assertion
+test_selectInvertNone = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  assertEqual
+    "inverted"
+    (ids [2 .. 5])
+    (keys ["insert", "ctrl-s", "i"] s).state.queueState.selection
+  assertEqual
+    "cleared"
+    (ids [])
+    (keys ["space", "space", "ctrl-s", "c"] s).state.queueState.selection
+
+test_selectAlbum :: Assertion
+test_selectAlbum = do
+  let album a pos = song pos [(Artist, ["A"]), (Album, [a])] 60
+      q = [album "x" 0, album "x" 1, album "y" 2, album "y" 3, album "x" 4]
+      s = testState (80, 24) (statusOf Stopped Nothing 5) q
+      r = keys ["down", "down", "down", "ctrl-s", "a"] s
+  assertEqual "album" (ids [3, 4]) r.state.queueState.selection
+
+test_selectOnHelp :: Assertion
+test_selectOnHelp = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+      r = keys ["f1", "insert"] s
+  assertEqual "message" (Just "The help screen has no select") ((.text) <$> r.state.message)
+  assertEqual "nothing selected" (ids []) r.state.queueState.selection
+
+test_selectionPruned :: Assertion
+test_selectionPruned = do
+  let s = keys ["space", "space"] $ testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+      st = statusOf Stopped Nothing 1 & #playlistVersion .~ PlaylistVersion 2
+      r = runEvents 0 [QueueChangesFetched (st, [])] s.state
+  assertEqual "selection" (ids [1]) r.state.queueState.selection
+
+test_delete :: Assertion
+test_delete = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  assertEqual
+    "selected, from the end"
+    [[Request "delete" ["2:3"], Request "delete" ["0:1"]]]
+    (keys ["space", "down", "space", "delete"] s).requests
+  assertEqual
+    "under the cursor"
+    [[Request "delete" ["1:2"]]]
+    (keys ["down", "delete"] s).requests
+
+test_crop :: Assertion
+test_crop = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+      asked = keys ["space", "space", "ctrl-q", "k"] s
+  assertEqual
+    "question"
+    (Just "Crop the queue to 2 songs?")
+    ((.question) <$> asked.state.prompt)
+  assertEqual "yes" [[Request "delete" ["2:5"]]] (keys ["y"] asked.state).requests
+  let one = testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
+  assertEqual
+    "one song"
+    (Just "There is nothing to crop")
+    ((.text) <$> (keys ["ctrl-q", "k"] one).state.message)
+
+test_moveSelection :: Assertion
+test_moveSelection = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+      up = keys ["down", "insert", "m"] s
+  assertEqual "up" [[Request "move" ["0:1", "1"]]] up.requests
+  assertEqual "the cursor follows up" 0 (focusedView up.state).cursor
+  let down = keys ["down", "insert", "n"] s
+  assertEqual "down" [[Request "move" ["2:3", "1"]]] down.requests
+  assertEqual "the cursor follows down" 2 (focusedView down.state).cursor
+  let elsewhere = keys ["down", "insert", "down", "down", "m"] s
+  assertEqual "the cursor stays" 3 (focusedView elsewhere.state).cursor
+  let unselected = keys ["down", "down", "m"] s
+  assertEqual "under the cursor" [[Request "move" ["1:2", "2"]]] unselected.requests
+  let top = keys ["insert", "m"] s
+  assertEqual "the top stays" [] top.requests
+  assertEqual "with the cursor" 0 (focusedView top.state).cursor
+
+test_moveSelectionTo :: Assertion
+test_moveSelectionTo = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+      message ks = (.text) <$> (keys ks s).state.message
+  assertEqual
+    "above the cursor"
+    [[Request "move" ["0:1", "3"]]]
+    (keys ["insert", "end", "ctrl-q", "m"] s).requests
+  assertEqual
+    "among the selected songs"
+    (Just "The cursor is among the selected songs")
+    (message ["insert", "down", "down", "insert", "up", "ctrl-q", "m"])
+  assertEqual
+    "without a selection"
+    (Just "Select the songs to move first")
+    (message ["ctrl-q", "m"])
+  assertEqual
+    "end"
+    [[Request "move" ["0:1", "4"]]]
+    (keys ["insert", "ctrl-q", "e"] s).requests
+
+test_shuffleSelection :: Assertion
+test_shuffleSelection = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+      r = keys ["space", "space", "ctrl-q", "s"] s
+  assertEqual "next to each other" [[Request "shuffle" ["0:2"]]] r.requests
+  assertEqual "message" (Just "Shuffled 2 songs") ((.text) <$> r.state.message)
+  let apart = keys ["space", "down", "space", "ctrl-q", "s"] s
+  assertEqual "apart" [] apart.requests
+  assertEqual "error" (Just True) ((.isError) <$> apart.state.message)
 
 test_disconnectClears :: Assertion
 test_disconnectClears = do
@@ -288,3 +430,7 @@ key' = KeyPressed . key
 
 keys :: [T.Text] -> AppState -> Result
 keys ks = runEvents 0 (map key' ks)
+
+-- | The ids of the songs that 'songs' makes, one more than their positions.
+ids :: [Int] -> S.Set SongId
+ids = S.fromList . map SongId

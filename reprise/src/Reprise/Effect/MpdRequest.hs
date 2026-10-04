@@ -14,6 +14,7 @@ module Reprise.Effect.MpdRequest
   , mutate
   ) where
 
+import Control.Monad
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Output.Static.Local.List
@@ -45,6 +46,7 @@ request :: MpdRequest :> es => Command a -> (a -> AppEvent) -> Eff es ()
 request cmd k = send $ RequestCommand cmd k
 
 -- | Request a command that changes MPD's state. Its effect comes back
--- through idle.
+-- through idle. A command without requests, e.g. a move of songs that are
+-- at the top already, isn't sent.
 mutate :: MpdRequest :> es => Command () -> Eff es ()
-mutate cmd = request cmd (const MpdDone)
+mutate cmd = unless (null (commandRequests cmd)) $ request cmd (const MpdDone)

@@ -1,5 +1,3 @@
-{-# LANGUAGE MultiWayIf #-}
-
 -- | The handlers of events and actions. They are 'Eff' code over the state,
 -- and they only request MPD commands and UI operations, so the tests run
 -- them with pure handlers.
@@ -24,6 +22,8 @@ module Reprise.Handler
 
 import Control.Applicative
 import Control.Monad
+import Data.Foldable
+import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Sequence qualified as Seq
@@ -45,6 +45,7 @@ import Reprise.Keymap
 import Reprise.Keys
 import Reprise.Mpd.Mirror
 import Reprise.Screen.Help
+import Reprise.Screen.Queue
 import Reprise.State
 
 -- | The effects of the handlers.
@@ -196,6 +197,10 @@ updateMirror f = do
   old <- getsS (.mirror)
   modifyS $ #mirror %~ f
   new <- getsS (.mirror)
+  -- Songs that left the queue leave the selection.
+  when (new.queueVersion /= old.queueVersion) $ do
+    let ids = S.fromList . mapMaybe (.songId) $ toList new.queue
+    modifySelection (`S.intersection` ids)
   modifyView id
   s <- getS
   let oldId = old.status >>= (.currentId)
@@ -298,8 +303,22 @@ runAction = \case
     jumpToPlaying
   action@Activate -> onQueue action . withSongUnderCursor $ \song ->
     forM_ song.songId (mutate . playId)
-  action@Delete -> onQueue action . withSongUnderCursor $ \song ->
-    forM_ song.songId (mutate . deleteId)
+  action@(Select t) -> onQueue action $ select t
+  action@Delete -> onQueue action $ do
+    ps <- getsS markedPositions
+    mutate $ deletePositions ps
+  action@Crop -> onQueue action $ do
+    s <- getS
+    let kept = length (markedPositions s)
+    if kept >= queueLength s.mirror
+      then showMessage "There is nothing to crop"
+      else confirm ("Crop the queue to " <> countSongs kept <> "?") (Confirmed Crop)
+  action@(Priority (Just p)) -> onQueue action $ do
+    s <- getS
+    let ids = mapMaybe (\i -> Seq.lookup i s.mirror.queue >>= (.songId)) (markedPositions s)
+    mutate $ prioId p ids
+    showMessage $ "Priority " <> T.pack (show p) <> " set for " <> countSongs (length ids)
+  action@(MoveSelection t) -> onQueue action $ moveSelection t
   Pause -> withStatus $ \st -> mutate $ case st.state of
     Playing -> pause True
     Paused -> pause False
@@ -325,21 +344,29 @@ runAction = \case
     n <- getsS (queueLength . (.mirror))
     if n == 0
       then showMessage "The queue is empty"
-      else confirm ("Clear " <> songs n <> " from the queue?") (Confirmed Clear)
+      else confirm ("Clear " <> countSongs n <> " from the queue?") (Confirmed Clear)
+  -- Shuffling the selected songs loses nothing the user didn't point at, so
+  -- only shuffling the whole queue asks first.
   Shuffle -> do
-    n <- getsS (queueLength . (.mirror))
-    if n < 2
-      then showMessage "There is nothing to shuffle"
-      else confirm ("Shuffle " <> songs n <> " in the queue?") (Confirmed Shuffle)
+    s <- getS
+    let n = queueLength s.mirror
+    case runs (selectedPositions s) of
+      _
+        | (focusedView s).screen /= QueueScreen || null (selectedPositions s) ->
+            if n < 2
+              then showMessage "There is nothing to shuffle"
+              else confirm ("Shuffle " <> countSongs n <> " in the queue?") (Confirmed Shuffle)
+      [(a, b)] -> do
+        mutate . shuffle . Just $ Range (SongPos a) (Just (SongPos (b + 1)))
+        showMessage $ "Shuffled " <> countSongs (b - a + 1)
+      _ -> showError "Only selected songs next to each other can be shuffled"
   Update _ -> do
     mutate . void $ update Nothing
     showMessage "Updating the database"
-  action@(MoveSelection MoveSelectionUp) -> onQueue action $ moveSongUnderCursor (-1)
-  action@(MoveSelection MoveSelectionDown) -> onQueue action $ moveSongUnderCursor 1
   action -> notAvailable $ "The action " <> renderAction action
-  where
-    songs :: Int -> T.Text
-    songs n = T.pack (show n) <> if n == 1 then " song" else " songs"
+
+countSongs :: Int -> T.Text
+countSongs n = T.pack (show n) <> if n == 1 then " song" else " songs"
 
 -- | Run a verb that only the queue implements so far. Another screen says
 -- that it doesn't implement it, instead of acting on the queue.
@@ -358,7 +385,96 @@ runConfirmed :: App es => Action -> Eff es ()
 runConfirmed = \case
   Clear -> mutate clear
   Shuffle -> mutate $ shuffle Nothing
+  Crop -> do
+    s <- getS
+    let kept = markedPositions s
+        removed = [0 .. queueLength s.mirror - 1] L.\\ kept
+    mutate $ deletePositions removed
   _ -> pure ()
+
+----------------------------------------
+-- Selection
+
+-- | The positions of the selected songs of the queue, in order.
+selectedPositions :: AppState -> [Int]
+selectedPositions s =
+  [ i
+  | (i, song) <- zip [0 ..] (toList s.mirror.queue)
+  , maybe False (`S.member` s.queueState.selection) song.songId
+  ]
+
+-- | The positions of the songs that an action applies to: the selected
+-- songs, or the song under the cursor without a selection.
+markedPositions :: AppState -> [Int]
+markedPositions s = case selectedPositions s of
+  [] -> [c | let c = (focusedView s).cursor, c >= 0, c < queueLength s.mirror]
+  ps -> ps
+
+select :: App es => SelectTarget -> Eff es ()
+select = \case
+  SelectItem andMove -> do
+    withSongUnderCursor $ \song -> forM_ song.songId $ \i ->
+      modifySelection $ \sel -> if i `S.member` sel then S.delete i sel else S.insert i sel
+    forM_ andMove moveCursor
+  SelectRange -> do
+    s <- getS
+    case selectedPositions s of
+      [] -> showMessage "Select the first and the last song of the range first"
+      ps -> do
+        addToSelection [minimum ps .. maximum ps]
+        showMessage "Range selected"
+  SelectInvert -> do
+    ids <- getsS (S.fromList . mapMaybe (.songId) . toList . (.mirror.queue))
+    modifySelection (ids S.\\)
+    showMessage "Selection inverted"
+  SelectNone -> do
+    modifySelection (const S.empty)
+    showMessage "Selection cleared"
+  SelectAlbum -> do
+    s <- getS
+    let q = s.mirror.queue
+        c = (focusedView s).cursor
+    forM_ (Seq.lookup c q) $ \song -> do
+      let sameAlbum i = (albumKey <$> Seq.lookup i q) == Just (albumKey song)
+          earlier = takeWhile sameAlbum [c - 1, c - 2 .. 0]
+          later = takeWhile sameAlbum [c + 1 .. Seq.length q - 1]
+      addToSelection (earlier <> [c] <> later)
+      showMessage "Album around the cursor selected"
+  SelectFound -> notAvailable "Selecting the found songs"
+  where
+    addToSelection :: App es => [Int] -> Eff es ()
+    addToSelection ps = do
+      q <- getsS (.mirror.queue)
+      let ids = S.fromList $ mapMaybe (\i -> Seq.lookup i q >>= (.songId)) ps
+      modifySelection (S.union ids)
+
+modifySelection :: App es => (S.Set SongId -> S.Set SongId) -> Eff es ()
+modifySelection f = modifyS $ #queueState % #selection %~ f
+
+moveSelection :: App es => MoveSelectionTarget -> Eff es ()
+moveSelection t = do
+  s <- getS
+  let ps = markedPositions s
+      n = queueLength s.mirror
+      c = (focusedView s).cursor
+      -- The cursor moves with its song if the song's run moves.
+      follow :: App es => (Int -> Int -> Bool) -> Int -> Eff es ()
+      follow moves delta =
+        when (or [moves a b && c >= a && c <= b | (a, b) <- runs ps]) $
+          setCursor (c + delta)
+  case t of
+    MoveSelectionUp -> do
+      mutate $ moveUp ps
+      follow (\a _ -> a > 0) (-1)
+    MoveSelectionDown -> do
+      mutate $ moveDown n ps
+      follow (\_ b -> b < n - 1) 1
+    MoveSelectionToCursor -> case selectedPositions s of
+      [] -> showMessage "Select the songs to move first"
+      selected -> case moveBefore selected c of
+        Just cmd -> mutate cmd
+        Nothing -> showMessage "The cursor is among the selected songs"
+    MoveSelectionToEnd -> forM_ (moveBefore ps n) mutate
 
 confirm :: App es => T.Text -> AppEvent -> Eff es ()
 confirm question onYes = modifyS $ #prompt ?~ Confirm question onYes
@@ -458,14 +574,17 @@ moveCursor t = do
     scroll :: App es => Int -> Eff es ()
     scroll delta = modifyView $ #offset %~ (+ delta)
 
-    albumKey :: Song -> (Maybe [T.Text], Maybe [T.Text])
-    albumKey song =
-      ( M.lookup AlbumArtist song.tags <|> M.lookup Artist song.tags
-      , M.lookup Album song.tags
-      )
-
     artistKey :: Song -> Maybe [T.Text]
     artistKey song = M.lookup Artist song.tags
+
+-- | What tells albums apart: the album artist, or the artist without one,
+-- and the album. The album alone would join albums of different artists
+-- with the same name, e.g. two greatest hits next to each other.
+albumKey :: Song -> (Maybe [T.Text], Maybe [T.Text])
+albumKey song =
+  ( M.lookup AlbumArtist song.tags <|> M.lookup Artist song.tags
+  , M.lookup Album song.tags
+  )
 
 -- | The first item after the group of the item at the index.
 nextGroup :: Eq k => (Song -> k) -> Seq.Seq Song -> Int -> Int
@@ -532,16 +651,6 @@ listHeight s v
 -- key.
 cursorVisible :: AppState -> Bool
 cursorVisible s = s.now - s.lastInput < cursorHideDelay
-
-moveSongUnderCursor :: App es => Int -> Eff es ()
-moveSongUnderCursor delta = do
-  s <- getS
-  let c = (focusedView s).cursor
-      target = c + delta
-  when (target >= 0 && target < Seq.length s.mirror.queue) $
-    withSongUnderCursor $ \song -> forM_ song.songId $ \i -> do
-      mutate . moveId i . At $ SongPos target
-      setCursor target
 
 ----------------------------------------
 -- Seeking

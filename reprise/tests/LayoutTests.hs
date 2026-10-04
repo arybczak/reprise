@@ -39,7 +39,23 @@ layoutTests =
     , testCase "the title has its own style" test_titleStyle
     , testCase "the marker of a missing tag in columns" test_markerInColumns
     , testCase "the marker of a missing tag in the classic display" test_markerInClassic
+    , testCase "a selected song has the selected style" test_selected
     ]
+
+test_selected :: Assertion
+test_selected = do
+  let q = [song 0 [(Title, ["first"])] 60, song 1 [(Title, ["second"])] 60]
+      s0 = press ["space"] $ testState (80, 6) (statusOf Stopped Nothing 2) q
+      s = s0 & #lastInput .~ s0.now - cursorHideDelay
+      background title =
+        [ V.attrBackColor a
+        | (a, t) <- imageSpans (renderScreen s)
+        , title `T.isInfixOf` t
+        ]
+  -- The selected style is yellow on 24, which vty numbers from 16. vty
+  -- joins the columns of the selected row into one span.
+  assertEqual "selected" [V.SetTo (V.Color240 8)] (background "first")
+  assertEqual "not selected" [V.Default] (background "second")
 
 -- | The marker takes the style of its column, not the marker's style.
 test_markerInColumns :: Assertion

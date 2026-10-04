@@ -118,7 +118,7 @@ test_whichKey = do
       assertEqual
         "entries"
         [ WhichKeyEntry (key "c") "crop to the selection" False True
-        , WhichKeyEntry (key "m") "move selection to the cursor" False True
+        , WhichKeyEntry (key "m") "move selection above the cursor" False True
         , WhichKeyEntry (key "s") "shuffle" False False
         ]
         (whichKeyEntries next)

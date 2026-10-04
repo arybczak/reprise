@@ -510,10 +510,10 @@ describeAction = \case
   Select t -> case t of
     SelectItem Nothing -> "toggle selection"
     SelectItem (Just m) -> "toggle selection, move " <> moveName m
-    SelectRange -> "select the range to the cursor"
+    SelectRange -> "fill the selection between its ends"
     SelectInvert -> "invert selection"
     SelectNone -> "clear selection"
-    SelectAlbum -> "select album"
+    SelectAlbum -> "select the album around the cursor"
     SelectFound -> "select found items"
   Activate -> "activate"
   AddOrRemove -> "add or remove"
@@ -564,7 +564,7 @@ describeAction = \case
   MoveSelection t -> case t of
     MoveSelectionUp -> "move selection up"
     MoveSelectionDown -> "move selection down"
-    MoveSelectionToCursor -> "move selection to the cursor"
+    MoveSelectionToCursor -> "move selection above the cursor"
     MoveSelectionToEnd -> "move selection to the end"
   Priority p -> maybe "set priority" (("set priority " <>) . T.pack . show) p
   NextSortMode -> "next sort mode"
