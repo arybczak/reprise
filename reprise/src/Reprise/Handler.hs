@@ -370,15 +370,19 @@ withSongUnderCursor k = do
   s <- getS
   forM_ (Seq.lookup (focusedView s).cursor s.mirror.queue) k
 
--- | Move the queue's cursor to the playing song, also while the view shows
--- another screen.
+-- | Move the queue's cursor to the playing song in the middle of the list,
+-- also while the view shows another screen.
 jumpToPlaying :: App es => Eff es ()
 jumpToPlaying = do
   s <- getS
-  forM_ (currentPosition s.mirror) $ \p ->
-    if (focusedView s).screen == QueueScreen
-      then setCursor p
-      else modifyS $ #views % ix s.focus % #positions % at QueueScreen ?~ (p, 0)
+  let v = focusedView s
+      h = listHeight s (v & #screen .~ QueueScreen)
+  forM_ (currentPosition s.mirror) $ \p -> do
+    -- modifyView brings the offset back into the list.
+    let centered = p - h `div` 2
+    if v.screen == QueueScreen
+      then modifyView $ (#cursor .~ p) . (#offset .~ centered)
+      else modifyS $ #views % ix s.focus % #positions % at QueueScreen ?~ (p, centered)
 
 toggle :: App es => ToggleTarget -> Eff es ()
 toggle = \case

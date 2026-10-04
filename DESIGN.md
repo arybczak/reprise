@@ -113,7 +113,8 @@ ncmpcpp.
 - Classic and columns display.
 - Now playing highlight, album separators, total and remaining time in the
   title.
-- Jump to the playing song, or follow it automatically.
+- Jump to the playing song, or follow it automatically. Both put the song in
+  the middle of the list, as does the jump at the start.
 - Delete, move, crop, clear, shuffle, reverse, set priority.
 
 **Browser (MPD database)**

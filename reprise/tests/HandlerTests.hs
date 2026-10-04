@@ -36,12 +36,27 @@ handlerTests =
     , testCase "follow the playing song" test_followPlaying
     , testCase "an MPD error shows in the status bar" test_mpdError
     , testCase "a redraw for the elapsed time" test_tick
+    , testCase "jump to playing centers the cursor" test_jumpCenters
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
     , testCase "the help screen scrolls" test_helpScrolls
     , testCase "a verb that the help screen lacks" test_helpLacksVerb
     , testCase "follow playing while the help screen shows" test_followBehindHelp
     , testCase "jump to playing from the help screen" test_jumpFromHelp
     ]
+
+test_jumpCenters :: Assertion
+test_jumpCenters = do
+  -- 24 rows leave 20 for the list.
+  let playingAt p = testState (80, 24) (statusOf Playing (Just p) 50) (songs 50)
+      position r = ((focusedView r.state).cursor, (focusedView r.state).offset)
+  assertEqual "at the start" (30, 20) (position (keys [] (playingAt 30)))
+  assertEqual "after moving away" (30, 20) (position (keys ["home", "o"] (playingAt 30)))
+  assertEqual "near the top" (3, 0) (position (keys ["end", "o"] (playingAt 3)))
+  assertEqual "near the bottom" (48, 30) (position (keys ["home", "o"] (playingAt 48)))
+  let behindHelp =
+        runEvents 0 [StatusFetched (Right (statusOf Playing (Just 40) 50))] $
+          (keys ["ctrl-t", "f", "f1"] (playingAt 30)).state
+  assertEqual "behind the help screen" (40, 30) (position (keys ["1"] behindHelp.state))
 
 test_helpKeepsPosition :: Assertion
 test_helpKeepsPosition = do
