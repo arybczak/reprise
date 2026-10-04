@@ -82,12 +82,7 @@ jobs:
         for f in cabal.project cabal.project.freeze cabal.project.local; do
           if [ -f "$f" ]; then cp "$f" "$RUNNER_TEMP"/haskell-gha; fi
         done
-        mkdir -p "$RUNNER_TEMP"/haskell-gha/mpd-protocol
-        tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/mpd-protocol-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha/mpd-protocol
-        mkdir -p "$RUNNER_TEMP"/haskell-gha/mpd-test-server
-        tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/mpd-test-server-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha/mpd-test-server
-        mkdir -p "$RUNNER_TEMP"/haskell-gha/reprise
-        tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/reprise-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha/reprise
+        tar -xzf "$RUNNER_TEMP"/haskell-gha-sdist/reprise-+([0-9.]).tar.gz --strip-components=1 -C "$RUNNER_TEMP"/haskell-gha
 
     - name: Configure the project
       working-directory: ${{ runner.temp }}/haskell-gha
@@ -101,12 +96,6 @@ jobs:
         tests: True
         benchmarks: True
 
-        package mpd-protocol
-          ghc-options: -Werror
-
-        package mpd-test-server
-          ghc-options: -Werror
-
         package reprise
           ghc-options: -Werror
         EOF
@@ -116,12 +105,6 @@ jobs:
       working-directory: ${{ runner.temp }}/haskell-gha
       run: |
         cat >> cabal.project.local <<'EOF'
-        package mpd-protocol
-          ghc-options: -j4
-
-        package mpd-test-server
-          ghc-options: -j4
-
         package reprise
           ghc-options: -j4
         EOF
@@ -133,12 +116,6 @@ jobs:
         if ghc --info | grep -F '("Semaphore version","2")' > /dev/null; then
         echo 'GHC uses version 2 of the semaphore protocol and cabal version 1, so GHC uses -j4.'
         cat >> cabal.project.local <<'EOF'
-        package mpd-protocol
-          ghc-options: -j4
-
-        package mpd-test-server
-          ghc-options: -j4
-
         package reprise
           ghc-options: -j4
         EOF
@@ -192,9 +169,7 @@ jobs:
           echo "Checking the package $1"
           (cd "$2" && cabal check) || { echo "::error::cabal check failed for the package $1"; failed=1; }
         }
-        check mpd-protocol mpd-protocol
-        check mpd-test-server mpd-test-server
-        check reprise reprise
+        check reprise .
         exit "$failed"
 
     - name: Build the documentation

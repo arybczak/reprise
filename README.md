@@ -6,13 +6,7 @@ A terminal client for the [Music Player Daemon](https://www.musicpd.org)
 reprise is in early development. [DESIGN.md](DESIGN.md) describes what it will
 be and why.
 
-## Packages
-
-- [`reprise`](reprise): the client.
-- [`mpd-protocol`](mpd-protocol): a library for the MPD protocol, usable
-  without reprise.
-- `mpd-test-server`: starts a real MPD for the test suites. It is not
-  released.
+It reads its configuration from `$XDG_CONFIG_HOME/reprise/config.yaml`.
 
 ## Building
 
