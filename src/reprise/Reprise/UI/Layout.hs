@@ -6,7 +6,6 @@ module Reprise.UI.Layout
   , promptCursor
   ) where
 
-import Data.Foldable
 import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
@@ -17,7 +16,6 @@ import Optics.Core
 
 import Reprise.Action
 import Reprise.Config
-import Reprise.Find
 import Reprise.Format
 import Reprise.Keymap
 import Reprise.Keys
@@ -25,6 +23,7 @@ import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Help
+import Reprise.Screen.Queue
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.SongList
@@ -143,50 +142,6 @@ mainView s =
        QueueScreen -> queueView s v
        HelpScreen -> helpView s v
        _ -> V.emptyImage
-
-helpView :: AppState -> View -> V.Image
-helpView s v =
-  let ls = helpLines s.keymaps
-      render = renderHelpLine s.colorMode s.config.styles (keyColumnWidth ls) v.width
-  in V.vertCat . map render . take v.height $ drop v.offset ls
-
-queueView :: AppState -> View -> V.Image
-queueView s v =
-  let ctx =
-        RowContext
-          { colorMode = s.colorMode
-          , lists = s.config.lists
-          , songs = s.config.songs
-          , display = s.toggles.queueDisplay
-          , width = v.width
-          }
-      titles
-        | s.toggles.queueDisplay == Columns && s.config.songs.columns.showTitles =
-            [renderTitles ctx]
-        | otherwise = []
-      playingId = s.mirror.status >>= (.currentId)
-      visible = Seq.take (listHeight s v) (Seq.drop v.offset s.mirror.queue)
-      -- The matches of a find show while the user types it.
-      found = case s.prompt of
-        Just (Prompt _ (Line edit (ForFind _)))
-          | Right p <- compilePattern (lineEditText edit)
-          , Right matched <-
-              matchAll
-                p
-                (foldText . rowText s.config.lists s.config.songs s.toggles.queueDisplay <$> visible) ->
-              toList matched
-        _ -> repeat False
-      row (i, isFound) song =
-        renderRow
-          ctx
-          RowFlags
-            { playing = isJust playingId && song.songId == playingId
-            , selected = maybe False (`S.member` s.queueState.selection) song.songId
-            , found = isFound
-            , cursor = i == v.cursor && cursorVisible s
-            }
-          song
-  in V.vertCat $ titles <> zipWith row (zip [v.offset ..] found) (toList visible)
 
 -- | The which-key panel over the bottom rows of the main view, while a key
 -- sequence is pending.

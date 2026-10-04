@@ -359,9 +359,10 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Format` | The format language: parser and renderer to styled spans. Pure, with golden tests |
 | `Reprise.Style` | Parsing styles into vty `Attr` |
 | `Reprise.Keys` | Key spec parsing (`ctrl-x`, `alt-shift-tab`, ...) |
-| `Reprise.Keymap` | Keymaps, key sequences and lookup |
+| `Reprise.Keymap` | Keymaps, key sequences and lookup, and the listings of keymaps: the which-key entries and the lines of the help screen |
 | `Reprise.Action` | The action registry: actions as data, with their names, argument parsers, descriptions, and whether they are destructive |
-| `Reprise.Handler` | The handlers of events and actions |
+| `Reprise.Handler` | The handlers of events, keys, prompts and the actions of every screen, e.g. playback and toggles. It passes the actions of a screen on to the screen's module |
+| `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
 | `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
@@ -369,9 +370,33 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded. Later "ignore leading the" collation |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
-| `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns |
-| `Reprise.UI.Layout` | Header, status bar, progress bar, the main view, the which-key panel, popups |
-| `Reprise.Screen.*` | `Queue`, `Browser`, `SearchEngine`, `Outputs`, `Help`. Later: `MediaLibrary`, `PlaylistEditor`, `Lyrics`, `SongInfo`, `ServerInfo`, ... |
+| `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs |
+| `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
+| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs) and `Help`. Later: `Browser`, `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `Lyrics`, `SongInfo`, `ServerInfo`, ... |
+
+The modules form layers, and an import only goes down:
+
+```
+Reprise.App
+ ├─► Reprise.Handler ──┐
+ └─► Reprise.UI.Layout ┴─► Reprise.Screen.* ─► Reprise.Handler.Core ─► Reprise.State, and the rest
+```
+
+- **Only `Reprise.App` imports `Reprise.Handler`.** The tests and the
+  benchmarks run events through it too.
+- **Only `Reprise.Handler` and `Reprise.UI.Layout` import a screen.** A
+  screen doesn't import another screen; its own submodules, such as
+  `Queue.Edits`, are part of it.
+- **`Reprise.Handler.Core` imports no screen and no module of `Reprise.UI`.**
+  What generic code needs to know about every screen, such as the length of
+  its list, comes from the state, e.g. the help screen's lines come from the
+  keymaps.
+- **The modules under `Reprise.Handler.Core`,** such as the state, the
+  config, the mirror and the format language, import none of the modules
+  above them. `Reprise.UI.SongList` is drawing that the screens share, so
+  it sits under the screens too.
+- **`mpd-protocol` imports nothing from reprise.** It is a library of its
+  own, so cabal enforces this.
 
 Libraries:
 
@@ -465,7 +490,8 @@ used in two places:
    its own `runEff`.
 
 Actions are data, in `Reprise.Action`, and their handlers are in
-`Reprise.Handler`. The config holds actions in its keymaps, and the handlers
+`Reprise.Handler` and the modules of the screens. The config holds actions in
+its keymaps, and the handlers
 need `AppState`, which holds the config, so an action with its handler inside
 would make the modules a cycle too.
 

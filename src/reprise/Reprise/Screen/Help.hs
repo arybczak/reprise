@@ -1,63 +1,48 @@
 -- | The help screen: the bindings of the global keymap and of each screen's
--- keymap, generated from the keymaps.
+-- keymap, as text that scrolls.
 module Reprise.Screen.Help
-  ( HelpLine (..)
-  , helpLines
-  , renderHelpLine
+  ( helpView
+  , scrollHelp
   , keyColumnWidth
   ) where
 
-import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Text qualified as T
+import Effectful
 import Graphics.Vty qualified as V
 import Optics.Core
 
 import Reprise.Action
 import Reprise.Config
 import Reprise.Format
+import Reprise.Handler.Core
 import Reprise.Keymap
-import Reprise.Keys
+import Reprise.State
 import Reprise.Style
 import Reprise.UI.SongList
 
-data HelpLine
-  = Heading T.Text
-  | -- | A key sequence and what it does.
-    Entry T.Text T.Text
-  | Blank
-  deriving stock (Eq, Show)
+helpView :: AppState -> View -> V.Image
+helpView s v =
+  let ls = helpLines s.keymaps
+      render = renderHelpLine s.colorMode s.config.styles (keyColumnWidth ls) v.width
+  in V.vertCat . map render . take v.height $ drop v.offset ls
 
--- | A section for the global keymap and for each screen's keymap that binds
--- a key. A section lists the keys of its keymap, then each group of a
--- prefix key with the whole key sequences, e.g. @ctrl-t r@.
-helpLines :: Keymaps -> [HelpLine]
-helpLines keymaps =
-  drop 1 . concat $
-    [ Blank : Heading title : keymapLines [] keymap
-    | (title, keymap) <- ("Global", keymaps.global) : screens
-    , not (M.null keymap.bindings)
-    ]
+-- | The help screen is text without items, so a move scrolls it.
+scrollHelp :: App es => MoveTarget -> Eff es ()
+scrollHelp t = do
+  s <- getS
+  let h = max 1 (listHeight s (focusedView s))
+  case t of
+    MoveUp -> scroll (-1)
+    MoveDown -> scroll 1
+    MovePageUp -> scroll (-h)
+    MovePageDown -> scroll h
+    MoveFirst -> modifyView $ #offset .~ 0
+    MoveLast -> modifyView $ #offset .~ screenLength s HelpScreen
+    _ -> showMessage $ "The " <> screenText HelpScreen <> " has no " <> renderAction (Move t)
   where
-    screens :: [(T.Text, Keymap)]
-    screens =
-      [ (T.toTitle (T.replace "_" " " (screenName s)), screenKeymap s keymaps)
-      | s <- screenNames
-      ]
-
-    keymapLines :: [KeySpec] -> Keymap -> [HelpLine]
-    keymapLines prefix keymap =
-      [ Entry (keysText (prefix <> [k])) (describeAction a)
-      | (k, BindAction a) <- M.toList keymap.bindings
-      ]
-        <> concat
-          [ Blank : Heading (keysText keys <> maybe "" (": " <>) group.name) : keymapLines keys group
-          | (k, BindPrefix group) <- M.toList keymap.bindings
-          , let keys = prefix <> [k]
-          ]
-
-    keysText :: [KeySpec] -> T.Text
-    keysText = T.unwords . map renderKeySpec
+    scroll :: App es => Int -> Eff es ()
+    scroll delta = modifyView $ #offset %~ (+ delta)
 
 -- | A line of the given width. The keys of all entries share a column as
 -- wide as the longest key sequence.

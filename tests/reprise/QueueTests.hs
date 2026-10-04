@@ -12,7 +12,7 @@ import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 import Reprise.Mpd.TestServer
-import Reprise.Screen.Queue
+import Reprise.Screen.Queue.Edits
 
 queueTests :: TestTree
 queueTests =

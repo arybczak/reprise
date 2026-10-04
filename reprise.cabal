@@ -115,6 +115,7 @@ library
                      Reprise.Find
                      Reprise.Format
                      Reprise.Handler
+                     Reprise.Handler.Core
                      Reprise.Keymap
                      Reprise.Keys
                      Reprise.LineEdit
@@ -123,6 +124,7 @@ library
                      Reprise.Mpd.Worker
                      Reprise.Screen.Help
                      Reprise.Screen.Queue
+                     Reprise.Screen.Queue.Edits
                      Reprise.State
                      Reprise.Style
                      Reprise.UI.Layout
