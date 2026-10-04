@@ -63,8 +63,6 @@ main = do
       Left errs -> do
         mapM_ (hPutStrLn stderr) errs
         exitFailure
-  defaults <-
-    either (\errs -> mapM_ (hPutStrLn stderr) errs >> exitFailure) pure defaultKeymapOverrides
   colorMode <-
     lookupEnv "NO_COLOR" <&> \case
       Just v | not (null v) -> NoColors
@@ -88,7 +86,7 @@ main = do
       buildVty
       (Just events)
       (app Env {requests = requests, events = events})
-      (initialState config (keymapsOf defaults config.keys) colorMode)
+      (initialState config (keymapsOf config.keys) colorMode)
 
 sources :: Options -> IO Sources
 sources opts = do

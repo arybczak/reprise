@@ -82,8 +82,7 @@ statusOf st current queueLen =
 -- size, and a queue that MPD sent.
 testState :: (Int, Int) -> Status -> [Song] -> AppState
 testState size st songs =
-  let defaults = either (error . unlines) id defaultKeymapOverrides
-      s0 = initialState defaultConfig (keymapsOf defaults defaultConfig.keys) WithColors
+  let s0 = initialState defaultConfig (keymapsOf defaultConfig.keys) WithColors
       events =
         [ Resized (fst size) (snd size)
         , MpdConnected (Version 0 24 0)

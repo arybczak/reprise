@@ -1005,6 +1005,10 @@ The default keymap follows the [default keymap rule](#key-bindings):
 Action names and arguments are a first draft; they settle when the actions
 are written.
 
+The defaults are a Haskell value, not YAML, so that the compiler checks
+their actions. The block below shows them in the config's format. A test
+checks that a config can name every default key.
+
 ```yaml
 keys:
   global:

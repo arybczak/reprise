@@ -1,6 +1,8 @@
 module ConfigTests (configTests) where
 
+import Control.Monad
 import Data.List qualified as L
+import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Test.Tasty
@@ -18,7 +20,8 @@ configTests =
     "Config"
     [ testCase "empty file" test_emptyFile
     , testCase "a section keeps its other defaults" test_sectionDefaults
-    , testCase "the default keymaps decode" test_defaultKeymaps
+    , testCase "the default keymaps" test_defaultKeymaps
+    , testCase "a config can bind every default key" test_defaultKeysWritable
     , testCase "keymap changes merge with the defaults" test_keymapMerge
     , testCase "columns" test_columns
     , testCase "durations" test_durations
@@ -42,8 +45,7 @@ test_sectionDefaults = do
 
 test_defaultKeymaps :: Assertion
 test_defaultKeymaps = do
-  defaults <- expectRight defaultKeymapOverrides
-  let global = startLayers QueueScreen (keymapsOf defaults defaultConfig.keys)
+  let global = startLayers QueueScreen (keymapsOf defaultConfig.keys)
   assertEqual "a single key" (Bound Pause) (lookupKey global (key "p"))
   assertEqual
     "a sequence"
@@ -63,9 +65,21 @@ test_defaultKeymaps = do
     (lookupKey global (key "space"))
   assertEqual "a digit key" (Bound (Show QueueScreen)) (lookupKey global (key "1"))
 
+-- | The default keymaps are built from key values, so they could hold a key
+-- that a config can't name, e.g. one that a terminal can't tell apart from
+-- another.
+test_defaultKeysWritable :: Assertion
+test_defaultKeysWritable =
+  forM_ (allKeys defaultKeymaps.global <> concatMap allKeys defaultKeymaps.screens) $ \k ->
+    assertEqual (show k) (Right k) (parseKeySpec (renderKeySpec k))
+  where
+    allKeys :: Keymap -> [KeySpec]
+    allKeys keymap = flip concatMap (M.toList keymap.bindings) $ \(k, binding) -> case binding of
+      BindAction _ -> [k]
+      BindPrefix group -> k : allKeys group
+
 test_keymapMerge :: Assertion
 test_keymapMerge = do
-  defaults <- expectRight defaultKeymapOverrides
   config <-
     expectRight . decode $
       T.unlines
@@ -77,7 +91,7 @@ test_keymapMerge = do
         , "      y: toggle single"
         , "    ctrl-d: ~"
         ]
-  let layers = startLayers QueueScreen (keymapsOf defaults config.keys)
+  let layers = startLayers QueueScreen (keymapsOf config.keys)
   assertEqual "replaced" (Bound Next) (lookupKey layers (key "p"))
   assertEqual "removed" Unbound (lookupKey layers (key "s"))
   assertEqual

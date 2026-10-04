@@ -32,15 +32,15 @@ module Reprise.Config
   , loadConfig
 
     -- * Keymaps
-  , defaultKeymapsYaml
-  , defaultKeymapOverrides
   , keymapsOf
+  , defaultKeymaps
   ) where
 
 import Data.ByteString qualified as BS
-import Data.Char
+import Data.Char hiding (Space)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
+import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Void
 import MPD.Types
@@ -51,7 +51,8 @@ import Yamlet
 import Reprise.Action
 import Reprise.Format
 import Reprise.Keymap
-import Reprise.Style
+import Reprise.Keys
+import Reprise.Style hiding (Reverse)
 
 ----------------------------------------
 -- Configuration
@@ -573,146 +574,187 @@ loadConfig file =
 ----------------------------------------
 -- Keymaps
 
--- | The default keymaps, in the format of the configuration file.
-defaultKeymapsYaml :: T.Text
-defaultKeymapsYaml =
-  T.unlines
-    [ "global:"
-    , "  # moving around"
-    , "  up: move up"
-    , "  down: move down"
-    , "  page_up: move page_up"
-    , "  page_down: move page_down"
-    , "  home: move first"
-    , "  end: move last"
-    , "  \"[\": move previous_album"
-    , "  \"]\": move next_album"
-    , "  \"{\": move previous_artist"
-    , "  \"}\": move next_artist"
-    , "  o: jump_to_playing"
-    , ""
-    , "  # selecting"
-    , "  shift-up: select up"
-    , "  shift-down: select down"
-    , "  insert: select"
-    , ""
-    , "  # verbs; each screen implements them its own way"
-    , "  enter: activate"
-    , "  space: add_or_remove"
-    , "  delete: delete"
-    , ""
-    , "  # playback"
-    , "  p: pause"
-    , "  s: stop"
-    , "  \"<\": previous"
-    , "  \">\": next"
-    , "  f: seek +1s"
-    , "  b: seek -1s"
-    , "  \"+\": volume +2"
-    , "  \"-\": volume -2"
-    , "  right: volume +2"
-    , "  left: volume -2"
-    , ""
-    , "  # find and filter"
-    , "  /: find forward"
-    , "  \"?\": find backward"
-    , "  .: find next"
-    , "  \",\": find previous"
-    , "  ctrl-f: filter"
-    , ""
-    , "  # screens; 4, 5 and 6 are kept for the media library, the playlist editor and the tag editor"
-    , "  1: show queue"
-    , "  2: show browser"
-    , "  3: show search_engine"
-    , "  7: show outputs"
-    , "  tab: next_screen [browser, media_library]"
-    , "  shift-tab: previous_screen [browser, media_library]"
-    , "  f1: show help"
-    , "  \":\": command"
-    , "  q: quit"
-    , ""
-    , "  ctrl-a:"
-    , "    name: add"
-    , "    e: add end"
-    , "    n: add next"
-    , "    b: add beginning"
-    , "    p: add_and_play"
-    , "    /: add_path"
-    , "  ctrl-q:"
-    , "    name: queue"
-    , "    c: clear"
-    , "    k: crop"
-    , "    s: shuffle"
-    , "    r: reverse"
-    , "    w: save"
-    , "  ctrl-s:"
-    , "    name: selection"
-    , "    r: select range"
-    , "    i: select invert"
-    , "    c: select none"
-    , "    a: select album"
-    , "    f: select found"
-    , "  ctrl-t:"
-    , "    name: toggle"
-    , "    r: toggle repeat"
-    , "    z: toggle random"
-    , "    s: toggle single"
-    , "    c: toggle consume"
-    , "    x: toggle crossfade 5"
-    , "    g: toggle replay_gain"
-    , "    d: toggle display"
-    , "    a: toggle album_separators"
-    , "    f: toggle follow_playing"
-    , "    b: toggle bitrate"
-    , "  ctrl-p:"
-    , "    name: playback"
-    , "    g: seek_to"
-    , "    r: replay"
-    , "    v: set_volume"
-    , "    x: set_crossfade"
-    , "  ctrl-d:"
-    , "    name: database"
-    , "    u: update current"
-    , "    U: update all"
-    , ""
-    , "queue:"
-    , "  space: select down"
-    , "  backspace: replay"
-    , "  m: move_selection up"
-    , "  n: move_selection down"
-    , "  ctrl-q:"
-    , "    m: move_selection cursor"
-    , "    e: move_selection end"
-    , "    p: priority"
-    , ""
-    , "browser:"
-    , "  backspace: parent"
-    , "  ctrl-t:"
-    , "    o: next_sort_mode"
-    ]
-
--- | The default keymaps as overrides of empty keymaps.
-defaultKeymapOverrides :: Either [String] KeysConfig
-defaultKeymapOverrides = case decodeText defaultKeymapsYaml of
-  Right keys -> Right keys
-  Left errs -> Left . map (prettyError "default keymaps") $ NE.toList errs
-
 -- | The keymaps of a configuration: the defaults with the user's changes.
-keymapsOf :: KeysConfig -> KeysConfig -> Keymaps
-keymapsOf defaults user =
+keymapsOf :: KeysConfig -> Keymaps
+keymapsOf user =
   Keymaps
-    { global = apply (.global)
+    { global = applyOverride user.global defaultKeymaps.global
     , screens =
         M.fromList
-          [ (QueueScreen, apply (.queue))
-          , (BrowserScreen, apply (.browser))
-          , (SearchEngineScreen, apply (.searchEngine))
-          , (MediaLibraryScreen, apply (.mediaLibrary))
-          , (PlaylistEditorScreen, apply (.playlistEditor))
-          , (OutputsScreen, apply (.outputs))
-          , (HelpScreen, apply (.help))
+          [ (screen, applyOverride (field user) (screenKeymap screen defaultKeymaps))
+          | (screen, field) <- screenFields
           ]
     }
   where
-    apply :: (KeysConfig -> KeymapOverride) -> Keymap
-    apply field = applyOverride (field user) (applyOverride (field defaults) emptyKeymap)
+    screenFields :: [(ScreenName, KeysConfig -> KeymapOverride)]
+    screenFields =
+      [ (QueueScreen, (.queue))
+      , (BrowserScreen, (.browser))
+      , (SearchEngineScreen, (.searchEngine))
+      , (MediaLibraryScreen, (.mediaLibrary))
+      , (PlaylistEditorScreen, (.playlistEditor))
+      , (OutputsScreen, (.outputs))
+      , (HelpScreen, (.help))
+      ]
+
+-- | The keymaps without the user's changes.
+defaultKeymaps :: Keymaps
+defaultKeymaps =
+  Keymaps
+    { global =
+        keymap
+          [ plain ArrowUp ~> Move MoveUp
+          , plain ArrowDown ~> Move MoveDown
+          , plain PageUp ~> Move MovePageUp
+          , plain PageDown ~> Move MovePageDown
+          , plain Home ~> Move MoveFirst
+          , plain End ~> Move MoveLast
+          , char '[' ~> Move MovePreviousAlbum
+          , char ']' ~> Move MoveNextAlbum
+          , char '{' ~> Move MovePreviousArtist
+          , char '}' ~> Move MoveNextArtist
+          , char 'o' ~> JumpToPlaying
+          , shift ArrowUp ~> Select (SelectItem (Just MoveUp))
+          , shift ArrowDown ~> Select (SelectItem (Just MoveDown))
+          , plain InsertKey ~> Select (SelectItem Nothing)
+          , -- Verbs: each screen implements them its own way.
+            plain Enter ~> Activate
+          , plain Space ~> AddOrRemove
+          , plain DeleteKey ~> Delete
+          , char 'p' ~> Pause
+          , char 's' ~> Stop
+          , char '<' ~> Previous
+          , char '>' ~> Next
+          , char 'f' ~> Seek (SeekBy 1)
+          , char 'b' ~> Seek (SeekBy (-1))
+          , char '+' ~> Volume (VolumeBy 2)
+          , char '-' ~> Volume (VolumeBy (-2))
+          , plain ArrowRight ~> Volume (VolumeBy 2)
+          , plain ArrowLeft ~> Volume (VolumeBy (-2))
+          , char '/' ~> Find FindForward
+          , char '?' ~> Find FindBackward
+          , char '.' ~> Find FindNext
+          , char ',' ~> Find FindPrevious
+          , ctrl 'f' ~> Filter
+          , -- 4, 5 and 6 are kept for the media library, the playlist editor
+            -- and the tag editor.
+            char '1' ~> Show QueueScreen
+          , char '2' ~> Show BrowserScreen
+          , char '3' ~> Show SearchEngineScreen
+          , char '7' ~> Show OutputsScreen
+          , plain Tab ~> NextScreen [BrowserScreen, MediaLibraryScreen]
+          , shift Tab ~> PreviousScreen [BrowserScreen, MediaLibraryScreen]
+          , plain (Function 1) ~> Show HelpScreen
+          , char ':' ~> CommandPrompt
+          , char 'q' ~> Quit
+          , group
+              (ctrl 'a')
+              "add"
+              [ char 'e' ~> Add AddEnd
+              , char 'n' ~> Add AddNext
+              , char 'b' ~> Add AddBeginning
+              , char 'p' ~> AddAndPlay
+              , char '/' ~> AddPath
+              ]
+          , group
+              (ctrl 'q')
+              "queue"
+              [ char 'c' ~> Clear
+              , char 'k' ~> Crop
+              , char 's' ~> Shuffle
+              , char 'r' ~> Reverse
+              , char 'w' ~> Save
+              ]
+          , group
+              (ctrl 's')
+              "selection"
+              [ char 'r' ~> Select SelectRange
+              , char 'i' ~> Select SelectInvert
+              , char 'c' ~> Select SelectNone
+              , char 'a' ~> Select SelectAlbum
+              , char 'f' ~> Select SelectFound
+              ]
+          , group
+              (ctrl 't')
+              "toggle"
+              [ char 'r' ~> Toggle ToggleRepeat
+              , char 'z' ~> Toggle ToggleRandom
+              , char 's' ~> Toggle ToggleSingle
+              , char 'c' ~> Toggle ToggleConsume
+              , char 'x' ~> Toggle (ToggleCrossfade 5)
+              , char 'g' ~> Toggle ToggleReplayGain
+              , char 'd' ~> Toggle ToggleDisplay
+              , char 'a' ~> Toggle ToggleAlbumSeparators
+              , char 'f' ~> Toggle ToggleFollowPlaying
+              , char 'b' ~> Toggle ToggleBitrate
+              ]
+          , group
+              (ctrl 'p')
+              "playback"
+              [ char 'g' ~> SeekToPrompt
+              , char 'r' ~> Replay
+              , char 'v' ~> SetVolume
+              , char 'x' ~> SetCrossfade
+              ]
+          , group
+              (ctrl 'd')
+              "database"
+              [ char 'u' ~> Update UpdateCurrent
+              , char 'U' ~> Update UpdateAll
+              ]
+          ]
+    , screens =
+        M.fromList
+          [
+            ( QueueScreen
+            , keymap
+                [ -- As in the author's ncmpcpp bindings.
+                  plain Space ~> Select (SelectItem (Just MoveDown))
+                , plain Backspace ~> Replay
+                , char 'm' ~> MoveSelection MoveSelectionUp
+                , char 'n' ~> MoveSelection MoveSelectionDown
+                , group
+                    (ctrl 'q')
+                    "queue"
+                    [ char 'm' ~> MoveSelection MoveSelectionToCursor
+                    , char 'e' ~> MoveSelection MoveSelectionToEnd
+                    , char 'p' ~> Priority Nothing
+                    ]
+                ]
+            )
+          ,
+            ( BrowserScreen
+            , keymap
+                [ plain Backspace ~> Parent
+                , group (ctrl 't') "toggle" [char 'o' ~> NextSortMode]
+                ]
+            )
+          ]
+    }
+  where
+    keymap :: [(KeySpec, Binding)] -> Keymap
+    keymap = Keymap Nothing . bindings
+
+    group :: KeySpec -> T.Text -> [(KeySpec, Binding)] -> (KeySpec, Binding)
+    group k name bs = (k, BindPrefix (Keymap (Just name) (bindings bs)))
+
+    (~>) :: KeySpec -> Action -> (KeySpec, Binding)
+    k ~> a = (k, BindAction a)
+
+    -- A key bound twice is a mistake in the list, which every test that
+    -- uses the default keymaps finds.
+    bindings :: [(KeySpec, Binding)] -> M.Map KeySpec Binding
+    bindings = M.fromListWithKey $ \k _ _ ->
+      error $ "the default keymaps bind " <> T.unpack (renderKeySpec k) <> " twice"
+
+    plain :: Key -> KeySpec
+    plain = KeySpec S.empty
+
+    char :: Char -> KeySpec
+    char = plain . CharKey
+
+    ctrl :: Char -> KeySpec
+    ctrl = KeySpec (S.singleton Ctrl) . CharKey
+
+    shift :: Key -> KeySpec
+    shift = KeySpec (S.singleton Shift)
