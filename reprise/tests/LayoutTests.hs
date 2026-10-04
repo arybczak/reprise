@@ -40,6 +40,55 @@ layoutTests =
     , testCase "the marker of a missing tag in columns" test_markerInColumns
     , testCase "the marker of a missing tag in the classic display" test_markerInClassic
     , testCase "a selected song has the selected style" test_selected
+    , testCase "a line prompt" test_promptLine
+    , testCase "the matches of a find" test_foundStyle
+    ]
+
+test_promptLine :: Assertion
+test_promptLine = do
+  let s = press ["ctrl-p", "v", "4", "0", "left"] (playing (40, 12))
+  assertEqual "the line" (Just "Set volume to: 40") (T.stripEnd <$> lastLine s)
+  assertEqual "the cursor" (Just (16, 11)) (promptCursor s)
+  let notFound = press ["/", "x", "y", "z"] (playing (40, 12))
+  assertEqual
+    "the note"
+    (Just (True, True))
+    ( (\l -> ("Find forward: xyz " `T.isPrefixOf` l, " no match" `T.isSuffixOf` l))
+        <$> lastLine notFound
+    )
+  assertEqual "no prompt, no cursor" Nothing (promptCursor (playing (40, 12)))
+  -- An empty pattern threw from ICU once.
+  assertEqual
+    "an empty find"
+    (Just "Find forward:")
+    (T.stripEnd <$> lastLine (press ["/"] (playing (40, 12))))
+  where
+    lastLine :: AppState -> Maybe T.Text
+    lastLine s = case reverse (imageLines (renderScreen s)) of
+      l : _ -> Just l
+      [] -> Nothing
+
+-- | The rows that match a find in progress have the found style.
+test_foundStyle :: Assertion
+test_foundStyle = do
+  let q = [song i [(Title, [t])] 60 | (i, t) <- zip [0 ..] ["alpha", "beta", "alpha two"]]
+      s0 = press ["/", "a", "l"] $ testState (80, 10) (statusOf Stopped Nothing 3) q
+      s = s0 & #lastInput .~ s0.now - cursorHideDelay
+      underlined title =
+        [ V.attrStyle a == V.SetTo V.underline
+        | (a, t) <- imageSpans (renderScreen s)
+        , T.strip t == title
+        ]
+  assertEqual "found" [True] (underlined "alpha")
+  assertEqual "not found" [False] (underlined "beta")
+  let accepted = press ["enter"] s
+      done = accepted & #lastInput .~ accepted.now - cursorHideDelay
+  assertEqual
+    "only while typing"
+    [False]
+    [ V.attrStyle a == V.SetTo V.underline
+    | (a, t) <- imageSpans (renderScreen done)
+    , T.strip t == "alpha"
     ]
 
 test_selected :: Assertion

@@ -10,6 +10,9 @@ module Reprise.State
   , initialState
   , ConnectionState (..)
   , Prompt (..)
+  , PromptInput (..)
+  , LinePurpose (..)
+  , Finding (..)
   , Message (..)
   , PendingKeys (..)
   , SeekState (..)
@@ -38,8 +41,10 @@ import Optics.Core
 import Reprise.Action
 import Reprise.Config
 import Reprise.Event
+import Reprise.Find
 import Reprise.Keymap
 import Reprise.Keys
+import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Style
 
@@ -81,9 +86,36 @@ data ConnectionState
   deriving stock (Eq, Show)
 
 -- | A prompt in the status bar. Keys go to it while it is open.
-data Prompt = Confirm
+data Prompt = Prompt
   { question :: T.Text
-  , onYes :: AppEvent
+  , input :: PromptInput
+  }
+  deriving stock (Eq, Show, Generic)
+
+data PromptInput
+  = -- | The event that yes sends.
+    YesNo AppEvent
+  | -- | A line of text, and what it is for.
+    Line LineEdit LinePurpose
+  deriving stock (Eq, Show)
+
+data LinePurpose
+  = ForSeek
+  | ForVolume
+  | ForCrossfade
+  | ForPriority
+  | ForPath
+  | ForCommand
+  | ForFind Finding
+  deriving stock (Eq, Show)
+
+-- | A find in progress, which moves the cursor while the user types.
+data Finding = Finding
+  { direction :: Direction
+  , origin :: (Int, Int)
+  -- ^ The cursor and the offset where the find started, for a cancel.
+  , note :: Maybe T.Text
+  -- ^ What the find found so far, e.g. that it wrapped around.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -117,6 +149,8 @@ data QueueState = QueueState
   , lastSelected :: [SongId]
   -- ^ The songs that the user selected last, the latest first: the ends of
   -- the next range.
+  , findPattern :: Maybe T.Text
+  -- ^ The pattern of the last find, for the next and the previous match.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -178,7 +212,7 @@ initialState config keymaps colorMode =
     , colorMode = colorMode
     , connection = Connecting
     , mirror = emptyMirror
-    , queueState = QueueState S.empty []
+    , queueState = QueueState S.empty [] Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display

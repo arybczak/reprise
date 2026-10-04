@@ -365,10 +365,10 @@ dependencies.
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
-| `Reprise.Filter` | Find and filter: ICU regular expressions, diacritics folding, "ignore leading the" collation |
+| `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded. Later "ignore leading the" collation |
+| `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns |
 | `Reprise.UI.Layout` | Header, status bar, progress bar, the main view, the which-key panel, popups |
-| `Reprise.UI.Prompt` | Prompt modes on top of `Brick.Widgets.Edit` |
 | `Reprise.Screen.*` | `Queue`, `Browser`, `SearchEngine`, `Outputs`, `Help`. Later: `MediaLibrary`, `PlaylistEditor`, `Lyrics`, `SongInfo`, `ServerInfo`, ... |
 
 Libraries:
@@ -443,11 +443,12 @@ used in two places:
      opens a prompt with a continuation, e.g. `confirm msg onYes`, and the
      pending prompt lives in `AppState`. When the user answers, the
      continuation runs.
-   - **Every continuation is an `AppEvent`**: of an MPD reply, of a timer and
-     of a prompt. The state holds them, so they must be data: a function in
-     `AppState` would need the effects, whose operations carry the
-     continuations, and the modules would form a cycle. As data, they also
-     have `Eq` and `Show` for the tests.
+   - **Every continuation is data**: an `AppEvent` for an MPD reply, a timer
+     and a confirmation, and what a line prompt asks for, e.g. a volume,
+     which the handler runs with the answer. The state holds them, so they
+     must be data: a function in `AppState` would need the effects, whose
+     operations carry the continuations, and the modules would form a
+     cycle. As data, they also have `Eq` and `Show` for the tests.
    - The brick handler is a thin adapter. It reads the state, runs the event
      with handlers that collect the requests, writes the new state back, and
      then performs the collected requests.
@@ -664,14 +665,43 @@ can be measured wrong.
 
 ### Prompts
 
-Prompts (find, filter, `:`, confirmations, `seek_to`, ...) use brick's line
-editor with its Emacs-style keys (`ctrl-a`, `ctrl-e`, `ctrl-k`, ...). While a
-prompt is open, keys go to the editor, not to the keymaps. `enter` accepts,
-`escape` or `ctrl-g` cancels.
+Prompts (find, filter, `:`, confirmations, `seek_to`, ...) sit in the status
+bar. While a prompt is open, keys go to it, not to the keymaps. `enter`
+accepts, `escape` or `ctrl-g` cancels.
 
-Find (`/`, `?`) moves the cursor to the next match on every keystroke and
-highlights the matches. Filter (`ctrl-f`) hides the items that don't match,
-also on every keystroke; filtering with an empty pattern removes the filter.
+A line prompt edits its line with Emacs-style keys, and the terminal's cursor
+shows where:
+- `left`/`ctrl-b`, `right`/`ctrl-f`, `home`/`ctrl-a`, `end`/`ctrl-e`;
+- `backspace`, `delete`/`ctrl-d`, `ctrl-k` to the end, `ctrl-u` to the start;
+- `ctrl-w` deletes to the previous space, as in a shell;
+- `alt-b`, `alt-f`, `alt-d` and `alt-backspace` work on words of letters and
+  digits, as in readline.
+
+The editor is reprise's own pure code, not brick's editor. brick's editor
+handles events in brick's monad, outside the handlers that the tests run.
+
+The line prompts so far: `seek_to` (`m:ss` or `N%`), `set_volume`,
+`set_crossfade`, `priority` without a value, `add_path`, and `:`, which runs
+an action. Completion in `:` comes later. An answer that doesn't parse shows
+an error, e.g. "set_volume: a volume is from 0 to 100". An empty answer does
+nothing.
+
+Find (`/`, `?`):
+- **On every key,** the cursor moves to the first match after where the find
+  started, so the result doesn't depend on how the pattern was typed, e.g.
+  with corrections. A match centers the cursor, as every jump does.
+- **The visible matches** have `lists.found_style` while the prompt is open.
+- **The status bar notes** that the find wrapped around, found nothing, or
+  that the pattern is incomplete.
+- **Cancelling** goes back to where the find started. ncmpcpp stays at the
+  match, which makes `escape` the same as `enter`.
+- **`enter`** keeps the pattern for find next and previous (`.` and `,`),
+  which go forward and backward, as in ncmpcpp. An empty find repeats the
+  last pattern, as in Vim.
+- **Select found** selects every song that the last pattern matches.
+
+Filter (`ctrl-f`) hides the items that don't match, also on every keystroke;
+filtering with an empty pattern removes the filter.
 
 ### Seeking
 
@@ -765,10 +795,12 @@ and always ignore diacritics. There is no option for either.
 
 `text-icu` (BSD-3-Clause; ICU 62 or newer through pkg-config) provides all
 the pieces:
-- **Regular expressions:** the pure interface in `Data.Text.ICU` (`regex'`,
-  `find`, `findAll`, `MatchOption`).
-- **Diacritics folding:** decompose with `nfd`, drop the combining marks, and
-  fold case with `toCaseFold`.
+- **Regular expressions:** `regex'` from `Data.Text.ICU` checks a pattern,
+  and `Data.Text.ICU.Regex` matches it (see the work limit below).
+- **Diacritics folding:** decompose with `nfd` and drop the combining marks,
+  in the pattern and in the text. Case is ignored with the `CaseInsensitive`
+  option, because folding the pattern's case would turn escapes such as `\D`
+  into others, here `\d`. A letter of its own, such as `ł`, stays.
 - **"Ignore leading the" sorting:** strip the article, then compare with a
   `Collator` (`collator`, `collate`, `sortKey`).
 
@@ -778,7 +810,14 @@ Two details for incremental find:
   `Either`, so the status bar shows "incomplete pattern" and find resumes once
   the pattern is valid again.
 - **Set a `WorkLimit`,** so a pattern with catastrophic backtracking stops with
-  an error instead of freezing the UI on a long list.
+  an error instead of freezing the UI on a long list. The limit belongs to a
+  matcher, and text-icu's pure matching clones the matcher for every match,
+  which loses the limit. So reprise matches with the IO interface, with one
+  matcher for a whole search, under `unsafePerformIO` as text-icu's pure
+  interface does.
+- **An empty pattern is not a pattern.** ICU rejects it with an exception
+  rather than a parse error, so the empty prompt of a find must not reach
+  ICU.
 
 There is no plain-text mode. To match a literal string with special
 characters, escape them (`AC/DC \(Live\)`) or quote it with ICU's `\Q...\E`.
@@ -928,6 +967,7 @@ lists:                           # every list screen
   cursor_style: yellow reverse
   inactive_cursor_style: yellow on 237   # the cursor in a column without focus
   selected_style: yellow on 24
+  found_style: underline         # the matches while a find is typed
   playing_style: bold
   keep_cursor_centered: false
   ignore_leading_the: false
@@ -1528,10 +1568,9 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
    - Keymaps with key sequences and the which-key panel, with bindings for
      playback.
    - From here on, reprise replaces ncmpcpp for the author's daily use.
-   - Moved to milestone 3: album separators, and the actions that need a
-     text prompt (`seek_to`, `set_volume`, `priority` without a value, the
-     password prompt). The selection in the queue, moving the selected
-     songs and priority came after milestone 2.
+   - Moved to milestone 3: album separators and the password prompt. The
+     selection in the queue, moving the selected songs, priority, the line
+     prompts and find in the queue came after milestone 2.
 3. **Library navigation.**
    - Browser, including stored playlists.
    - Selection, find, filter, prompts, add and play.

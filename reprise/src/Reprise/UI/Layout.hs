@@ -3,6 +3,7 @@
 module Reprise.UI.Layout
   ( renderScreen
   , formatTotal
+  , promptCursor
   ) where
 
 import Data.Foldable
@@ -17,10 +18,12 @@ import Optics.Core
 
 import Reprise.Action
 import Reprise.Config
+import Reprise.Find
 import Reprise.Format
 import Reprise.Handler
 import Reprise.Keymap
 import Reprise.Keys
+import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Screen.Help
 import Reprise.State
@@ -164,16 +167,25 @@ queueView s v =
         | otherwise = []
       playingId = s.mirror.status >>= (.currentId)
       visible = Seq.take (listHeight s v) (Seq.drop v.offset s.mirror.queue)
-      row i song =
+      -- The matches of a find show while the user types it.
+      found = case s.prompt of
+        Just (Prompt _ (Line edit (ForFind _)))
+          | Right p <- compilePattern (lineEditText edit)
+          , Right matched <-
+              matchAll p (rowText s.config.lists s.config.songs s.toggles.queueDisplay <$> visible) ->
+              toList matched
+        _ -> repeat False
+      row (i, isFound) song =
         renderRow
           ctx
           RowFlags
             { playing = isJust playingId && song.songId == playingId
             , selected = maybe False (`S.member` s.queueState.selection) song.songId
+            , found = isFound
             , cursor = i == v.cursor && cursorVisible s
             }
           song
-  in V.vertCat $ titles <> zipWith row [v.offset ..] (toList visible)
+  in V.vertCat $ titles <> zipWith row (zip [v.offset ..] found) (toList visible)
 
 -- | The which-key panel over the bottom rows of the main view, while a key
 -- sequence is pending.
@@ -253,7 +265,10 @@ progressBar s =
 
 statusBar :: AppState -> V.Image
 statusBar s = case (s.prompt, s.pendingKeys, s.message) of
-  (Just (Confirm question _), _, _) -> plain (question <> " [y/n]")
+  (Just (Prompt question (YesNo _)), _, _) -> plain (question <> " [y/n]")
+  (Just (Prompt question (Line edit purpose)), _, _) ->
+    let p = promptLine s question edit purpose
+    in line s cfg.style [Span Nothing question, Span Nothing p.shown] [Span Nothing p.note]
   (_, Just pending, _) -> plain (T.unwords (map renderKeySpec pending.keys) <> " -")
   (_, _, Just m) -> line s cfg.style [Span (if m.isError then Just errorStyle else Nothing) m.text] []
   _ -> playerStatus s
@@ -270,6 +285,32 @@ statusBar s = case (s.prompt, s.pendingKeys, s.message) of
     -- The number of red in the terminal's color chart.
     red :: Word8
     red = 1
+
+-- | What of a line prompt shows: the part of the line that fits next to
+-- the question and the note, the column of the cursor in the status bar,
+-- and the note.
+data PromptLine = PromptLine
+  { shown :: T.Text
+  , cursorColumn :: Int
+  , note :: T.Text
+  }
+
+promptLine :: AppState -> T.Text -> LineEdit -> LinePurpose -> PromptLine
+promptLine s question edit purpose =
+  let note = case purpose of
+        ForFind f -> maybe "" (\n -> " " <> n) f.note
+        _ -> ""
+      room = max 1 (fst s.terminalSize - textWidth question - textWidth note)
+      (shown, column) = visibleLine room edit
+  in PromptLine shown (textWidth question + column) note
+
+-- | Where the terminal's cursor shows: in a line prompt, at the cursor of
+-- its line.
+promptCursor :: AppState -> Maybe (Int, Int)
+promptCursor s = case s.prompt of
+  Just (Prompt question (Line edit purpose)) ->
+    Just ((promptLine s question edit purpose).cursorColumn, snd s.terminalSize - 1)
+  _ -> Nothing
 
 playerStatus :: AppState -> V.Image
 playerStatus s = case (s.mirror.status, currentSong s.mirror) of

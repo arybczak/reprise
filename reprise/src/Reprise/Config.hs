@@ -136,6 +136,8 @@ data ListsConfig = ListsConfig
   , cursorStyle :: Style
   , inactiveCursorStyle :: Style
   , selectedStyle :: Style
+  , foundStyle :: Style
+  -- ^ The items that match an unfinished find.
   , playingStyle :: Style
   , keepCursorCentered :: Bool
   , ignoreLeadingThe :: Bool
@@ -319,6 +321,7 @@ defaultLists =
     , cursorStyle = style "yellow reverse"
     , inactiveCursorStyle = style "yellow on 237"
     , selectedStyle = style "yellow on 24"
+    , foundStyle = style "underline"
     , playingStyle = style "bold"
     , keepCursorCentered = False
     , ignoreLeadingThe = False

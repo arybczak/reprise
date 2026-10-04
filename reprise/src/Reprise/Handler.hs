@@ -22,6 +22,7 @@ module Reprise.Handler
 
 import Control.Applicative
 import Control.Monad
+import Data.Char hiding (Space)
 import Data.Foldable
 import Data.Map.Strict qualified as M
 import Data.Maybe
@@ -39,13 +40,16 @@ import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Find
 import Reprise.Format
 import Reprise.Keymap
 import Reprise.Keys
+import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Screen.Help
 import Reprise.Screen.Queue
 import Reprise.State
+import Reprise.UI.SongList
 
 -- | The effects of the handlers.
 type App es = (State AppState :> es, MpdRequest :> es, UiRequest :> es)
@@ -281,15 +285,135 @@ isCancel k = k `elem` [plain Escape, ctrl 'g']
     ctrl c = KeySpec (S.singleton Ctrl) (CharKey c)
 
 handlePromptKey :: App es => Prompt -> KeySpec -> Eff es ()
-handlePromptKey p k = case p of
-  Confirm _ onYes
+handlePromptKey p k = case p.input of
+  YesNo onYes
     | k == KeySpec mempty (CharKey 'y') -> do
-        modifyS $ #prompt .~ Nothing
+        close
         handleEvent onYes
     | k == KeySpec mempty (CharKey 'n') || isCancel k -> do
-        modifyS $ #prompt .~ Nothing
+        close
         showMessage "Cancelled"
     | otherwise -> pure ()
+  Line edit purpose
+    | k == KeySpec mempty Enter -> do
+        close
+        answer purpose (lineEditText edit)
+    | isCancel k -> do
+        close
+        case purpose of
+          ForFind f -> restoreView f.origin
+          _ -> pure ()
+    | Just edit' <- editLine k edit -> do
+        purpose' <- case purpose of
+          ForFind f -> ForFind <$> findAsYouType f (lineEditText edit')
+          other -> pure other
+        modifyS $ #prompt ?~ Prompt p.question (Line edit' purpose')
+    | otherwise -> pure ()
+  where
+    close :: App es => Eff es ()
+    close = modifyS $ #prompt .~ Nothing
+
+-- | Run what a line prompt asked for. An empty answer does nothing, except
+-- in find.
+answer :: App es => LinePurpose -> T.Text -> Eff es ()
+answer purpose text = case purpose of
+  ForFind f -> acceptFind f text
+  _ | T.null t -> pure ()
+  ForSeek -> orError SeekToPrompt (runAction . Seek) (parseSeekTarget t)
+  ForVolume -> orError SetVolume (runAction . Volume . VolumeTo) (parseVolume t)
+  ForCrossfade -> orError SetCrossfade (mutate . setCrossfade) (natural t)
+  ForPriority -> orError (Priority Nothing) (runAction . Priority . Just) (parsePriority t)
+  ForPath -> mutate $ add t Nothing
+  ForCommand -> either showError runAction (parseAction t)
+  where
+    t :: T.Text
+    t = T.strip text
+
+    orError :: App es => Action -> (a -> Eff es ()) -> Either T.Text a -> Eff es ()
+    orError action = either (showError . ((renderAction action <> ": ") <>))
+
+openLine :: App es => T.Text -> LinePurpose -> Eff es ()
+openLine question purpose = modifyS $ #prompt ?~ Prompt question (Line emptyLineEdit purpose)
+
+----------------------------------------
+-- Find
+
+startFind :: App es => Direction -> Eff es ()
+startFind direction = do
+  v <- getsS focusedView
+  openLine question . ForFind $ Finding direction (v.cursor, v.offset) Nothing
+  where
+    question :: T.Text
+    question = case direction of
+      Forward -> "Find forward: "
+      Backward -> "Find backward: "
+
+-- | Move to the first match from where the find started, on every key, so
+-- that the result doesn't depend on how the pattern was typed. Returns the
+-- find with a note on what it found.
+findAsYouType :: App es => Finding -> T.Text -> Eff es Finding
+findAsYouType f text = do
+  s <- getS
+  note <-
+    if T.null text
+      then restoreView f.origin >> pure Nothing
+      else case compilePattern text of
+        -- The cursor stays until the pattern is complete again.
+        Left err -> pure (Just err)
+        Right p -> case search p f.direction (fst f.origin) (queueTexts s) of
+          Left err -> pure (Just err)
+          Right Nothing -> restoreView f.origin >> pure (Just "no match")
+          Right (Just found) -> do
+            jumpTo found.index
+            pure (wrapNote f.direction found)
+  pure $ f & #note .~ note
+
+-- | Keep the pattern for the next and the previous match. An empty pattern
+-- finds the last pattern again, as in Vim.
+acceptFind :: App es => Finding -> T.Text -> Eff es ()
+acceptFind f text
+  | T.null text = findAgain f.direction
+  | otherwise = case compilePattern text of
+      Left _ -> do
+        restoreView f.origin
+        showError $ "Invalid pattern: " <> text
+      Right _ -> do
+        modifyS $ #queueState % #findPattern ?~ text
+        forM_ f.note (showMessage . capitalize)
+
+-- | Move to the next or the previous match of the last pattern.
+findAgain :: App es => Direction -> Eff es ()
+findAgain direction = do
+  s <- getS
+  case s.queueState.findPattern of
+    Nothing -> showMessage "Nothing was found yet"
+    Just text -> case compilePattern text of
+      Left err -> showError (capitalize err)
+      Right p -> case search p direction (focusedView s).cursor (queueTexts s) of
+        Left err -> showError (capitalize err)
+        Right Nothing -> showMessage $ "No match for " <> text
+        Right (Just found) -> do
+          jumpTo found.index
+          forM_ (wrapNote direction found) (showMessage . capitalize)
+
+wrapNote :: Direction -> Found -> Maybe T.Text
+wrapNote direction found
+  | found.wrapped = Just $ case direction of
+      Forward -> "wrapped around to the top"
+      Backward -> "wrapped around to the bottom"
+  | otherwise = Nothing
+
+-- | The rows of the queue as text, which find matches.
+queueTexts :: AppState -> Seq.Seq T.Text
+queueTexts s = rowText s.config.lists s.config.songs s.toggles.queueDisplay <$> s.mirror.queue
+
+restoreView :: App es => (Int, Int) -> Eff es ()
+restoreView (c, o) = modifyView $ (#cursor .~ c) . (#offset .~ o)
+
+capitalize :: T.Text -> T.Text
+capitalize t = case T.uncons t of
+  Just (c, rest) -> T.cons (toUpper c) rest
+  Nothing -> t
 
 ----------------------------------------
 -- Actions
@@ -312,6 +436,17 @@ runAction = \case
     mutate $ prioId p ids
     showMessage $ "Priority " <> T.pack (show p) <> " set for " <> countSongs (length ids)
   action@(MoveSelection t) -> onQueue action $ moveSelection t
+  action@(Priority Nothing) -> onQueue action $ openLine "Set priority [0-255]: " ForPriority
+  action@(Find t) -> onQueue action $ case t of
+    FindForward -> startFind Forward
+    FindBackward -> startFind Backward
+    FindNext -> findAgain Forward
+    FindPrevious -> findAgain Backward
+  SeekToPrompt -> openLine "Seek to (m:ss or N%): " ForSeek
+  SetVolume -> openLine "Set volume to: " ForVolume
+  SetCrossfade -> openLine "Set crossfade to: " ForCrossfade
+  AddPath -> openLine "Add path: " ForPath
+  CommandPrompt -> openLine ":" ForCommand
   Pause -> withStatus $ \st -> mutate $ case st.state of
     Playing -> pause True
     Paused -> pause False
@@ -431,7 +566,17 @@ select = \case
     showMessage "Selection cleared"
   SelectAlbum -> selectGroup albumKey "Album"
   SelectArtist -> selectGroup artistKey "Artist"
-  SelectFound -> notAvailable "Selecting the found songs"
+  SelectFound -> do
+    s <- getS
+    case compilePattern <$> s.queueState.findPattern of
+      Nothing -> showMessage "Nothing was found yet"
+      Just (Left err) -> showError (capitalize err)
+      Just (Right p) -> case matchAll p (queueTexts s) of
+        Left err -> showError (capitalize err)
+        Right found -> do
+          let ps = [i | (i, True) <- zip [0 ..] (toList found)]
+          addToSelection ps
+          showMessage $ countSongs (length ps) <> " found and selected"
   where
     -- The songs next to each other around the cursor with its song's key.
     selectGroup :: (App es, Eq k) => (Song -> k) -> T.Text -> Eff es ()
@@ -485,7 +630,7 @@ moveSelection t = do
     MoveSelectionToEnd -> forM_ (moveBefore ps n) mutate
 
 confirm :: App es => T.Text -> AppEvent -> Eff es ()
-confirm question onYes = modifyS $ #prompt ?~ Confirm question onYes
+confirm question onYes = modifyS $ #prompt ?~ Prompt question (YesNo onYes)
 
 withStatus :: App es => (Status -> Eff es ()) -> Eff es ()
 withStatus k =

@@ -38,8 +38,11 @@ eventChannelSize = 20
 app :: Env -> B.App AppState AppEvent ()
 app env =
   B.App
-    { B.appDraw = \s -> [B.raw (renderScreen s)]
-    , B.appChooseCursor = B.neverShowCursor
+    { B.appDraw = \s ->
+        [ maybe id (\(x, y) -> B.showCursor () (B.Location (x, y))) (promptCursor s) $
+            B.raw (renderScreen s)
+        ]
+    , B.appChooseCursor = B.showFirstCursor
     , B.appHandleEvent = \case
         B.AppEvent e -> dispatch env e
         B.VtyEvent (V.EvKey k mods) -> forM_ (fromVtyKey k mods) (dispatch env . KeyPressed)

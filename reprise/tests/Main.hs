@@ -5,12 +5,14 @@ import Test.Tasty
 import ActionTests
 import AddressTests
 import ConfigTests
+import FindTests
 import FormatTests
 import HandlerTests
 import HelpTests
 import KeymapTests
 import KeysTests
 import LayoutTests
+import LineEditTests
 import MirrorTests
 import QueueTests
 import StyleTests
@@ -29,12 +31,14 @@ main = do
       [ actionTests
       , addressTests
       , configTests
+      , findTests
       , formatTests
       , handlerTests
       , helpTests
       , keymapTests
       , keysTests
       , layoutTests
+      , lineEditTests
       , mirrorTests
       , queueTests
       , styleTests

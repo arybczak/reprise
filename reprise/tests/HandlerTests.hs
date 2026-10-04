@@ -13,6 +13,7 @@ import Reprise.Action
 import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Keys
+import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.State
 import Utils
@@ -50,6 +51,11 @@ handlerTests =
     , testCase "invert and clear the selection" test_selectInvertNone
     , testCase "select an album" test_selectAlbum
     , testCase "select an artist" test_selectArtist
+    , testCase "prompts for a value" test_promptAnswers
+    , testCase "a prompt takes the keys" test_promptKeys
+    , testCase "find as you type" test_findAsYouType
+    , testCase "find the next and the previous match" test_findAgain
+    , testCase "select the found songs" test_selectFound
     , testCase "the help screen has no selection" test_selectOnHelp
     , testCase "songs that leave the queue leave the selection" test_selectionPruned
     , testCase "delete the marked songs" test_delete
@@ -128,6 +134,119 @@ test_selectAlbum = do
       s = testState (80, 24) (statusOf Stopped Nothing 5) q
       r = keys ["down", "down", "down", "ctrl-s", "a"] s
   assertEqual "album" (ids [3, 4]) r.state.queueState.selection
+
+test_promptAnswers :: Assertion
+test_promptAnswers = do
+  let s = testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+      answer ks text = keys (ks <> typed text <> ["enter"]) s
+      requested ks text = (answer ks text).requests
+  assertEqual "set volume" [[Request "setvol" ["40"]]] (requested ["ctrl-p", "v"] "40")
+  assertEqual "seek to" [[Request "seekcur" ["90"]]] (requested ["ctrl-p", "g"] "1:30")
+  assertEqual "set crossfade" [[Request "crossfade" ["5"]]] (requested ["ctrl-p", "x"] "5")
+  assertEqual "priority" [[Request "prioid" ["7", "1"]]] (requested ["ctrl-q", "p"] "7")
+  assertEqual
+    "add a path"
+    [[Request "add" ["a/b.flac"]]]
+    (requested ["ctrl-a", "/"] "a/b.flac")
+  assertEqual "run a command" [[Request "setvol" ["30"]]] (requested [":"] "volume 30")
+  let invalid = answer ["ctrl-p", "v"] "140"
+  assertEqual "invalid" [] invalid.requests
+  assertEqual
+    "error"
+    (Just ("set_volume: a volume is from 0 to 100", True))
+    ((\m -> (m.text, m.isError)) <$> invalid.state.message)
+  assertEqual "closed" Nothing invalid.state.prompt
+  assertEqual
+    "unknown command"
+    (Just True)
+    ((.isError) <$> (answer [":"] "nope").state.message)
+  assertEqual
+    "empty"
+    ([], Nothing)
+    (let r = answer ["ctrl-p", "v"] "" in (r.requests, r.state.message))
+
+test_promptKeys :: Assertion
+test_promptKeys = do
+  let s = testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+      r = keys [":", "q", "p"] s
+  assertEqual "no quit" [] [() | Halt <- r.commands]
+  assertEqual "no pause" [] r.requests
+  assertEqual
+    "the line"
+    (Just (Prompt ":" (Line (LineEdit "qp" "") ForCommand)))
+    r.state.prompt
+  let cancelled = keys ["escape"] r.state
+  assertEqual "cancelled" (Nothing, []) (cancelled.state.prompt, cancelled.requests)
+
+test_findAsYouType :: Assertion
+test_findAsYouType = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) titled
+      cursorAfter ks = (focusedView (keys ks s).state).cursor
+      note ks = case (keys ks s).state.prompt of
+        Just (Prompt _ (Line _ (ForFind f))) -> f.note
+        _ -> Just "no find"
+  assertEqual "a match after the cursor" 3 (cursorAfter ("/" : typed "al"))
+  assertEqual "while typing" 2 (cursorAfter ("/" : typed "g"))
+  assertEqual "diacritics" 4 (cursorAfter ("/" : typed "pokoj"))
+  assertEqual "backward around the start" 3 (cursorAfter ("?" : typed "al"))
+  assertEqual "the note" (Just "wrapped around to the bottom") (note ("?" : typed "al"))
+  assertEqual
+    "no match"
+    (0, Just "no match")
+    (cursorAfter ("/" : typed "x"), note ("/" : typed "x"))
+  assertEqual "an incomplete pattern" (Just "incomplete pattern") (note ("/" : typed "("))
+  assertEqual "a cancel goes back" 0 (cursorAfter ("/" : typed "g" <> ["escape"]))
+  assertEqual "backspace goes back" 0 (cursorAfter ("/" : typed "g" <> ["backspace"]))
+  let accepted = keys ("/" : typed "al" <> ["enter"]) s
+  assertEqual
+    "kept"
+    (3, Nothing)
+    ((focusedView accepted.state).cursor, accepted.state.prompt)
+  assertEqual "the pattern" (Just "al") accepted.state.queueState.findPattern
+  assertEqual
+    "on the help screen"
+    (Just "The help screen has no find forward")
+    ((.text) <$> (keys ["f1", "/"] s).state.message)
+
+test_findAgain :: Assertion
+test_findAgain = do
+  let s =
+        keys ("/" : typed "al" <> ["enter"]) $
+          testState (80, 24) (statusOf Stopped Nothing 5) titled
+      findAfter ks = let r = keys ks s.state in ((focusedView r.state).cursor, (.text) <$> r.state.message)
+  assertEqual "next" (0, Just "Wrapped around to the top") (findAfter ["."])
+  assertEqual "previous" (0, Nothing) (findAfter [","])
+  assertEqual
+    "previous twice"
+    (3, Just "Wrapped around to the bottom")
+    (findAfter [",", ","])
+  assertEqual
+    "an empty find repeats"
+    (0, Just "Wrapped around to the top")
+    (findAfter ["/", "enter"])
+  let fresh = testState (80, 24) (statusOf Stopped Nothing 5) titled
+  assertEqual
+    "nothing yet"
+    (Just "Nothing was found yet")
+    ((.text) <$> (keys ["."] fresh).state.message)
+
+test_selectFound :: Assertion
+test_selectFound = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 5) titled
+      r = keys ("/" : typed "al" <> ["enter", "ctrl-s", "f"]) s
+  assertEqual "selected" (ids [1, 4]) r.state.queueState.selection
+  assertEqual "message" (Just "2 songs found and selected") ((.text) <$> r.state.message)
+
+-- | Songs with titles to find.
+titled :: [Song]
+titled =
+  [ song i [(Artist, ["A"]), (Title, [t])] 60
+  | (i, t) <- zip [0 ..] ["alpha", "beta", "Gamma", "alpha two", "Pokój"]
+  ]
+
+-- | The keys that type the text.
+typed :: T.Text -> [T.Text]
+typed = map (\c -> if c == ' ' then "space" else T.singleton c) . T.unpack
 
 test_selectArtist :: Assertion
 test_selectArtist = do

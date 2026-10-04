@@ -69,6 +69,7 @@ library
                     , optparse-applicative >= 0.18
                     , stm                  >= 2.5.1
                     , text                 >= 2.0.2
+                    , text-icu             >= 0.8
                     , time                 >= 1.12
                     , vty                  >= 6.2
                     , vty-unix             >= 0.2
@@ -83,10 +84,12 @@ library
                      Reprise.Effect.MpdRequest
                      Reprise.Effect.UiRequest
                      Reprise.Event
+                     Reprise.Find
                      Reprise.Format
                      Reprise.Handler
                      Reprise.Keymap
                      Reprise.Keys
+                     Reprise.LineEdit
                      Reprise.Main
                      Reprise.Mpd.Address
                      Reprise.Mpd.Mirror
@@ -147,12 +150,14 @@ test-suite test
     other-modules:  ActionTests
                     AddressTests
                     ConfigTests
+                    FindTests
                     FormatTests
                     HandlerTests
                     HelpTests
                     KeymapTests
                     KeysTests
                     LayoutTests
+                    LineEditTests
                     MirrorTests
                     QueueTests
                     StyleTests

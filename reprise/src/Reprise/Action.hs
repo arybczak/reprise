@@ -29,6 +29,12 @@ module Reprise.Action
   , renderAction
   , describeAction
   , isDestructive
+
+    -- * Arguments
+  , parseSeekTarget
+  , parseVolume
+  , parsePriority
+  , natural
   ) where
 
 import Data.Char
@@ -197,7 +203,7 @@ registry :: [ActionSpec]
 registry =
   [ spec "move" (alternatives (map fst moveTargets)) $ one (fmap Move . moveTarget)
   , spec "jump_to_playing" "" $ none JumpToPlaying
-  , spec "select" "[up | down] | range | invert | none | album | found" $ \case
+  , spec "select" "[up | down] | range | invert | none | album | artist | found" $ \case
       [] -> Right . Select $ SelectItem Nothing
       [Word w] -> Select <$> choice "selection" selectTargets w
       _ -> Left "expected at most one argument"
@@ -262,9 +268,7 @@ registry =
           ]
   , spec "priority" "[N]" $ \case
       [] -> Right (Priority Nothing)
-      [Word w] -> do
-        p <- natural w
-        if p <= maxPriority then Right (Priority (Just p)) else Left "a priority is from 0 to 255"
+      [Word w] -> Priority . Just <$> parsePriority w
       _ -> Left "expected at most one argument"
   , spec "next_sort_mode" "" $ none NextSortMode
   ]
@@ -324,32 +328,42 @@ registry =
     volumeChange w = case T.uncons w of
       Just ('+', n) -> VolumeBy <$> natural n
       Just ('-', n) -> VolumeBy . negate <$> natural n
-      _ -> do
-        v <- natural w
-        if v <= maxVolume then Right (VolumeTo v) else Left "a volume is from 0 to 100"
+      _ -> VolumeTo <$> parseVolume w
 
     seekStep :: T.Text -> Either T.Text SeekStep
     seekStep w
-      | Just n <- T.stripSuffix "%" w = do
-          p <- natural n
-          if p <= 100 then Right (SeekToPercent p) else Left "a percentage is from 0 to 100"
       | Just (sign, rest) <- T.uncons w
       , sign `elem` ['+', '-'] = do
           n <- maybe (Left "expected seconds with an s, e.g. +5s") natural (T.stripSuffix "s" rest)
           Right . SeekBy $ if sign == '-' then negate n else n
-      | otherwise = SeekToSecond <$> clockTime w
+      | otherwise = parseSeekTarget w
 
-    clockTime :: T.Text -> Either T.Text Int
-    clockTime w = case T.splitOn ":" w of
+-- | A position in a song: @m:ss@, @h:mm:ss@ or a percentage, @N%@.
+parseSeekTarget :: T.Text -> Either T.Text SeekStep
+parseSeekTarget w
+  | Just n <- T.stripSuffix "%" w = do
+      p <- natural n
+      if p <= 100 then Right (SeekToPercent p) else Left "a percentage is from 0 to 100"
+  | otherwise = case T.splitOn ":" w of
       parts@(_ : _ : _)
         | length parts <= 3 -> do
             ns <- traverse natural parts
-            Right $ foldl (\acc n -> acc * 60 + n) 0 ns
-      _ -> Left "expected +Ns, -Ns, m:ss or N%"
+            Right . SeekToSecond $ foldl (\acc n -> acc * 60 + n) 0 ns
+      _ -> Left "expected m:ss or N%"
 
+parseVolume :: T.Text -> Either T.Text Int
+parseVolume w = do
+  v <- natural w
+  if v <= maxVolume then Right v else Left "a volume is from 0 to 100"
+  where
     maxVolume :: Int
     maxVolume = 100
 
+parsePriority :: T.Text -> Either T.Text Int
+parsePriority w = do
+  p <- natural w
+  if p <= maxPriority then Right p else Left "a priority is from 0 to 255"
+  where
     -- MPD's priorities are from 0 to 255.
     maxPriority :: Int
     maxPriority = 255

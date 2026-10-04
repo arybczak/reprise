@@ -5,6 +5,7 @@ module Reprise.UI.SongList
   , RowFlags (..)
   , renderRow
   , renderTitles
+  , rowText
 
     -- * Spans
   , spansImage
@@ -36,6 +37,7 @@ data RowContext = RowContext
 data RowFlags = RowFlags
   { playing :: Bool
   , selected :: Bool
+  , found :: Bool
   , cursor :: Bool
   }
 
@@ -82,8 +84,19 @@ renderRow ctx flags song = case ctx.display of
       mconcat
         [ if flags.playing then ctx.lists.playingStyle else mempty
         , if flags.selected then ctx.lists.selectedStyle else mempty
+        , if flags.found then ctx.lists.foundStyle else mempty
         , if flags.cursor then ctx.lists.cursorStyle else mempty
         ]
+
+-- | The text of a song's row without styles, which find matches. A missing
+-- tag is empty rather than its marker.
+rowText :: ListsConfig -> SongsConfig -> Display -> Song -> T.Text
+rowText lists songs display song = T.unwords . map render $ case display of
+  Classic -> [songs.classic.left, songs.classic.right]
+  Columns -> map (.format) songs.columns.list
+  where
+    render :: Format Style -> T.Text
+    render = spansText . renderFormat (RenderContext lists.tagSeparator []) song
 
 -- | The titles of the columns.
 renderTitles :: RowContext -> V.Image
