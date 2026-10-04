@@ -149,9 +149,11 @@ ncmpcpp.
   - Select album selects the songs around the cursor with the same album
     artist (or artist) and album. ncmpcpp compares the album only, so two
     albums called "Greatest Hits" next to each other were one.
-  - Select artist selects the songs around the cursor with the same artist,
-    as the previous and next artist moves compare them. ncmpcpp has no such
-    action.
+  - Select artist selects the songs around the cursor with the same album
+    artist (or artist), which is also how the previous and next artist
+    moves tell artists apart. A compilation is then one artist, not one
+    for each song. ncmpcpp has no select artist, and its artist moves
+    compare the artist only.
   - Shuffling the selection needs selected songs next to each other, because
     MPD shuffles a range.
 - Incremental find (next/previous), wrapping around at the end.

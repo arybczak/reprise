@@ -588,17 +588,16 @@ moveCursor t = do
     scroll :: App es => Int -> Eff es ()
     scroll delta = modifyView $ #offset %~ (+ delta)
 
+-- | What tells artists apart: the album artist, or the artist without one,
+-- so that a compilation whose songs have different artists is one artist.
 artistKey :: Song -> Maybe [T.Text]
-artistKey song = M.lookup Artist song.tags
+artistKey song = M.lookup AlbumArtist song.tags <|> M.lookup Artist song.tags
 
--- | What tells albums apart: the album artist, or the artist without one,
--- and the album. The album alone would join albums of different artists
--- with the same name, e.g. two greatest hits next to each other.
+-- | What tells albums apart: the artist and the album. The album alone
+-- would join albums of different artists with the same name, e.g. two
+-- greatest hits next to each other.
 albumKey :: Song -> (Maybe [T.Text], Maybe [T.Text])
-albumKey song =
-  ( M.lookup AlbumArtist song.tags <|> M.lookup Artist song.tags
-  , M.lookup Album song.tags
-  )
+albumKey song = (artistKey song, M.lookup Album song.tags)
 
 -- | The first item after the group of the item at the index.
 nextGroup :: Eq k => (Song -> k) -> Seq.Seq Song -> Int -> Int

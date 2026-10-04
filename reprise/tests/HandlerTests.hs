@@ -140,6 +140,17 @@ test_selectArtist = do
     "message"
     (Just "Artist around the cursor selected")
     ((.text) <$> r.state.message)
+  let various a pos = song pos [(AlbumArtist, ["Various"]), (Artist, [a])] 60
+      compilation = [by "x" 0, various "y" 1, various "z" 2, various "w" 3, by "x" 4]
+      c = testState (80, 24) (statusOf Stopped Nothing 5) compilation
+  assertEqual
+    "a compilation"
+    (ids [2, 3, 4])
+    (keys ["down", "down", "ctrl-s", "A"] c).state.queueState.selection
+  assertEqual
+    "the next artist after a compilation"
+    4
+    (focusedView (keys ["down", "}"] c).state).cursor
 
 test_selectOnHelp :: Assertion
 test_selectOnHelp = do
