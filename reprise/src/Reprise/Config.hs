@@ -183,6 +183,8 @@ newtype SearchEngineConfig = SearchEngineConfig
 
 data HeaderConfig = HeaderConfig
   { style :: Style
+  , titleStyle :: Style
+  -- ^ The title of the screen, laid over 'style'.
   , volumeStyle :: Style
   , flagsStyle :: Style
   , lineStyle :: Style
@@ -348,6 +350,7 @@ defaultHeader :: HeaderConfig
 defaultHeader =
   HeaderConfig
     { style = style "default"
+    , titleStyle = style "bold"
     , volumeStyle = style "default"
     , flagsStyle = style "bold"
     , lineStyle = style "default"

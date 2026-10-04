@@ -49,7 +49,7 @@ headerTitle :: AppState -> V.Image
 headerTitle s = line s s.config.header.style left right
   where
     left :: [Span Style]
-    left = [Span Nothing (screenTitle s (focusedView s).screen)]
+    left = [Span (Just s.config.header.titleStyle) (screenTitle s (focusedView s).screen)]
 
     right :: [Span Style]
     right = [Span (Just s.config.header.volumeStyle) state]

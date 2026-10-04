@@ -36,6 +36,9 @@ test_sectionDefaults = do
   config <- expectRight $ decode "lists:\n  style: red\n"
   assertEqual "changed" (style "red") config.lists.style
   assertEqual "default" (style "yellow reverse") config.lists.cursorStyle
+  header <- expectRight $ decode "header:\n  title_style: red\n"
+  assertEqual "title style" (style "red") header.header.titleStyle
+  assertEqual "bold by default" (style "bold") defaultConfig.header.titleStyle
 
 test_defaultKeymaps :: Assertion
 test_defaultKeymaps = do

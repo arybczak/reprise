@@ -917,6 +917,7 @@ search_engine:
 
 header:
   style: default
+  title_style: bold              # ncmpcpp always bolds the title
   volume_style: default
   flags_style: bold
   line_style: default

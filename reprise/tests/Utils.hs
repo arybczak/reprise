@@ -11,6 +11,7 @@ module Utils
 
     -- * Images
   , imageLines
+  , imageSpans
   ) where
 
 import Data.List qualified as L
@@ -110,6 +111,16 @@ runEvents now events s0 = L.foldl' step (Result s0 [] [] []) events
 -- Images
 
 -- | The text of an image, one line for each row, without styles.
+-- | The pieces of text of an image with their attributes, in the order of
+-- the image's structure. Cropping is ignored.
+imageSpans :: V.Image -> [(V.Attr, T.Text)]
+imageSpans = \case
+  VI.HorizText {VI.attr = a, VI.displayText = t} -> [(a, TL.toStrict t)]
+  VI.HorizJoin {VI.partLeft = l, VI.partRight = r} -> imageSpans l <> imageSpans r
+  VI.VertJoin {VI.partTop = t, VI.partBottom = b} -> imageSpans t <> imageSpans b
+  VI.Crop i _ _ _ _ -> imageSpans i
+  _ -> []
+
 imageLines :: V.Image -> [T.Text]
 imageLines = map T.stripEnd . render
   where

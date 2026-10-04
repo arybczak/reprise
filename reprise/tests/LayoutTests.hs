@@ -3,6 +3,7 @@ module LayoutTests (layoutTests) where
 import Data.ByteString.Lazy qualified as BL
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Graphics.Vty qualified as V
 import MPD.Types
 import Optics.Core
 import System.FilePath
@@ -10,9 +11,11 @@ import Test.Tasty
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
 
+import Reprise.Config
 import Reprise.Event
 import Reprise.Keys
 import Reprise.State
+import Reprise.Style
 import Reprise.UI.Layout
 import Utils
 
@@ -32,7 +35,17 @@ layoutTests =
     , snapshot "help" $ press ["f1"] (playing (80, 24))
     , snapshot "help-scrolled" $ press ["f1", "page_down"] (playing (80, 24))
     , testCase "flags end a column before the edge" test_flags
+    , testCase "the title has its own style" test_titleStyle
     ]
+
+test_titleStyle :: Assertion
+test_titleStyle = do
+  let s = playing (80, 12)
+      titleAttrs = [a | (a, t) <- imageSpans (renderScreen s), "Queue (" `T.isPrefixOf` t]
+  assertEqual "bold by default" [V.SetTo V.bold] (map V.attrStyle titleAttrs)
+  let red = s & #config % #header % #titleStyle .~ Style (Just (Color 1)) Nothing mempty
+      redAttrs = [a | (a, t) <- imageSpans (renderScreen red), "Queue (" `T.isPrefixOf` t]
+  assertEqual "configured" [V.SetTo (V.ISOColor 1)] (map V.attrForeColor redAttrs)
 
 -- | As in ncmpcpp.
 test_flags :: Assertion
