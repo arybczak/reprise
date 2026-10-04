@@ -217,6 +217,7 @@ test-suite reprise-tests
     build-depends:    base
                     , bytestring
                     , containers
+                    , directory
                     , effectful-core
                     , filepath
                     , optics-core
@@ -246,6 +247,7 @@ test-suite reprise-tests
                     HelpTests
                     KeymapTests
                     KeysTests
+                    LayerTests
                     LayoutTests
                     LineEditTests
                     MirrorTests

@@ -11,6 +11,7 @@ import HandlerTests
 import HelpTests
 import KeymapTests
 import KeysTests
+import LayerTests
 import LayoutTests
 import LineEditTests
 import MirrorTests
@@ -36,6 +37,7 @@ main = do
       , helpTests
       , keymapTests
       , keysTests
+      , layerTests
       , layoutTests
       , lineEditTests
       , mirrorTests

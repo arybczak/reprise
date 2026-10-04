@@ -398,6 +398,9 @@ Reprise.App
 - **`mpd-protocol` imports nothing from reprise.** It is a library of its
   own, so cabal enforces this.
 
+`LayerTests` checks the other rules: it reads the imports of the sources and
+names each one that crosses a layer, with the rule.
+
 Libraries:
 
 | Need | Package |
