@@ -289,7 +289,7 @@ dependencies.
 | `MPD.Protocol.Request` | Command serialization and argument quoting |
 | `MPD.Filter` | Typed builder for filter expressions (`(artist == "x") AND ...`) |
 | `MPD.Command` | `Command a` and the typed commands |
-| `MPD.Connection` | TCP/unix connect, handshake and version check, password, timeouts. `run :: Connection -> Command a -> IO (Either MpdError a)` |
+| `MPD.Connection` | TCP/unix connect, handshake and version check, password, timeouts. `run :: Connection -> Command a -> IO a`, which throws `MpdError` |
 | `MPD.Idle` | `idle` and `noidle` |
 
 `Command a` has three properties:
@@ -302,6 +302,13 @@ dependencies.
   without running them.
 
 `mpd-protocol` has a plain `IO` API, so it is usable without effectful.
+- **Failures are exceptions.** `connect`, `run`, `idle` and `noidle` throw
+  `MpdError`, also for an I/O error of the socket, so a caller catches one
+  type. An operation normally succeeds: a failure is a lost connection, a
+  timeout, a protocol violation, or an `ACK`, which a correct client rarely
+  causes. A caller that expects an `ACK` catches it.
+- **The pure parsers return `Either`,** e.g. `parseReply` and
+  `parseCommandReply`.
 
 **`reprise`** is the client. The binary is `reprise`, and the config lives in
 `$XDG_CONFIG_HOME/reprise/config.yaml`.
@@ -356,6 +363,11 @@ Each thread is a plain blocking loop. ncmpcpp uses one connection and sends
 
 Requests are asynchronous: a request carries a `Command a` and a continuation
 `a -> AppEvent`, so the UI never blocks.
+- If the command fails, the worker catches the `MpdError` and sends one
+  `MpdFailed` event with the request lines instead of the continuation's
+  event. An exception can't reach the UI thread, so this is where it becomes
+  a value. Errors are handled in one place: the status bar shows them, and
+  later the password prompt can retry the failed request there.
 - Mutations (play, delete, move, ...) don't need the reply. The new state comes
   back through `idle`.
 - Queries (`lsinfo`, `find`, ...) deliver their result to the screen that asked

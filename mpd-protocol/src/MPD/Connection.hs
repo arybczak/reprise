@@ -1,4 +1,4 @@
--- | Connections to MPD.
+-- | Connections to MPD. The operations throw 'MpdError'.
 module MPD.Connection
   ( -- * Settings
     Settings (..)
@@ -25,12 +25,8 @@ import MPD.Types
 -- | Run an action with a new connection, and close it afterwards.
 --
 -- @since 0.1.0.0
-withConnection
-  :: Settings -> (Connection -> IO (Either MpdError a)) -> IO (Either MpdError a)
-withConnection settings action =
-  bracket (connect settings) (either (const $ pure ()) close) $ \case
-    Left err -> pure $ Left err
-    Right conn -> action conn
+withConnection :: Settings -> (Connection -> IO a) -> IO a
+withConnection settings = bracket (connect settings) close
 
 -- | The protocol version that MPD sent when the connection opened.
 --
@@ -44,5 +40,5 @@ serverVersion conn = conn.version
 -- connect again.
 --
 -- @since 0.1.0.0
-run :: Connection -> Command a -> IO (Either MpdError a)
+run :: Connection -> Command a -> IO a
 run conn = withTimeout conn.timeout . exchangeCommand conn

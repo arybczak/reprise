@@ -86,7 +86,7 @@ testState size st songs =
       events =
         [ Resized (fst size) (snd size)
         , MpdConnected (Version 0 24 0)
-        , QueueFetched (Right (st, songs))
+        , QueueFetched (st, songs)
         ]
   in (runEvents 0 events s0).state
 

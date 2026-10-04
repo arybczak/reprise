@@ -19,17 +19,17 @@ import Effectful.Dispatch.Dynamic
 import Effectful.Output.Static.Local.List
 import MPD.Command
 import MPD.Protocol.Request
-import MPD.Types
 
 import Reprise.Event
 
 data MpdRequest :: Effect where
-  RequestCommand :: Command a -> (Either MpdError a -> AppEvent) -> MpdRequest m ()
+  RequestCommand :: Command a -> (a -> AppEvent) -> MpdRequest m ()
 
 type instance DispatchOf MpdRequest = Dynamic
 
--- | A command with its continuation.
-data PendingRequest = forall a. PendingRequest (Command a) (Either MpdError a -> AppEvent)
+-- | A command with its continuation. If the command fails, the event is
+-- 'MpdFailed' instead.
+data PendingRequest = forall a. PendingRequest (Command a) (a -> AppEvent)
 
 -- | The request lines of a pending request, e.g. for a test.
 pendingRequestLines :: PendingRequest -> [Request]
@@ -41,10 +41,10 @@ collectMpdRequests = reinterpret_ runOutput $ \case
   RequestCommand cmd k -> output $ PendingRequest cmd k
 
 -- | Request a command, with a continuation for its reply.
-request :: MpdRequest :> es => Command a -> (Either MpdError a -> AppEvent) -> Eff es ()
+request :: MpdRequest :> es => Command a -> (a -> AppEvent) -> Eff es ()
 request cmd k = send $ RequestCommand cmd k
 
 -- | Request a command that changes MPD's state. Its effect comes back
--- through idle, so only an error is reported.
+-- through idle.
 mutate :: MpdRequest :> es => Command () -> Eff es ()
-mutate cmd = request cmd MpdDone
+mutate cmd = request cmd (const MpdDone)

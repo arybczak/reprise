@@ -20,4 +20,4 @@ A client library for the protocol of the
   ```
 
 - `idle` and `noidle` are in `MPD.Idle`.
-- The API is plain `IO`.
+- The API is plain `IO`. The operations throw `MpdError` when they fail.

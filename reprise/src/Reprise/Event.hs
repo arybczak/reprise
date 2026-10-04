@@ -6,6 +6,7 @@ module Reprise.Event
   ) where
 
 import Data.Text qualified as T
+import MPD.Protocol.Request
 import MPD.Types
 
 import Reprise.Action
@@ -22,15 +23,17 @@ data AppEvent
     MpdDisconnected T.Text
   | MpdChanged [Subsystem]
   | -- | The status and the whole queue.
-    QueueFetched (Either MpdError (Status, [Song]))
+    QueueFetched (Status, [Song])
   | -- | The status and the songs of the queue that changed since its version
     -- in the mirror.
-    QueueChangesFetched (Either MpdError (Status, [Song]))
-  | StatusFetched (Either MpdError Status)
-  | ReplayGainFetched (Either MpdError ReplayGainMode)
+    QueueChangesFetched (Status, [Song])
+  | StatusFetched Status
+  | ReplayGainFetched ReplayGainMode
   | -- | The reply to a command that changes MPD's state. The new state comes
-    -- through idle, so only an error matters.
-    MpdDone (Either MpdError ())
+    -- through idle.
+    MpdDone
+  | -- | A requested command failed, instead of its continuation.
+    MpdFailed [Request] MpdError
   | -- | A timer for the next redraw of the elapsed time, with its token.
     Tick Int
   | -- | The pause after the last seek key, with its token.

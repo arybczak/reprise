@@ -1,5 +1,6 @@
 -- | The threads that talk to MPD. Each is a plain blocking loop on its own
--- connection, and sends events to the UI.
+-- connection, and sends events to the UI. An 'MpdError' becomes an event
+-- here, because an exception can't reach the UI thread.
 module Reprise.Mpd.Worker
   ( Workers (..)
   , idleWorker
@@ -12,6 +13,8 @@ import Control.Concurrent.STM
 import Control.Monad
 import Data.Text qualified as T
 import Effectful
+import Effectful.Exception
+import MPD.Command
 import MPD.Types
 
 import Reprise.Effect.Mpd
@@ -33,43 +36,43 @@ retryInterval = 1000000
 -- | Run @idle@ in a loop and send the changes. Reconnect after an error.
 idleWorker :: (Mpd :> es, IOE :> es) => Workers -> Eff es ()
 idleWorker w = forever $ do
-  connectMpd >>= \case
-    Left err -> do
-      liftIO . w.emit . MpdDisconnected $ describeMpdError err
-      liftIO $ threadDelay retryInterval
+  try @MpdError connectMpd >>= \case
+    Left err -> disconnected err
     Right version -> do
       liftIO . w.emit $ MpdConnected version
-      let loop =
-            waitIdle >>= \case
-              Right subsystems -> do
-                liftIO . w.emit $ MpdChanged subsystems
-                loop
-              Left err -> do
-                logError w err
-                disconnectMpd
-                liftIO . w.emit . MpdDisconnected $ describeMpdError err
-                liftIO $ threadDelay retryInterval
-      loop
+      forever (waitIdle >>= liftIO . w.emit . MpdChanged) `catch` \err -> do
+        logError w err
+        disconnectMpd
+        disconnected err
+  where
+    disconnected :: IOE :> es => MpdError -> Eff es ()
+    disconnected err = do
+      liftIO . w.emit . MpdDisconnected $ describeMpdError err
+      liftIO $ threadDelay retryInterval
 
 -- | Run the requests one at a time and send the events of their replies.
 commandWorker :: (Mpd :> es, IOE :> es) => Workers -> Eff es ()
 commandWorker w = forever $ do
   PendingRequest cmd k <- liftIO . atomically $ readTQueue w.requests
-  r <-
-    runCommand cmd >>= \case
-      -- MPD closes a connection that was unused for a while, before it
-      -- runs the command, so the command runs again on a new connection.
-      Left (ConnectionError Closed) -> do
+  try (runCommand cmd `catch` retryClosed cmd) >>= \case
+    Right a -> liftIO . w.emit $ k a
+    Left err -> do
+      case err of
+        ConnectionError _ -> do
+          logError w err
+          disconnectMpd
+        ProtocolError _ -> logError w err
+        AckError _ -> pure ()
+      liftIO . w.emit $ MpdFailed (commandRequests cmd) err
+  where
+    -- MPD closes a connection that was unused for a while, before it runs
+    -- the command, so the command runs again on a new connection.
+    retryClosed :: Mpd :> es => Command a -> MpdError -> Eff es a
+    retryClosed cmd = \case
+      ConnectionError Closed -> do
         disconnectMpd
         runCommand cmd
-      other -> pure other
-  case r of
-    Left err@(ConnectionError _) -> do
-      logError w err
-      disconnectMpd
-    Left err@(ProtocolError _) -> logError w err
-    _ -> pure ()
-  liftIO . w.emit $ k r
+      err -> throwIO err
 
 logError :: IOE :> es => Workers -> MpdError -> Eff es ()
 logError w = liftIO . w.logLine . describeMpdError

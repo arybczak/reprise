@@ -1,4 +1,5 @@
--- | A connection to MPD for the worker threads.
+-- | A connection to MPD for the worker threads. The operations throw
+-- 'MpdError'.
 module Reprise.Effect.Mpd
   ( -- * Effect
     Mpd (..)
@@ -23,9 +24,9 @@ import MPD.Idle
 import MPD.Types
 
 data Mpd :: Effect where
-  Connect :: Mpd m (Either MpdError Version)
-  RunCommand :: Command a -> Mpd m (Either MpdError a)
-  WaitIdle :: Mpd m (Either MpdError [Subsystem])
+  Connect :: Mpd m Version
+  RunCommand :: Command a -> Mpd m a
+  WaitIdle :: Mpd m [Subsystem]
   Disconnect :: Mpd m ()
 
 type instance DispatchOf Mpd = Dynamic
@@ -37,32 +38,29 @@ runMpd settings action = do
   ref <- liftIO $ newIORef Nothing
   let disconnect = readIORef ref >>= mapM_ close >> writeIORef ref Nothing
       connected = do
-        r <- connect settings
-        mapM_ (writeIORef ref . Just) r
-        pure r
-      withConnection' :: (Connection -> IO (Either MpdError a)) -> IO (Either MpdError a)
-      withConnection' f =
-        readIORef ref >>= \case
-          Just conn -> f conn
-          Nothing -> connected >>= either (pure . Left) f
+        conn <- connect settings
+        writeIORef ref (Just conn)
+        pure conn
+      withConnection' :: (Connection -> IO a) -> IO a
+      withConnection' f = readIORef ref >>= maybe connected pure >>= f
   let handled = interpretWith_ action $ \case
         Connect -> liftIO $ do
           disconnect
-          fmap serverVersion <$> connected
+          serverVersion <$> connected
         RunCommand cmd -> liftIO $ withConnection' (`run` cmd)
         WaitIdle -> liftIO $ withConnection' (`idle` [])
         Disconnect -> liftIO disconnect
   handled `finally` liftIO disconnect
 
 -- | Open a new connection, closing the old one.
-connectMpd :: Mpd :> es => Eff es (Either MpdError Version)
+connectMpd :: Mpd :> es => Eff es Version
 connectMpd = send Connect
 
-runCommand :: Mpd :> es => Command a -> Eff es (Either MpdError a)
+runCommand :: Mpd :> es => Command a -> Eff es a
 runCommand = send . RunCommand
 
 -- | Wait for changes of any subsystem.
-waitIdle :: Mpd :> es => Eff es (Either MpdError [Subsystem])
+waitIdle :: Mpd :> es => Eff es [Subsystem]
 waitIdle = send WaitIdle
 
 disconnectMpd :: Mpd :> es => Eff es ()

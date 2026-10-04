@@ -40,6 +40,7 @@ module MPD.Types
   , ConnectionError (..)
   ) where
 
+import Control.Exception
 import Data.Fixed
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
@@ -367,7 +368,9 @@ data Version = Version Int Int Int
 ----------------------------------------
 -- Errors
 
--- | @since 0.1.0.0
+-- | The exception that the operations of a connection throw.
+--
+-- @since 0.1.0.0
 data MpdError
   = -- | MPD refused a command.
     AckError Ack
@@ -376,6 +379,9 @@ data MpdError
   | -- | The connection doesn't work. Close it and connect again.
     ConnectionError ConnectionError
   deriving stock (Eq, Show)
+
+-- | @since 0.1.0.0
+instance Exception MpdError
 
 -- | An @ACK@ reply.
 --

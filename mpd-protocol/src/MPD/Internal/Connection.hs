@@ -67,24 +67,22 @@ data Settings = Settings
   deriving stock (Eq, Show)
 
 -- | Open a connection, check the version of MPD and send the password.
+-- Throws 'MpdError'.
 --
 -- @since 0.1.0.0
-connect :: Settings -> IO (Either MpdError Connection)
-connect settings = withTimeout settings.timeout . handleIO connectFailed $ do
+connect :: Settings -> IO Connection
+connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
   bracketOnError open N.close $ \sock -> do
     buffer <- newIORef BS.empty
     -- A receive never returns more than the socket's buffer holds.
     chunkSize <- N.getSocketOption sock N.RecvBuffer
     greeting <- readLine sock chunkSize buffer
     case parseGreeting =<< greeting of
-      Nothing -> do
-        N.close sock
-        pure . Left . ConnectionError . ConnectFailed $
+      Nothing ->
+        throwIO . ConnectionError . ConnectFailed $
           "unexpected greeting: " <> maybe "" decode greeting
       Just version
-        | version < minimumVersion -> do
-            N.close sock
-            pure . Left . ConnectionError $ UnsupportedVersion version
+        | version < minimumVersion -> throwIO . ConnectionError $ UnsupportedVersion version
         | otherwise -> do
             let conn =
                   Connection
@@ -94,15 +92,8 @@ connect settings = withTimeout settings.timeout . handleIO connectFailed $ do
                     , timeout = settings.timeout
                     , version = version
                     }
-            case settings.password of
-              Nothing -> pure $ Right conn
-              Just p -> do
-                r <- exchangeCommand conn (MPD.Command.password p)
-                case r of
-                  Right () -> pure $ Right conn
-                  Left err -> do
-                    N.close sock
-                    pure $ Left err
+            mapM_ (exchangeCommand conn . MPD.Command.password) settings.password
+            pure conn
   where
     open :: IO N.Socket
     open = case settings.address of
@@ -146,50 +137,42 @@ minimumVersion = Version 0 23 0
 close :: Connection -> IO ()
 close conn = N.close conn.socket
 
--- | Send requests and read the reply, without a timeout.
-exchange :: Connection -> B.Builder -> IO (Either MpdError [[Field]])
-exchange conn request = handleIO broken $ do
+-- | Send requests and read the reply, without a timeout. Throws 'MpdError'.
+exchange :: Connection -> B.Builder -> IO [[Field]]
+exchange conn request = convertIO broken $ do
   NL.sendAll conn.socket (B.toLazyByteString request)
-  readReply
+  go True []
   where
-    readReply :: IO (Either MpdError [[Field]])
-    readReply = go True []
-      where
-        go :: Bool -> [BS.ByteString] -> IO (Either MpdError [[Field]])
-        go first acc =
-          readLine conn.socket conn.chunkSize conn.buffer >>= \case
-            Nothing
-              | first -> pure . Left $ ConnectionError Closed
-              | otherwise ->
-                  pure . Left . ConnectionError $ Broken "the connection closed in the middle of a reply"
-            Just l
-              | isFinalLine l -> pure . parseReply $ reverse (l : acc)
-              | otherwise -> go False (l : acc)
+    go :: Bool -> [BS.ByteString] -> IO [[Field]]
+    go first acc =
+      readLine conn.socket conn.chunkSize conn.buffer >>= \case
+        Nothing
+          | first -> throwIO $ ConnectionError Closed
+          | otherwise ->
+              throwIO . ConnectionError $ Broken "the connection closed in the middle of a reply"
+        Just l
+          | isFinalLine l -> either throwIO pure . parseReply $ reverse (l : acc)
+          | otherwise -> go False (l : acc)
 
-    broken :: IOException -> MpdError
-    broken = ConnectionError . Broken . T.pack . displayException
+-- | Run a command without the timeout. Throws 'MpdError'.
+exchangeCommand :: Connection -> Command a -> IO a
+exchangeCommand conn cmd = do
+  parts <- case commandRequests cmd of
+    [] -> pure []
+    requests -> exchange conn (renderRequests requests)
+  either throwIO pure $ parseCommandReply cmd parts
 
--- | Run a command without the timeout.
-exchangeCommand :: Connection -> Command a -> IO (Either MpdError a)
-exchangeCommand conn cmd = case commandRequests cmd of
-  [] -> pure $ parseCommandReply cmd []
-  requests -> (>>= parseCommandReply cmd) <$> exchange conn (renderRequests requests)
+-- | Send bytes without reading a reply. Throws 'MpdError'.
+sendRaw :: Connection -> B.Builder -> IO ()
+sendRaw conn bytes = convertIO broken . NL.sendAll conn.socket $ B.toLazyByteString bytes
 
--- | Send bytes without reading a reply.
-sendRaw :: Connection -> B.Builder -> IO (Either MpdError ())
-sendRaw conn bytes = handleIO broken . fmap Right $ NL.sendAll conn.socket (B.toLazyByteString bytes)
-  where
-    broken :: IOException -> MpdError
-    broken = ConnectionError . Broken . T.pack . displayException
-
--- | Run an action with a timeout, if there is one.
-withTimeout :: Maybe Seconds -> IO (Either MpdError a) -> IO (Either MpdError a)
+-- | Run an action with a timeout, if there is one. Throws 'TimedOut'.
+withTimeout :: Maybe Seconds -> IO a -> IO a
 withTimeout = \case
   Nothing -> id
   Just s -> \action ->
-    T.timeout (ceiling (s * microsecondsPerSecond)) action >>= \case
-      Nothing -> pure . Left $ ConnectionError TimedOut
-      Just r -> pure r
+    T.timeout (ceiling (s * microsecondsPerSecond)) action
+      >>= maybe (throwIO $ ConnectionError TimedOut) pure
   where
     microsecondsPerSecond :: Seconds
     microsecondsPerSecond = 1000000
@@ -213,5 +196,10 @@ readLine sock chunkSize buffer = do
     newline :: Word8
     newline = 10
 
-handleIO :: (IOException -> MpdError) -> IO (Either MpdError a) -> IO (Either MpdError a)
-handleIO toError = handle (pure . Left . toError)
+broken :: IOException -> MpdError
+broken = ConnectionError . Broken . T.pack . displayException
+
+-- | Turn an I/O error of the socket into an 'MpdError', so that a caller
+-- catches one type.
+convertIO :: (IOException -> MpdError) -> IO a -> IO a
+convertIO toError = handle (throwIO . toError)

@@ -1,5 +1,6 @@
 module MirrorTests (mirrorTests) where
 
+import Control.Exception
 import Data.Foldable
 import Data.Text qualified as T
 import MPD.Command
@@ -81,18 +82,14 @@ prop_sync getServer = forAllShrink (listOf genBatch) shrinkList' $ \batches ->
   QC.monadicIO $ do
     server <- QC.run getServer
     QC.run $ resetTestServer server
-    r <- QC.run . withConnection (settingsOf server) $ \conn -> do
-      let fetch :: Command a -> IO a
-          fetch cmd = run conn cmd >>= either (fail . show) pure
-
-          -- An operation that doesn't fit the queue, e.g. a delete past its
+    r <- QC.run . try @MpdError . withConnection (settingsOf server) $ \conn -> do
+      let -- An operation that doesn't fit the queue, e.g. a delete past its
           -- end, fails, which is part of the test.
           apply :: Operation -> IO ()
           apply op =
-            run conn (operation op) >>= \case
-              Left (AckError _) -> pure ()
-              Left err -> fail (show err)
-              Right () -> pure ()
+            run conn (operation op) `catch` \case
+              AckError _ -> pure ()
+              err -> throwIO err
 
           loop :: Mirror -> [[Operation]] -> IO (Either String ())
           loop m = \case
@@ -100,9 +97,9 @@ prop_sync getServer = forAllShrink (listOf genBatch) shrinkList' $ \batches ->
             batch : rest -> do
               mapM_ apply batch
               (st, changes) <-
-                fetch $ (,) <$> MPD.Command.status <*> maybe playlistInfo plChanges m.queueVersion
+                run conn $ (,) <$> MPD.Command.status <*> maybe playlistInfo plChanges m.queueVersion
               m' <- either (fail . T.unpack) pure $ applyQueueChanges 0 st changes m
-              actual <- fetch playlistInfo
+              actual <- run conn playlistInfo
               if toList m'.queue == actual
                 then loop m' rest
                 else
@@ -111,8 +108,8 @@ prop_sync getServer = forAllShrink (listOf genBatch) shrinkList' $ \batches ->
                       <> show (map (.file) (toList m'.queue))
                       <> "\nserver: "
                       <> show (map (.file) actual)
-      (st, q) <- fetch $ (,) <$> MPD.Command.status <*> playlistInfo
-      Right <$> loop (setQueue 0 st q emptyMirror) batches
+      (st, q) <- run conn $ (,) <$> MPD.Command.status <*> playlistInfo
+      loop (setQueue 0 st q emptyMirror) batches
     case r of
       Right (Right ()) -> pure ()
       Right (Left err) -> do

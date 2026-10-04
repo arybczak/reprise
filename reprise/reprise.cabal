@@ -109,6 +109,7 @@ executable reprise
 
     build-depends:    base
                     , reprise
+                    , stm
 
     hs-source-dirs: app
     main-is:        Main.hs
@@ -121,12 +122,14 @@ test-suite test
     build-depends:    base
                     , bytestring
                     , containers
+                    , effectful-core
                     , filepath
                     , mpd-protocol
                     , mpd-test-server
                     , optics-core
                     , QuickCheck
                     , reprise
+                    , stm
                     , tasty
                     , tasty-golden
                     , tasty-hunit
@@ -151,4 +154,5 @@ test-suite test
                     MirrorTests
                     StyleTests
                     WidthTests
+                    WorkerTests
                     Utils

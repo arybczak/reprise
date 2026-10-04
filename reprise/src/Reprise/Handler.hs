@@ -106,20 +106,20 @@ handleEvent = \case
     | PlaylistSubsystem `elem` subsystems -> fetchQueueChanges
     | any (`elem` statusSubsystems) subsystems -> request status StatusFetched
     | otherwise -> pure ()
-  QueueFetched r -> withReply r $ \(st, songs) -> do
+  QueueFetched (st, songs) -> do
     now <- getsS (.now)
     updateMirror $ setQueue now st songs
-  QueueChangesFetched r -> withReply r $ \(st, changes) -> do
+  QueueChangesFetched (st, changes) -> do
     s <- getS
     case applyQueueChanges s.now st changes s.mirror of
       Right m -> updateMirror (const m)
       Left err -> do
         showError $ "The queue is out of sync, fetching it again: " <> err
         fetchQueue
-  StatusFetched r -> withReply r $ \st -> do
+  StatusFetched st -> do
     now <- getsS (.now)
     updateMirror $ setStatus now st
-  ReplayGainFetched r -> withReply r $ \mode -> do
+  ReplayGainFetched mode -> do
     let nextMode = case mode of
           ReplayGainOff -> ReplayGainTrack
           ReplayGainTrack -> ReplayGainAlbum
@@ -132,7 +132,8 @@ handleEvent = \case
         ReplayGainTrack -> "track"
         ReplayGainAlbum -> "album"
         ReplayGainAuto -> "auto"
-  MpdDone r -> withReply r pure
+  MpdDone -> pure ()
+  MpdFailed _ err -> showError $ describeMpdError err
   Tick token ->
     modifyS $
       #tick %~ \case
@@ -156,9 +157,6 @@ afterEvent :: App es => Eff es ()
 afterEvent = do
   scheduleTick
   updateWindowTitle
-
-withReply :: App es => Either MpdError a -> (a -> Eff es ()) -> Eff es ()
-withReply r k = either (showError . describeMpdError) k r
 
 describeMpdError :: MpdError -> T.Text
 describeMpdError = \case

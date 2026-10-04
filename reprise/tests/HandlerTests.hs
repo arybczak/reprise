@@ -54,7 +54,7 @@ test_jumpCenters = do
   assertEqual "near the top" (3, 0) (position (keys ["end", "o"] (playingAt 3)))
   assertEqual "near the bottom" (48, 30) (position (keys ["home", "o"] (playingAt 48)))
   let behindHelp =
-        runEvents 0 [StatusFetched (Right (statusOf Playing (Just 40) 50))] $
+        runEvents 0 [StatusFetched (statusOf Playing (Just 40) 50)] $
           (keys ["ctrl-t", "f", "f1"] (playingAt 30)).state
   assertEqual "behind the help screen" (40, 30) (position (keys ["1"] behindHelp.state))
 
@@ -90,7 +90,7 @@ test_helpLacksVerb = do
 test_followBehindHelp :: Assertion
 test_followBehindHelp = do
   let s = keys ["ctrl-t", "f", "f1"] $ testState (80, 24) (statusOf Playing (Just 0) 5) (songs 5)
-      r = runEvents 0 [StatusFetched (Right (statusOf Playing (Just 3) 5))] s.state
+      r = runEvents 0 [StatusFetched (statusOf Playing (Just 3) 5)] s.state
   assertEqual "help stays" HelpScreen (focusedView r.state).screen
   assertEqual "help doesn't move" 0 (focusedView r.state).offset
   assertEqual "the queue follows" 3 (focusedView (keys ["1"] r.state).state).cursor
@@ -219,7 +219,7 @@ test_queueChanges = do
   assertEqual "request" [[Request "status" [], Request "plchanges" ["1"]]] changed.requests
   let st = statusOf Playing (Just 0) 2 & #playlistVersion .~ PlaylistVersion 2
       moved = song 2 [] 60 & #position ?~ SongPos 1
-      applied = runEvents 0 [QueueChangesFetched (Right (st, [moved]))] changed.state
+      applied = runEvents 0 [QueueChangesFetched (st, [moved])] changed.state
   assertEqual
     "queue"
     [Just (SongId 1), Just (SongId 3)]
@@ -229,20 +229,20 @@ test_queueChanges = do
 test_followPlaying :: Assertion
 test_followPlaying = do
   let s = keys ["ctrl-t", "f"] $ testState (80, 24) (statusOf Playing (Just 0) 5) (songs 5)
-      r = runEvents 0 [StatusFetched (Right (statusOf Playing (Just 3) 5))] s.state
+      r = runEvents 0 [StatusFetched (statusOf Playing (Just 3) 5)] s.state
   assertEqual "cursor" 3 (focusedView r.state).cursor
 
 test_mpdError :: Assertion
 test_mpdError = do
   let s = testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
       ack = Ack AckArg 0 "play" "Bad song index"
-      r = runEvents 0 [MpdDone (Left (AckError ack))] s
+      r = runEvents 0 [MpdFailed [Request "play" ["99"]] (AckError ack)] s
   assertEqual "message" (Just "play: Bad song index") ((.text) <$> r.state.message)
 
 test_tick :: Assertion
 test_tick = do
   let s = testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
-      r = runEvents 0 [StatusFetched (Right (statusOf Playing (Just 0) 3 & #elapsed ?~ 10.25))] s
+      r = runEvents 0 [StatusFetched (statusOf Playing (Just 0) 3 & #elapsed ?~ 10.25)] s
       ticks = [d | After d (Tick _) <- r.commands]
   -- A 60 s song on an 80 column bar moves a cell every 0.75 s: the next
   -- cell starts at 10.5 s, before the next second.

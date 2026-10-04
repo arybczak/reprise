@@ -14,6 +14,7 @@ import LayoutTests
 import MirrorTests
 import StyleTests
 import WidthTests
+import WorkerTests
 
 import Reprise.Width
 
@@ -36,4 +37,5 @@ main = do
       , mirrorTests
       , styleTests
       , widthTests
+      , workerTests
       ]
