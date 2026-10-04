@@ -38,6 +38,7 @@ import Control.DeepSeq
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BS8
 import Data.Fixed
+import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Proxy
@@ -45,7 +46,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Time qualified as Time
 import Data.Time.Clock.POSIX
-import Data.Time.Format.ISO8601
+import Data.Time.FromText
 import Data.Word
 
 import MPD.Types
@@ -84,10 +85,16 @@ parseReply = go [] []
         | "ACK " `BS.isPrefixOf` l -> case parseAck l of
             Just ack -> Left $ AckError ack
             Nothing -> Left . ProtocolError $ "malformed ACK: " <> decode l
-        | otherwise -> case BS.breakSubstring ": " l of
-            (k, v)
-              | not (BS.null k) && not (BS.null v) -> go parts (Field k (BS.drop 2 v) : fields) ls
-              | otherwise -> Left . ProtocolError $ "malformed line: " <> decode l
+        | otherwise -> case separator 0 l of
+            Just i | i > 0 -> go parts (Field (BS.take i l) (BS.drop (i + 2) l) : fields) ls
+            _ -> Left . ProtocolError $ "malformed line: " <> decode l
+
+    -- The index of the first ": " from an index. 'BS.breakSubstring' made
+    -- a search function for each line.
+    separator :: Int -> BS.ByteString -> Maybe Int
+    separator from l = do
+      i <- (from +) <$> BS8.elemIndex ':' (BS.drop from l)
+      if BS8.indexMaybe l (i + 1) == Just ' ' then Just i else separator (i + 1) l
 
 -- | Parse an @ACK [code\@index] {command} message@ line.
 parseAck :: BS.ByteString -> Maybe Ack
@@ -206,8 +213,11 @@ readSeconds s = case BS8.break (== '.') s of
       | otherwise = Nothing
 
 -- | An ISO 8601 time, e.g. @2024-01-02T03:04:05Z@.
+--
+-- The parser of the time library took most of the time of reading a reply
+-- to @plchanges@.
 readTime :: BS.ByteString -> Maybe Time.UTCTime
-readTime = iso8601ParseM . T.unpack . decode
+readTime = either (const Nothing) Just . parseUTCTime . decode
 
 ----------------------------------------
 -- Replies of commands
@@ -223,39 +233,86 @@ parseSong = parseSingle song
 -- | A song, before it is evaluated.
 song :: [Field] -> Either T.Text Song
 song = \case
-  Field "file" file : rest -> do
-    let m = fieldMap rest
-    duration <- optional "duration" readSeconds m
-    time <- optional "Time" readInt m
-    lastModified <- optional "Last-Modified" readTime m
-    position <- optional "Pos" readInt m
-    songId <- optional "Id" readInt m
-    priority <- optional "Prio" readInt m
-    pure
-      Song
-        { file = decode file
-        , tags =
-            M.fromList [(t, map decode vs) | (k, vs) <- M.toList m, Just t <- [M.lookup k tagsByKey]]
-        , duration = maybe (fromIntegral <$> time) Just duration
-        , lastModified = lastModified
-        , format = decode <$> lookupFirst "Format" m
-        , position = SongPos <$> position
-        , songId = SongId <$> songId
-        , priority = fromMaybe 0 priority
-        }
+  Field "file" file : rest -> songFrom file (L.foldl' addSongField noSongFields rest)
   _ -> Left "a song doesn't start with the file key"
-  where
-    tagsByKey :: M.Map BS.ByteString Tag
-    tagsByKey = M.fromList [(T.encodeUtf8 (tagName t), t) | t <- [minBound .. maxBound]]
-
-    lookupFirst :: BS.ByteString -> FieldMap -> Maybe BS.ByteString
-    lookupFirst k m = case M.lookup k m of
-      Just (v : _) -> Just v
-      _ -> Nothing
 
 -- | Parse a list of songs, e.g. the reply to @playlistinfo@.
+--
+-- It reads the fields of each song in one pass and evaluates the song
+-- right away: after a deletion in a long queue, the reply to @plchanges@
+-- has a song for each one after the deleted one.
 parseSongs :: [Field] -> Either T.Text [Song]
-parseSongs fields = parseAll song =<< splitOn (== "file") fields
+parseSongs = go []
+  where
+    go :: [Song] -> [Field] -> Either T.Text [Song]
+    go songs = \case
+      [] -> Right $! reverse songs
+      Field "file" file : rest -> do
+        let (fields, next) = collect noSongFields rest
+        s <- parseSingle (songFrom file) fields
+        go (s : songs) next
+      f : _ -> Left $ "unexpected key: " <> decode f.key
+
+    -- The fields up to the next song.
+    collect :: SongFields -> [Field] -> (SongFields, [Field])
+    collect !fields = \case
+      next@(Field "file" _ : _) -> (fields, next)
+      f : fs -> collect (addSongField fields f) fs
+      [] -> (fields, [])
+
+-- | The fields of a song after its @file@ key, not parsed yet: the first
+-- value of each key, and the tags.
+data SongFields = SongFields
+  { rawDuration :: Maybe BS.ByteString
+  , rawTime :: Maybe BS.ByteString
+  , rawLastModified :: Maybe BS.ByteString
+  , rawPosition :: Maybe BS.ByteString
+  , rawId :: Maybe BS.ByteString
+  , rawPriority :: Maybe BS.ByteString
+  , rawFormat :: Maybe BS.ByteString
+  , rawTags :: [(Tag, BS.ByteString)]
+  -- ^ In the reverse order of the reply.
+  }
+
+noSongFields :: SongFields
+noSongFields = SongFields Nothing Nothing Nothing Nothing Nothing Nothing Nothing []
+
+addSongField :: SongFields -> Field -> SongFields
+addSongField s (Field k v) = case k of
+  "duration" -> s {rawDuration = s.rawDuration <|> Just v}
+  "Time" -> s {rawTime = s.rawTime <|> Just v}
+  "Last-Modified" -> s {rawLastModified = s.rawLastModified <|> Just v}
+  "Pos" -> s {rawPosition = s.rawPosition <|> Just v}
+  "Id" -> s {rawId = s.rawId <|> Just v}
+  "Prio" -> s {rawPriority = s.rawPriority <|> Just v}
+  "Format" -> s {rawFormat = s.rawFormat <|> Just v}
+  _ -> case M.lookup k tagsByKey of
+    Just t -> s {rawTags = (t, v) : s.rawTags}
+    Nothing -> s
+
+tagsByKey :: M.Map BS.ByteString Tag
+tagsByKey = M.fromList [(T.encodeUtf8 (tagName t), t) | t <- [minBound .. maxBound]]
+
+-- | A song from its file and its other fields, before it is evaluated.
+songFrom :: BS.ByteString -> SongFields -> Either T.Text Song
+songFrom file s = do
+  duration <- traverse (parseValue "duration" readSeconds) s.rawDuration
+  time <- traverse (parseValue "Time" readInt) s.rawTime
+  lastModified <- traverse (parseValue "Last-Modified" readTime) s.rawLastModified
+  position <- traverse (parseValue "Pos" readInt) s.rawPosition
+  songId <- traverse (parseValue "Id" readInt) s.rawId
+  priority <- traverse (parseValue "Prio" readInt) s.rawPriority
+  pure
+    Song
+      { file = decode file
+      , tags = M.fromListWith (flip (++)) [(t, [decode v]) | (t, v) <- reverse s.rawTags]
+      , duration = maybe (fromIntegral <$> time) Just duration
+      , lastModified = lastModified
+      , format = decode <$> s.rawFormat
+      , position = SongPos <$> position
+      , songId = SongId <$> songId
+      , priority = fromMaybe 0 priority
+      }
 
 parseStatus :: [Field] -> Either T.Text Status
 parseStatus = parseSingle $ \fields -> do

@@ -4,6 +4,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as BS8
 import Data.ByteString.Lazy qualified as BL
 import Data.Text.Lazy.Encoding qualified as TL
+import Data.Time qualified as Time
 import System.FilePath
 import Test.Tasty
 import Test.Tasty.Golden
@@ -34,6 +35,7 @@ responseTests =
         ]
     , testCase "parseAck" test_parseAck
     , testCase "readSeconds" test_readSeconds
+    , testCase "readTime" test_readTime
     , testCase "malformed replies" test_malformedReplies
     , testCase "empty value" test_emptyValue
     , testCase "unknown subsystem" test_unknownSubsystem
@@ -74,6 +76,15 @@ test_readSeconds = do
   assertEqual "empty" Nothing (readSeconds "")
   assertEqual "no digits after the dot" Nothing (readSeconds "2.")
   assertEqual "negative" Nothing (readSeconds "-2")
+
+test_readTime :: Assertion
+test_readTime = do
+  assertEqual "MPD's form" (Just (at 2024 1 2 11045)) (readTime "2024-01-02T03:04:05Z")
+  assertEqual "an offset" (Just (at 2024 1 2 7445)) (readTime "2024-01-02T03:04:05+01:00")
+  assertEqual "not a time" Nothing (readTime "yesterday")
+  where
+    at :: Integer -> Int -> Int -> Time.DiffTime -> Time.UTCTime
+    at y m d = Time.UTCTime (Time.fromGregorian y m d)
 
 test_malformedReplies :: Assertion
 test_malformedReplies = do
