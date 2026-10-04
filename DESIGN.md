@@ -1501,6 +1501,12 @@ Settings that effectful doesn't have:
   is rare, because every config field has a real default.
 - `ghc-options: -threaded` for the `reprise` executable and both test suites.
   The MPD worker threads and the real-server tests need it.
+- `-with-rtsopts=-I0` for the `reprise` executable, which turns off the idle
+  garbage collection of the threaded runtime. While a song plays, reprise
+  wakes about once a second to show the time, and each wake was followed by a
+  collection of the whole heap. In 30 seconds of playback with a queue of
+  4254 songs, this took reprise from 101 ms of CPU to 39 ms. Memory freed in
+  a burst of work is collected by the next regular collection instead.
 
 ### Code
 

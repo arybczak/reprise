@@ -134,7 +134,9 @@ library
 executable reprise
     import:         language
 
-    ghc-options:    -threaded
+    -- While a song plays, reprise wakes about once a second to show the
+    -- time, and the idle collection then copied the whole heap each time.
+    ghc-options:    -threaded "-with-rtsopts=-I0"
 
     build-depends:    base
                     , brick
