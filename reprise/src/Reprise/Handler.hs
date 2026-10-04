@@ -142,20 +142,27 @@ handleEvent = \case
         ReplayGainTrack -> "track"
         ReplayGainAlbum -> "album"
         ReplayGainAuto -> "auto"
-  MpdDone -> pure ()
+  MpdDone -> keepScreen
   MpdFailed _ err -> showError $ describeMpdError err
   Tick token ->
-    modifyS $
-      #tick %~ \case
-        Just (t, _) | t == token -> Nothing
-        other -> other
+    getsS (.tick) >>= \case
+      Just (t, _) | t == token -> modifyS $ #tick .~ Nothing
+      _ -> keepScreen
   SeekCommit token -> commitSeek token
   MessageExpired token ->
-    modifyS $
-      #message %~ \case
-        Just m | m.token == token -> Nothing
-        other -> other
-  Redraw -> pure ()
+    getsS (.message) >>= \case
+      Just m | m.token == token -> modifyS $ #message .~ Nothing
+      _ -> keepScreen
+  -- One timer serves a run of keys: it waits again for the rest of the
+  -- delay after the last key.
+  HideCursor -> do
+    s <- getS
+    let remaining = s.lastInput + cursorHideDelay - s.now
+    if remaining > 0
+      then do
+        after remaining HideCursor
+        keepScreen
+      else modifyS $ #cursorTimer .~ False
   Confirmed action -> runConfirmed action
   where
     statusSubsystems :: [Subsystem]
@@ -255,7 +262,9 @@ handleKey :: App es => KeySpec -> Eff es ()
 handleKey k = do
   s <- getS
   modifyS $ #lastInput .~ s.now
-  after cursorHideDelay Redraw
+  unless s.cursorTimer $ do
+    modifyS $ #cursorTimer .~ True
+    after cursorHideDelay HideCursor
   case s.prompt of
     Just p -> handlePromptKey p k
     Nothing -> case s.pendingKeys of
@@ -834,7 +843,7 @@ commitSeek token =
           . (#mirror % #status % _Just % #elapsed ?~ sk.target)
           . (#mirror % #statusTime .~ now)
       mutate . seekCur $ SeekTo sk.target
-    _ -> pure ()
+    _ -> keepScreen
 
 currentDuration :: AppState -> Maybe Seconds
 currentDuration s = s.mirror.status >>= (.duration)

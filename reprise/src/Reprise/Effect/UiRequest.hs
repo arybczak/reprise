@@ -1,5 +1,5 @@
--- | What only the UI loop can do: halt, set the terminal's title, and send
--- an event later.
+-- | What only the UI loop can do: halt, set the terminal's title, send an
+-- event later, and skip a redraw.
 module Reprise.Effect.UiRequest
   ( -- * Effect
     UiRequest (..)
@@ -12,6 +12,7 @@ module Reprise.Effect.UiRequest
   , halt
   , setTitle
   , after
+  , keepScreen
   ) where
 
 import Data.Text qualified as T
@@ -31,6 +32,8 @@ data UiCommand
   | SetTitle T.Text
   | -- | Send the event after a number of seconds.
     After Double AppEvent
+  | -- | The event changed nothing on the screen, so it isn't redrawn.
+    KeepScreen
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -47,3 +50,7 @@ setTitle = send . UiRequest . SetTitle
 -- | Send an event after a number of seconds.
 after :: UiRequest :> es => Double -> AppEvent -> Eff es ()
 after delay = send . UiRequest . After delay
+
+-- | Skip the redraw after an event that changed nothing on the screen.
+keepScreen :: UiRequest :> es => Eff es ()
+keepScreen = send $ UiRequest KeepScreen

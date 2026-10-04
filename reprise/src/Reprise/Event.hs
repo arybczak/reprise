@@ -39,8 +39,8 @@ data AppEvent
   | -- | The pause after the last seek key, with its token.
     SeekCommit Int
   | MessageExpired Int
-  | -- | A timer that redraws the screen, e.g. to hide the queue's cursor.
-    Redraw
+  | -- | The timer that hides the queue's cursor a while after the last key.
+    HideCursor
   | -- | The user confirmed a destructive action.
     Confirmed Action
   deriving stock (Eq, Show)

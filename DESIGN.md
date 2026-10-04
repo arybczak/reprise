@@ -435,9 +435,13 @@ used in two places:
    `(State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()`.
    - `MpdRequest` queues commands with continuations.
    - `UiRequest` covers what only brick can do: halting, suspending for an
-     external program, the terminal title, and timers that send an event
-     later. The timers end a seek, expire messages, and redraw the elapsed
-     time.
+     external program, the terminal title, timers that send an event later,
+     and skipping the redraw after an event that changed nothing on the
+     screen. The timers end a seek, expire messages, hide the queue's cursor,
+     and redraw the elapsed time. A timer whose token is stale skips the
+     redraw. One timer hides the cursor for a run of keys: when it fires
+     early, it waits for the rest of the delay after the last key, so
+     holding a key doesn't add a redraw per key.
    - Prompts and confirmations are state, not requests. An action can't stop
      halfway and wait for the user, because brick is the outer loop. So it
      opens a prompt with a continuation, e.g. `confirm msg onYes`, and the

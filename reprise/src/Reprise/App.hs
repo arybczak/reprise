@@ -70,6 +70,7 @@ dispatch env event = do
     After delay e -> liftIO . void . forkIO $ do
       threadDelay (ceiling (delay * microsecondsPerSecond))
       B.writeBChan env.events e
+    KeepScreen -> B.continueWithoutRedraw
   where
     microsecondsPerSecond :: Double
     microsecondsPerSecond = 1000000

@@ -68,6 +68,8 @@ data AppState = AppState
   , now :: Double
   -- ^ The monotonic time of the event being handled.
   , lastInput :: Double
+  , cursorTimer :: Bool
+  -- ^ Whether the timer that hides the queue's cursor is set.
   , nextToken :: Int
   -- ^ The token for the next timer.
   , tick :: Maybe (Int, Double)
@@ -226,6 +228,7 @@ initialState config keymaps colorMode =
     , seek = Nothing
     , now = 0
     , lastInput = 0
+    , cursorTimer = False
     , nextToken = 0
     , tick = Nothing
     , windowTitle = Nothing

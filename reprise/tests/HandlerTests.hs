@@ -12,6 +12,7 @@ import Test.Tasty.HUnit
 import Reprise.Action
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Handler
 import Reprise.Keys
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
@@ -31,6 +32,8 @@ handlerTests =
     , testCase "volume without a mixer" test_noMixer
     , testCase "seeking" test_seek
     , testCase "a stale seek timer" test_staleSeek
+    , testCase "one timer hides the cursor" test_cursorTimer
+    , testCase "stale timers keep the screen" test_staleTimers
     , testCase "cursor movement" test_cursorMovement
     , testCase "album navigation" test_albumNavigation
     , testCase "activate plays the song under the cursor" test_activate
@@ -498,6 +501,39 @@ test_staleSeek = do
   case [e | After _ e@(SeekCommit _) <- r.commands] of
     first : _ : _ -> assertEqual "stale" [] (runEvents 0 [first] r.state).requests
     _ -> assertFailure "expected two timers"
+
+test_cursorTimer :: Assertion
+test_cursorTimer = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
+      pressed = runEvents 0 [key' "down"] s
+      held = runEvents 3 [key' "down", key' "up"] pressed.state
+  assertEqual
+    "one timer for a run of keys"
+    [5]
+    [d | After d HideCursor <- pressed.commands <> held.commands]
+  let early = runEvents 5 [HideCursor] held.state
+  assertEqual
+    "waits for the rest of the delay"
+    [After 3 HideCursor, KeepScreen]
+    early.commands
+  let late = runEvents 8 [HideCursor] early.state
+  assertEqual "hides without waiting again" [] late.commands
+  assertBool "hidden" (not (cursorVisible late.state))
+  assertEqual
+    "a new timer for the next key"
+    [5]
+    [d | After d HideCursor <- (runEvents 9 [key' "down"] late.state).commands]
+
+test_staleTimers :: Assertion
+test_staleTimers = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
+      r = keys ["ctrl-t", "f", "ctrl-t", "f"] s
+  case [e | After _ e@(MessageExpired _) <- r.commands] of
+    first : second : _ -> do
+      assertEqual "stale" [KeepScreen] (runEvents 5 [first] r.state).commands
+      assertEqual "current" [] (runEvents 5 [second] r.state).commands
+    _ -> assertFailure "expected two messages"
+  assertEqual "a stale tick" [KeepScreen] (runEvents 0 [Tick (-1)] s).commands
 
 test_cursorMovement :: Assertion
 test_cursorMovement = do
