@@ -110,14 +110,16 @@ test_whichKey = do
   let queueGroup =
         named
           "queue extras"
-          [("m", BindAction (MoveSelection MoveSelectionToCursor)), ("c", BindAction Crop)]
+          [ ("m", BindAction (MoveSelection MoveSelectionToCursor))
+          , ("c", BindAction (MoveSelection MoveSelectionToEnd))
+          ]
       layers = Layers (Just (keymap [("ctrl-q", BindPrefix queueGroup)])) (Just globalKeymap)
   case lookupKey layers (key "ctrl-q") of
     Pending next -> do
       assertEqual "the screen's name first" (Just "queue extras") (layersName next)
       assertEqual
         "entries"
-        [ WhichKeyEntry (key "c") "crop to the selection" False True
+        [ WhichKeyEntry (key "c") "move selection to the end" False True
         , WhichKeyEntry (key "m") "move selection above the cursor" False True
         , WhichKeyEntry (key "s") "shuffle" False False
         ]

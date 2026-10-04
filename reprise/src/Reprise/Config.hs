@@ -660,7 +660,6 @@ defaultKeymaps =
               (ctrl 'q')
               "queue"
               [ char 'c' ~> Clear
-              , char 'k' ~> Crop
               , char 's' ~> Shuffle
               , char 'w' ~> Save
               ]

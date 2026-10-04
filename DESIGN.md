@@ -115,7 +115,7 @@ ncmpcpp.
   title.
 - Jump to the playing song, or follow it automatically. Both put the song in
   the middle of the list, as does the jump at the start.
-- Delete, move, crop, clear, shuffle, set priority.
+- Delete, move, clear, shuffle, set priority.
 
 **Browser (MPD database)**
 - `lsinfo` navigation, with a `..` entry.
@@ -193,7 +193,7 @@ Implemented when the author misses them.
 
 **Playlist editor**
 - Two columns: stored playlists and their contents.
-- Load, add, rename, delete, move, crop, clear.
+- Load, add, rename, delete, move, clear.
 - Until then, the browser can browse, load and delete stored playlists.
 
 **Tag editor and tiny tag editor**
@@ -276,6 +276,10 @@ files could come later, if ever.
 
 **Reversing the queue** (`reverse_playlist`). It is rarely useful, and MPD
 has no command for it.
+
+**Cropping** (`crop_main_playlist`, `crop_playlist`). Inverting the
+selection and deleting takes as many keys, and shows what goes before it
+goes, so it needs no confirmation.
 
 **Old compatibility tricks**
 - MPD versions older than 0.23. In return reprise gets filter expressions,
@@ -728,11 +732,10 @@ or if it changes a stored playlist, which lives on disk:
 | Action | Why it asks |
 |---|---|
 | Clear the queue | Removes every song |
-| Crop the queue | Removes every song that isn't selected |
 | Shuffle or sort the whole queue | Loses the current order |
 | Delete a stored playlist | Removes it from disk |
 | Save over an existing stored playlist | Replaces its contents |
-| Clear or crop a stored playlist, or remove songs from it | Changes it on disk |
+| Clear a stored playlist, or remove songs from it | Changes it on disk |
 
 Not destructive:
 - deleting the selected or highlighted songs from the queue (the user pointed
@@ -1082,7 +1085,6 @@ keys:
     ctrl-q:
       name: queue
       c: clear
-      k: crop                    # keep only the selected songs
       s: shuffle
       w: save                    # as a stored playlist
     ctrl-s:
@@ -1139,8 +1141,8 @@ until then. `ctrl-g` and `escape` cancel a pending prefix.
 Compared to ncmpcpp:
 - **Toggles left the single keys:** `r` `z` `y` `R` `x` `Y` `#` `P` `!` `U`
   are under `ctrl-t`.
-- **Queue operations left the single keys:** `c` `C` `Z` `M` `S` `ctrl-p`
-  are under `ctrl-q`. `ctrl-r` (reverse) is gone.
+- **Queue operations left the single keys:** `c` `Z` `M` `S` `ctrl-p` are
+  under `ctrl-q`. `C` (crop) and `ctrl-r` (reverse) are gone.
 - **Selection left the single keys:** `v` `V` `B` `ctrl-v` `ctrl-_` are under
   `ctrl-s`.
 - **`shift-up`/`shift-down`** toggle the selection and move, without the
@@ -1518,8 +1520,8 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
    - From here on, reprise replaces ncmpcpp for the author's daily use.
    - Moved to milestone 3: album separators, and the actions that need a
      text prompt (`seek_to`, `set_volume`, `priority` without a value, the
-     password prompt). The selection in the queue, and crop, moving the
-     selected songs and priority, came after milestone 2.
+     password prompt). The selection in the queue, moving the selected
+     songs and priority came after milestone 2.
 3. **Library navigation.**
    - Browser, including stored playlists.
    - Selection, find, filter, prompts, add and play.

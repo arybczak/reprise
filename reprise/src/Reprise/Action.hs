@@ -70,7 +70,6 @@ data Action
   | AddAndPlay
   | AddPath
   | Clear
-  | Crop
   | Shuffle
   | Save
   | Toggle ToggleTarget
@@ -242,7 +241,6 @@ registry =
   , spec "add_and_play" "" $ none AddAndPlay
   , spec "add_path" "" $ none AddPath
   , spec "clear" "" $ none Clear
-  , spec "crop" "" $ none Crop
   , spec "shuffle" "" $ none Shuffle
   , spec "save" "" $ none Save
   , spec "toggle" (alternatives ("crossfade N" : map fst toggleTargets)) $ \case
@@ -460,7 +458,6 @@ renderAction = \case
   AddAndPlay -> "add_and_play"
   AddPath -> "add_path"
   Clear -> "clear"
-  Crop -> "crop"
   Shuffle -> "shuffle"
   Save -> "save"
   Toggle t -> "toggle " <> toggleName t
@@ -550,7 +547,6 @@ describeAction = \case
   AddAndPlay -> "add and play"
   AddPath -> "add a path"
   Clear -> "clear"
-  Crop -> "crop to the selection"
   Shuffle -> "shuffle"
   Save -> "save as a playlist"
   Toggle t -> "toggle " <> T.replace "_" " " (toggleName t)
@@ -571,7 +567,6 @@ describeAction = \case
 isDestructive :: Action -> Bool
 isDestructive = \case
   Clear -> True
-  Crop -> True
   Shuffle -> True
   Save -> True
   _ -> False

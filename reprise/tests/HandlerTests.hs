@@ -52,7 +52,6 @@ handlerTests =
     , testCase "the help screen has no selection" test_selectOnHelp
     , testCase "songs that leave the queue leave the selection" test_selectionPruned
     , testCase "delete the marked songs" test_delete
-    , testCase "crop to the marked songs" test_crop
     , testCase "move the marked songs up and down" test_moveSelection
     , testCase "move the selection to the cursor and the end" test_moveSelectionTo
     , testCase "shuffle the selection" test_shuffleSelection
@@ -154,21 +153,6 @@ test_delete = do
     "under the cursor"
     [[Request "delete" ["1:2"]]]
     (keys ["down", "delete"] s).requests
-
-test_crop :: Assertion
-test_crop = do
-  let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
-      asked = keys ["space", "space", "ctrl-q", "k"] s
-  assertEqual
-    "question"
-    (Just "Crop the queue to 2 songs?")
-    ((.question) <$> asked.state.prompt)
-  assertEqual "yes" [[Request "delete" ["2:5"]]] (keys ["y"] asked.state).requests
-  let one = testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
-  assertEqual
-    "one song"
-    (Just "There is nothing to crop")
-    ((.text) <$> (keys ["ctrl-q", "k"] one).state.message)
 
 test_moveSelection :: Assertion
 test_moveSelection = do

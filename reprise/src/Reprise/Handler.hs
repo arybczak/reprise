@@ -23,7 +23,6 @@ module Reprise.Handler
 import Control.Applicative
 import Control.Monad
 import Data.Foldable
-import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Sequence qualified as Seq
@@ -307,12 +306,6 @@ runAction = \case
   action@Delete -> onQueue action $ do
     ps <- getsS markedPositions
     mutate $ deletePositions ps
-  action@Crop -> onQueue action $ do
-    s <- getS
-    let kept = length (markedPositions s)
-    if kept >= queueLength s.mirror
-      then showMessage "There is nothing to crop"
-      else confirm ("Crop the queue to " <> countSongs kept <> "?") (Confirmed Crop)
   action@(Priority (Just p)) -> onQueue action $ do
     s <- getS
     let ids = mapMaybe (\i -> Seq.lookup i s.mirror.queue >>= (.songId)) (markedPositions s)
@@ -385,11 +378,6 @@ runConfirmed :: App es => Action -> Eff es ()
 runConfirmed = \case
   Clear -> mutate clear
   Shuffle -> mutate $ shuffle Nothing
-  Crop -> do
-    s <- getS
-    let kept = markedPositions s
-        removed = [0 .. queueLength s.mirror - 1] L.\\ kept
-    mutate $ deletePositions removed
   _ -> pure ()
 
 ----------------------------------------
