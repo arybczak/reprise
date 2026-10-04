@@ -132,5 +132,5 @@ openLog = do
   hSetBuffering h LineBuffering
   lock <- newMVar ()
   pure $ \msg -> withMVar lock $ \() -> do
-    time <- getCurrentTime
-    T.hPutStrLn h $ T.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S " time) <> msg
+    time <- getZonedTime
+    T.hPutStrLn h $ T.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S %z " time) <> msg
