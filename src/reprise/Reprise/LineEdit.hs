@@ -11,8 +11,8 @@ import Data.Char hiding (Space)
 import Data.Set qualified as S
 import Data.Text qualified as T
 
-import Reprise.Format
 import Reprise.Keys
+import Reprise.Width
 
 -- | The text before and after the cursor.
 data LineEdit = LineEdit

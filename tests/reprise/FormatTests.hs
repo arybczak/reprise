@@ -148,11 +148,7 @@ test_fields = do
   assertEqual "short length" "0:05" (formatDuration 5.9)
 
 test_width :: Assertion
-test_width = do
-  assertEqual "short enough" "abc" (truncateToWidth 3 "abc")
-  assertEqual "ellipsis" "ab…" (truncateToWidth 3 "abcd")
-  assertEqual "wide characters" "日…" (truncateToWidth 4 "日本語")
-  assertEqual "wide character width" 6 (textWidth "日本語")
+test_width =
   assertEqual "field width" "ab…" (plain "%{title:3}" (song "x" [(Title, ["abcdef"])]))
 
 prop_printParse :: Property

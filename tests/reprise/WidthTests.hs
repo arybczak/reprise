@@ -7,7 +7,6 @@ import Graphics.Vty.UnicodeWidthTable.Types qualified as V
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Reprise.Format
 import Reprise.Mpd.Protocol.Types
 import Reprise.UI.Layout
 import Reprise.Width
@@ -17,10 +16,18 @@ widthTests :: TestTree
 widthTests =
   testGroup
     "Width"
-    [ testCase "an emoji is wide" test_emoji
+    [ testCase "truncation" test_truncate
+    , testCase "an emoji is wide" test_emoji
     , testCase "a row with an emoji fits the terminal" test_emojiRowFits
     , testCase "the ranges are vty's" test_sameRanges
     ]
+
+test_truncate :: Assertion
+test_truncate = do
+  assertEqual "short enough" "abc" (truncateToWidth 3 "abc")
+  assertEqual "ellipsis" "ab…" (truncateToWidth 3 "abcd")
+  assertEqual "wide characters" "日…" (truncateToWidth 4 "日本語")
+  assertEqual "wide character width" 6 (textWidth "日本語")
 
 test_sameRanges :: Assertion
 test_sameRanges = do

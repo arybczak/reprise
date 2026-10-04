@@ -26,13 +26,7 @@ module Reprise.Format
   , fieldValue
   , spansText
   , spansWidth
-
-    -- * Text width
-  , textWidth
-  , truncateToWidth
   , fitSpans
-  , takeWidth
-  , ellipsis
   , formatDuration
   ) where
 
@@ -42,11 +36,11 @@ import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Text qualified as T
 import Data.Void
-import Graphics.Text.Width qualified as W
 import Yamlet hiding (Comment)
 
 import Reprise.Mpd.Protocol.Types
 import Reprise.Style
+import Reprise.Width
 
 ----------------------------------------
 -- Formats
@@ -378,29 +372,6 @@ spansText = T.concat . map (.text)
 spansWidth :: [Span s] -> Int
 spansWidth = sum . map (textWidth . (.text))
 
--- | Drop empty spans and join neighbours with the same style.
-mergeSpans :: Eq s => [Span s] -> [Span s]
-mergeSpans = foldr add [] . filter (not . T.null . (.text))
-  where
-    add :: Eq s => Span s -> [Span s] -> [Span s]
-    add s = \case
-      next : rest | next.style == s.style -> Span s.style (s.text <> next.text) : rest
-      rest -> s : rest
-
-----------------------------------------
--- Text width
-
--- | The width of text in terminal columns. Wide characters count as 2.
-textWidth :: T.Text -> Int
-textWidth = T.foldl' (\w c -> w + W.safeWcwidth c) 0
-
--- | Shorten text to at most the given width, with an ellipsis at the end if
--- it was too wide.
-truncateToWidth :: Int -> T.Text -> T.Text
-truncateToWidth width t
-  | textWidth t <= width = t
-  | otherwise = takeWidth (width - textWidth ellipsis) t <> ellipsis
-
 -- | Shorten spans to at most the given width, with an ellipsis in the
 -- style of the last span that fits if they were too wide.
 fitSpans :: Int -> [Span s] -> [Span s]
@@ -416,15 +387,11 @@ fitSpans width spans
         | textWidth s.text < room -> s : go (room - textWidth s.text) rest
         | otherwise -> [Span s.style (takeWidth room s.text <> ellipsis)]
 
-ellipsis :: T.Text
-ellipsis = "…"
-
--- | The longest prefix of text that fits in the width.
-takeWidth :: Int -> T.Text -> T.Text
-takeWidth w = T.pack . go w . T.unpack
+-- | Drop empty spans and join neighbours with the same style.
+mergeSpans :: Eq s => [Span s] -> [Span s]
+mergeSpans = foldr add [] . filter (not . T.null . (.text))
   where
-    go :: Int -> String -> String
-    go _ [] = []
-    go n (c : cs)
-      | W.safeWcwidth c <= n = c : go (n - W.safeWcwidth c) cs
-      | otherwise = []
+    add :: Eq s => Span s -> [Span s] -> [Span s]
+    add s = \case
+      next : rest | next.style == s.style -> Span s.style (s.text <> next.text) : rest
+      rest -> s : rest

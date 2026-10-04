@@ -1,23 +1,56 @@
--- | Character widths that match the terminal.
+-- | Character widths that match the terminal, and text measured and cut by
+-- them.
 --
--- vty computes every width, also the ones in "Reprise.Format", with its
--- built-in table from Unicode 5.0, unless a custom table is installed. In
--- that table an emoji is narrow, but terminals draw it wide, so a row with
--- one doesn't fit.
+-- vty computes every width, also the ones here, with its built-in table
+-- from Unicode 5.0, unless a custom table is installed. In that table an
+-- emoji is narrow, but terminals draw it wide, so a row with one doesn't
+-- fit.
 module Reprise.Width
-  ( installWidthTable
+  ( -- * Text width
+    textWidth
+  , takeWidth
+  , truncateToWidth
+  , ellipsis
+
+    -- * The width table
+  , installWidthTable
   , systemWidth
   , widthRanges
   ) where
 
 import Control.Monad
 import Data.Char
+import Data.Text qualified as T
 import Data.Word
 import Foreign.C.Types
 import Graphics.Text.Width qualified as W
 import Graphics.Vty.UnicodeWidthTable.Install qualified as V
 import Graphics.Vty.UnicodeWidthTable.Query qualified as V
 import Graphics.Vty.UnicodeWidthTable.Types qualified as V
+
+-- | The width of text in terminal columns. Wide characters count as 2.
+textWidth :: T.Text -> Int
+textWidth = T.foldl' (\w c -> w + W.safeWcwidth c) 0
+
+-- | The longest prefix of text that fits in the width.
+takeWidth :: Int -> T.Text -> T.Text
+takeWidth w = T.pack . go w . T.unpack
+  where
+    go :: Int -> String -> String
+    go _ [] = []
+    go n (c : cs)
+      | W.safeWcwidth c <= n = c : go (n - W.safeWcwidth c) cs
+      | otherwise = []
+
+-- | Shorten text to at most the given width, with an ellipsis at the end if
+-- it was too wide.
+truncateToWidth :: Int -> T.Text -> T.Text
+truncateToWidth width t
+  | textWidth t <= width = t
+  | otherwise = takeWidth (width - textWidth ellipsis) t <> ellipsis
+
+ellipsis :: T.Text
+ellipsis = "…"
 
 foreign import ccall unsafe "reprise_use_utf8_ctype"
   c_useUtf8Ctype :: IO CInt

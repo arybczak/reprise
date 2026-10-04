@@ -27,6 +27,7 @@ import Reprise.Screen.Queue
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.SongList
+import Reprise.Width
 
 -- | The screen as one image of the terminal's size.
 renderScreen :: AppEnv -> AppState -> V.Image

@@ -20,6 +20,7 @@ import Reprise.Keymap
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.SongList
+import Reprise.Width
 
 helpView :: AppEnv -> View -> V.Image
 helpView env v =
