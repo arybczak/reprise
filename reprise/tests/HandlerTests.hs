@@ -74,6 +74,36 @@ test_selectRange = do
   let s = testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
       r = keys ["down", "insert", "down", "down", "down", "insert", "ctrl-s", "r"] s
   assertEqual "filled" (ids [2 .. 5]) r.state.queueState.selection
+  let moving = keys ["down", "space", "down", "space", "ctrl-s", "r"] s
+  assertEqual "selected while moving" (ids [2 .. 4]) moving.state.queueState.selection
+  let ten = testState (80, 24) (statusOf Stopped Nothing 10) (songs 10)
+      apart =
+        keys
+          [ "space"
+          , "space"
+          , "down"
+          , "down"
+          , "down"
+          , "insert"
+          , "down"
+          , "down"
+          , "insert"
+          , "ctrl-s"
+          , "r"
+          ]
+          ten
+  assertEqual
+    "away from an earlier selection"
+    (ids [1, 2, 6, 7, 8])
+    apart.state.queueState.selection
+  let deselected =
+        keys
+          ["insert", "down", "down", "insert", "down", "down", "insert", "insert", "ctrl-s", "r"]
+          ten
+  assertEqual
+    "between the first and the last without two ends"
+    (ids [1, 2, 3])
+    deselected.state.queueState.selection
   assertEqual
     "without a selection"
     (Just "Select the first and the last song of the range first")

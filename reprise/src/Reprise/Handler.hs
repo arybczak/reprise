@@ -413,12 +413,23 @@ markedPositions s = case selectedPositions s of
 select :: App es => SelectTarget -> Eff es ()
 select = \case
   SelectItem andMove -> do
-    withSongUnderCursor $ \song -> forM_ song.songId $ \i ->
-      modifySelection $ \sel -> if i `S.member` sel then S.delete i sel else S.insert i sel
+    withSongUnderCursor $ \song -> forM_ song.songId $ \i -> do
+      selected <- getsS ((i `S.member`) . (.queueState.selection))
+      modifySelection $ if selected then S.delete i else S.insert i
+      modifyS $
+        #queueState % #lastSelected %~ \ends ->
+          (if selected then id else take rangeEnds . (i :)) (filter (/= i) ends)
     forM_ andMove moveCursor
+  -- Between the last two songs that the user selected, so that a range
+  -- doesn't swallow the songs between it and an earlier selection. Without
+  -- them, between the first and the last selected song, as in ncmpcpp.
   SelectRange -> do
     s <- getS
-    case selectedPositions s of
+    let positionOf i = Seq.findIndexL ((== Just i) . (.songId)) s.mirror.queue
+        ends =
+          mapMaybe positionOf $
+            filter (`S.member` s.queueState.selection) s.queueState.lastSelected
+    case if length ends == rangeEnds then ends else selectedPositions s of
       [] -> showMessage "Select the first and the last song of the range first"
       ps -> do
         addToSelection [minimum ps .. maximum ps]
@@ -442,6 +453,10 @@ select = \case
       showMessage "Album around the cursor selected"
   SelectFound -> notAvailable "Selecting the found songs"
   where
+    -- The first and the last song.
+    rangeEnds :: Int
+    rangeEnds = 2
+
     addToSelection :: App es => [Int] -> Eff es ()
     addToSelection ps = do
       q <- getsS (.mirror.queue)

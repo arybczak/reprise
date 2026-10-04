@@ -111,9 +111,12 @@ data SeekState = SeekState
 
 -- | The content of the queue screen that isn't MPD's: the songs come from
 -- the mirror.
-newtype QueueState = QueueState
+data QueueState = QueueState
   { selection :: S.Set SongId
   -- ^ By id, so that the selection follows the songs when they move.
+  , lastSelected :: [SongId]
+  -- ^ The songs that the user selected last, the latest first: the ends of
+  -- the next range.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -175,7 +178,7 @@ initialState config keymaps colorMode =
     , colorMode = colorMode
     , connection = Connecting
     , mirror = emptyMirror
-    , queueState = QueueState S.empty
+    , queueState = QueueState S.empty []
     , toggles =
         Toggles
           { queueDisplay = config.queue.display

@@ -137,8 +137,11 @@ ncmpcpp.
     without a selection.
   - The queue keeps the selection by song id, so it follows the songs when
     they move and loses the songs that leave the queue.
-  - Select range fills the selection between its first and last item, as in
-    ncmpcpp.
+  - Select range fills the selection between the last two items that the
+    user selected, so selecting both ends and then the range works as in
+    ncmpcpp. ncmpcpp fills between the first and the last selected item,
+    which also selects everything between the new range and an earlier
+    selection. Without two such items, reprise does what ncmpcpp does.
   - Select album selects the songs around the cursor with the same album
     artist (or artist) and album. ncmpcpp compares the album only, so two
     albums called "Greatest Hits" next to each other were one.

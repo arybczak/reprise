@@ -510,7 +510,7 @@ describeAction = \case
   Select t -> case t of
     SelectItem Nothing -> "toggle selection"
     SelectItem (Just m) -> "toggle selection, move " <> moveName m
-    SelectRange -> "fill the selection between its ends"
+    SelectRange -> "select between the last two selected"
     SelectInvert -> "invert selection"
     SelectNone -> "clear selection"
     SelectAlbum -> "select the album around the cursor"
