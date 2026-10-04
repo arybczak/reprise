@@ -351,8 +351,7 @@ modules are under `Reprise.Mpd.Protocol`.
 
 | Module | Contents |
 |---|---|
-| `Main` (`app/Main.hs`) | Only calls `Reprise.Main.main`, so the tests can import everything else from the library |
-| `Reprise.Main` | CLI options (optparse-applicative), loading the config, starting the workers and brick |
+| `Main` (`app/Main.hs`) | CLI options (optparse-applicative), loading the config, starting the workers and brick |
 | `Reprise.App` | The brick application: a thin adapter between brick's events and the handlers |
 | `Reprise.Effect.*` | The app's own effects (`MpdRequest`, `UiRequest`, `Mpd`), one module each |
 | `Reprise.Config` | Config types, yamlet decoders, defaults, the default keymaps |
