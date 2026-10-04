@@ -899,7 +899,8 @@ lists:                           # every list screen
   keep_cursor_centered: false
   ignore_leading_the: false
   missing_tag: '<empty>'
-  missing_tag_style: cyan        # not in columns, which use their own style
+  missing_tag_style: cyan        # also empty fields of the search engine and song info;
+                                 # not in columns, which use their own style
   tag_separator: ' | '
 
 queue:

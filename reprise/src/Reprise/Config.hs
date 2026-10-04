@@ -141,6 +141,8 @@ data ListsConfig = ListsConfig
   , missingTag :: T.Text
   , missingTagStyle :: Style
   -- ^ Not in the columns display, where the marker has the column's style.
+  -- The search engine's form and the song info screen will show their empty
+  -- fields with it, as ncmpcpp does.
   , tagSeparator :: T.Text
   }
   deriving stock (Eq, Show, Generic)
