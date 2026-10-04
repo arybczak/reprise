@@ -36,6 +36,7 @@ handlerTests =
     , testCase "follow the playing song" test_followPlaying
     , testCase "an MPD error shows in the status bar" test_mpdError
     , testCase "a redraw for the elapsed time" test_tick
+    , testCase "a redraw for a stream without a length" test_tickWithoutDuration
     , testCase "a lost connection clears the player status" test_disconnectClears
     , testCase "jump to playing centers the cursor" test_jumpCenters
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
@@ -260,6 +261,17 @@ test_tick = do
   -- cell starts at 10.5 s, before the next second.
   case ticks of
     [d] -> assertBool ("delay " <> show d) (abs (d - 0.25) < 1e-9)
+    _ -> assertFailure $ "expected one tick, got " <> show ticks
+
+test_tickWithoutDuration :: Assertion
+test_tickWithoutDuration = do
+  let s = testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
+      stream = statusOf Playing (Just 0) 3 & #elapsed ?~ 10.25 & #duration .~ Nothing
+      r = runEvents 0 [StatusFetched stream] s
+      ticks = [d | After d (Tick _) <- r.commands]
+  -- Without a progress bar to move, the next change is the next second.
+  case ticks of
+    [d] -> assertBool ("delay " <> show d) (abs (d - 0.75) < 1e-9)
     _ -> assertFailure $ "expected one tick, got " <> show ticks
 
 ----------------------------------------

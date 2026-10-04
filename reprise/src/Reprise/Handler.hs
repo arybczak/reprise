@@ -611,15 +611,19 @@ nextRedraw :: AppState -> Maybe Double
 nextRedraw s = do
   st <- s.mirror.status
   guard $ st.state == Playing && isNothing s.seek
-  d <- realToFrac <$> st.duration
   e <- realToFrac <$> elapsedAt s.now s.mirror
-  guard $ e < d
   let width = fromIntegral (fst s.terminalSize)
       nextSecond = fromIntegral (floor @Double @Int e + 1) - e
-      nextCell
-        | width > 0 = (fromIntegral (floor @Double @Int (e / d * width) + 1) * d / width) - e
-        | otherwise = nextSecond
-  pure $ s.now + min nextSecond nextCell
+  delay <- case realToFrac <$> st.duration of
+    -- A stream has no length, so it has no progress bar to move.
+    Nothing -> Just nextSecond
+    Just d
+      | e >= d -> Nothing
+      | width > 0 ->
+          Just . min nextSecond $
+            (fromIntegral (floor @Double @Int (e / d * width) + 1) * d / width) - e
+      | otherwise -> Just nextSecond
+  pure $ s.now + delay
 
 updateWindowTitle :: App es => Eff es ()
 updateWindowTitle = do

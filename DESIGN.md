@@ -434,7 +434,8 @@ tests render it to text.
 
 The elapsed time is redrawn by a timer, not by polling. After each event, the
 handler computes when the screen next changes, the next whole second or the
-next cell of the progress bar, and sets a timer for then.
+next cell of the progress bar, and sets a timer for then. A stream without a
+length has no progress bar, so only the seconds count.
 
 The worker threads use `mpd-protocol` through a small `Mpd` effect. Actions
 never use it directly; they go through `MpdRequest`.
