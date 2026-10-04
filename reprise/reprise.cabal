@@ -11,7 +11,7 @@ synopsis:           A terminal client for the Music Player Daemon.
 
 description:
   A terminal client for the <https://www.musicpd.org Music Player Daemon>
-  (MPD), the successor of ncmpcpp.
+  (MPD).
 
 extra-doc-files:
   CHANGELOG.md

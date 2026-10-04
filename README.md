@@ -1,8 +1,7 @@
 # reprise
 
 A terminal client for the [Music Player Daemon](https://www.musicpd.org)
-(MPD), written in Haskell. It succeeds
-[ncmpcpp](https://github.com/ncmpcpp/ncmpcpp).
+(MPD).
 
 reprise is in early development. [DESIGN.md](DESIGN.md) describes what it will
 be and why.

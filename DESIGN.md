@@ -1,6 +1,6 @@
 # reprise: design
 
-reprise is a terminal client for MPD, written in Haskell. It succeeds
+reprise is a terminal client for MPD, written in Haskell. It draws on
 [ncmpcpp](https://github.com/ncmpcpp/ncmpcpp), which the same author started
 about 15 years ago in C++.
 
