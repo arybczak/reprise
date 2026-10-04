@@ -61,7 +61,7 @@ renderRow ctx flags song = case ctx.display of
     attr = toAttr ctx.colorMode
 
     render :: Format Style -> [Span Style]
-    render = renderFormat (renderContext ctx.lists) song
+    render = renderFormat ctx.lists.tagSeparator song
 
     column :: Column -> Int -> V.Image
     column c w =
@@ -93,9 +93,6 @@ renderTitles ctx =
     title c w =
       padded attr (ctx.lists.style <> c.style, mempty) c.align w $
         fitSpans w [Span Nothing c.title]
-
-renderContext :: ListsConfig -> RenderContext Style
-renderContext lists = RenderContext lists.tagSeparator [Span (Just lists.missingTagStyle) lists.missingTag]
 
 -- | Spans in a cell of exactly the given width, aligned and padded with
 -- spaces. Each span's style is the base, its own style, then the overlay.

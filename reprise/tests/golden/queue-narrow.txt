@@ -4,8 +4,8 @@ Some… 1      First Song    Great …  1:01
 Some… 2      Second Song   Great …  3:05
 Some… 3      A third song… Great …  4:00
 Zesp… 1/12   Zażółć gęślą… Płyta   1:02…
-日本…        曲            <empty>  0:30
-<emp…        5.flac        <empty>  0:05
+日本…        曲                     0:30
+             5.flac                 0:05
 
 
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅

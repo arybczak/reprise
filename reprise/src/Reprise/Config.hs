@@ -138,8 +138,6 @@ data ListsConfig = ListsConfig
   , playingStyle :: Style
   , keepCursorCentered :: Bool
   , ignoreLeadingThe :: Bool
-  , missingTag :: T.Text
-  , missingTagStyle :: Style
   , tagSeparator :: T.Text
   }
   deriving stock (Eq, Show, Generic)
@@ -318,8 +316,6 @@ defaultLists =
     , playingStyle = style "bold"
     , keepCursorCentered = False
     , ignoreLeadingThe = False
-    , missingTag = "<empty>"
-    , missingTagStyle = style "cyan"
     , tagSeparator = " | "
     }
 

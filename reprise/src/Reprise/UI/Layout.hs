@@ -291,7 +291,7 @@ playerStatus s = case (s.mirror.status, currentSong s.mirror) of
               _ -> ""
             right = [Span Nothing bitrate, Span (Just cfg.timeStyle) time]
             room = max 0 (fst s.terminalSize - textWidth label - spansWidth right - 1)
-            songSpans = renderFormat ctx song cfg.song
+            songSpans = renderFormat s.config.lists.tagSeparator song cfg.song
             shown
               | spansWidth songSpans <= room = songSpans
               | otherwise = [Span Nothing (scroll room (floor e) (spansText songSpans))]
@@ -300,12 +300,6 @@ playerStatus s = case (s.mirror.status, currentSong s.mirror) of
   where
     cfg :: StatusBarConfig
     cfg = s.config.statusBar
-
-    ctx :: RenderContext Style
-    ctx =
-      RenderContext
-        s.config.lists.tagSeparator
-        [Span (Just s.config.lists.missingTagStyle) s.config.lists.missingTag]
 
 -- | Text that doesn't fit, scrolled by one character for each second.
 scroll :: Int -> Int -> T.Text -> T.Text

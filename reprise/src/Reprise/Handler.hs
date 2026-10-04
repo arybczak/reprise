@@ -630,9 +630,8 @@ updateWindowTitle = do
   s <- getS
   forM_ s.config.windowTitle $ \fmt -> do
     let title = case (currentSong s.mirror, (.state) <$> s.mirror.status) of
-          (Just song, Just st) | st /= Stopped -> renderPlain ctx song fmt
+          (Just song, Just st) | st /= Stopped -> renderPlain s.config.lists.tagSeparator song fmt
           _ -> "reprise"
-        ctx = RenderContext s.config.lists.tagSeparator [Span Nothing s.config.lists.missingTag]
     when (s.windowTitle /= Just title) $ do
       modifyS $ #windowTitle ?~ title
       setTitle title

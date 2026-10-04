@@ -2,7 +2,7 @@
 --
 -- A format renders to styled spans. A tag that the song lacks makes its
 -- sequence missing, up to the nearest @[...]@, which then tries its next
--- alternative. A missing tag outside any @[...]@ renders as a marker.
+-- alternative. A missing tag outside any @[...]@ renders as nothing.
 module Reprise.Format
   ( -- * Formats
     Format (..)
@@ -20,7 +20,6 @@ module Reprise.Format
 
     -- * Rendering
   , Span (..)
-  , RenderContext (..)
   , renderFormat
   , renderPlain
   , fieldValue
@@ -288,38 +287,38 @@ data Span s = Span
   }
   deriving stock (Eq, Show)
 
-data RenderContext s = RenderContext
-  { tagSeparator :: T.Text
-  -- ^ Between the values of a tag with more than one value.
-  , missingTag :: [Span s]
-  -- ^ What a missing tag outside any @[...]@ renders as.
-  }
-
 -- | Render a format for a song. The styles of nested spans combine with
 -- '<>', the inner one laid over the outer one.
 renderFormat
-  :: forall s. (Eq s, Semigroup s) => RenderContext s -> Song -> Format s -> [Span s]
-renderFormat ctx song (Format items) = mergeSpans . fromMaybe [] $ renderItems True Nothing items
+  :: forall s
+   . (Eq s, Semigroup s)
+  => T.Text
+  -- ^ The separator of the values of a tag with more than one value.
+  -> Song
+  -> Format s
+  -> [Span s]
+renderFormat separator song (Format items) =
+  mergeSpans . fromMaybe [] $ renderItems True Nothing items
   where
     -- Nothing means that a field is missing. At the top level, a missing
-    -- field renders as the marker instead.
+    -- field renders as nothing instead, and the rest of the format stays.
     renderItems :: Bool -> Maybe s -> [Item s] -> Maybe [Span s]
     renderItems topLevel style is = concat <$> traverse (renderItem topLevel style) is
 
     renderItem :: Bool -> Maybe s -> Item s -> Maybe [Span s]
     renderItem topLevel style = \case
       Literal t -> Just [Span style t]
-      FieldItem f width -> case fieldValue ctx.tagSeparator song f of
+      FieldItem f width -> case fieldValue separator song f of
         Just v -> Just [Span style (maybe v (`truncateToWidth` v) width)]
         Nothing
-          | topLevel -> Just [Span (style <> s.style) s.text | s <- ctx.missingTag]
+          | topLevel -> Just []
           | otherwise -> Nothing
       Alternatives as -> Just . fromMaybe [] . listToMaybe $ mapMaybe (renderItems False style) as
       Styled s is -> renderItems topLevel (style <> Just s) is
 
 -- | Render a format without styles to text.
-renderPlain :: RenderContext Void -> Song -> Format Void -> T.Text
-renderPlain ctx song = spansText . renderFormat ctx song
+renderPlain :: T.Text -> Song -> Format Void -> T.Text
+renderPlain separator song = spansText . renderFormat separator song
 
 -- | The value of a field, if the song has it and it isn't empty.
 fieldValue :: T.Text -> Song -> Field -> Maybe T.Text
