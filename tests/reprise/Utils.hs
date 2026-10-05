@@ -10,6 +10,7 @@ module Utils
   , runEvents
   , Result (..)
   , replyTo
+  , failureOf
 
     -- * Images
   , imageLines
@@ -123,8 +124,12 @@ runEvents now events s0 = L.foldl' step (Result s0 [] [] []) events
 -- | The event of a request's continuation, for a reply of the given lines
 -- before its @OK@.
 replyTo :: [BS.ByteString] -> PendingRequest -> AppEvent
-replyTo ls (PendingRequest cmd k) =
+replyTo ls (PendingRequest cmd _ k) =
   either (error . show) k $ parseCommandReply cmd =<< parseReply (ls <> ["OK"])
+
+-- | The event of a request's failure.
+failureOf :: MpdError -> PendingRequest -> AppEvent
+failureOf err (PendingRequest _ onFailure _) = onFailure err
 
 ----------------------------------------
 -- Images

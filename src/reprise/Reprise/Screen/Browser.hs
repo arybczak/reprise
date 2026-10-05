@@ -12,10 +12,12 @@ module Reprise.Screen.Browser
   , openBrowser
   , relistBrowser
   , browserListed
+  , browserFailed
   , activateItem
   , leave
   ) where
 
+import Control.Exception
 import Data.Foldable
 import Data.Map.Strict qualified as M
 import Data.Sequence qualified as Seq
@@ -136,13 +138,14 @@ leave = do
   b <- getsS (.browser)
   forM_ (maybe b.location (Just . (.location)) b.listing) $ \location ->
     forM_ (parentOf location) $ \up -> list up (Just location)
-  where
-    parentOf :: Location -> Maybe Location
-    parentOf = \case
-      InDirectory "" -> Nothing
-      InDirectory path -> Just $ InDirectory (directoryOf path)
-      InPlaylist path -> Just $ InDirectory (directoryOf path)
 
+-- | The directory that a directory or a playlist is in.
+parentOf :: Location -> Maybe Location
+parentOf = \case
+  InDirectory "" -> Nothing
+  InDirectory path -> Just $ InDirectory (directoryOf path)
+  InPlaylist path -> Just $ InDirectory (directoryOf path)
+  where
     directoryOf :: T.Text -> T.Text
     directoryOf = T.dropEnd 1 . fst . T.breakOnEnd "/"
 
@@ -151,8 +154,24 @@ list location cursorOn = do
   token <- newToken
   modifyS $ #browser % #listing ?~ Listing token location cursorOn
   case location of
-    InDirectory path -> request (lsInfo path) (BrowserListed token)
-    InPlaylist name -> request (map SongEntry <$> listPlaylistInfo name) (BrowserListed token)
+    InDirectory path -> requestOr (lsInfo path) (BrowserFailed token) (BrowserListed token)
+    InPlaylist name ->
+      requestOr
+        (map SongEntry <$> listPlaylistInfo name)
+        (BrowserFailed token)
+        (BrowserListed token)
+
+-- | Go up from a directory or a playlist that is gone, until one exists, as
+-- ncmpcpp does. Another error shows, and the browser stays as it was.
+browserFailed :: App es => Int -> MpdError -> Eff es ()
+browserFailed token err =
+  getsS (.browser.listing) >>= \case
+    Just l | l.token == token -> case (err, parentOf l.location) of
+      (AckError ack, Just up) | ack.code == AckNoExist -> list up Nothing
+      _ -> do
+        modifyS $ #browser % #listing .~ Nothing
+        showError . T.pack $ displayException err
+    _ -> keepScreen
 
 -- | Show the entries of the latest listing. The reply to a listing that a
 -- newer one replaced changes nothing.

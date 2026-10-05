@@ -459,11 +459,12 @@ Each thread is a plain blocking loop. ncmpcpp uses one connection and sends
 
 Requests are asynchronous: a request carries a `Command a` and a continuation
 `a -> AppEvent`, so the UI never blocks.
-- If the command fails, the worker catches the `MpdError` and sends one
-  `MpdFailed` event with the request lines instead of the continuation's
-  event. An exception can't reach the UI thread, so this is where it becomes
-  a value. Errors are handled in one place: the status bar shows them, and
-  later the password prompt can retry the failed request there.
+- If the command fails, the worker catches the `MpdError` and sends the
+  request's failure event instead of the continuation's event. An exception
+  can't reach the UI thread, so this is where it becomes a value. Unless a
+  query names its own (see below), the failure event is `MpdFailed` with the
+  request lines, so errors are handled in one place: the status bar shows
+  them, and later the password prompt can retry the failed request there.
 - Mutations (play, delete, move, ...) don't need the reply. The new state comes
   back through `idle`.
 - Queries (`lsinfo`, `find`, ...) deliver their result to the screen that asked

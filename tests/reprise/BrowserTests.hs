@@ -26,6 +26,8 @@ browserTests =
     , testCase "a playlist opens like a directory" test_playlist
     , testCase "a replaced listing is dropped" test_replacedListing
     , testCase "a new connection lists again" test_reconnect
+    , testCase "the browser goes up from a directory that is gone" test_gone
+    , testCase "another error of a listing shows" test_listingError
     ]
 
 test_showLists :: Assertion
@@ -89,8 +91,33 @@ test_reconnect = do
   let never = runEvents 0 [MpdConnected (Version 0 24 0)] queueShown
   assertBool "no listing" (all (all ((/= "lsinfo") . (.command))) never.requests)
 
+test_gone :: Assertion
+test_gone = do
+  let entered = press ["down", "enter"] root
+      gone = AckError (Ack AckNoExist 0 "lsinfo" "No such directory")
+      r = failLast gone entered
+  assertEqual "the listing of the root" [[Request "lsinfo" []]] r.requests
+  assertEqual "no error" Nothing r.state.message
+
+test_listingError :: Assertion
+test_listingError = do
+  let entered = press ["down", "enter"] root
+      denied = AckError (Ack AckPermission 0 "lsinfo" "you don't have permission")
+      r = failLast denied entered
+  assertEqual "no listing" [] r.requests
+  assertEqual "the error" (Just True) ((.isError) <$> r.state.message)
+  assertEqual "the root stays" ["directory a", "directory b", "playlist p"] (items r.state)
+  -- Not up from b, which failed.
+  assertEqual "keys go on from the root" [] (press ["backspace"] r.state).requests
+
 ----------------------------------------
 -- Helpers
+
+-- | Fail the last request of a result.
+failLast :: MpdError -> Result -> Result
+failLast err r = case reverse r.pending of
+  p : _ -> runEvents 0 [failureOf err p] r.state
+  [] -> error "no request to fail"
 
 queueShown :: AppState
 queueShown = testState (80, 12) (statusOf Stopped Nothing 0) []

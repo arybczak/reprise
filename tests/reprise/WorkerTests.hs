@@ -25,7 +25,7 @@ workerTests =
   testGroup
     "Worker"
     [ testCase "a command runs again after MPD closed the connection" test_retryClosed
-    , testCase "a failed command sends MpdFailed" test_failed
+    , testCase "a failed command sends its failure event" test_failed
     , testCase "a broken connection is closed" test_broken
     ]
 
@@ -66,7 +66,10 @@ runWorker outcomes commands = do
           , logLine = \_ -> pure ()
           , requests = requests
           }
-  atomically $ mapM_ (writeTQueue requests . (`PendingRequest` const MpdDone)) commands
+  -- With the failure event of 'request'.
+  atomically . forM_ commands $ \cmd ->
+    writeTQueue requests $
+      PendingRequest cmd (MpdFailed (commandRequests cmd)) (const MpdDone)
   let worker = forkIO . runEff . runScripted outcomesRef callsRef $ commandWorker workers
       collect = do
         received <- mapM (const . atomically $ readTQueue events) commands

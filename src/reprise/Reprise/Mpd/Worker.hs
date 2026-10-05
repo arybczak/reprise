@@ -52,7 +52,7 @@ idleWorker w = forever $ do
 -- | Run the requests one at a time and send the events of their replies.
 commandWorker :: (Mpd :> es, IOE :> es) => Workers -> Eff es ()
 commandWorker w = forever $ do
-  PendingRequest cmd k <- liftIO . atomically $ readTQueue w.requests
+  PendingRequest cmd onFailure k <- liftIO . atomically $ readTQueue w.requests
   try (runCommand cmd `catch` retryClosed cmd) >>= \case
     Right a -> liftIO . w.emit $ k a
     Left err -> do
@@ -62,7 +62,7 @@ commandWorker w = forever $ do
           disconnectMpd
         ProtocolError _ -> logError w err
         AckError _ -> pure ()
-      liftIO . w.emit $ MpdFailed (commandRequests cmd) err
+      liftIO . w.emit $ onFailure err
   where
     -- MPD closes a connection that was unused for a while, before it runs
     -- the command, so the command runs again on a new connection.

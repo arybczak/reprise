@@ -30,6 +30,8 @@ data AppEvent
   | StatusFetched Status
   | -- | The entries of the browser's listing with the token.
     BrowserListed Int [Entry]
+  | -- | The browser's listing with the token failed.
+    BrowserFailed Int MpdError
   | ReplayGainFetched ReplayGainMode
   | -- | The reply to a command that changes MPD's state. The new state comes
     -- through idle.

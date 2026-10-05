@@ -11,6 +11,7 @@ module Reprise.Effect.MpdRequest
 
     -- ** Operations
   , request
+  , requestOr
   , mutate
   ) where
 
@@ -22,28 +23,38 @@ import Effectful.Output.Static.Local.List
 import Reprise.Event
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Request
+import Reprise.Mpd.Protocol.Types
 
 data MpdRequest :: Effect where
-  RequestCommand :: Command a -> (a -> AppEvent) -> MpdRequest m ()
+  RequestCommand
+    :: Command a -> (MpdError -> AppEvent) -> (a -> AppEvent) -> MpdRequest m ()
 
 type instance DispatchOf MpdRequest = Dynamic
 
--- | A command with its continuation. If the command fails, the event is
--- 'MpdFailed' instead.
-data PendingRequest = forall a. PendingRequest (Command a) (a -> AppEvent)
+-- | A command with the event of its failure and the continuation of its
+-- reply.
+data PendingRequest
+  = forall a. PendingRequest (Command a) (MpdError -> AppEvent) (a -> AppEvent)
 
 -- | The request lines of a pending request, e.g. for a test.
 pendingRequestLines :: PendingRequest -> [Request]
-pendingRequestLines (PendingRequest cmd _) = commandRequests cmd
+pendingRequestLines (PendingRequest cmd _ _) = commandRequests cmd
 
 -- | Collect the requests, in the order the action made them.
 collectMpdRequests :: Eff (MpdRequest : es) a -> Eff es (a, [PendingRequest])
 collectMpdRequests = reinterpret_ runOutput $ \case
-  RequestCommand cmd k -> output $ PendingRequest cmd k
+  RequestCommand cmd onFailure k -> output $ PendingRequest cmd onFailure k
 
--- | Request a command, with a continuation for its reply.
+-- | Request a command, with a continuation for its reply. A failure is
+-- 'MpdFailed', which shows the error.
 request :: MpdRequest :> es => Command a -> (a -> AppEvent) -> Eff es ()
-request cmd k = send $ RequestCommand cmd k
+request cmd = requestOr cmd (MpdFailed (commandRequests cmd))
+
+-- | Request a command, with an event for its failure, for a requester that
+-- can recover from it.
+requestOr
+  :: MpdRequest :> es => Command a -> (MpdError -> AppEvent) -> (a -> AppEvent) -> Eff es ()
+requestOr cmd onFailure k = send $ RequestCommand cmd onFailure k
 
 -- | Request a command that changes MPD's state. Its effect comes back
 -- through idle. A command without requests, e.g. a move of songs that are

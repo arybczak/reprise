@@ -107,6 +107,7 @@ handleEvent = \case
     now <- getsS (.now)
     updateMirror $ setStatus now st
   BrowserListed token entries -> browserListed token entries
+  BrowserFailed token err -> browserFailed token err
   ReplayGainFetched mode -> do
     let nextMode = case mode of
           ReplayGainOff -> ReplayGainTrack
