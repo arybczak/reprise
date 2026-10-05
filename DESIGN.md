@@ -399,6 +399,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded. Later "ignore leading the" collation |
+| `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
 | `Reprise.Width` | The width of text in terminal columns, cutting text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs |

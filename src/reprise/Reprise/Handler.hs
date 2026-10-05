@@ -297,25 +297,35 @@ answer purpose text = case purpose of
 
 runAction :: App es => Action -> Eff es ()
 runAction = \case
-  Move t -> do
-    screen <- getsS ((.screen) . focusedView)
-    case screen of
-      QueueScreen -> modifyWithEnv (moveQueueCursor t)
-      HelpScreen -> scrollHelp t
-      _ -> showMessage $ "The " <> screenText screen <> " has no " <> renderAction (Move t)
+  action@(Move t) -> verb action $ \case
+    QueueScreen -> Just $ modifyWithEnv (moveQueueCursor t)
+    HelpScreen -> Just $ scrollHelp t
+    _ -> Nothing
   JumpToPlaying -> do
     modifyWithEnv . modifyView $ switchScreen QueueScreen
     modifyWithEnv jumpToPlaying
-  action@Activate -> onQueue action activate
-  action@(Select t) -> onQueue action $ select t
-  action@Delete -> onQueue action deleteMarked
-  action@(Priority p) -> onQueue action $ prioritize p
-  action@(MoveSelection t) -> onQueue action $ moveSelection t
-  action@(Find t) -> onQueue action $ case t of
-    FindForward -> modifyS (startFind Forward)
-    FindBackward -> modifyS (startFind Backward)
-    FindNext -> findAgain Forward
-    FindPrevious -> findAgain Backward
+  action@Activate -> verb action $ \case
+    QueueScreen -> Just activate
+    _ -> Nothing
+  action@(Select t) -> verb action $ \case
+    QueueScreen -> Just $ select t
+    _ -> Nothing
+  action@Delete -> verb action $ \case
+    QueueScreen -> Just deleteMarked
+    _ -> Nothing
+  action@(Priority p) -> verb action $ \case
+    QueueScreen -> Just $ prioritize p
+    _ -> Nothing
+  action@(MoveSelection t) -> verb action $ \case
+    QueueScreen -> Just $ moveSelection t
+    _ -> Nothing
+  action@(Find t) -> verb action $ \case
+    QueueScreen -> Just $ case t of
+      FindForward -> modifyS (startFind Forward)
+      FindBackward -> modifyS (startFind Backward)
+      FindNext -> findAgain Forward
+      FindPrevious -> findAgain Backward
+    _ -> Nothing
   Crossfade n -> mutate $ setCrossfade n
   AddPath path -> mutate $ add path Nothing
   CommandPrompt start ->
@@ -369,14 +379,14 @@ runAction = \case
     showMessage "Updating the database"
   action -> notAvailable $ "The action " <> renderAction action
 
--- | Run a verb that only the queue implements so far. Another screen says
--- that it doesn't implement it, instead of acting on the queue.
-onQueue :: App es => Action -> Eff es () -> Eff es ()
-onQueue action k = do
+-- | Run a verb the way the focused screen implements it. A screen that
+-- doesn't implement it says so, instead of acting on another screen.
+verb :: App es => Action -> (ScreenName -> Maybe (Eff es ())) -> Eff es ()
+verb action implementation = do
   screen <- getsS ((.screen) . focusedView)
-  if screen == QueueScreen
-    then k
-    else showMessage $ "The " <> screenText screen <> " has no " <> renderAction action
+  case implementation screen of
+    Just k -> k
+    Nothing -> showMessage $ "The " <> screenText screen <> " has no " <> renderAction action
 
 -- | Run a destructive action that the user confirmed.
 runConfirmed :: App es => Action -> Eff es ()

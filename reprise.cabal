@@ -114,6 +114,7 @@ library
                      Reprise.Event
                      Reprise.Find
                      Reprise.Format
+                     Reprise.Groups
                      Reprise.Handler
                      Reprise.Handler.Core
                      Reprise.Keymap

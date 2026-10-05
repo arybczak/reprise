@@ -26,11 +26,9 @@ module Reprise.Screen.Queue
   , findAgain
   ) where
 
-import Control.Applicative
 import Control.Monad
 import Data.Char
 import Data.Foldable
-import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
@@ -43,6 +41,7 @@ import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Find
+import Reprise.Groups
 import Reprise.Handler.Core
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
@@ -124,37 +123,6 @@ jumpToPlaying env s =
        Just p
          | v.screen == QueueScreen -> jumpTo p env s
          | otherwise -> s & #views % ix s.focus % #positions % at QueueScreen ?~ (p, p - h `div` 2)
-
--- | What tells artists apart: the album artist, or the artist without one,
--- so that a compilation whose songs have different artists is one artist.
-artistKey :: Song -> Maybe [T.Text]
-artistKey song = M.lookup AlbumArtist song.tags <|> M.lookup Artist song.tags
-
--- | What tells albums apart: the artist and the album. The album alone
--- would join albums of different artists with the same name, e.g. two
--- greatest hits next to each other.
-albumKey :: Song -> (Maybe [T.Text], Maybe [T.Text])
-albumKey song = (artistKey song, M.lookup Album song.tags)
-
--- | The first item after the group of the item at the index.
-nextGroup :: Eq k => (Song -> k) -> Seq.Seq Song -> Int -> Int
-nextGroup key q c = case Seq.lookup c q of
-  Nothing -> c
-  Just song ->
-    maybe (Seq.length q - 1) (+ (c + 1)) $
-      Seq.findIndexL ((/= key song) . key) (Seq.drop (c + 1) q)
-
--- | The first item of the group of the item at the index, or of the group
--- before it if the item is already the first.
-previousGroup :: Eq k => (Song -> k) -> Seq.Seq Song -> Int -> Int
-previousGroup key q c
-  | c <= 0 = 0
-  | otherwise =
-      let start i = case Seq.lookup i q of
-            Nothing -> i
-            Just song -> maybe 0 (+ 1) $ Seq.findIndexR ((/= key song) . key) (Seq.take i q)
-          s = start c
-      in if s < c then s else start (c - 1)
 
 ----------------------------------------
 -- Selection

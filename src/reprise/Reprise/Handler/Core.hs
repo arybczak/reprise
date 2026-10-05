@@ -132,7 +132,8 @@ restoreView :: (Int, Int) -> AppEnv -> AppState -> AppState
 restoreView (c, o) = modifyView $ (#cursor .~ c) . (#offset .~ o)
 
 -- | Change the focused view, then keep its cursor in the list and visible.
--- A screen of text has no cursor, so only its offset is kept in the text.
+-- The help screen is text without a cursor, so only its offset is kept in
+-- the text.
 modifyView :: (View -> View) -> AppEnv -> AppState -> AppState
 modifyView f env s =
   s
@@ -142,7 +143,7 @@ modifyView f env s =
           h = max 1 (listHeight env s v')
           c = max 0 (min (n - 1) v'.cursor)
           o
-            | v'.screen /= QueueScreen = v'.offset
+            | v'.screen == HelpScreen = v'.offset
             | env.config.lists.keepCursorCentered = c - h `div` 2
             | c < v'.offset = c
             | c >= v'.offset + h = c - h + 1
