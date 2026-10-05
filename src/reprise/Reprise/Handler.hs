@@ -36,6 +36,7 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
 import Reprise.Screen.Help
 import Reprise.Screen.Queue
+import Reprise.Selection
 import Reprise.State
 
 -- | Handle an event at a monotonic time, with pure handlers that collect the
@@ -178,7 +179,7 @@ updateMirror f = do
   -- Songs that left the queue leave the selection.
   when (new.queueVersion /= old.queueVersion) $ do
     let ids = S.fromList . mapMaybe (.songId) $ toList new.queue
-    modifyS $ modifySelection (`S.intersection` ids)
+    modifyS $ #queueState % #selection %~ restrictTo ids
   modifyWithEnv (modifyView id)
   s <- getS
   let oldId = old.status >>= (.currentId)
@@ -333,6 +334,7 @@ runAction = \case
     _ -> Nothing
   action@(Select t) -> verb action $ \case
     QueueScreen -> Just $ select t
+    BrowserScreen -> Just $ selectInBrowser t
     _ -> Nothing
   action@Delete -> verb action $ \case
     QueueScreen -> Just deleteMarked
@@ -388,9 +390,9 @@ runAction = \case
   Shuffle -> do
     s <- getS
     let n = queueLength s.mirror
-    case runs (selectedPositions s) of
+    case runs (selectedSongPositions s) of
       _
-        | (focusedView s).screen /= QueueScreen || null (selectedPositions s) ->
+        | (focusedView s).screen /= QueueScreen || null (selectedSongPositions s) ->
             if n < 2
               then showMessage "There is nothing to shuffle"
               else

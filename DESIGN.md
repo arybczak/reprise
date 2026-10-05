@@ -172,6 +172,9 @@ ncmpcpp.
     without a selection.
   - The queue keeps the selection by song id, so it follows the songs when
     they move and loses the songs that leave the queue.
+  - The browser keeps the selection by entry while it lists the same
+    directory or playlist, also when it lists it again. Leaving it clears
+    the selection. `..` can't be selected.
   - Select range fills the selection between the last two items that the
     user selected, so selecting both ends and then the range works as in
     ncmpcpp. ncmpcpp fills between the first and the last selected item,
@@ -409,7 +412,8 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
 | `Reprise.Collation` | The order of text by the rules of a locale, with a leading "the" ignored if the config says so. The tests use ICU's root rules, so that they don't depend on the locale |
-| `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list |
+| `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list, and runs of consecutive positions |
+| `Reprise.Selection` | The selection of a list by the keys of its items, with the ends of the next range. `Reprise.Handler.Core` applies the select actions to any list with it |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
 | `Reprise.Width` | The width of text in terminal columns, cutting text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |

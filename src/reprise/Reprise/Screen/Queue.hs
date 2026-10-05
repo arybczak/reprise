@@ -10,8 +10,7 @@ module Reprise.Screen.Queue
 
     -- * Selection
   , select
-  , selectedPositions
-  , modifySelection
+  , selectedSongPositions
 
     -- * Changes
   , activate
@@ -31,7 +30,6 @@ import Data.Char
 import Data.Foldable
 import Data.Maybe
 import Data.Sequence qualified as Seq
-import Data.Set qualified as S
 import Data.Text qualified as T
 import Effectful
 import Graphics.Vty qualified as V
@@ -48,6 +46,7 @@ import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Queue.Edits
+import Reprise.Selection
 import Reprise.State
 import Reprise.UI.SongList
 
@@ -85,7 +84,7 @@ queueView env s v =
           ctx
           RowFlags
             { playing = isJust playingId && song.songId == playingId
-            , selected = maybe False (`S.member` s.queueState.selection) song.songId
+            , selected = maybe False (`isSelected` s.queueState.selection) song.songId
             , found = isFound
             , cursor = i == v.cursor && cursorVisible s
             }
@@ -114,91 +113,36 @@ jumpToPlaying env s =
 -- Selection
 
 -- | The positions of the selected songs of the queue, in order.
-selectedPositions :: AppState -> [Int]
-selectedPositions s =
-  [ i
-  | (i, song) <- zip [0 ..] (toList s.mirror.queue)
-  , maybe False (`S.member` s.queueState.selection) song.songId
-  ]
+selectedSongPositions :: AppState -> [Int]
+selectedSongPositions s = selectedPositions ((.songId) <$> s.mirror.queue) s.queueState.selection
 
 -- | The positions of the songs that an action applies to: the selected
 -- songs, or the song under the cursor without a selection.
 markedPositions :: AppState -> [Int]
-markedPositions s = case selectedPositions s of
+markedPositions s = case selectedSongPositions s of
   [] -> [c | let c = (focusedView s).cursor, c >= 0, c < queueLength s.mirror]
   ps -> ps
 
 select :: App es => SelectTarget -> Eff es ()
-select = \case
-  SelectItem andMove -> do
-    withSongUnderCursor $ \song -> forM_ song.songId $ \i -> do
-      selected <- getsS ((i `S.member`) . (.queueState.selection))
-      modifyS . modifySelection $ if selected then S.delete i else S.insert i
-      modifyS $
-        #queueState % #lastSelected %~ \ends ->
-          (if selected then id else take rangeEnds . (i :)) (filter (/= i) ends)
-    forM_ andMove (modifyWithEnv . moveQueueCursor)
-  -- Between the last two songs that the user selected, so that a range
-  -- doesn't swallow the songs between it and an earlier selection. Without
-  -- them, between the first and the last selected song, as in ncmpcpp.
-  SelectRange -> do
-    s <- getS
-    let positionOf i = Seq.findIndexL ((== Just i) . (.songId)) s.mirror.queue
-        ends =
-          mapMaybe positionOf $
-            filter (`S.member` s.queueState.selection) s.queueState.lastSelected
-    case if length ends == rangeEnds then ends else selectedPositions s of
-      [] -> showMessage "Select the first and the last song of the range first"
-      ps -> do
-        addToSelection [minimum ps .. maximum ps]
-        showMessage "Range selected"
-  SelectInvert -> do
-    ids <- getsS (S.fromList . mapMaybe (.songId) . toList . (.mirror.queue))
-    modifyS $ modifySelection (ids S.\\)
-    showMessage "Selection inverted"
-  SelectNone -> do
-    modifyS $ modifySelection (const S.empty)
-    showMessage "Selection cleared"
-  SelectAlbum -> selectGroup albumKey "Album"
-  SelectArtist -> selectGroup artistKey "Artist"
-  SelectFound -> do
-    rows <- queueRows
-    s <- getS
-    case compilePattern <$> s.queueState.findPattern of
-      Nothing -> showMessage "Nothing was found yet"
-      Just (Left err) -> showError (capitalize err)
-      Just (Right p) -> case matchAll p rows of
-        Left err -> showError (capitalize err)
-        Right found -> do
-          let ps = [i | (i, True) <- zip [0 ..] (toList found)]
-          addToSelection ps
-          showMessage $ countSongs (length ps) <> " found and selected"
-  where
-    -- The songs next to each other around the cursor with its song's key.
-    selectGroup :: (App es, Eq k) => (Song -> k) -> T.Text -> Eff es ()
-    selectGroup key name = do
+select t = do
+  q <- getsS (.mirror.queue)
+  case t of
+    SelectFound -> do
+      rows <- queueRows
       s <- getS
-      let q = s.mirror.queue
-          c = (focusedView s).cursor
-      forM_ (Seq.lookup c q) $ \song -> do
-        let same i = (key <$> Seq.lookup i q) == Just (key song)
-            earlier = takeWhile same [c - 1, c - 2 .. 0]
-            later = takeWhile same [c + 1 .. Seq.length q - 1]
-        addToSelection (earlier <> [c] <> later)
-        showMessage $ name <> " around the cursor selected"
-
-    -- The first and the last song.
-    rangeEnds :: Int
-    rangeEnds = 2
-
-    addToSelection :: App es => [Int] -> Eff es ()
-    addToSelection ps = do
-      q <- getsS (.mirror.queue)
-      let ids = S.fromList $ mapMaybe (\i -> Seq.lookup i q >>= (.songId)) ps
-      modifyS $ modifySelection (S.union ids)
-
-modifySelection :: (S.Set SongId -> S.Set SongId) -> AppState -> AppState
-modifySelection f = #queueState % #selection %~ f
+      case compilePattern <$> s.queueState.findPattern of
+        Nothing -> showMessage "Nothing was found yet"
+        Just (Left err) -> showError (capitalize err)
+        Just (Right p) -> case matchAll p rows of
+          Left err -> showError (capitalize err)
+          Right found -> do
+            let ids = [i | (Just i, True) <- zip (toList ((.songId) <$> q)) (toList found)]
+            modifyS $ #queueState % #selection %~ addKeys ids
+            showMessage $ countSongs (length ids) <> " found and selected"
+    _ -> selectInList (#queueState % #selection) ((\song -> (song.songId, Just song)) <$> q) t
+  case t of
+    SelectItem (Just m) -> modifyWithEnv (moveQueueCursor m)
+    _ -> pure ()
 
 withSongUnderCursor :: App es => (Song -> Eff es ()) -> Eff es ()
 withSongUnderCursor k = do
@@ -242,7 +186,7 @@ moveSelection t = do
     MoveSelectionDown -> do
       mutate $ moveDown n ps
       follow (\_ b -> b < n - 1) 1
-    MoveSelectionToCursor -> case selectedPositions s of
+    MoveSelectionToCursor -> case selectedSongPositions s of
       [] -> showMessage "Select the songs to move first"
       selected -> case moveBefore selected c of
         Just cmd -> mutate cmd

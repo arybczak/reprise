@@ -22,6 +22,7 @@ import Reprise.Handler
 import Reprise.Keys
 import Reprise.Mpd.Mirror hiding (queueLength)
 import Reprise.Mpd.Protocol.Types
+import Reprise.Selection
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.Layout
@@ -137,7 +138,7 @@ keys ks s = L.foldl' (flip handle) s (map key ks)
 settled :: AppState -> Int
 settled s =
   Seq.length s.mirror.queue
-    + S.size s.queueState.selection
+    + S.size s.queueState.selection.keys
     + Seq.length s.browser.items
     + (focusedView s).cursor
     + (focusedView s).offset

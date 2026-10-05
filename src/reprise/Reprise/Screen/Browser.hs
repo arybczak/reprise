@@ -23,6 +23,9 @@ module Reprise.Screen.Browser
   , addOrRemove
   , browserDirectory
 
+    -- * Selection
+  , selectInBrowser
+
     -- * Sorting
   , nextSortMode
   ) where
@@ -35,6 +38,7 @@ import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Ord
 import Data.Sequence qualified as Seq
+import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Time
 import Data.Void
@@ -54,6 +58,7 @@ import Reprise.Handler.Core
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
+import Reprise.Selection
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.SongList
@@ -73,7 +78,13 @@ browserView env s v =
           }
       visible = Seq.take (listHeight env s v) (Seq.drop v.offset s.browser.items)
       row i item =
-        let flags = RowFlags {playing = False, selected = False, found = False, cursor = i == v.cursor}
+        let flags =
+              RowFlags
+                { playing = False
+                , selected = isSelected (itemKey item) s.browser.selection
+                , found = False
+                , cursor = i == v.cursor
+                }
         in case item of
              ParentItem -> renderOtherRow ctx flags [Span Nothing ".."]
              EntryItem (DirectoryEntry d) ->
@@ -206,18 +217,42 @@ browserFailed token err =
     _ -> keepScreen
 
 -- | Show the entries of the latest listing. The reply to a listing that a
--- newer one replaced changes nothing.
+-- newer one replaced changes nothing. The selection stays in a listing of
+-- the same, without the items that are gone.
 browserListed :: App es => Int -> [Entry] -> Eff es ()
 browserListed token entries =
   getsS (.browser.listing) >>= \case
     Just l | l.token == token -> do
       env <- getAppEnv
-      by <- getsS (.toggles.browserSort)
-      modifyS $
-        #browser
-          .~ BrowserState (Just l.location) entries (arrange env by l.location entries) Nothing
+      s <- getS
+      let items = arrange env s.toggles.browserSort l.location entries
+          selection
+            | s.browser.location == Just l.location =
+                restrictTo (S.fromList (map itemKey (toList items))) s.browser.selection
+            | otherwise = noSelection
+      modifyS $ #browser .~ BrowserState (Just l.location) entries items selection Nothing
       modifyWithEnv $ placeCursor l.cursor
     _ -> keepScreen
+
+----------------------------------------
+-- Selection
+
+selectInBrowser :: App es => SelectTarget -> Eff es ()
+selectInBrowser t = do
+  items <- getsS (.browser.items)
+  case t of
+    SelectFound -> notAvailable "Selecting what a find found in the browser"
+    _ -> selectInList (#browser % #selection) (selectable <$> items) t
+  case t of
+    SelectItem (Just m) -> modifyWithEnv (moveBrowserCursor m)
+    _ -> pure ()
+  where
+    -- @..@ can't be selected.
+    selectable :: BrowserItem -> (Maybe ItemKey, Maybe Song)
+    selectable = \case
+      ParentItem -> (Nothing, Nothing)
+      item@(EntryItem (SongEntry song)) -> (Just (itemKey item), Just song)
+      item -> (Just (itemKey item), Nothing)
 
 ----------------------------------------
 -- Adding
@@ -313,10 +348,15 @@ queuedIds song s =
   , Just i <- [queued.songId]
   ]
 
--- | The items that an action applies to, in their order: the item under the
--- cursor. @..@ is never one.
+-- | The items that an action applies to, in their order: the selected
+-- items, or the item under the cursor without a selection. @..@ is never
+-- one.
 markedItems :: AppState -> [(Int, BrowserItem)]
-markedItems s = filter ((/= ParentItem) . snd) . toList $ cursorItem s
+markedItems s =
+  filter ((/= ParentItem) . snd) $
+    case selectedPositions (Just . itemKey <$> s.browser.items) s.browser.selection of
+      [] -> toList $ cursorItem s
+      ps -> [(i, item) | i <- ps, Just item <- [Seq.lookup i s.browser.items]]
 
 cursorItem :: AppState -> Maybe (Int, BrowserItem)
 cursorItem s =

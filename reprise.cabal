@@ -128,6 +128,7 @@ library
                      Reprise.Screen.Help
                      Reprise.Screen.Queue
                      Reprise.Screen.Queue.Edits
+                     Reprise.Selection
                      Reprise.State
                      Reprise.Style
                      Reprise.UI.Layout

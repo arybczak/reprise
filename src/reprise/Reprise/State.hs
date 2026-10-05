@@ -49,7 +49,6 @@ module Reprise.State
 
 import Data.Map.Strict qualified as M
 import Data.Sequence qualified as Seq
-import Data.Set qualified as S
 import Data.Text qualified as T
 import GHC.Generics
 import Optics.Core
@@ -64,6 +63,7 @@ import Reprise.Keys
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
+import Reprise.Selection
 import Reprise.Style
 
 -- | What doesn't change while reprise runs. The handlers read it through
@@ -170,11 +170,8 @@ data SeekState = SeekState
 -- | The content of the queue screen that isn't MPD's: the songs come from
 -- the mirror.
 data QueueState = QueueState
-  { selection :: S.Set SongId
+  { selection :: Selection SongId
   -- ^ By id, so that the selection follows the songs when they move.
-  , lastSelected :: [SongId]
-  -- ^ The songs that the user selected last, the latest first: the ends of
-  -- the next range.
   , findPattern :: Maybe T.Text
   -- ^ The pattern of the last find, for the next and the previous match.
   , findRows :: Maybe FindRows
@@ -200,6 +197,8 @@ data BrowserState = BrowserState
   -- ^ In MPD's order, for another sort.
   , items :: Seq.Seq BrowserItem
   -- ^ The entries in the order of the sort, after @..@.
+  , selection :: Selection ItemKey
+  -- ^ Of the items of what the browser lists.
   , listing :: Maybe Listing
   -- ^ The listing that was requested last, until its reply comes.
   }
@@ -247,7 +246,7 @@ data ItemKey
   | DirectoryKey T.Text
   | SongKey T.Text (Maybe SongRange)
   | PlaylistKey T.Text
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | Settings that the user can toggle while reprise runs. They start from
 -- the config.
@@ -305,8 +304,8 @@ initialState config =
   AppState
     { connection = Connecting
     , mirror = emptyMirror
-    , queueState = QueueState S.empty [] Nothing Nothing
-    , browser = BrowserState Nothing [] Seq.empty Nothing
+    , queueState = QueueState noSelection Nothing Nothing
+    , browser = BrowserState Nothing [] Seq.empty noSelection Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display

@@ -31,8 +31,12 @@ module Reprise.Handler.Core
   , moveListCursor
   , restoreView
   , screenLength
+
+    -- * Selection
+  , selectInList
   ) where
 
+import Control.Monad
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Effectful
@@ -50,6 +54,7 @@ import Reprise.Keymap
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
+import Reprise.Selection
 import Reprise.State
 
 -- | The effects of the handlers.
@@ -148,6 +153,55 @@ moveListCursor songOf items t env s =
        MoveNextAlbum -> jumpTo (nextGroup (fmap albumKey . songOf) items c) env s
        MovePreviousArtist -> jumpTo (previousGroup (fmap artistKey . songOf) items c) env s
        MoveNextArtist -> jumpTo (nextGroup (fmap artistKey . songOf) items c) env s
+
+----------------------------------------
+-- Selection
+
+-- | Change the selection of the focused list, as a select action says. The
+-- list's items have keys, which the selection holds, and songs, which tell
+-- albums and artists apart. An item without a key can't be selected. A
+-- screen selects what its find found, and moves after a select itself.
+selectInList
+  :: forall k es
+   . (App es, Ord k)
+  => Lens' AppState (Selection k)
+  -> Seq.Seq (Maybe k, Maybe Song)
+  -> SelectTarget
+  -> Eff es ()
+selectInList selection items = \case
+  SelectItem _ -> do
+    c <- getsS ((.cursor) . focusedView)
+    forM_ (Seq.lookup c items >>= fst) $ \k -> modifyS $ selection %~ toggleKey k
+  SelectRange ->
+    getsS (selectRange itemKeys . view selection) >>= \case
+      Nothing -> showMessage "Select the first and the last item of the range first"
+      Just sel -> do
+        modifyS $ selection .~ sel
+        showMessage "Range selected"
+  SelectInvert -> do
+    modifyS $ selection %~ invert itemKeys
+    showMessage "Selection inverted"
+  SelectNone -> do
+    modifyS $ selection %~ deselectAll
+    showMessage "Selection cleared"
+  SelectAlbum -> selectGroup albumKey "Album"
+  SelectArtist -> selectGroup artistKey "Artist"
+  SelectFound -> pure ()
+  where
+    itemKeys :: Seq.Seq (Maybe k)
+    itemKeys = fst <$> items
+
+    -- The items next to each other around the cursor with its song's key.
+    selectGroup :: (App es, Eq g) => (Song -> g) -> T.Text -> Eff es ()
+    selectGroup key name = do
+      c <- getsS ((.cursor) . focusedView)
+      forM_ (Seq.lookup c items >>= snd) $ \song -> do
+        let same i = (key <$> (Seq.lookup i items >>= snd)) == Just (key song)
+            earlier = takeWhile same [c - 1, c - 2 .. 0]
+            later = takeWhile same [c + 1 .. Seq.length items - 1]
+            group = earlier <> [c] <> later
+        modifyS $ selection %~ addKeys [k | i <- group, Just k <- [Seq.lookup i items >>= fst]]
+        showMessage $ name <> " around the cursor selected"
 
 -- | Bring back a cursor and an offset, e.g. after a cancelled find.
 restoreView :: (Int, Int) -> AppEnv -> AppState -> AppState

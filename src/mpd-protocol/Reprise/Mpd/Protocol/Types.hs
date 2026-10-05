@@ -87,7 +87,7 @@ data SongRange = SongRange
   { start :: Seconds
   , end :: Maybe Seconds
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving anyclass (NFData)
 
 -- | The id of a song in the queue. It doesn't change when the song moves.

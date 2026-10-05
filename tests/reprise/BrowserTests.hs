@@ -3,6 +3,7 @@ module BrowserTests (browserTests) where
 import Data.ByteString qualified as BS
 import Data.Foldable
 import Data.Text qualified as T
+import Optics.Core
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -11,6 +12,7 @@ import Reprise.Event
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
+import Reprise.Selection
 import Reprise.State
 import Utils
 
@@ -42,6 +44,11 @@ browserTests =
     , testCase "add or remove" test_addOrRemove
     , testCase "the songs of a playlist are loaded from it" test_addFromPlaylist
     , testCase "updating the current directory" test_updateCurrent
+    , testCase "adding the selected items" test_addSelected
+    , testCase "adding the selected songs of a playlist" test_addSelectedFromPlaylist
+    , testCase "a range" test_selectRange
+    , testCase ".. can't be selected" test_selectParent
+    , testCase "the selection stays in the same listing" test_selectionKept
     ]
 
 test_showLists :: Assertion
@@ -245,6 +252,60 @@ test_updateCurrent :: Assertion
 test_updateCurrent = do
   assertEqual "here" [[Request "update" ["b"]]] (press ["ctrl-d", "u"] onY).requests
   assertEqual "at the root" [[Request "update" []]] (press ["ctrl-d", "u"] root).requests
+
+-- | In their order at the end. At a position, each goes before the ones
+-- after it, so in reverse.
+test_addSelected :: Assertion
+test_addSelected = do
+  let selected = (press ["insert", "end", "insert"] root).state
+      added ks = (press ks selected).requests
+  assertEqual
+    "at the end"
+    [[Request "add" ["a"], Request "load" ["p"]]]
+    (added ["ctrl-a", "e"])
+  assertEqual
+    "next"
+    [[Request "load" ["p", "0:", "+0"], Request "add" ["a", "+0"]]]
+    (added ["ctrl-a", "n"])
+  assertEqual
+    "the message"
+    (Just "Added 2 items")
+    ((.text) <$> (press ["ctrl-a", "e"] selected).state.message)
+
+test_addSelectedFromPlaylist :: Assertion
+test_addSelectedFromPlaylist = do
+  let inP =
+        answer
+          ["file: a.flac", "file: b.flac", "file: c.flac", "file: d.flac"]
+          (press ["end", "enter"] root)
+      r = press ["down", "shift-down", "shift-down", "down", "insert", "ctrl-a", "e"] inP
+  assertEqual
+    "runs"
+    [[Request "load" ["p", "0:2"], Request "load" ["p", "3:4"]]]
+    r.requests
+
+test_selectRange :: Assertion
+test_selectRange = do
+  let r = press ["insert", "end", "insert", "ctrl-s", "r", "ctrl-a", "e"] root
+  assertEqual
+    "requests"
+    [[Request "add" ["a"], Request "add" ["b"], Request "load" ["p"]]]
+    r.requests
+
+test_selectParent :: Assertion
+test_selectParent = do
+  let s = (press ["insert"] (onY & #views % mapped % #cursor .~ 0)).state
+  assertEqual "nothing" mempty s.browser.selection.keys
+
+test_selectionKept :: Assertion
+test_selectionKept = do
+  let selected = (press ["up", "insert"] onY).state
+      relisted = answer bReply (runEvents 0 [MpdChanged [DatabaseSubsystem]] selected)
+  assertEqual "kept" [SongKey "b/x.flac" Nothing] (toList relisted.browser.selection.keys)
+  let gone = answer ["file: b/y.flac"] (runEvents 0 [MpdChanged [DatabaseSubsystem]] selected)
+  assertEqual "the song is gone" [] (toList gone.browser.selection.keys)
+  let left = answer rootReply (press ["backspace"] selected)
+  assertEqual "another listing" [] (toList left.browser.selection.keys)
 
 ----------------------------------------
 -- Helpers
