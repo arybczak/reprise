@@ -74,9 +74,13 @@ deselectAll sel = sel {keys = S.empty}
 addKeys :: Ord k => [k] -> Selection k -> Selection k
 addKeys ks sel = sel {keys = S.union (S.fromList ks) sel.keys}
 
--- | Keep only the keys of items that are still there.
+-- | Keep only the keys of items that are still there. Without a selection,
+-- the keys aren't needed, so a lazy set of them isn't made, e.g. of every
+-- song after a change of a long queue.
 restrictTo :: Ord k => S.Set k -> Selection k -> Selection k
-restrictTo ks sel = sel {keys = S.intersection ks sel.keys}
+restrictTo ks sel
+  | S.null sel.keys = sel
+  | otherwise = sel {keys = S.intersection sel.keys ks}
 
 -- | The positions of the selected items, in order.
 selectedPositions :: Ord k => Seq.Seq (Maybe k) -> Selection k -> [Int]
