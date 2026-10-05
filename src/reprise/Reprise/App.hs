@@ -60,7 +60,7 @@ dispatch :: AppEnv -> Channels -> AppEvent -> B.EventM () AppState ()
 dispatch env channels event = do
   now <- liftIO getMonotonicTime
   s <- B.get
-  let (s', requests, commands) = runEvent env now event s
+  (s', requests, commands) <- liftIO $ runEvent env now event s
   B.put s'
   liftIO . atomically $ mapM_ (writeTQueue channels.requests) requests
   forM_ commands $ \case

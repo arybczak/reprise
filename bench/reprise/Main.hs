@@ -3,8 +3,8 @@
 module Main (main) where
 
 import Control.DeepSeq
+import Control.Monad
 import Data.IORef
-import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
@@ -32,22 +32,28 @@ main =
   defaultMain
     [ bgroup
         "handler"
-        [ bench "down key" $ whnf (settled . handle (key "down")) loaded
-        , bench "the change of the queue after a delete in the middle" $
-            whnf (settled . handle deletedInTheMiddle) loaded
+        [ afterKeys [] $ \s ->
+            bench "down key" . whnfIO $ settled <$> handle (key "down") s
+        , afterKeys [] $ \s ->
+            bench "the change of the queue after a delete in the middle" . whnfIO $
+              settled <$> handle deletedInTheMiddle s
         , -- The first key makes the text of the rows, which the next keys
           -- reuse. With no match, the find goes through the whole queue.
-          bench "the first key of a find that matches nothing" $
-            whnf (settled . handle (key "x")) (keys ["/"] loaded)
-        , bench "a later key of a find that matches nothing" $
-            whnf (settled . handle (key "x")) (keys ["/", "z", "q"] loaded)
+          afterKeys ["/"] $ \s ->
+            bench "the first key of a find that matches nothing" . whnfIO $
+              settled <$> handle (key "x") s
+        , afterKeys ["/", "z", "q"] $ \s ->
+            bench "a later key of a find that matches nothing" . whnfIO $
+              settled <$> handle (key "x") s
         , -- Sorting by name computes a collation key for each entry.
-          bench "the listing of a directory as long as the queue, sorted by name" $
-            whnf (settled . listed) (keys ["2", "ctrl-t", "o"] loaded)
+          afterKeys ["2", "ctrl-t", "o"] $ \s ->
+            bench "the listing of a directory as long as the queue, sorted by name" . whnfIO $
+              settled <$> listed s
         ]
     , bgroup
         "screen"
-        [ bench "a frame of the queue" $ nf (renderScreen defaultEnv) scrolled
+        [ afterKeys scrolling $ \s ->
+            bench "a frame of the queue" $ nf (renderScreen defaultEnv) s
         , env xterm $ \ ~(Terminal out dc frame) ->
             bench "the output of a whole frame for xterm-256color" . whnfIO $ do
               -- Without the last frame, vty writes every row.
@@ -66,10 +72,15 @@ defaultEnv =
     , collator = userCollator
     }
 
+-- | A benchmark of the state after the queue arrived from MPD and the keys
+-- were pressed.
+afterKeys :: [T.Text] -> (AppState -> Benchmark) -> Benchmark
+afterKeys ks b = env (Settled <$> (keys ks =<< loaded)) $ \ ~(Settled s) -> b s
+
 -- | The state after the queue arrived from MPD.
-loaded :: AppState
+loaded :: IO AppState
 loaded =
-  L.foldl'
+  foldM
     (flip handle)
     (initialState defaultConfig)
     [ uncurry Resized terminalSize
@@ -77,9 +88,16 @@ loaded =
     , QueueFetched (statusOf 1 queueLength, [song p p | p <- [0 .. queueLength - 1]])
     ]
 
--- | A queue scrolled down a little, as while a key is held.
-scrolled :: AppState
-scrolled = keys (replicate (snd terminalSize) "down") loaded
+-- | The state has no 'NFData' instance, and what 'settled' depends on is
+-- what the benchmarks change.
+newtype Settled = Settled AppState
+
+instance NFData Settled where
+  rnf (Settled s) = rnf (settled s)
+
+-- | The keys that scroll the queue down a little, as while a key is held.
+scrolling :: [T.Text]
+scrolling = replicate (snd terminalSize) "down"
 
 -- | The reply to @plchanges@ after the song in the middle of the queue was
 -- deleted: every song after it moved up.
@@ -92,7 +110,7 @@ deletedInTheMiddle =
 
 -- | The reply to the browser's listing on its way: a directory with a song
 -- for each one of the queue.
-listed :: AppState -> AppState
+listed :: AppState -> IO AppState
 listed s = case s.browser.listing of
   Just l -> handle (BrowserListed l.token [SongEntry (song p p) | p <- [0 .. queueLength - 1]]) s
   Nothing -> error "no listing on its way"
@@ -119,19 +137,22 @@ xterm = do
         , V.settingTermName = "xterm-256color"
         }
   dc <- V.displayContext out terminalSize
+  scrolled <- keys scrolling =<< loaded
   pure (Terminal out dc (renderScreen defaultEnv scrolled))
 
 ----------------------------------------
 -- Helpers
 
-handle :: AppEvent -> AppState -> AppState
-handle e s = let (s', _, _) = runEvent defaultEnv 1 e s in s'
+handle :: AppEvent -> AppState -> IO AppState
+handle e s = do
+  (s', _, _) <- runEvent defaultEnv 1 e s
+  pure s'
 
 key :: T.Text -> AppEvent
 key = KeyPressed . either (error . T.unpack) id . parseKeySpec
 
-keys :: [T.Text] -> AppState -> AppState
-keys ks s = L.foldl' (flip handle) s (map key ks)
+keys :: [T.Text] -> AppState -> IO AppState
+keys ks s = foldM (flip handle) s (map key ks)
 
 -- | A number that depends on what the events change: the queue, the
 -- selection, the browser's items, the view and the prompt.

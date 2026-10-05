@@ -44,11 +44,11 @@ test_emojiRowFits :: Assertion
 test_emojiRowFits = do
   width <- systemWidth >>= maybe (assertFailure "no UTF-8 locale") pure
   let title = "Hello 🌍 world, with a title long enough to fill its column"
-      s =
-        testState
-          (80, 6)
-          (statusOf Playing (Just 0) 1)
-          [song 0 [(Artist, ["A"]), (Title, [title])] 60]
+  s <-
+    testState
+      (80, 6)
+      (statusOf Playing (Just 0) 1)
+      [song 0 [(Artist, ["A"]), (Title, [title])] 60]
   forM_ (imageLines (renderScreen testAppEnv s)) $ \line -> do
     w <- sum <$> mapM width (T.unpack line)
     assertBool ("wider than the terminal: " <> T.unpack line) (w <= 80)

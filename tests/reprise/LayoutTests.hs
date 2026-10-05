@@ -1,8 +1,8 @@
 module LayoutTests (layoutTests) where
 
+import Control.Monad
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
-import Data.List qualified as L
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Graphics.Vty qualified as V
@@ -28,19 +28,19 @@ layoutTests =
     "Layout"
     [ snapshot "queue-columns" $ playing (80, 12)
     , snapshot "queue-narrow" $ playing (40, 12)
-    , snapshot "queue-classic" $ press ["ctrl-t", "d"] (playing (80, 12))
-    , snapshot "which-key" $ press ["ctrl-t"] (playing (80, 12))
-    , snapshot "confirm" $ press ["ctrl-q", "c"] (playing (80, 12))
+    , snapshot "queue-classic" $ press ["ctrl-t", "d"] =<< playing (80, 12)
+    , snapshot "which-key" $ press ["ctrl-t"] =<< playing (80, 12)
+    , snapshot "confirm" $ press ["ctrl-q", "c"] =<< playing (80, 12)
     , snapshot "stopped" $ testState (80, 8) (statusOf Stopped Nothing 2) (take 2 queue)
     , snapshot "empty" $ testState (80, 6) (statusOf Stopped Nothing 0) []
-    , snapshot "disconnected" . (.state) $
-        runEvents 0 [MpdDisconnected "gone"] (playing (80, 12))
+    , snapshot "disconnected" $
+        (.state) <$> (runEvents 0 [MpdDisconnected "gone"] =<< playing (80, 12))
     , snapshot "browser" $ browsing [(["2"], rootReply)]
     , snapshot "browser-directory" albums
-    , snapshot "browser-columns" $ press ["ctrl-t", "d"] albums
+    , snapshot "browser-columns" $ press ["ctrl-t", "d"] =<< albums
     , testCase "the titles of the columns in the browser" test_browserTitles
-    , snapshot "help" $ press ["f1"] (playing (80, 24))
-    , snapshot "help-scrolled" $ press ["f1", "page_down"] (playing (80, 24))
+    , snapshot "help" $ press ["f1"] =<< playing (80, 24)
+    , snapshot "help-scrolled" $ press ["f1", "page_down"] =<< playing (80, 24)
     , testCase "flags end a column before the edge" test_flags
     , testCase "the title has its own style" test_titleStyle
     , testCase "the queue's title scrolls" test_queueTitleScrolls
@@ -55,7 +55,7 @@ layoutTests =
 
 test_promptLine :: Assertion
 test_promptLine = do
-  let s = press ["ctrl-p", "v", "4", "0", "left"] (playing (40, 12))
+  s <- press ["ctrl-p", "v", "4", "0", "left"] =<< playing (40, 12)
   assertEqual
     "the line and the hint"
     (Just (True, True))
@@ -63,24 +63,23 @@ test_promptLine = do
         <$> lastLine s
     )
   assertEqual "the cursor" (Just (9, 11)) (promptCursor s)
-  let narrow = press ["ctrl-p", "v", "4", "0"] (playing (20, 12))
+  narrow <- press ["ctrl-p", "v", "4", "0"] =<< playing (20, 12)
   assertEqual
     "the hint gives way to the line"
     (Just (True, True))
     ((\l -> (":volume 40 " `T.isPrefixOf` l, " set vol…" `T.isSuffixOf` l)) <$> lastLine narrow)
-  let notFound = press ["/", "x", "y", "z"] (playing (40, 12))
+  notFound <- press ["/", "x", "y", "z"] =<< playing (40, 12)
   assertEqual
     "the note"
     (Just (True, True))
     ( (\l -> ("Find forward: xyz " `T.isPrefixOf` l, " no match" `T.isSuffixOf` l))
         <$> lastLine notFound
     )
-  assertEqual "no prompt, no cursor" Nothing (promptCursor (playing (40, 12)))
+  assertEqual "no prompt, no cursor" Nothing . promptCursor =<< playing (40, 12)
   -- An empty pattern threw from ICU once.
-  assertEqual
-    "an empty find"
-    (Just "Find forward:")
-    (T.stripEnd <$> lastLine (press ["/"] (playing (40, 12))))
+  assertEqual "an empty find" (Just "Find forward:") . fmap T.stripEnd . lastLine
+    =<< press ["/"]
+    =<< playing (40, 12)
   where
     lastLine :: AppState -> Maybe T.Text
     lastLine s = case reverse (imageLines (renderScreen testAppEnv s)) of
@@ -91,8 +90,8 @@ test_promptLine = do
 test_foundStyle :: Assertion
 test_foundStyle = do
   let q = [song i [(Title, [t])] 60 | (i, t) <- zip [0 ..] ["alpha", "beta", "alpha two"]]
-      s0 = press ["/", "a", "l"] $ testState (80, 10) (statusOf Stopped Nothing 3) q
-      s = s0 & #lastInput .~ s0.now - cursorHideDelay
+  s0 <- press ["/", "a", "l"] =<< testState (80, 10) (statusOf Stopped Nothing 3) q
+  let s = s0 & #lastInput .~ s0.now - cursorHideDelay
       underlined title =
         [ V.attrStyle a == V.SetTo V.underline
         | (a, t) <- imageSpans (renderScreen testAppEnv s)
@@ -100,8 +99,8 @@ test_foundStyle = do
         ]
   assertEqual "found" [True] (underlined "alpha")
   assertEqual "not found" [False] (underlined "beta")
-  let accepted = press ["enter"] s
-      done = accepted & #lastInput .~ accepted.now - cursorHideDelay
+  accepted <- press ["enter"] s
+  let done = accepted & #lastInput .~ accepted.now - cursorHideDelay
   assertEqual
     "only while typing"
     [False]
@@ -113,8 +112,8 @@ test_foundStyle = do
 test_browserFoundStyle :: Assertion
 test_browserFoundStyle = do
   -- The cursor is on the match, and its style combines with the match's.
-  let s = press ["/", "S", "i", "n"] (browsing [(["2"], rootReply)])
-      underlined name =
+  s <- press ["/", "S", "i", "n"] =<< browsing [(["2"], rootReply)]
+  let underlined name =
         [ case V.attrStyle a of
             V.SetTo st -> V.hasStyle st V.underline
             _ -> False
@@ -127,12 +126,12 @@ test_browserFoundStyle = do
 -- | The queue has @dir/1.flac@, but not @dir/9.flac@.
 test_queuedStyle :: Assertion
 test_queuedStyle = do
-  let s =
-        browsing
-          [ (["2"], ["directory: dir"])
-          , (["enter"], ["file: dir/1.flac", "file: dir/9.flac"])
-          ]
-      style name =
+  s <-
+    browsing
+      [ (["2"], ["directory: dir"])
+      , (["enter"], ["file: dir/1.flac", "file: dir/9.flac"])
+      ]
+  let style name =
         [V.attrStyle a | (a, t) <- imageSpans (renderScreen testAppEnv s), T.strip t == name]
   assertEqual "queued" [V.SetTo V.bold] (style "1.flac")
   assertEqual "not queued" [V.Default] (style "9.flac")
@@ -140,8 +139,8 @@ test_queuedStyle = do
 test_selected :: Assertion
 test_selected = do
   let q = [song 0 [(Title, ["first"])] 60, song 1 [(Title, ["second"])] 60]
-      s0 = press ["space"] $ testState (80, 6) (statusOf Stopped Nothing 2) q
-      s = s0 & #lastInput .~ s0.now - cursorHideDelay
+  s0 <- press ["space"] =<< testState (80, 6) (statusOf Stopped Nothing 2) q
+  let s = s0 & #lastInput .~ s0.now - cursorHideDelay
       background title =
         [ V.attrBackColor a
         | (a, t) <- imageSpans (renderScreen testAppEnv s)
@@ -157,15 +156,16 @@ test_markerInColumns :: Assertion
 test_markerInColumns = do
   let untagged = song 0 [] 60
   -- The artist column has the style 221, which vty numbers from 16.
-  assertMarkerColor "artist column" (V.Color240 205) $
-    testState (80, 6) (statusOf Stopped Nothing 1) [untagged]
+  assertMarkerColor "artist column" (V.Color240 205)
+    =<< testState (80, 6) (statusOf Stopped Nothing 1) [untagged]
 
 test_markerInClassic :: Assertion
 test_markerInClassic = do
   let noLength = song 0 [(Title, ["t"])] 60 & #duration .~ Nothing
   -- The marker's style is cyan.
-  assertMarkerColor "length" (V.ISOColor 6) . press ["ctrl-t", "d"] $
-    testState (80, 6) (statusOf Stopped Nothing 1) [noLength]
+  assertMarkerColor "length" (V.ISOColor 6)
+    =<< press ["ctrl-t", "d"]
+    =<< testState (80, 6) (statusOf Stopped Nothing 1) [noLength]
 
 -- | The color of the marker, with the cursor hidden, so that its style
 -- doesn't cover the row's.
@@ -182,8 +182,8 @@ assertMarkerColor msg color s0 =
 
 test_titleStyle :: Assertion
 test_titleStyle = do
-  let s = playing (80, 12)
-      titleAttrs = [a | (a, t) <- imageSpans (renderScreen testAppEnv s), "Queue (" `T.isPrefixOf` t]
+  s <- playing (80, 12)
+  let titleAttrs = [a | (a, t) <- imageSpans (renderScreen testAppEnv s), "Queue (" `T.isPrefixOf` t]
   assertEqual "bold by default" [V.SetTo V.bold] (map V.attrStyle titleAttrs)
   let red = testAppEnv & #config % #header % #titleStyle .~ Style (Just (Color 1)) Nothing mempty
       redAttrs = [a | (a, t) <- imageSpans (renderScreen red s), "Queue (" `T.isPrefixOf` t]
@@ -194,15 +194,15 @@ test_titleStyle = do
 test_queueTitleScrolls :: Assertion
 test_queueTitleScrolls = do
   let started = 1000
-      r =
-        runEvents
-          started
-          [ Resized 30 12
-          , MpdConnected (Version 0 24 0)
-          , QueueFetched (statusOf Stopped Nothing 6, queue)
-          ]
-          (initialState defaultConfig)
-      titleLine s = case imageLines (renderScreen testAppEnv s) of
+  r <-
+    runEvents
+      started
+      [ Resized 30 12
+      , MpdConnected (Version 0 24 0)
+      , QueueFetched (statusOf Stopped Nothing 6, queue)
+      ]
+      (initialState defaultConfig)
+  let titleLine s = case imageLines (renderScreen testAppEnv s) of
         l : _ -> l
         [] -> ""
   assertEqual "a redraw in a second" [1] [d | After d (Tick _) <- r.commands]
@@ -218,41 +218,43 @@ test_queueTitleScrolls = do
 test_flags :: Assertion
 test_flags = do
   let st = statusOf Playing (Just 1) (length queue) & #repeat .~ True & #random .~ True
-  case imageLines . renderScreen testAppEnv $ testState (20, 6) st queue of
+  s <- testState (20, 6) st queue
+  case imageLines (renderScreen testAppEnv s) of
     _ : flagsLine : _ -> assertEqual "line" "───────────────[rz]─" flagsLine
     ls -> assertFailure $ "too few lines: " <> show ls
 
 -- | Render the screen at a fixed monotonic time and compare its text with a
 -- golden file.
-snapshot :: String -> AppState -> TestTree
+snapshot :: String -> IO AppState -> TestTree
 snapshot name s =
-  goldenVsString name ("tests" </> "reprise" </> "golden" </> name <> ".txt")
-    $ pure . BL.fromStrict . T.encodeUtf8 . T.unlines . imageLines
-    $ renderScreen testAppEnv s
+  goldenVsString name ("tests" </> "reprise" </> "golden" </> name <> ".txt") $
+    BL.fromStrict . T.encodeUtf8 . T.unlines . imageLines . renderScreen testAppEnv <$> s
 
-playing :: (Int, Int) -> AppState
+playing :: (Int, Int) -> IO AppState
 playing size = testState size (statusOf Playing (Just 1) (length queue)) queue
 
-press :: [T.Text] -> AppState -> AppState
-press ks s = (runEvents 0 (map (KeyPressed . key) ks) s).state
+press :: [T.Text] -> AppState -> IO AppState
+press ks s = (.state) <$> runEvents 0 (map (KeyPressed . key) ks) s
 
 -- | The browser after keys, each followed by the reply to the listing they
 -- requested.
-browsing :: [([T.Text], [BS.ByteString])] -> AppState
-browsing = L.foldl' step (playing (80, 12))
+browsing :: [([T.Text], [BS.ByteString])] -> IO AppState
+browsing steps = do
+  s0 <- playing (80, 12)
+  foldM step s0 steps
   where
-    step :: AppState -> ([T.Text], [BS.ByteString]) -> AppState
-    step s (ks, reply) =
-      let r = runEvents 0 (map (KeyPressed . key) ks) s
-      in case reverse r.pending of
-           p : _ -> (runEvents 0 [replyTo reply p] r.state).state
-           [] -> r.state
+    step :: AppState -> ([T.Text], [BS.ByteString]) -> IO AppState
+    step s (ks, reply) = do
+      r <- runEvents 0 (map (KeyPressed . key) ks) s
+      case reverse r.pending of
+        p : _ -> (.state) <$> runEvents 0 [replyTo reply p] r.state
+        [] -> pure r.state
 
 rootReply :: [BS.ByteString]
 rootReply = ["directory: Albums", "directory: Singles", "playlist: Favourites"]
 
 -- | The browser in a directory with an entry of every kind.
-albums :: AppState
+albums :: IO AppState
 albums =
   browsing
     [ (["2"], rootReply)
@@ -274,13 +276,14 @@ albums =
 test_browserTitles :: Assertion
 test_browserTitles = do
   let env = testAppEnv & #config % #songs % #columns % #showTitles .~ True
-      columns = press ["ctrl-t", "d"] albums
+  inAlbums <- albums
+  columns <- press ["ctrl-t", "d"] inAlbums
   case imageLines (renderScreen env columns) of
     _ : _ : titles : parent : _ -> do
       assertBool ("titles: " <> T.unpack titles) ("Title" `T.isInfixOf` titles)
       assertEqual "the first item" ".." parent
     ls -> assertFailure $ "too few lines: " <> show ls
-  case imageLines (renderScreen env albums) of
+  case imageLines (renderScreen env inAlbums) of
     _ : _ : first : _ -> assertEqual "no titles in the classic display" ".." first
     ls -> assertFailure $ "too few lines: " <> show ls
 

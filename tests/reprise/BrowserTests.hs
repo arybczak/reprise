@@ -61,232 +61,224 @@ browserTests =
 
 test_showLists :: Assertion
 test_showLists = do
-  let r = press ["2"] queueShown
+  r <- press ["2"] =<< queueShown
   assertEqual "requests" [[Request "lsinfo" []]] r.requests
   assertEqual "the screen" BrowserScreen (focusedView r.state).screen
 
 test_showAgain :: Assertion
-test_showAgain = do
-  let r = press ["1", "2"] root
-  assertEqual "requests" [] r.requests
+test_showAgain = assertEqual "requests" [] . (.requests) =<< press ["1", "2"] =<< root
 
 test_enterAndLeave :: Assertion
 test_enterAndLeave = do
-  let entered = press ["down", "enter"] root
+  entered <- press ["down", "enter"] =<< root
   assertEqual "the listing of b" [[Request "lsinfo" ["b"]]] entered.requests
-  let inB = answer ["file: b/x.flac", "Title: X"] entered
+  inB <- answer ["file: b/x.flac", "Title: X"] entered
   assertEqual "items" ["..", "song b/x.flac"] (items inB)
   assertEqual "the cursor" 0 (focusedView inB).cursor
-  let left = press ["backspace"] inB
+  left <- press ["backspace"] inB
   assertEqual "the listing of the root" [[Request "lsinfo" []]] left.requests
-  let back = answer rootReply left
+  back <- answer rootReply left
   assertEqual "the cursor is on b" 1 (focusedView back).cursor
 
 test_parentItem :: Assertion
 test_parentItem = do
-  let inA = answer ["file: a/x.flac"] (press ["enter"] root)
-      r = press ["enter"] inA
-  assertEqual "the listing of the root" [[Request "lsinfo" []]] r.requests
+  inA <- answer ["file: a/x.flac"] =<< press ["enter"] =<< root
+  assertEqual "the listing of the root" [[Request "lsinfo" []]] . (.requests)
+    =<< press ["enter"] inA
 
 test_aboveRoot :: Assertion
-test_aboveRoot = assertEqual "requests" [] (press ["backspace"] root).requests
+test_aboveRoot = assertEqual "requests" [] . (.requests) =<< press ["backspace"] =<< root
 
 test_playlist :: Assertion
 test_playlist = do
-  let opened = press ["end", "enter"] root
+  opened <- press ["end", "enter"] =<< root
   assertEqual "the songs of p" [[Request "listplaylistinfo" ["p"]]] opened.requests
-  let inP = answer ["file: a/x.flac", "file: b/y.flac"] opened
+  inP <- answer ["file: a/x.flac", "file: b/y.flac"] opened
   assertEqual "items" ["..", "song a/x.flac", "song b/y.flac"] (items inP)
-  let back = answer rootReply (press ["backspace"] inP)
+  back <- answer rootReply =<< press ["backspace"] inP
   assertEqual "the cursor is on p" 2 (focusedView back).cursor
 
 -- | A key typed before a reply goes on from the listing on its way.
 test_replacedListing :: Assertion
 test_replacedListing = do
-  let r = press ["enter", "backspace"] root
+  r <- press ["enter", "backspace"] =<< root
   case r.pending of
     [first, second] -> do
-      let late =
-            (runEvents 0 [replyTo rootReply second, replyTo ["file: a/x.flac"] first] r.state).state
+      late <-
+        (.state)
+          <$> runEvents 0 [replyTo rootReply second, replyTo ["file: a/x.flac"] first] r.state
       assertEqual "the root" ["directory a", "directory b", "playlist p"] (items late)
       assertEqual "the cursor is on a" 0 (focusedView late).cursor
     _ -> assertFailure $ "requests: " <> show r.requests
 
 test_reconnect :: Assertion
 test_reconnect = do
-  let inB = answer ["file: b/x.flac"] (press ["down", "enter"] root)
-      r = runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0)] inB
+  inB <- answer ["file: b/x.flac"] =<< press ["down", "enter"] =<< root
+  r <- runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0)] inB
   assertBool "the listing of b" ([Request "lsinfo" ["b"]] `elem` r.requests)
-  let never = runEvents 0 [MpdConnected (Version 0 24 0)] queueShown
+  never <- runEvents 0 [MpdConnected (Version 0 24 0)] =<< queueShown
   assertBool "no listing" (all (all ((/= "lsinfo") . (.command))) never.requests)
 
 test_gone :: Assertion
 test_gone = do
-  let entered = press ["down", "enter"] root
-      gone = AckError (Ack AckNoExist 0 "lsinfo" "No such directory")
-      r = failLast gone entered
+  let gone = AckError (Ack AckNoExist 0 "lsinfo" "No such directory")
+  r <- failLast gone =<< press ["down", "enter"] =<< root
   assertEqual "the listing of the root" [[Request "lsinfo" []]] r.requests
   assertEqual "no error" Nothing r.state.message
 
 test_listingError :: Assertion
 test_listingError = do
-  let entered = press ["down", "enter"] root
-      denied = AckError (Ack AckPermission 0 "lsinfo" "you don't have permission")
-      r = failLast denied entered
+  let denied = AckError (Ack AckPermission 0 "lsinfo" "you don't have permission")
+  r <- failLast denied =<< press ["down", "enter"] =<< root
   assertEqual "no listing" [] r.requests
   assertEqual "the error" (Just True) ((.isError) <$> r.state.message)
   assertEqual "the root stays" ["directory a", "directory b", "playlist p"] (items r.state)
   -- Not up from b, which failed.
-  assertEqual "keys go on from the root" [] (press ["backspace"] r.state).requests
+  assertEqual "keys go on from the root" [] . (.requests) =<< press ["backspace"] r.state
 
 test_databaseChanged :: Assertion
 test_databaseChanged = do
-  let r = runEvents 0 [MpdChanged [DatabaseSubsystem]] onY
+  r <- runEvents 0 [MpdChanged [DatabaseSubsystem]] =<< onY
   assertBool "the listing of b" ([Request "lsinfo" ["b"]] `elem` r.requests)
-  let s = answer ["file: b/w.flac", "file: b/x.flac", "file: b/y.flac"] r
+  s <- answer ["file: b/w.flac", "file: b/x.flac", "file: b/y.flac"] r
   assertEqual "the cursor is on y" 3 (focusedView s).cursor
-  let reconnected = runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0)] s
-  assertEqual "after a new connection" 2 (focusedView (answer bReply reconnected)).cursor
+  reconnected <- runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0)] s
+  assertEqual "after a new connection" 2 . (.cursor) . focusedView
+    =<< answer bReply reconnected
 
 test_songGone :: Assertion
 test_songGone = do
-  let s = answer ["file: b/x.flac"] (runEvents 0 [MpdChanged [DatabaseSubsystem]] onY)
+  s <- answer ["file: b/x.flac"] =<< runEvents 0 [MpdChanged [DatabaseSubsystem]] =<< onY
   assertEqual "the last item" 1 (focusedView s).cursor
 
 test_storedPlaylistsChanged :: Assertion
 test_storedPlaylistsChanged = do
-  let changed = runEvents 0 [MpdChanged [StoredPlaylistSubsystem]]
-  assertEqual "at the root" [[Request "lsinfo" []]] (changed root).requests
-  assertEqual "in a directory" [] (changed onY).requests
+  let changed = fmap (.requests) . runEvents 0 [MpdChanged [StoredPlaylistSubsystem]]
+  assertEqual "at the root" [[Request "lsinfo" []]] =<< changed =<< root
+  assertEqual "in a directory" [] =<< changed =<< onY
 
 test_changedElsewhere :: Assertion
 test_changedElsewhere = do
-  let r = runEvents 0 [KeyPressed (key "1"), MpdChanged [DatabaseSubsystem]] onY
-      s = answer ["file: b/w.flac", "file: b/x.flac", "file: b/y.flac"] r
-      shown = press ["2"] s
+  r <- runEvents 0 [KeyPressed (key "1"), MpdChanged [DatabaseSubsystem]] =<< onY
+  shown <- press ["2"] =<< answer ["file: b/w.flac", "file: b/x.flac", "file: b/y.flac"] r
   assertEqual "no listing" [] shown.requests
   assertEqual "the cursor is on y" 3 (focusedView shown.state).cursor
 
 test_sortModes :: Assertion
 test_sortModes = do
-  let sorted n = items (iterate nextSort mixed !! n)
+  let sorted n = items <$> iterate (>>= nextSort) mixed !! n
+  byType <- sorted 0
   assertEqual
     "type"
     ["directory b", "directory a", "song s.flac", "song r.flac", "playlist p"]
-    (sorted 0)
+    byType
   assertEqual
     "name"
     ["directory a", "directory b", "song r.flac", "song s.flac", "playlist p"]
-    (sorted 1)
+    =<< sorted 1
   assertEqual
     "mtime"
     ["directory b", "directory a", "song r.flac", "song s.flac", "playlist p"]
-    (sorted 2)
+    =<< sorted 2
   assertEqual
     "format"
     ["directory a", "directory b", "song s.flac", "song r.flac", "playlist p"]
-    (sorted 3)
+    =<< sorted 3
   assertEqual
     "none"
     ["playlist p", "song s.flac", "song r.flac", "directory b", "directory a"]
-    (sorted 4)
-  assertEqual "type again" (sorted 0) (sorted 5)
-  assertEqual "the message" (Just "Sort: name") ((.text) <$> (nextSort mixed).message)
+    =<< sorted 4
+  assertEqual "type again" byType =<< sorted 5
+  assertEqual "the message" (Just "Sort: name") . message =<< nextSort =<< mixed
 
 test_sortKeepsCursor :: Assertion
 test_sortKeepsCursor = do
-  let onS = (press ["down", "down"] mixed).state
-  assertEqual "the cursor is on s" 3 (focusedView (nextSort onS)).cursor
+  onS <- (.state) <$> (press ["down", "down"] =<< mixed)
+  assertEqual "the cursor is on s" 3 . (.cursor) . focusedView =<< nextSort onS
 
 test_playlistOrder :: Assertion
 test_playlistOrder = do
-  let opened = press ["end", "enter"] (nextSort mixed)
-  assertEqual
-    "items"
-    ["..", "song z.flac", "song a.flac"]
-    (items (answer ["file: z.flac", "file: a.flac"] opened))
+  opened <- press ["end", "enter"] =<< nextSort =<< mixed
+  assertEqual "items" ["..", "song z.flac", "song a.flac"] . items
+    =<< answer ["file: z.flac", "file: a.flac"] opened
 
 test_enterPlays :: Assertion
 test_enterPlays =
-  assertEqual
-    "requests"
-    [[Request "add" ["a/x.flac", "1"], Request "play" ["1"]]]
-    (press ["enter"] (onSongOfA queued)).requests
+  assertEqual "requests" [[Request "add" ["a/x.flac", "1"], Request "play" ["1"]]]
+    . (.requests)
+    =<< press ["enter"]
+    =<< onSongOfA
+    =<< queued
 
 test_enterPlaysQueued :: Assertion
 test_enterPlaysQueued = do
-  let s = answer ["file: dir/0.flac"] (press ["2"] queued)
-  assertEqual "requests" [[Request "playid" ["1"]]] (press ["enter"] s).requests
+  s <- answer ["file: dir/0.flac"] =<< press ["2"] =<< queued
+  assertEqual "requests" [[Request "playid" ["1"]]] . (.requests) =<< press ["enter"] s
 
 test_addPositions :: Assertion
 test_addPositions = do
-  let added ks = (press ks root).requests
-  assertEqual "end" [[Request "add" ["a"]]] (added ["ctrl-a", "e"])
-  assertEqual "next" [[Request "add" ["a", "+0"]]] (added ["ctrl-a", "n"])
-  assertEqual "beginning" [[Request "add" ["a", "0"]]] (added ["ctrl-a", "b"])
-  assertEqual "a playlist" [[Request "load" ["p"]]] (added ["end", "ctrl-a", "e"])
-  assertEqual
-    "the message"
-    (Just "Added /a")
-    ((.text) <$> (press ["ctrl-a", "e"] root).state.message)
+  s <- root
+  let added ks = (.requests) <$> press ks s
+  assertEqual "end" [[Request "add" ["a"]]] =<< added ["ctrl-a", "e"]
+  assertEqual "next" [[Request "add" ["a", "+0"]]] =<< added ["ctrl-a", "n"]
+  assertEqual "beginning" [[Request "add" ["a", "0"]]] =<< added ["ctrl-a", "b"]
+  assertEqual "a playlist" [[Request "load" ["p"]]] =<< added ["end", "ctrl-a", "e"]
+  assertEqual "the message" (Just "Added /a") . message . (.state)
+    =<< press ["ctrl-a", "e"] s
 
 test_addAndPlay :: Assertion
 test_addAndPlay =
-  assertEqual
-    "requests"
-    [[Request "load" ["p", "0:", "1"], Request "play" ["1"]]]
-    (press ["end", "ctrl-a", "p"] (answer rootReply (press ["2"] queued))).requests
+  assertEqual "requests" [[Request "load" ["p", "0:", "1"], Request "play" ["1"]]]
+    . (.requests)
+    =<< press ["end", "ctrl-a", "p"]
+    =<< answer rootReply
+    =<< press ["2"]
+    =<< queued
 
 test_addOrRemove :: Assertion
 test_addOrRemove = do
-  let s = answer ["file: dir/0.flac", "file: b/x.flac"] (press ["2"] queued)
-      removed = press ["space"] s
+  s <- answer ["file: dir/0.flac", "file: b/x.flac"] =<< press ["2"] =<< queued
+  removed <- press ["space"] s
   assertEqual "removed" [[Request "deleteid" ["1"]]] removed.requests
   assertEqual "the cursor moves down" 1 (focusedView removed.state).cursor
-  assertEqual
-    "added"
-    [[Request "add" ["b/x.flac"]]]
-    (press ["space"] removed.state).requests
+  assertEqual "added" [[Request "add" ["b/x.flac"]]] . (.requests)
+    =<< press ["space"] removed.state
 
 test_addFromPlaylist :: Assertion
 test_addFromPlaylist = do
-  let inP = answer ["file: a/x.flac", "file: b/y.flac"] (press ["end", "enter"] root)
-  assertEqual
-    "the second song"
-    [[Request "load" ["p", "1:2"]]]
-    (press ["end", "ctrl-a", "e"] inP).requests
+  inP <- answer ["file: a/x.flac", "file: b/y.flac"] =<< press ["end", "enter"] =<< root
+  assertEqual "the second song" [[Request "load" ["p", "1:2"]]] . (.requests)
+    =<< press ["end", "ctrl-a", "e"] inP
 
 test_updateCurrent :: Assertion
 test_updateCurrent = do
-  assertEqual "here" [[Request "update" ["b"]]] (press ["ctrl-d", "u"] onY).requests
-  assertEqual "at the root" [[Request "update" []]] (press ["ctrl-d", "u"] root).requests
+  assertEqual "here" [[Request "update" ["b"]]] . (.requests)
+    =<< press ["ctrl-d", "u"]
+    =<< onY
+  assertEqual "at the root" [[Request "update" []]] . (.requests)
+    =<< press ["ctrl-d", "u"]
+    =<< root
 
 -- | In their order at the end. At a position, each goes before the ones
 -- after it, so in reverse.
 test_addSelected :: Assertion
 test_addSelected = do
-  let selected = (press ["insert", "end", "insert"] root).state
-      added ks = (press ks selected).requests
-  assertEqual
-    "at the end"
-    [[Request "add" ["a"], Request "load" ["p"]]]
-    (added ["ctrl-a", "e"])
-  assertEqual
-    "next"
-    [[Request "load" ["p", "0:", "+0"], Request "add" ["a", "+0"]]]
-    (added ["ctrl-a", "n"])
-  assertEqual
-    "the message"
-    (Just "Added 2 items")
-    ((.text) <$> (press ["ctrl-a", "e"] selected).state.message)
+  selected <- (.state) <$> (press ["insert", "end", "insert"] =<< root)
+  let added ks = (.requests) <$> press ks selected
+  assertEqual "at the end" [[Request "add" ["a"], Request "load" ["p"]]]
+    =<< added ["ctrl-a", "e"]
+  assertEqual "next" [[Request "load" ["p", "0:", "+0"], Request "add" ["a", "+0"]]]
+    =<< added ["ctrl-a", "n"]
+  assertEqual "the message" (Just "Added 2 items") . message . (.state)
+    =<< press ["ctrl-a", "e"] selected
 
 test_addSelectedFromPlaylist :: Assertion
 test_addSelectedFromPlaylist = do
-  let inP =
-        answer
-          ["file: a.flac", "file: b.flac", "file: c.flac", "file: d.flac"]
-          (press ["end", "enter"] root)
-      r = press ["down", "shift-down", "shift-down", "down", "insert", "ctrl-a", "e"] inP
+  inP <-
+    answer ["file: a.flac", "file: b.flac", "file: c.flac", "file: d.flac"]
+      =<< press ["end", "enter"]
+      =<< root
+  r <- press ["down", "shift-down", "shift-down", "down", "insert", "ctrl-a", "e"] inP
   assertEqual
     "runs"
     [[Request "load" ["p", "0:2"], Request "load" ["p", "3:4"]]]
@@ -294,7 +286,7 @@ test_addSelectedFromPlaylist = do
 
 test_selectRange :: Assertion
 test_selectRange = do
-  let r = press ["insert", "end", "insert", "ctrl-s", "r", "ctrl-a", "e"] root
+  r <- press ["insert", "end", "insert", "ctrl-s", "r", "ctrl-a", "e"] =<< root
   assertEqual
     "requests"
     [[Request "add" ["a"], Request "add" ["b"], Request "load" ["p"]]]
@@ -302,56 +294,57 @@ test_selectRange = do
 
 test_selectParent :: Assertion
 test_selectParent = do
-  let s = (press ["insert"] (onY & #views % mapped % #cursor .~ 0)).state
+  s <- (.state) <$> (press ["insert"] . (#views % mapped % #cursor .~ 0) =<< onY)
   assertEqual "nothing" mempty s.browser.selection.keys
 
 test_selectionKept :: Assertion
 test_selectionKept = do
-  let selected = (press ["up", "insert"] onY).state
-      relisted = answer bReply (runEvents 0 [MpdChanged [DatabaseSubsystem]] selected)
-  assertEqual "kept" [SongKey "b/x.flac" Nothing] (toList relisted.browser.selection.keys)
-  let gone = answer ["file: b/y.flac"] (runEvents 0 [MpdChanged [DatabaseSubsystem]] selected)
-  assertEqual "the song is gone" [] (toList gone.browser.selection.keys)
-  let left = answer rootReply (press ["backspace"] selected)
-  assertEqual "another listing" [] (toList left.browser.selection.keys)
+  selected <- (.state) <$> (press ["up", "insert"] =<< onY)
+  let relisted reply = answer reply =<< runEvents 0 [MpdChanged [DatabaseSubsystem]] selected
+  assertEqual "kept" [SongKey "b/x.flac" Nothing] . selectedKeys =<< relisted bReply
+  assertEqual "the song is gone" [] . selectedKeys =<< relisted ["file: b/y.flac"]
+  assertEqual "another listing" [] . selectedKeys
+    =<< answer rootReply
+    =<< press ["backspace"] selected
+  where
+    selectedKeys :: AppState -> [ItemKey]
+    selectedKeys s = toList s.browser.selection.keys
 
 test_find :: Assertion
 test_find = do
-  let r = press ["/", "b", "enter"] root
+  r <- press ["/", "b", "enter"] =<< root
   assertEqual "the cursor is on b" 1 (focusedView r.state).cursor
   assertEqual "the pattern" (Just "b") r.state.findPattern
-  assertEqual
-    "the next match wraps around"
-    1
-    (focusedView (press ["."] r.state).state).cursor
+  assertEqual "the next match wraps around" 1 . (.cursor) . focusedView . (.state)
+    =<< press ["."] r.state
 
 test_sharedPattern :: Assertion
-test_sharedPattern = do
-  let r = press ["/", "p", "enter", "1", "."] root
-  assertEqual "the queue finds it" (Just "No match for p") ((.text) <$> r.state.message)
+test_sharedPattern =
+  assertEqual "the queue finds it" (Just "No match for p") . message . (.state)
+    =<< press ["/", "p", "enter", "1", "."]
+    =<< root
 
 test_selectFound :: Assertion
 test_selectFound = do
-  let r = press ["/", "b", "enter", "ctrl-s", "f"] root
+  r <- press ["/", "b", "enter", "ctrl-s", "f"] =<< root
   assertEqual "selected" [DirectoryKey "b"] (toList r.state.browser.selection.keys)
-  assertEqual "the message" (Just "1 item found and selected") ((.text) <$> r.state.message)
+  assertEqual "the message" (Just "1 item found and selected") (message r.state)
 
 test_jumpToBrowser :: Assertion
 test_jumpToBrowser = do
-  let r = press ["G"] queued
+  r <- press ["G"] =<< queued
   assertEqual "the screen" BrowserScreen (focusedView r.state).screen
   assertEqual "the listing of dir" [[Request "lsinfo" ["dir"]]] r.requests
-  let s = answer ["file: dir/9.flac", "file: dir/0.flac"] r
+  s <- answer ["file: dir/9.flac", "file: dir/0.flac"] r
   assertEqual "the cursor is on the song" 2 (focusedView s).cursor
-  assertEqual
-    "no song"
-    (Just "There is no song under the cursor")
-    ((.text) <$> (press ["G"] queueShown).state.message)
+  assertEqual "no song" (Just "There is no song under the cursor") . message . (.state)
+    =<< press ["G"]
+    =<< queueShown
 
 test_jumpWithStream :: Assertion
 test_jumpWithStream = do
   let stream = song 0 [] 60 & #file .~ "http://example.com/stream"
-      r = press ["G"] (testState (80, 12) (statusOf Stopped Nothing 1) [stream])
+  r <- press ["G"] =<< testState (80, 12) (statusOf Stopped Nothing 1) [stream]
   assertEqual "no listing" [] r.requests
   assertEqual "the error" (Just True) ((.isError) <$> r.state.message)
 
@@ -359,11 +352,15 @@ test_jumpWithStream = do
 test_longPath :: Assertion
 test_longPath = do
   let long = "a-very-long-directory-name-that-does-not-fit-in-the-header-next-to-the-volume"
-      entered = press ["enter"] (answer ["directory: " <> T.encodeUtf8 long] (press ["2"] queueShown))
+  entered <-
+    press ["enter"]
+      =<< answer ["directory: " <> T.encodeUtf8 long]
+      =<< press ["2"]
+      =<< queueShown
   case reverse entered.pending of
     p : _ -> do
-      let listed = runEvents 10 [replyTo [] p] entered.state
-          redraws = [d | After d (Tick _) <- listed.commands]
+      listed <- runEvents 10 [replyTo [] p] entered.state
+      let redraws = [d | After d (Tick _) <- listed.commands]
       assertEqual "a redraw in a second" [1] redraws
       let title = shownTitle testAppEnv
       assertBool
@@ -379,17 +376,17 @@ test_longPath = do
 -- Helpers
 
 -- | The queue with one song, @dir/0.flac@, with the id 1.
-queued :: AppState
+queued :: IO AppState
 queued = testState (80, 12) (statusOf Stopped Nothing 1) [song 0 [] 60]
 
 -- | The browser in a, with the cursor on its song.
-onSongOfA :: AppState -> AppState
-onSongOfA s =
-  let r = press ["enter"] (answer rootReply (press ["2"] s))
-  in (press ["down"] (answer ["file: a/x.flac"] r)).state
+onSongOfA :: AppState -> IO AppState
+onSongOfA s = do
+  r <- press ["enter"] =<< answer rootReply =<< press ["2"] s
+  (.state) <$> (press ["down"] =<< answer ["file: a/x.flac"] r)
 
 -- | The root with entries of every kind, in no order of any sort mode.
-mixed :: AppState
+mixed :: IO AppState
 mixed =
   answer
     [ "playlist: p"
@@ -407,45 +404,48 @@ mixed =
     , "directory: a"
     , "Last-Modified: 2026-01-02T00:00:00Z"
     ]
-    (press ["2"] queueShown)
+    =<< press ["2"]
+    =<< queueShown
 
-nextSort :: AppState -> AppState
-nextSort s = (press ["ctrl-t", "o"] s).state
+nextSort :: AppState -> IO AppState
+nextSort s = (.state) <$> press ["ctrl-t", "o"] s
 
 -- | The browser in b, with the cursor on its second song.
-onY :: AppState
-onY = (press ["down", "down"] (answer bReply (press ["down", "enter"] root))).state
+onY :: IO AppState
+onY =
+  (.state)
+    <$> (press ["down", "down"] =<< answer bReply =<< press ["down", "enter"] =<< root)
 
 bReply :: [BS.ByteString]
 bReply = ["file: b/x.flac", "file: b/y.flac"]
 
 -- | Fail the last request of a result.
-failLast :: MpdError -> Result -> Result
+failLast :: MpdError -> Result -> IO Result
 failLast err r = case reverse r.pending of
   p : _ -> runEvents 0 [failureOf err p] r.state
-  [] -> error "no request to fail"
+  [] -> assertFailure "no request to fail"
 
-queueShown :: AppState
+queueShown :: IO AppState
 queueShown = testState (80, 12) (statusOf Stopped Nothing 0) []
 
 -- | The browser at the root, with the cursor on its first entry.
-root :: AppState
-root = answer rootReply (press ["2"] queueShown)
+root :: IO AppState
+root = answer rootReply =<< press ["2"] =<< queueShown
 
 rootReply :: [BS.ByteString]
 rootReply = ["directory: a", "directory: b", "playlist: p"]
 
-press :: [T.Text] -> AppState -> Result
+press :: [T.Text] -> AppState -> IO Result
 press ks = runEvents 0 (map (KeyPressed . key) ks)
 
 key :: T.Text -> KeySpec
 key = either (error . T.unpack) id . parseKeySpec
 
 -- | Answer the last request of a result.
-answer :: [BS.ByteString] -> Result -> AppState
+answer :: [BS.ByteString] -> Result -> IO AppState
 answer ls r = case reverse r.pending of
-  p : _ -> (runEvents 0 [replyTo ls p] r.state).state
-  [] -> error "no request to answer"
+  p : _ -> (.state) <$> runEvents 0 [replyTo ls p] r.state
+  [] -> assertFailure "no request to answer"
 
 items :: AppState -> [T.Text]
 items s = map describe (toList s.browser.items)
@@ -456,3 +456,6 @@ items s = map describe (toList s.browser.items)
       EntryItem (DirectoryEntry d) -> "directory " <> d.path
       EntryItem (SongEntry entry) -> "song " <> entry.file
       EntryItem (PlaylistEntry p) -> "playlist " <> p.path
+
+message :: AppState -> Maybe T.Text
+message s = (.text) <$> s.message

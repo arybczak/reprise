@@ -41,20 +41,21 @@ import Reprise.Selection
 import Reprise.State
 
 -- | Handle an event at a monotonic time, with pure handlers that collect the
--- requests.
+-- requests. It runs in 'IO', but without 'IOE' the code that handles the
+-- event can't do any.
 runEvent
-  :: AppEnv -> Double -> AppEvent -> AppState -> (AppState, [PendingRequest], [UiCommand])
-runEvent env now event s =
-  let ((((), s'), requests), commands) =
-        runPureEff
-          . collectUiRequests
-          . collectMpdRequests
-          . runInput env
-          . runState (s & #now .~ now)
-          $ do
-            handleEvent event
-            afterEvent
-  in (s', requests, commands)
+  :: AppEnv -> Double -> AppEvent -> AppState -> IO (AppState, [PendingRequest], [UiCommand])
+runEvent env now event s = do
+  ((((), s'), requests), commands) <-
+    runEff
+      . collectUiRequests
+      . collectMpdRequests
+      . runInput env
+      . runState (s & #now .~ now)
+      $ do
+        handleEvent event
+        afterEvent
+  pure (s', requests, commands)
 
 ----------------------------------------
 -- Constants

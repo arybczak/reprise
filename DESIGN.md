@@ -551,6 +551,11 @@ used in two places:
    - The brick handler is a thin adapter. It reads the state, runs the event
      with handlers that collect the requests, writes the new state back, and
      then performs the collected requests.
+   - The event runs in `IO` with `runEff`, not `runPureEff`, though the
+     handlers can't do IO without `IOE`. `runPureEff` hides the IO of `Eff`
+     behind `unsafeDupablePerformIO`, and the benchmark of the down key
+     takes 1.77 µs with it against 0.92 µs with `runEff`. The tests and the
+     benchmarks run events in `IO` too.
    - Tests run the same events with pure handlers, without MPD or a terminal.
      This is the main payoff.
 2. **Worker threads are ordinary `Eff` programs** with IO-backed effects (the

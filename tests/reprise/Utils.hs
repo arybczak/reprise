@@ -17,8 +17,8 @@ module Utils
   , imageSpans
   ) where
 
+import Control.Monad
 import Data.ByteString qualified as BS
-import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
@@ -98,7 +98,7 @@ testAppEnv =
     }
 
 -- | The state with a terminal of the given size and a queue that MPD sent.
-testState :: (Int, Int) -> Status -> [Song] -> AppState
+testState :: (Int, Int) -> Status -> [Song] -> IO AppState
 testState size st songs =
   let s0 = initialState defaultConfig
       events =
@@ -106,7 +106,7 @@ testState size st songs =
         , MpdConnected (Version 0 24 0)
         , QueueFetched (st, songs)
         ]
-  in (runEvents 0 events s0).state
+  in (.state) <$> runEvents 0 events s0
 
 data Result = Result
   { state :: AppState
@@ -116,13 +116,14 @@ data Result = Result
   }
 
 -- | Handle events at a monotonic time, and collect what they requested.
-runEvents :: Double -> [AppEvent] -> AppState -> Result
-runEvents now events s0 = L.foldl' step (Result s0 [] [] []) events
+runEvents :: Double -> [AppEvent] -> AppState -> IO Result
+runEvents now events s0 = foldM step (Result s0 [] [] []) events
   where
-    step :: Result -> AppEvent -> Result
-    step r e =
-      let (s, ps, cs) = runEvent testAppEnv now e r.state
-      in Result s (r.requests <> map pendingRequestLines ps) (r.pending <> ps) (r.commands <> cs)
+    step :: Result -> AppEvent -> IO Result
+    step r e = do
+      (s, ps, cs) <- runEvent testAppEnv now e r.state
+      pure $
+        Result s (r.requests <> map pendingRequestLines ps) (r.pending <> ps) (r.commands <> cs)
 
 -- | The event of a request's continuation, for a reply of the given lines
 -- before its @OK@.
