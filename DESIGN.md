@@ -243,9 +243,13 @@ ncmpcpp.
   - **It fills the screen.** The width and the height scale apart, as in
     ncmpcpp's ellipse, so a circle is an ellipse as wide as the terminal.
     Scaled alike, it would leave the sides of a wide screen empty.
-  - **The samples of the last frames stay** for `visualizer.trail` and fade
-    through `visualizer.colors`. A cell has the color of the newest frame
-    with a dot in it. ncmpcpp colors by the distance from the center.
+  - **The colors show how loud the samples are,** as in ncmpcpp's mono
+    ellipse: `visualizer.colors` go from the center to the edges, by the
+    root mean square of the channels, and a cell has the color of its
+    loudest sample. Colors by age showed little: the newest frame alone
+    has a dot in nearly every cell of the picture, so it hid the older
+    ones.
+  - **The samples of the last frames stay** for `visualizer.trail`.
 - A frame shows the samples of its own time, `44100 / fps` of them. The
   worker waits for each frame on the clock, so a late frame doesn't make
   the next ones late, and it keeps no more than a frame of samples, so the
@@ -1180,8 +1184,8 @@ visualizer:
   data_source: ~                 # the fifo of MPD's fifo output; ~/ is the home directory
   in_stereo: true                # the fifo's format is 44100:16:2, or 44100:16:1
   fps: 60
-  trail: 150ms                   # how long the samples of a frame fade
-  colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # newest first
+  trail: 150ms                   # how long the samples of a frame stay
+  colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # quiet to loud
 
 styles:                          # used across screens
   label: white                   # field names, e.g. in the search engine

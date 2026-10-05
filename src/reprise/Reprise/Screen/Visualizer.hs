@@ -1,7 +1,8 @@
 -- | The visualizer: the samples that MPD's fifo output writes, with the
 -- left channel across and the right one up, as in ncmpcpp's stereo ellipse.
 -- Mono is a diagonal, and stereo widens it. The samples are braille dots,
--- eight in a cell, and those of the last frames stay while they fade.
+-- eight in a cell, colored by how loud they are, and those of the last
+-- frames stay for a moment.
 module Reprise.Screen.Visualizer
   ( visualizerView
   , visualizerSamples
@@ -13,7 +14,6 @@ import Control.Monad.ST
 import Data.Bits
 import Data.ByteString qualified as BS
 import Data.Char
-import Data.Foldable
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe
 import Data.Sequence qualified as Seq
@@ -74,23 +74,21 @@ trailFrames cfg =
   in max 1 (round (realToFrac @_ @Double trail * fromIntegral fps))
 
 -- | The samples of the frames as braille dots in a grid of the given size.
--- A cell has the color of the newest frame with a dot in it.
+-- A cell has the color of its loudest sample.
 scope
   :: ColorMode -> VisualizerConfig -> Int -> Int -> Seq.Seq BS.ByteString -> V.Image
 scope colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
   where
-    -- The dots of each cell, and the age of the newest frame with a dot in
-    -- it.
-    (dots, ages) = runST $ do
+    -- The dots of each cell, and the color of its loudest sample.
+    (dots, colors) = runST $ do
       dotsM <- MVU.replicate (w * h) (0 :: Word8)
-      agesM <- MVU.replicate (w * h) (0 :: Int)
-      -- The newer frames come later, so that their ages stay.
-      forM_ (reverse (zip [0 ..] (toList frames))) $ \(age, pcm) ->
-        forM_ (points pcm) $ \(dx, dy) -> do
+      colorsM <- MVU.replicate (w * h) (0 :: Int)
+      forM_ frames $ \pcm ->
+        forM_ (points pcm) $ \(dx, dy, color) -> do
           let cell = (dy `div` dotRows) * w + dx `div` dotColumns
           MVU.modify dotsM (.|. brailleBit (dx `mod` dotColumns) (dy `mod` dotRows)) cell
-          MVU.write agesM cell age
-      (,) <$> VU.unsafeFreeze dotsM <*> VU.unsafeFreeze agesM
+          MVU.modify colorsM (max color) cell
+      (,) <$> VU.unsafeFreeze dotsM <*> VU.unsafeFreeze colorsM
 
     row :: Int -> V.Image
     row y = V.horizCat . map run $ runsOf [cellAt (y * w + x) | x <- [0 .. w - 1]]
@@ -98,20 +96,29 @@ scope colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
     cellAt :: Int -> (Maybe Int, Char)
     cellAt i = case dots VU.! i of
       0 -> (Nothing, ' ')
-      d -> (Just (colorIndex (ages VU.! i)), chr (brailleBlank + fromIntegral d))
+      d -> (Just (colors VU.! i), chr (brailleBlank + fromIntegral d))
 
     channels :: Int
     channels = if cfg.inStereo then 2 else 1
 
-    -- The dots of a frame's samples: the left channel across and the right
-    -- one up, each at full scale at the edges of the grid.
-    points :: BS.ByteString -> [(Int, Int)]
+    -- The dots of a frame's samples, with their colors: the left channel
+    -- across and the right one up, each at full scale at the edges of the
+    -- grid.
+    points :: BS.ByteString -> [(Int, Int, Int)]
     points pcm =
-      [ (round (centerX + left * centerX), round (centerY - right * centerY))
+      [ (round (centerX + left * centerX), round (centerY - right * centerY), colorOf left right)
       | i <- [0 .. BS.length pcm `div` (bytesPerSample * channels) - 1]
       , let left = sampleAt pcm (i * channels)
             right = if cfg.inStereo then sampleAt pcm (i * channels + 1) else left
       ]
+
+    -- By the distance from the center, as the root mean square of the
+    -- channels, so that mono at full scale has the last color.
+    colorOf :: Double -> Double -> Int
+    colorOf left right =
+      let loudness = sqrt ((left * left + right * right) / 2)
+          n = NE.length cfg.colors
+      in min (n - 1) (floor (loudness * fromIntegral n))
 
     dotsWide, dotsHigh :: Int
     dotsWide = w * dotColumns
@@ -120,9 +127,6 @@ scope colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
     centerX, centerY :: Double
     centerX = fromIntegral (dotsWide - 1) / 2
     centerY = fromIntegral (dotsHigh - 1) / 2
-
-    colorIndex :: Int -> Int
-    colorIndex age = min (NE.length cfg.colors - 1) (age * NE.length cfg.colors `div` trailFrames cfg)
 
     run :: (Maybe Int, String) -> V.Image
     run (color, text) =

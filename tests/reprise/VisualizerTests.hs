@@ -48,7 +48,7 @@ visualizerTests =
     , testCase "no room for the visualizer" test_noRoom
     , testCase "mono is a diagonal" test_mono
     , testCase "the left channel alone is a horizontal line" test_oneChannel
-    , testCase "older frames fade through the colors" test_fading
+    , testCase "louder samples have later colors" test_loudness
     , goldenVsString
         "a circle"
         ("tests" </> "reprise" </> "golden" </> "visualizer.txt")
@@ -93,11 +93,11 @@ test_silence = do
   s <- shownWith visualizing []
   r <- runEventsWith visualizing 0 [VisualizerSamples BS.empty] s
   assertEqual "the screen stays" [KeepScreen] r.commands
-  faded <- shownWith visualizing [circle, BS.empty]
+  stayed <- shownWith visualizing [circle, BS.empty]
   assertEqual
-    "the screen changes while the samples fade"
+    "the screen changes while samples are on it"
     2
-    (Seq.length faded.visualizer.frames)
+    (Seq.length stayed.visualizer.frames)
 
 -- | The header and the bars take the 4 rows.
 test_noRoom :: Assertion
@@ -120,17 +120,12 @@ test_oneChannel = do
   assertBool "dots in several columns" (length (L.nub (map snd dots)) > 1)
   assertEqual "one row" 1 (length (L.nub (map fst dots)))
 
--- | With two colors and two frames on the screen, the newer frame has the
--- first color and the older one the second.
-test_fading :: Assertion
-test_fading = do
-  let env =
-        visualizing
-          & #config % #visualizer % #trail .~ 2 / 60
-          & #config % #visualizer % #colors .~ (style "red" NE.:| [style "blue"])
-      older = samples [(maxBound, maxBound)]
-      newer = samples [(minBound, minBound)]
-  s <- shownWith env [older, newer]
+-- | With two colors, a quiet sample in the center has the first, and a
+-- loud one in the top right corner the second.
+test_loudness :: Assertion
+test_loudness = do
+  let env = visualizing & #config % #visualizer % #colors .~ (style "red" NE.:| [style "blue"])
+  s <- shownWith env [samples [(1000, 1000), (maxBound, maxBound)]]
   let colorsOf = [V.attrForeColor a | (a, t) <- imageSpans (renderScreen env s), T.any isBraille t]
   assertEqual "colors" [V.SetTo (V.ISOColor 4), V.SetTo (V.ISOColor 1)] colorsOf
   where

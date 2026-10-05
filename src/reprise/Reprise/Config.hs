@@ -250,9 +250,9 @@ data VisualizerConfig = VisualizerConfig
   , inStereo :: Bool
   , fps :: FrameRate
   , trail :: Duration
-  -- ^ How long the samples of a frame stay on the screen, as they fade.
+  -- ^ How long the samples of a frame stay on the screen.
   , colors :: NE.NonEmpty Style
-  -- ^ The newest samples have the first, and they fade through the others.
+  -- ^ From the quietest samples, in the center, to the loudest.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml VisualizerConfig
