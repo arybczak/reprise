@@ -55,10 +55,15 @@ module Reprise.State
   , titleScrolls
   , headerRight
   , displayedElapsed
-  , lyricsLines
+  , lyricsRows
+  , sungLine
+  , lyricsOffset
+  , nextLyricsLine
   ) where
 
+import Control.Monad
 import Data.ByteString qualified as BS
+import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Sequence qualified as Seq
@@ -292,6 +297,9 @@ data LyricsState = LyricsState
   -- ^ Of the request of the song's lyrics. A reply with another token is
   -- of a song that the screen showed before.
   , status :: LyricsStatus
+  , following :: Bool
+  -- ^ Whether the screen keeps the line being sung in view, until the user
+  -- scrolls.
   , returnTo :: ScreenName
   -- ^ The screen that the lyrics were shown from, which showing them again
   -- goes back to.
@@ -367,7 +375,7 @@ initialState config =
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , visualizer = VisualizerState Nothing Seq.empty []
-    , lyrics = LyricsState Nothing 0 ReadingLyrics QueueScreen
+    , lyrics = LyricsState Nothing 0 ReadingLyrics True QueueScreen
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
@@ -542,14 +550,65 @@ displayedElapsed s = case s.seek of
   Just sk -> Just sk.target
   Nothing -> elapsedAt s.now s.mirror
 
--- | The lines of the lyrics screen at a width, with long lines wrapped.
-lyricsLines :: Int -> LyricsState -> [T.Text]
-lyricsLines width st = concatMap (wrapText width) $ case (st.song, st.status) of
+-- | The rows of the lyrics screen at a width, with long lines wrapped, and
+-- the index of the timed line of each.
+lyricsRows :: Int -> LyricsState -> [(Maybe Int, T.Text)]
+lyricsRows width st = case (st.song, st.status) of
   (Nothing, _) -> []
   (_, ReadingLyrics) -> []
-  (_, FetchingLyrics) -> ["Fetching the lyrics…"]
+  (_, FetchingLyrics) -> untimed ["Fetching the lyrics…"]
   (_, ShowingLyrics result) -> case result of
-    LyricsFound _ text -> T.lines text
-    LyricsInstrumental -> ["Instrumental"]
-    LyricsMissing -> ["No lyrics found"]
-    LyricsFailed reason -> [reason]
+    LyricsFound _ lyrics -> case lyrics.timed of
+      Just timed ->
+        concat
+          [ map (Just i,) (wrapText width text)
+          | (i, (_, text)) <- zip [0 ..] timed.entries
+          ]
+      Nothing -> untimed (T.lines lyrics.plain)
+    LyricsInstrumental -> untimed ["Instrumental"]
+    LyricsMissing -> untimed ["No lyrics found"]
+    LyricsFailed reason -> untimed [reason]
+  where
+    untimed :: [T.Text] -> [(Maybe Int, T.Text)]
+    untimed = concatMap (map (Nothing,) . wrapText width)
+
+-- | The index of the timed line of the lyrics screen that is being sung:
+-- the last one whose time came, in the song that plays.
+sungLine :: AppState -> Maybe Int
+sungLine s = do
+  (timed, elapsed) <- playingTimedLyrics s
+  let sung = takeWhile ((<= elapsed) . fst) timed.entries
+  guard . not $ null sung
+  pure $ length sung - 1
+
+-- | The first row that the lyrics screen shows: while it follows the song,
+-- the one that keeps the line being sung in the middle, else the view's.
+lyricsOffset :: AppState -> View -> Int
+lyricsOffset s v = fromMaybe v.offset $ do
+  guard s.lyrics.following
+  line <- sungLine s
+  let rows = lyricsRows v.width s.lyrics
+  row <- L.findIndex ((== Just line) . fst) rows
+  pure . max 0 $ min (length rows - v.height) (row - v.height `div` 2)
+
+-- | When the next timed line of the lyrics screen is sung, for a redraw.
+nextLyricsLine :: AppState -> Maybe Double
+nextLyricsLine s = do
+  guard $ (focusedView s).screen == LyricsScreen && isNothing s.seek
+  st <- s.mirror.status
+  guard $ st.state == Playing
+  (timed, elapsed) <- playingTimedLyrics s
+  next <- L.find (> elapsed) (map fst timed.entries)
+  pure $ s.now + realToFrac (next - elapsed)
+
+-- | The timed lyrics of the lyrics screen, if its song is the one that
+-- plays, with the elapsed time of the song.
+playingTimedLyrics :: AppState -> Maybe (TimedLyrics, Seconds)
+playingTimedLyrics s = do
+  song <- s.lyrics.song
+  playing <- currentSong s.mirror
+  guard $ playing.file == song.file && playing.range == song.range
+  ShowingLyrics (LyricsFound _ lyrics) <- Just s.lyrics.status
+  timed <- lyrics.timed
+  elapsed <- displayedElapsed s
+  pure (timed, elapsed)

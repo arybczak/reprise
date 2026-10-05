@@ -326,7 +326,7 @@ runAction = \case
   action@(Move t) -> verb action $ \case
     QueueScreen -> Just $ modifyWithEnv (moveQueueCursor t)
     BrowserScreen -> Just $ modifyWithEnv (moveBrowserCursor t)
-    LyricsScreen -> Just $ scrollLines t
+    LyricsScreen -> Just $ scrollLyrics t
     HelpScreen -> Just $ scrollLines t
     _ -> Nothing
   JumpToPlaying -> do
@@ -648,7 +648,7 @@ scheduleTick = do
       after (t - s.now) (Tick token)
 
 nextRedraw :: AppEnv -> AppState -> Maybe Double
-nextRedraw env s = case catMaybes [elapsedRedraw s, titleRedraw] of
+nextRedraw env s = case catMaybes [elapsedRedraw s, titleRedraw, nextLyricsLine s] of
   [] -> Nothing
   ts -> Just (minimum ts)
   where

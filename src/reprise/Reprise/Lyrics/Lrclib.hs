@@ -11,6 +11,7 @@ module Reprise.Lyrics.Lrclib
   ) where
 
 import Control.Exception
+import Control.Monad
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Maybe
@@ -91,10 +92,16 @@ lrclibLyrics get song = case (firstTag Artist song, firstTag Title song) of
       Right Nothing -> LyricsMissing
       Right (Just track)
         | track.instrumental -> LyricsInstrumental
-        | Just plain <- track.plainLyrics
-        , not (T.null (T.strip plain)) ->
-            LyricsFound (Fetched "LRCLIB") plain
-        | otherwise -> LyricsMissing
+        | otherwise ->
+            let timed = track.syncedLyrics >>= timedLyrics
+                plain = mfilter (not . T.null . T.strip) track.plainLyrics
+            in case (plain, timed) of
+                 (Just text, _) -> fetched $ Lyrics text ((.timed) =<< timed)
+                 (Nothing, Just lyrics) -> fetched lyrics
+                 (Nothing, Nothing) -> LyricsMissing
+
+    fetched :: Lyrics -> LyricsResult
+    fetched = LyricsFound (Fetched "LRCLIB")
 
     -- A busy server answers 503 with a message, e.g. "The server is busy,
     -- please retry in a moment".

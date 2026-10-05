@@ -71,7 +71,7 @@ test_found :: Assertion
 test_found = do
   got <- answer "get.json"
   (asked, result) <- lookedUp karmaPolice [("/api/get", Right (200, got))]
-  assertEqual "the lyrics" (LyricsFound (Fetched "LRCLIB") "First line\nSecond line") result
+  assertEqual "the lyrics" answered result
   assertEqual
     "the request"
     [
@@ -94,7 +94,7 @@ test_search = do
     lookedUp
       (alexTheme "Alex Theme" 295)
       [("/api/get", Right (404, missing)), ("/api/search", Right (200, found))]
-  assertEqual "the lyrics" (LyricsFound (Fetched "LRCLIB") "First line\nSecond line") result
+  assertEqual "the lyrics" answered result
   assertEqual
     "the search"
     [("artist_name", "Akira Yamaoka"), ("track_name", "Alex Theme")]
@@ -113,7 +113,7 @@ test_cleaned = do
           ("/api/get", _) -> Right (404, missing)
           _ -> Right (200, "[]")
   result <- lrclibLyrics get s
-  assertEqual "the lyrics" (LyricsFound (Fetched "LRCLIB") "First line\nSecond line") result
+  assertEqual "the lyrics" answered result
   asked <- readIORef calls
   assertEqual
     "the titles"
@@ -175,3 +175,16 @@ alexTheme title = song 0 [(Artist, ["Akira Yamaoka"]), (Title, [title])]
 
 answer :: FilePath -> IO BS.ByteString
 answer name = BS.readFile ("tests" </> "reprise" </> "lrclib" </> name)
+
+-- | The lyrics in the answers: plain, and timed.
+answered :: LyricsResult
+answered =
+  LyricsFound (Fetched "LRCLIB") $
+    Lyrics
+      "First line\nSecond line"
+      ( Just
+          ( TimedLyrics
+              "[00:01.00] First line\n[00:02.50] Second line"
+              [(1, "First line"), (2.5, "Second line")]
+          )
+      )

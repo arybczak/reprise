@@ -414,9 +414,22 @@ ncmpcpp.
     that hangs holds up the next.
   - **The tests replay LRCLIB's answers** with other lyrics in them, through
     a fake of the HTTP request.
-- **Later:** timed lyrics in a `.lrc` file next to the `.txt`, with the
-  current line highlighted; fetching the playing song's lyrics in the
-  background; following the playing song; editing in `$EDITOR`.
+- **Timed lyrics show the line being sung** while their song plays, in
+  `lists.playing_style`, as the song that plays shows in a list. The screen
+  keeps that line in its middle, until the user scrolls, and follows again
+  for the next lyrics that it shows.
+  - **The times are stored in LRC,** in `<artist> - <title>.lrc` next to the
+    `.txt`, as LRCLIB sends them. The `.txt` stays for ncmpcpp, which
+    doesn't read LRC. Lyrics stored anew without times remove the `.lrc`,
+    whose times would go with the old ones.
+  - **A line of LRC can have several times,** e.g. a chorus, and tags
+    without a time, e.g. `[ar:Artist]`, aren't lines. A time is read
+    exactly, as `62.345` through a `Double` came to 62.344 s.
+  - **The screen is drawn again when the next line is sung,** besides the
+    redraws of the elapsed time. Where the screen starts is worked out when
+    it is drawn, so following the song needs no events of its own.
+- **Later:** fetching the playing song's lyrics in the background;
+  following the playing song; editing in `$EDITOR`.
 
 ### Later
 

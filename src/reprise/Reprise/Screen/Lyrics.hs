@@ -2,12 +2,15 @@
 -- worker reads from the directory of lyrics, or fetches.
 module Reprise.Screen.Lyrics
   ( lyricsView
+  , scrollLyrics
   , showLyrics
   , refetchLyrics
   , lyricsFetching
   , lyricsLoaded
   ) where
 
+import Data.Maybe
+import Data.Text qualified as T
 import Effectful
 import Graphics.Vty qualified as V
 import Optics.Core
@@ -21,10 +24,27 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
 
+-- | The line being sung has the style of the song that plays in a list.
 lyricsView :: AppEnv -> AppState -> View -> V.Image
 lyricsView env s v =
-  V.vertCat . map (V.text' (toAttr env.colorMode mempty)) . take v.height . drop v.offset $
-    lyricsLines v.width s.lyrics
+  V.vertCat . map row . take v.height . drop (lyricsOffset s v) $
+    lyricsRows v.width s.lyrics
+  where
+    row :: (Maybe Int, T.Text) -> V.Image
+    row (line, text) =
+      let style = if isJust line && line == sung then env.config.lists.playingStyle else mempty
+      in V.text' (toAttr env.colorMode style) text
+
+    sung :: Maybe Int
+    sung = sungLine s
+
+-- | Scroll the lyrics from where they show, which stops following the song.
+scrollLyrics :: App es => MoveTarget -> Eff es ()
+scrollLyrics t = do
+  s <- getS
+  modifyS $ #lyrics % #following .~ False
+  modifyWithEnv . modifyView $ #offset .~ lyricsOffset s (focusedView s)
+  scrollLines t
 
 -- | Show the lyrics of the song under the cursor, from the top. On the
 -- lyrics screen, go back to the screen that showed them.
@@ -60,7 +80,7 @@ refetchLyrics = do
 request :: App es => Song -> Bool -> ScreenName -> Eff es ()
 request song refetch returnTo = do
   token <- newToken
-  modifyS $ #lyrics .~ LyricsState (Just song) token ReadingLyrics returnTo
+  modifyS $ #lyrics .~ LyricsState (Just song) token ReadingLyrics True returnTo
   fetchLyrics token (LyricsRequest song refetch)
 
 -- | The lyrics of the request with the token aren't stored, so they are

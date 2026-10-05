@@ -291,7 +291,7 @@ screenLength :: AppEnv -> AppState -> ScreenName -> Int
 screenLength env s = \case
   QueueScreen -> Seq.length s.mirror.queue
   BrowserScreen -> Seq.length s.browser.items
-  LyricsScreen -> length (lyricsLines (fst s.terminalSize) s.lyrics)
+  LyricsScreen -> length (lyricsRows (fst s.terminalSize) s.lyrics)
   HelpScreen -> length (helpLines env.keymaps)
   _ -> 0
 

@@ -5,7 +5,9 @@ import Control.Concurrent.STM
 import Control.Exception
 import Data.ByteString qualified as BS
 import Data.IORef
+import Data.Maybe
 import Data.Text qualified as T
+import Graphics.Vty qualified as V
 import Optics.Core
 import System.Directory
 import System.FilePath
@@ -43,6 +45,11 @@ lyricsTests =
     , testCase "the worker remembers what isn't there, not failures" test_workerRemembers
     , testCase "the worker fetches the lyrics again" test_workerRefetches
     , testCase "the worker without fetchers" test_workerWithoutFetchers
+    , testCase "timed lyrics from LRC" test_parseLrc
+    , testCase "the worker stores and reads the times" test_workerTimes
+    , testCase "the line being sung" test_sung
+    , testCase "scrolling stops following the song" test_stopFollowing
+    , testCase "a redraw when the next line is sung" test_nextLine
     ]
 
 -- | The first is the name of a file in the author's lyrics from ncmpcpp.
@@ -60,6 +67,10 @@ test_fileNames = do
     (named ["AC/DC"] ["Whats Next? Re: Stacks"])
   assertEqual "without a title, the file" "3.txt" (named ["A"] [])
   assertEqual "with an empty artist, the file" "3.txt" (named [""] ["T"])
+  assertEqual
+    "the times, with a point in the title"
+    "A - Mr. Blue.lrc"
+    (timedLyricsFileName (song 3 [(Artist, ["A"]), (Title, ["Mr. Blue"])] 60))
 
 test_show :: Assertion
 test_show = do
@@ -86,7 +97,10 @@ test_outcomes = do
   fetching <- runEvents 0 [LyricsFetching token] r.state
   assertEqual "fetching" ["Fetching the lyrics…"] (take 1 (mainLines fetching.state))
   fetched <-
-    runEvents 0 [LyricsLoaded token (LyricsFound (Fetched "LRCLIB") "Words")] fetching.state
+    runEvents
+      0
+      [LyricsLoaded token (LyricsFound (Fetched "LRCLIB") (plainLyrics "Words"))]
+      fetching.state
   assertEqual "fetched" ["Words"] (take 1 (mainLines fetched.state))
   assertEqual
     "where from"
@@ -148,9 +162,6 @@ test_scroll = do
   assertEqual "no further" ["line 15", "line 20"] (firstAndLast (mainLines further.state))
   home <- runEvents 0 [key "home"] further.state
   assertEqual "the start" ["line 1"] (take 1 (mainLines home.state))
-  where
-    firstAndLast :: [T.Text] -> [T.Text]
-    firstAndLast ls = take 1 ls <> take 1 (reverse ls)
 
 test_refetch :: Assertion
 test_refetch = do
@@ -186,9 +197,10 @@ test_worker = withSystemTempDirectory "lyrics" $ \dir -> do
 test_workerFetches :: Assertion
 test_workerFetches = withSystemTempDirectory "lyrics" $ \dir -> do
   BS.writeFile (dir </> "A - One.txt") "Stored"
-  (calls, fetcher) <- counted (pure (LyricsFound (Fetched "LRCLIB") "Fetched"))
+  (calls, fetcher) <-
+    counted (pure (LyricsFound (Fetched "LRCLIB") (plainLyrics "Fetched")))
   withWorker (dir </> "new") [fetcher] $ \ask -> do
-    let fetched = LyricsFound (Fetched "LRCLIB") "Fetched"
+    let fetched = LyricsFound (Fetched "LRCLIB") (plainLyrics "Fetched")
     assertEqual "fetched" [LyricsFetching 1, LyricsLoaded 1 fetched] =<< ask 1 "Two" False
     assertEqual "stored" "Fetched\n" =<< BS.readFile (dir </> "new" </> "A - Two.txt")
     assertEqual "read the second time" [LyricsLoaded 2 (stored "Fetched")]
@@ -210,19 +222,19 @@ test_workerRemembers = withSystemTempDirectory "lyrics" $ \dir -> do
     assertEqual "failed again" (failed 2) =<< ask 2 "One" False
   assertEqual "two fetches of the broken" 2 =<< readIORef brokenCalls
   (_, first) <- counted (pure (LyricsFailed "down"))
-  (_, second) <- counted (pure (LyricsFound (Fetched "B") "Words"))
+  (_, second) <- counted (pure (LyricsFound (Fetched "B") (plainLyrics "Words")))
   withWorker dir [first, second] $ \ask ->
     assertEqual
       "the next fetcher"
-      [LyricsFetching 1, LyricsLoaded 1 (LyricsFound (Fetched "B") "Words")]
+      [LyricsFetching 1, LyricsLoaded 1 (LyricsFound (Fetched "B") (plainLyrics "Words"))]
       =<< ask 1 "Two" False
 
 test_workerRefetches :: Assertion
 test_workerRefetches = withSystemTempDirectory "lyrics" $ \dir -> do
   BS.writeFile (dir </> "A - One.txt") "Old"
-  (calls, fetcher) <- counted (pure (LyricsFound (Fetched "LRCLIB") "New"))
+  (calls, fetcher) <- counted (pure (LyricsFound (Fetched "LRCLIB") (plainLyrics "New")))
   withWorker dir [fetcher] $ \ask -> do
-    let fetched = LyricsFound (Fetched "LRCLIB") "New"
+    let fetched = LyricsFound (Fetched "LRCLIB") (plainLyrics "New")
     assertEqual "fetched" [LyricsFetching 1, LyricsLoaded 1 fetched] =<< ask 1 "One" True
     assertEqual "stored anew" "New\n" =<< BS.readFile (dir </> "A - One.txt")
   assertEqual "one fetch" 1 =<< readIORef calls
@@ -231,6 +243,114 @@ test_workerWithoutFetchers :: Assertion
 test_workerWithoutFetchers = withSystemTempDirectory "lyrics" $ \dir ->
   withWorker dir [] $ \ask ->
     assertEqual "missing, not fetching" [LyricsLoaded 1 LyricsMissing] =<< ask 1 "One" True
+
+test_parseLrc :: Assertion
+test_parseLrc = do
+  assertEqual
+    "lines"
+    [(1, "First"), (2.5, "Second")]
+    (parseLrc "[00:01.00] First\n[00:02.50]Second\n")
+  assertEqual
+    "a line at several times"
+    [(10, "Chorus"), (20, "Verse"), (30, "Chorus")]
+    (parseLrc "[00:10.00][00:30.00]Chorus\n[00:20.00]Verse")
+  assertEqual "tags" [(1, "Line")] (parseLrc "[ar:Artist]\n[ti:Title]\n[00:01]Line")
+  assertEqual
+    "times"
+    [(62, "a"), (62.345, "b"), (62.5, "c")]
+    (parseLrc "[1:02]a\n[01:02.345]b\n[01:02:50]c")
+  assertEqual "a pause" [(5, "")] (parseLrc "[00:05.00]")
+  assertEqual "Windows' line ends" [(1, "A")] (parseLrc "[00:01.00]A\r\n")
+  assertEqual "not timed" Nothing (timedLyrics "Just words\nand more")
+  assertEqual
+    "the text of timed lyrics"
+    (Just "First\nSecond\n")
+    ((.plain) <$> timedLyrics "[00:01.00] First\n[00:02.50]Second")
+
+test_workerTimes :: Assertion
+test_workerTimes = withSystemTempDirectory "lyrics" $ \dir -> do
+  let lrc = "[00:01.00]Sung"
+      timed = Lyrics "Plain words" ((.timed) =<< timedLyrics lrc)
+  (_, fetcher) <- counted (pure (LyricsFound (Fetched "LRCLIB") timed))
+  withWorker dir [fetcher] $ \ask -> do
+    _ <- ask 1 "One" False
+    assertEqual "the text" "Plain words\n" =<< BS.readFile (dir </> "A - One.txt")
+    assertEqual "the times" "[00:01.00]Sung\n" =<< BS.readFile (dir </> "A - One.lrc")
+    ask 2 "One" False >>= \case
+      [LyricsLoaded 2 (LyricsFound Stored lyrics)] ->
+        assertEqual "timed" (Just [(1, "Sung")]) ((.entries) <$> lyrics.timed)
+      other -> assertFailure $ "stored lyrics, not " <> show other
+  (_, untimed) <-
+    counted (pure (LyricsFound (Fetched "LRCLIB") (plainLyrics "Other words")))
+  withWorker dir [untimed] $ \ask -> do
+    _ <- ask 1 "One" True
+    assertBool "no times" . not =<< doesFileExist (dir </> "A - One.lrc")
+    assertEqual "the text" [LyricsLoaded 2 (stored "Other words")] =<< ask 2 "One" False
+
+-- | 20 timed lines, a second apart, in a main area of 6 rows, while the
+-- song is paused at 10 s.
+test_sung :: Assertion
+test_sung = do
+  shown <- timedShown Paused
+  assertEqual "the line" (Just 10) (sungLine shown)
+  assertEqual "in the middle" ["line 7", "line 12"] (firstAndLast (mainLines shown))
+  assertEqual "the style" ["line 10"] (boldTexts shown)
+  other <- runEvents 0 [key "1", key "down", key "l"] shown
+  token <- requestToken other
+  loaded <- runEvents 0 [LyricsLoaded token (LyricsFound Stored timedTwenty)] other.state
+  assertEqual "not of a song that doesn't play" Nothing (sungLine loaded.state)
+  assertEqual "from the top" ["line 0"] (take 1 (mainLines loaded.state))
+  where
+    boldTexts :: AppState -> [T.Text]
+    boldTexts s =
+      [ t
+      | (a, t) <- imageSpans (renderScreen testAppEnv s)
+      , V.SetTo st <- [V.attrStyle a]
+      , V.hasStyle st V.bold
+      , "line" `T.isPrefixOf` t
+      ]
+
+test_stopFollowing :: Assertion
+test_stopFollowing = do
+  shown <- timedShown Paused
+  scrolled <- runEvents 0 [key "down"] shown
+  assertEqual "from where it showed" ["line 8"] (take 1 (mainLines scrolled.state))
+  assertBool "not following" (not scrolled.state.lyrics.following)
+  again <- runEvents 0 [key "l", key "l"] scrolled.state
+  assertBool "following the next time" again.state.lyrics.following
+
+-- | Playing, 0.25 s after the status of 10 s: the next line at 11 s.
+test_nextLine :: Assertion
+test_nextLine = do
+  shown <- timedShown Playing
+  r <- runEvents 0.25 [Tick 0] shown
+  assertEqual "at the next line" (Just 1) (nextLyricsLine r.state)
+
+-- | The lyrics screen of the first song, which plays, with 'timedTwenty'.
+timedShown :: PlayerState -> IO AppState
+timedShown st = do
+  s <-
+    testState
+      (40, 10)
+      (statusOf st (Just 0) 2)
+      [ song 0 [(Artist, ["A"]), (Title, ["One"])] 60
+      , song 1 [(Artist, ["A"]), (Title, ["Two"])] 60
+      ]
+  r <- runEvents 0 [key "l"] s
+  token <- requestToken r
+  (.state) <$> runEvents 0 [LyricsLoaded token (LyricsFound Stored timedTwenty)] r.state
+
+-- | 20 lines, @line 0@ to @line 19@, a second apart.
+timedTwenty :: Lyrics
+timedTwenty =
+  fromMaybe (error "not timed") . timedLyrics $
+    T.unlines
+      [ "[00:" <> T.justifyRight 2 '0' (T.pack (show i)) <> ".00]line " <> T.pack (show i)
+      | i <- [0 .. 19 :: Int]
+      ]
+
+firstAndLast :: [T.Text] -> [T.Text]
+firstAndLast ls = take 1 ls <> take 1 (reverse ls)
 
 -- | Run a worker with a directory and fetchers, and ask it for the lyrics
 -- of A's songs: the events of a request, until its lyrics.
@@ -279,7 +399,7 @@ requestToken r = case [t | FetchLyrics t _ <- r.commands] of
   other -> assertFailure $ "one request of lyrics, not " <> show (length other)
 
 stored :: T.Text -> LyricsResult
-stored = LyricsFound Stored
+stored = LyricsFound Stored . plainLyrics
 
 messageOf :: Result -> Maybe T.Text
 messageOf r = (.text) <$> r.state.message

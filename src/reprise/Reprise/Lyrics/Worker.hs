@@ -8,6 +8,7 @@ module Reprise.Lyrics.Worker
 import Control.Applicative
 import Control.Concurrent.STM
 import Control.Exception
+import Control.Monad
 import Data.ByteString qualified as BS
 import Data.Functor
 import Data.Map.Strict qualified as M
@@ -50,7 +51,7 @@ lyricsWorker src = go Nothing M.empty
       let file = lyricsFileName request.song
           known' = if request.refetch then M.delete file known else known
       stored <-
-        if request.refetch then pure LyricsMissing else storedLyrics (src.directory </> file)
+        if request.refetch then pure LyricsMissing else storedLyrics src.directory request.song
       result <- case stored of
         LyricsMissing
           | Just r <- M.lookup file known' -> pure r
@@ -58,7 +59,7 @@ lyricsWorker src = go Nothing M.empty
               src.emit $ LyricsFetching token
               fetched <- fetchFrom Nothing src.fetchers request.song
               case fetched of
-                LyricsFound _ text -> store file text
+                LyricsFound _ lyrics -> store request.song lyrics
                 _ -> pure ()
               pure fetched
         other -> pure other
@@ -79,28 +80,49 @@ lyricsWorker src = go Nothing M.empty
           LyricsFailed reason -> fetchFrom (failed <|> Just reason) rest song
           found -> pure found
 
-    -- Through a temporary file, so that a file of lyrics is never half
-    -- written. The lyrics show even if they can't be stored.
-    store :: FilePath -> T.Text -> IO ()
-    store file text = do
+    -- The lyrics show even if they can't be stored.
+    store :: Song -> Lyrics -> IO ()
+    store song lyrics = do
       stored <- try @IOException $ do
         createDirectoryIfMissing True src.directory
-        (temporary, h) <- openBinaryTempFileWithDefaultPermissions src.directory (file <.> "part")
-        BS.hPut h (T.encodeUtf8 (text <> "\n")) `finally` hClose h
-        renameFile temporary (src.directory </> file)
+        writeWhole (lyricsFileName song) lyrics.plain
+        case lyrics.timed of
+          Just timed -> writeWhole (timedLyricsFileName song) timed.lrc
+          -- The times stored before are of other lyrics.
+          Nothing ->
+            removeFile (src.directory </> timedLyricsFileName song) `catch` \err ->
+              unless (isDoesNotExistError err) (throwIO err)
       either
         (src.logLine . ("The lyrics can't be stored: " <>) . T.pack . displayException)
         pure
         stored
 
--- | The lyrics in a file. A file that isn't UTF-8 shows, with its bytes
--- that aren't as replacement characters.
-storedLyrics :: FilePath -> IO LyricsResult
-storedLyrics path =
-  try @IOException (BS.readFile path) <&> \case
-    Right bytes ->
-      LyricsFound Stored . T.stripEnd . T.replace "\r\n" "\n" $ T.decodeUtf8Lenient bytes
-    Left err
-      | isDoesNotExistError err -> LyricsMissing
-      | otherwise ->
-          LyricsFailed $ "The lyrics can't be read: " <> T.pack (displayException err)
+    -- Through a temporary file, so that a file is never half written.
+    writeWhole :: FilePath -> T.Text -> IO ()
+    writeWhole file text = do
+      (temporary, h) <- openBinaryTempFileWithDefaultPermissions src.directory (file <.> "part")
+      BS.hPut h (T.encodeUtf8 (T.stripEnd text <> "\n")) `finally` hClose h
+      renameFile temporary (src.directory </> file)
+
+-- | The stored lyrics of a song in the directory: timed if the times are
+-- stored, else plain. A file that isn't UTF-8 shows, with its bytes that
+-- aren't as replacement characters.
+storedLyrics :: FilePath -> Song -> IO LyricsResult
+storedLyrics dir song =
+  readText (timedLyricsFileName song) >>= \case
+    Right (Just lrc) | Just lyrics <- timedLyrics lrc -> pure $ LyricsFound Stored lyrics
+    _ ->
+      readText (lyricsFileName song) <&> \case
+        Right (Just text) -> LyricsFound Stored (plainLyrics text)
+        Right Nothing -> LyricsMissing
+        Left err -> LyricsFailed $ "The lyrics can't be read: " <> T.pack (displayException err)
+  where
+    -- The text of a file, or Nothing without the file.
+    readText :: FilePath -> IO (Either IOException (Maybe T.Text))
+    readText file =
+      try (BS.readFile (dir </> file)) <&> \case
+        Right bytes ->
+          Right . Just . T.stripEnd . T.replace "\r\n" "\n" $ T.decodeUtf8Lenient bytes
+        Left err
+          | isDoesNotExistError err -> Right Nothing
+          | otherwise -> Left err
