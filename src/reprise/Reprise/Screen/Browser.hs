@@ -14,8 +14,14 @@ module Reprise.Screen.Browser
   , browserChanged
   , browserListed
   , browserFailed
-  , activateItem
   , leave
+
+    -- * Adding
+  , activateItem
+  , addMarked
+  , addAndPlay
+  , addOrRemove
+  , browserDirectory
 
     -- * Sorting
   , nextSortMode
@@ -43,8 +49,10 @@ import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Format
+import Reprise.Groups
 import Reprise.Handler.Core
-import Reprise.Mpd.Protocol.Command
+import Reprise.Mpd.Mirror
+import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
@@ -152,17 +160,6 @@ browserChanged subsystems = do
     )
     relistBrowser
 
--- | Enter the directory or open the playlist under the cursor, or go up
--- from @..@.
-activateItem :: App es => Eff es ()
-activateItem = do
-  s <- getS
-  forM_ (Seq.lookup (focusedView s).cursor s.browser.items) $ \case
-    ParentItem -> leave
-    EntryItem (DirectoryEntry d) -> list (InDirectory d.path) AtTop
-    EntryItem (PlaylistEntry p) -> list (InPlaylist p.path) AtTop
-    EntryItem (SongEntry _) -> notAvailable "Playing a song from the browser"
-
 -- | Go up to the directory of what the browser lists, with the cursor on
 -- where it came from. It goes up from a listing on its way, too, so that
 -- keys typed ahead of a reply add up.
@@ -221,6 +218,142 @@ browserListed token entries =
           .~ BrowserState (Just l.location) entries (arrange env by l.location entries) Nothing
       modifyWithEnv $ placeCursor l.cursor
     _ -> keepScreen
+
+----------------------------------------
+-- Adding
+
+-- | Enter the directory or open the playlist under the cursor, go up from
+-- @..@, or play the song.
+activateItem :: App es => Eff es ()
+activateItem = do
+  s <- getS
+  forM_ (cursorItem s) $ \case
+    (_, ParentItem) -> leave
+    (_, EntryItem (DirectoryEntry d)) -> list (InDirectory d.path) AtTop
+    (_, EntryItem (PlaylistEntry p)) -> list (InPlaylist p.path) AtTop
+    item@(_, EntryItem (SongEntry _)) -> addAndPlayItems [item]
+
+-- | Add the marked items to the queue.
+addMarked :: App es => AddPosition -> Eff es ()
+addMarked p = do
+  s <- getS
+  forM_ s.browser.location $ \location -> case markedItems s of
+    [] -> pure ()
+    items -> do
+      mutate . addItems location items $ case p of
+        AddEnd -> Nothing
+        AddNext -> Just (AfterCurrent 0)
+        AddBeginning -> Just (At 0)
+      env <- getAppEnv
+      showMessage $ addedText env items
+
+-- | Add the marked items and play the first. A single song that is already
+-- in the queue plays there instead.
+addAndPlay :: App es => Eff es ()
+addAndPlay = getsS markedItems >>= addAndPlayItems
+
+addAndPlayItems :: App es => [(Int, BrowserItem)] -> Eff es ()
+addAndPlayItems items = do
+  s <- getS
+  forM_ s.browser.location $ \location -> case items of
+    [] -> pure ()
+    [(_, EntryItem (SongEntry song))] | i : _ <- queuedIds song s -> mutate $ playId i
+    _ -> do
+      -- In one command list, which no other client's command interrupts, so
+      -- the songs start at the length even if the mirror missed a change.
+      let n = SongPos (queueLength s.mirror)
+      mutate $ addItems location items (Just (At n)) *> play (Just n)
+
+-- | Add the item under the cursor, or remove its song if it is in the
+-- queue, then move down.
+addOrRemove :: App es => Eff es ()
+addOrRemove = do
+  s <- getS
+  env <- getAppEnv
+  forM_ ((,) <$> s.browser.location <*> cursorItem s) $ \case
+    (_, (_, ParentItem)) -> pure ()
+    (_, (_, EntryItem (SongEntry song))) | ids@(_ : _) <- queuedIds song s -> do
+      mutate $ traverse_ deleteId ids
+      showMessage $ "Removed: " <> songText env song
+    (location, item) -> do
+      mutate $ addItems location [item] Nothing
+      showMessage $ addedText env [item]
+  modifyWithEnv $ moveBrowserCursor MoveDown
+
+-- | The commands that add items to the queue in their order, at the end or
+-- from a position. Each item at a position goes before the ones after it,
+-- so they go in reverse. The songs of a playlist are loaded from it in runs
+-- of its positions.
+addItems :: Location -> [(Int, BrowserItem)] -> Maybe Position -> Command ()
+addItems location items pos = traverse_ ($ pos) $ case pos of
+  Nothing -> commands
+  Just _ -> reverse commands
+  where
+    commands :: [Maybe Position -> Command ()]
+    commands = case location of
+      InPlaylist name ->
+        [ load name (Just $ Range (SongPos a) (Just (SongPos (b + 1))))
+        | -- The playlist's songs come after @..@.
+        (a, b) <- runs [i - 1 | (i, EntryItem _) <- items]
+        ]
+      InDirectory _ ->
+        [ case entry of
+            DirectoryEntry d -> add d.path
+            SongEntry song -> add song.file
+            PlaylistEntry p -> load p.path Nothing
+        | (_, EntryItem entry) <- items
+        ]
+
+-- | The ids of a song's copies in the queue.
+queuedIds :: Song -> AppState -> [SongId]
+queuedIds song s =
+  [ i
+  | queued <- toList s.mirror.queue
+  , queued.file == song.file && queued.range == song.range
+  , Just i <- [queued.songId]
+  ]
+
+-- | The items that an action applies to, in their order: the item under the
+-- cursor. @..@ is never one.
+markedItems :: AppState -> [(Int, BrowserItem)]
+markedItems s = filter ((/= ParentItem) . snd) . toList $ cursorItem s
+
+cursorItem :: AppState -> Maybe (Int, BrowserItem)
+cursorItem s =
+  let c = (focusedView s).cursor
+  in (c,) <$> Seq.lookup c s.browser.items
+
+-- | What the status bar says after an add.
+addedText :: AppEnv -> [(Int, BrowserItem)] -> T.Text
+addedText env = \case
+  [(_, EntryItem (SongEntry song))] -> "Added: " <> songText env song
+  [(_, EntryItem (DirectoryEntry d))] -> "Added /" <> d.path
+  [(_, EntryItem (PlaylistEntry p))] -> "Loaded " <> p.path
+  items -> "Added " <> T.pack (show (length items)) <> " items"
+
+-- | A song as the status bar shows it.
+songText :: AppEnv -> Song -> T.Text
+songText env song =
+  spansText $
+    renderFormat
+      (RenderContext env.config.lists.tagSeparator [])
+      song
+      env.config.statusBar.song
+
+-- | The directory to update in the database for "update current": the one
+-- that the browser lists, or the one that its playlist is in. Nothing is the
+-- whole database.
+browserDirectory :: AppState -> Maybe T.Text
+browserDirectory s = case s.browser.location of
+  Just (InDirectory "") -> Nothing
+  Just (InDirectory path) -> Just path
+  Just location@(InPlaylist _) -> case parentOf location of
+    Just (InDirectory path) | not (T.null path) -> Just path
+    _ -> Nothing
+  Nothing -> Nothing
+
+----------------------------------------
+-- Sorting
 
 -- | Sort the entries by the next sort mode, with the cursor on the same item.
 nextSortMode :: App es => Eff es ()
@@ -290,6 +423,9 @@ data SortKey
   | ByText CollationKey
   | ByTime (Down (Maybe UTCTime))
   deriving stock (Eq, Ord)
+
+----------------------------------------
+-- Helpers
 
 -- | Put the browser's cursor where a listing says, also while the view shows
 -- another screen.

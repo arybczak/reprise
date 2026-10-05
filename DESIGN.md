@@ -328,12 +328,12 @@ goes, so it needs no confirmation.
 - MPD versions older than 0.23.1. In return reprise gets filter expressions,
   relative positions in `addid`, `searchadd`/`findadd` with a position, and
   `load` with a position.
-- The "add and play" trick (`play <old length>`): `addid` returns the id, and
-  reprise plays that id. A directory or a playlist has no id, so reprise sends
-  `add` or `load` at the queue's length N and `play N` in one command list.
-  MPD runs a command list without other clients' commands in between, so the
-  songs start at N even if the mirror missed a change. Only a queue that got
-  shorter than N fails, with MPD's error.
+- The "add and play" trick (`play <old length>` after the add). reprise sends
+  `add` or `load` at the queue's length N and `play N` in one command list,
+  for songs, directories and playlists alike. MPD runs a command list without
+  other clients' commands in between, so the songs start at N even if the
+  mirror missed a change. Only a queue that got shorter than N fails, with
+  MPD's error.
 - `--test-lyrics-fetchers`.
 
 Dropped config options are listed in [Configuration](#dropped-options).
@@ -492,8 +492,9 @@ new connection.
 
 A key runs exactly one action, so there are no chains to keep in order. When
 one operation needs a reply before its next step, it is a single action that
-continues inside its continuation. An example is "add and play", which runs
-`addid` and then `playid` on the returned id.
+continues inside its continuation. An example is toggling the replay gain
+mode, which asks MPD for the current mode and sets the next one when the
+reply comes.
 
 ### Effects
 
@@ -1471,11 +1472,13 @@ The layers, from cheapest to most expensive:
    - the new `AppState`;
    - the list of requested commands, compared by their request lines.
 
-   For an action that continues after a reply, such as "add and play", the
-   test calls the continuation with a typed value it builds itself, like the
-   new song id. Response parsing isn't involved; layer 3 covers it. A prompt
-   or a confirmation is tested the same way: the test finds the pending
-   prompt in the new state and runs its continuation with an answer.
+   For an action that continues after a reply, such as the browser's
+   listing of a directory, the test runs the continuation with a reply. It
+   writes the reply's lines, and the request's own command parses them, so
+   the test reads like a conversation with MPD. A failure runs the request's
+   failure event instead. A prompt or a confirmation is tested the same way:
+   the test finds the pending prompt in the new state and runs its
+   continuation with an answer.
 3. **`mpd-protocol`: parsers against recorded replies, and a real `mpd`.**
    - Parsers get golden tests on raw replies recorded from a real server:
      songs, status, `ACK` errors, command lists with `list_OK`.

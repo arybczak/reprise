@@ -7,6 +7,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
+import Reprise.Groups
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Request

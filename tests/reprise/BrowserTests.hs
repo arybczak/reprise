@@ -35,6 +35,13 @@ browserTests =
     , testCase "the sort modes" test_sortModes
     , testCase "a sort keeps the cursor on its item" test_sortKeepsCursor
     , testCase "a playlist keeps its order" test_playlistOrder
+    , testCase "enter plays a song" test_enterPlays
+    , testCase "enter plays a song that is in the queue there" test_enterPlaysQueued
+    , testCase "adding at a position" test_addPositions
+    , testCase "add and play" test_addAndPlay
+    , testCase "add or remove" test_addOrRemove
+    , testCase "the songs of a playlist are loaded from it" test_addFromPlaylist
+    , testCase "updating the current directory" test_updateCurrent
     ]
 
 test_showLists :: Assertion
@@ -184,8 +191,73 @@ test_playlistOrder = do
     ["..", "song z.flac", "song a.flac"]
     (items (answer ["file: z.flac", "file: a.flac"] opened))
 
+test_enterPlays :: Assertion
+test_enterPlays =
+  assertEqual
+    "requests"
+    [[Request "add" ["a/x.flac", "1"], Request "play" ["1"]]]
+    (press ["enter"] (onSongOfA queued)).requests
+
+test_enterPlaysQueued :: Assertion
+test_enterPlaysQueued = do
+  let s = answer ["file: dir/0.flac"] (press ["2"] queued)
+  assertEqual "requests" [[Request "playid" ["1"]]] (press ["enter"] s).requests
+
+test_addPositions :: Assertion
+test_addPositions = do
+  let added ks = (press ks root).requests
+  assertEqual "end" [[Request "add" ["a"]]] (added ["ctrl-a", "e"])
+  assertEqual "next" [[Request "add" ["a", "+0"]]] (added ["ctrl-a", "n"])
+  assertEqual "beginning" [[Request "add" ["a", "0"]]] (added ["ctrl-a", "b"])
+  assertEqual "a playlist" [[Request "load" ["p"]]] (added ["end", "ctrl-a", "e"])
+  assertEqual
+    "the message"
+    (Just "Added /a")
+    ((.text) <$> (press ["ctrl-a", "e"] root).state.message)
+
+test_addAndPlay :: Assertion
+test_addAndPlay =
+  assertEqual
+    "requests"
+    [[Request "load" ["p", "0:", "1"], Request "play" ["1"]]]
+    (press ["end", "ctrl-a", "p"] (answer rootReply (press ["2"] queued))).requests
+
+test_addOrRemove :: Assertion
+test_addOrRemove = do
+  let s = answer ["file: dir/0.flac", "file: b/x.flac"] (press ["2"] queued)
+      removed = press ["space"] s
+  assertEqual "removed" [[Request "deleteid" ["1"]]] removed.requests
+  assertEqual "the cursor moves down" 1 (focusedView removed.state).cursor
+  assertEqual
+    "added"
+    [[Request "add" ["b/x.flac"]]]
+    (press ["space"] removed.state).requests
+
+test_addFromPlaylist :: Assertion
+test_addFromPlaylist = do
+  let inP = answer ["file: a/x.flac", "file: b/y.flac"] (press ["end", "enter"] root)
+  assertEqual
+    "the second song"
+    [[Request "load" ["p", "1:2"]]]
+    (press ["end", "ctrl-a", "e"] inP).requests
+
+test_updateCurrent :: Assertion
+test_updateCurrent = do
+  assertEqual "here" [[Request "update" ["b"]]] (press ["ctrl-d", "u"] onY).requests
+  assertEqual "at the root" [[Request "update" []]] (press ["ctrl-d", "u"] root).requests
+
 ----------------------------------------
 -- Helpers
+
+-- | The queue with one song, @dir/0.flac@, with the id 1.
+queued :: AppState
+queued = testState (80, 12) (statusOf Stopped Nothing 1) [song 0 [] 60]
+
+-- | The browser in a, with the cursor on its song.
+onSongOfA :: AppState -> AppState
+onSongOfA s =
+  let r = press ["enter"] (answer rootReply (press ["2"] s))
+  in (press ["down"] (answer ["file: a/x.flac"] r)).state
 
 -- | The root with entries of every kind, in no order of any sort mode.
 mixed :: AppState

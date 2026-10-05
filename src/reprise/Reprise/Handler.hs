@@ -25,6 +25,7 @@ import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Find
 import Reprise.Format
+import Reprise.Groups
 import Reprise.Handler.Core
 import Reprise.Keymap
 import Reprise.Keys
@@ -35,7 +36,6 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
 import Reprise.Screen.Help
 import Reprise.Screen.Queue
-import Reprise.Screen.Queue.Edits
 import Reprise.State
 
 -- | Handle an event at a monotonic time, with pure handlers that collect the
@@ -322,6 +322,15 @@ runAction = \case
   action@NextSortMode -> verb action $ \case
     BrowserScreen -> Just nextSortMode
     _ -> Nothing
+  action@(Add p) -> verb action $ \case
+    BrowserScreen -> Just $ addMarked p
+    _ -> Nothing
+  action@AddAndPlay -> verb action $ \case
+    BrowserScreen -> Just addAndPlay
+    _ -> Nothing
+  action@AddOrRemove -> verb action $ \case
+    BrowserScreen -> Just addOrRemove
+    _ -> Nothing
   action@(Select t) -> verb action $ \case
     QueueScreen -> Just $ select t
     _ -> Nothing
@@ -390,9 +399,13 @@ runAction = \case
         mutate . shuffle . Just $ Range (SongPos a) (Just (SongPos (b + 1)))
         showMessage $ "Shuffled " <> countSongs (b - a + 1)
       _ -> showError "Only selected songs next to each other can be shuffled"
-  Update _ -> do
-    mutate . void $ update Nothing
-    showMessage "Updating the database"
+  Update scope -> do
+    s <- getS
+    let path
+          | scope == UpdateCurrent && (focusedView s).screen == BrowserScreen = browserDirectory s
+          | otherwise = Nothing
+    mutate . void $ update path
+    showMessage $ "Updating " <> maybe "the database" ("/" <>) path
   action -> notAvailable $ "The action " <> renderAction action
 
 -- | Run a verb the way the focused screen implements it. A screen that

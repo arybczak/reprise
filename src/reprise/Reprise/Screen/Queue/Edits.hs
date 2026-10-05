@@ -1,8 +1,7 @@
 -- | MPD commands that act on several songs of the queue, planned from their
 -- positions. Each is one command list.
 module Reprise.Screen.Queue.Edits
-  ( runs
-  , deletePositions
+  ( deletePositions
   , moveUp
   , moveDown
   , moveBefore
@@ -12,18 +11,9 @@ import Control.Monad
 import Data.Foldable
 import Data.List.NonEmpty qualified as NE
 
+import Reprise.Groups
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Types
-
--- | The runs of consecutive positions, each as its first and its last
--- position, in order. The positions must be ascending and distinct.
-runs :: [Int] -> [(Int, Int)]
-runs = foldr extend []
-  where
-    extend :: Int -> [(Int, Int)] -> [(Int, Int)]
-    extend p = \case
-      (a, b) : rest | p + 1 == a -> (p, b) : rest
-      acc -> (p, p) : acc
 
 -- | Delete the songs at the positions. The ranges go from the last, so that
 -- each one's positions are still right when it runs.

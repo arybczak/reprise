@@ -1,5 +1,6 @@
--- | Groups of neighbouring items with the same key, e.g. the songs of an
--- album, which the moves to the previous and the next album go between.
+-- | Groups of neighbouring items: with the same key, e.g. the songs of an
+-- album, which the moves to the previous and the next album go between, or
+-- at consecutive positions, which one command can change.
 module Reprise.Groups
   ( -- * Keys
     artistKey
@@ -8,6 +9,9 @@ module Reprise.Groups
     -- * Moves
   , nextGroup
   , previousGroup
+
+    -- * Positions
+  , runs
   ) where
 
 import Control.Applicative
@@ -47,3 +51,13 @@ previousGroup key items c
             Just item -> maybe 0 (+ 1) $ Seq.findIndexR ((/= key item) . key) (Seq.take i items)
           s = start c
       in if s < c then s else start (c - 1)
+
+-- | The runs of consecutive positions, each as its first and its last
+-- position, in order. The positions must be ascending and distinct.
+runs :: [Int] -> [(Int, Int)]
+runs = foldr extend []
+  where
+    extend :: Int -> [(Int, Int)] -> [(Int, Int)]
+    extend p = \case
+      (a, b) : rest | p + 1 == a -> (p, b) : rest
+      acc -> (p, p) : acc
