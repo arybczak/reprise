@@ -129,9 +129,9 @@ ncmpcpp.
   - **Stored playlists come from `lsinfo` only.** MPD has deprecated listing
     them at the root. When it stops, they leave the browser, and the
     playlist editor shows them.
-  - **A cue sheet shows once.** MPD lists it both as a playlist and as a
-    directory of its tracks. The browser hides the directory, so a cue sheet
-    opens like any other playlist.
+  - **A cue sheet shows twice,** as MPD lists it: as a playlist and as a
+    directory of its tracks. The browser shows what MPD lists, without
+    special cases.
   - **Songs of an open playlist are added with `load` and a range,** not with
     `add`. The tracks of a cue sheet are ranges of one file, and adding the
     file would add all of it.
