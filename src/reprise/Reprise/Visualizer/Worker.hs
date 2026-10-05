@@ -4,6 +4,11 @@
 module Reprise.Visualizer.Worker
   ( VisualizerSource (..)
   , visualizerWorker
+
+    -- * The samples between MPD and the frames
+  , Playout (..)
+  , newPlayout
+  , playout
   ) where
 
 import Control.Concurrent.STM
@@ -48,13 +53,13 @@ visualizerWorker src = do
       Right h -> (`finally` hClose h) $ do
         void (readAvailable h)
         start <- getMonotonicTime
-        frames transform h start 0 BS.empty BS.empty 0
+        frames transform h start 1 0 (newPlayout start) BS.empty 0
   where
-    -- The samples that came after the last frame, the window of the
-    -- spectrum, and the number of frames without samples since the last.
+    -- The window of the spectrum, and the frames of silence since the last
+    -- samples.
     frames
-      :: Transform -> Handle -> Double -> Int -> BS.ByteString -> BS.ByteString -> Int -> IO ()
-    frames transform h start n buffered window quiet = do
+      :: Transform -> Handle -> Double -> Int -> Int -> Playout -> BS.ByteString -> Int -> IO ()
+    frames transform h start n previous p window quiet = do
       let deadline = start + fromIntegral n / fromIntegral src.fps
       now <- getMonotonicTime
       due <- registerDelay . max 0 $ ceiling ((deadline - now) * microsecondsPerSecond)
@@ -65,52 +70,102 @@ visualizerWorker src = do
         pure v
       forM_ visualization $ \v -> do
         new <- readAvailable h
-        let available = buffered <> new
-            whole = BS.length available - BS.length available `mod` frameBytes
-            (frame, rest) = BS.splitAt (min samplesBytes whole) available
-            -- A frame without samples is silence, which the spectrum falls
-            -- through.
-            window' =
-              BS.takeEnd windowBytes $
-                window <> if BS.null frame then BS.replicate samplesBytes 0 else frame
-            quiet' = if BS.null frame then quiet + 1 else 0
+        arrival <- getMonotonicTime
+        let shown = sampleBytes * (samplesUntil n - samplesUntil previous)
+            (frame, stopped, p') = playout sampleBytes shown arrival new p
+            continue = frames' arrival p'
         case v of
-          Ellipse -> src.emit $ VisualizerSamples frame
-          -- Once silence fills the window, the spectrum stays the same.
-          Spectrum -> when (quiet' <= silentFrames) $ do
-            spectra <- forM [0 .. src.channels - 1] $ \c -> spectrumOf transform src.channels c window'
-            src.emit $ VisualizerSpectrum spectra
-        -- A frame that came late doesn't make the next ones late, and the
-        -- samples don't fall behind the sound by more than a frame.
-        sent <- getMonotonicTime
-        let next = max (n + 1) (ceiling ((sent - start) * fromIntegral src.fps))
-            excess = max 0 (BS.length rest - samplesBytes)
-        frames transform h start next (BS.drop (roundUp excess) rest) window' quiet'
+          Ellipse -> do
+            src.emit $ VisualizerSamples frame
+            continue window 0
+          Spectrum
+            | not (BS.null frame) -> do
+                let window' = BS.takeEnd windowBytes (window <> frame)
+                spectrum window'
+                continue window' 0
+            -- The spectrum falls through silence, and stays once the
+            -- window is silent.
+            | stopped -> do
+                let window' = BS.takeEnd windowBytes (window <> BS.replicate shown 0)
+                when (quiet < silentFrames) $ spectrum window'
+                continue window' (quiet + 1)
+            | otherwise -> continue window quiet
+      where
+        -- A frame that came late doesn't make the next ones late.
+        frames' :: Double -> Playout -> BS.ByteString -> Int -> IO ()
+        frames' sent =
+          frames transform h start (max (n + 1) (ceiling ((sent - start) * fromIntegral src.fps))) n
+
+        spectrum :: BS.ByteString -> IO ()
+        spectrum w = do
+          spectra <- forM [0 .. src.channels - 1] $ \c -> spectrumOf transform src.channels c w
+          src.emit $ VisualizerSpectrum spectra
+
+    -- The samples from the start until a frame.
+    samplesUntil :: Int -> Int
+    samplesUntil n = n * sampleRate `div` src.fps
 
     -- The bytes of a sample of every channel.
-    frameBytes :: Int
-    frameBytes = bytesPerSample * src.channels
-
-    -- The bytes of the samples that a frame shows: as long as the frame.
-    samplesBytes :: Int
-    samplesBytes = frameBytes * samplesPerFrame
-
-    samplesPerFrame :: Int
-    samplesPerFrame = max 1 (sampleRate `div` src.fps)
+    sampleBytes :: Int
+    sampleBytes = bytesPerSample * src.channels
 
     windowBytes :: Int
-    windowBytes = frameBytes * windowSamples
+    windowBytes = sampleBytes * windowSamples
 
     -- The frames of silence that fill the window.
     silentFrames :: Int
-    silentFrames = (windowSamples + samplesPerFrame - 1) `div` samplesPerFrame
-
-    -- To whole samples of every channel.
-    roundUp :: Int -> Int
-    roundUp n = (n + frameBytes - 1) `div` frameBytes * frameBytes
+    silentFrames = (windowSamples * src.fps + sampleRate - 1) `div` sampleRate
 
     microsecondsPerSecond :: Double
     microsecondsPerSecond = 1000000
+
+-- | The samples between MPD's writes and the frames. MPD writes at the
+-- speed of the sound, but in writes that can be longer than a frame, so the
+-- frames show samples once the buffer holds a frame and a write more.
+data Playout = Playout
+  { buffered :: BS.ByteString
+  -- ^ The samples that came and that no frame showed yet.
+  , flowing :: Bool
+  -- ^ Whether the frames show samples: from when the buffer holds a frame
+  -- and a write more, until it runs out.
+  , write :: Maybe Int
+  -- ^ The bytes of a write of MPD: the fewest that a read gave, as a pipe
+  -- gives a write that short whole.
+  , lastWrite :: Double
+  -- ^ When the last samples came.
+  }
+  deriving stock (Show)
+
+-- | Before the first samples, which come after the time.
+newPlayout :: Double -> Playout
+newPlayout = Playout BS.empty False Nothing
+
+-- | What a frame shows: the samples that its time takes, of the bytes of a
+-- sample of every channel and a number of bytes, at the time that the new
+-- samples came. Also whether MPD stopped writing, e.g. paused.
+playout
+  :: Int -> Int -> Double -> BS.ByteString -> Playout -> (BS.ByteString, Bool, Playout)
+playout sampleBytes shown arrival new p =
+  let arrived = not (BS.null new)
+      write = if arrived then Just (maybe (BS.length new) (min (BS.length new)) p.write) else p.write
+      lastWrite = if arrived then arrival else p.lastWrite
+      margin = fromMaybe 0 write
+      available = p.buffered <> new
+      flowing = BS.length available >= shown + if p.flowing then 0 else margin
+      (frame, rest) = if flowing then BS.splitAt shown available else (BS.empty, available)
+      -- More than a frame and two writes is a lag, which the clocks of MPD
+      -- and reprise drift into.
+      excess = BS.length rest - (shown + 2 * margin)
+      buffered = if excess > 0 then BS.drop (roundUp excess) rest else rest
+      -- Without a write for two, MPD stopped writing.
+      stopped =
+        isJust write
+          && arrival - lastWrite > 2 * fromIntegral margin / fromIntegral (sampleBytes * sampleRate)
+  in (frame, stopped, Playout buffered flowing write lastWrite)
+  where
+    -- To whole samples of every channel.
+    roundUp :: Int -> Int
+    roundUp n = (n + sampleBytes - 1) `div` sampleBytes * sampleBytes
 
 -- | Read what the fifo holds, without waiting for more.
 readAvailable :: Handle -> IO BS.ByteString

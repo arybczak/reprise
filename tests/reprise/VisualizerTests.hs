@@ -59,6 +59,9 @@ visualizerTests =
         ("tests" </> "reprise" </> "golden" </> "visualizer.txt")
         (BL.fromStrict . T.encodeUtf8 . T.unlines <$> mainLines visualizing [circle])
     , testCase "the spectrum of a sine" test_sineSpectrum
+    , testCase "every frame shows the samples of its time" test_playout
+    , testCase "MPD stops writing" test_playoutStops
+    , testCase "the lag is bounded" test_playoutLag
     , testCase "the worker sends the samples of the fifo" test_worker
     , testCase "the worker sends the spectrum" test_workerSpectrum
     , testCase "the worker reports a data source that it can't read" test_workerFails
@@ -232,6 +235,88 @@ test_sineSpectrum = do
     (abs (left VS.! peak - amplitude * 0.42 / 2) < 0.01)
   assertEqual "the silent channel" 0 (VS.maximum right)
 
+-- | MPD writes 503 samples at a time, as the author's does, which is longer
+-- than a frame at 120 frames a second. Once the buffer holds a frame and a
+-- write, every frame shows the samples of its time.
+test_playout :: Assertion
+test_playout = do
+  let frames = simulate 1 Nothing
+      steady = dropWhile (\f -> f.frame == 0) frames
+  assertBool "the start waits for a write more" (length frames - length steady <= 3)
+  assertEqual "every frame" [] [f | f <- steady, f.frame /= f.shown]
+  assertEqual "no stop" [] [f | f <- steady, f.stopped]
+
+-- | After MPD's last write, the frames show what the buffer holds, and MPD
+-- stopped once two writes didn't come.
+test_playoutStops :: Assertion
+test_playoutStops = do
+  let frames = simulate 1 (Just 1)
+      later = dropWhile (\f -> f.time <= 1) frames
+      stoppedAt = [f.time | f <- later, f.stopped]
+  case stoppedAt of
+    t : _ -> assertBool ("stopped at " <> show t) (t - 1 <= 2 * writeSeconds + 1 / 120)
+    [] -> assertFailure "never stopped"
+  assertEqual "nothing to show" [] [f | f <- drop 3 later, f.frame /= 0]
+
+-- | MPD's clock is a little faster than reprise's, so the buffer would
+-- grow. It holds a frame and two writes at most.
+test_playoutLag :: Assertion
+test_playoutLag = do
+  let frames = simulate 1.01 Nothing
+  assertEqual
+    "the lag"
+    []
+    [f | f <- frames, f.buffered > f.shown + 2 * writeBytes + sampleBytes]
+
+data Simulated = Simulated
+  { time :: Double
+  , shown :: Int
+  , frame :: Int
+  , stopped :: Bool
+  , buffered :: Int
+  }
+  deriving stock (Eq, Show)
+
+-- | Two seconds of frames at 120 a second, with MPD's writes of 503
+-- samples, at a speed relative to the sound's, until a time.
+simulate :: Double -> Maybe Double -> [Simulated]
+simulate speed stop = go (newPlayout 0) 1
+  where
+    go :: Playout -> Int -> [Simulated]
+    go p n
+      | n > 2 * fps = []
+      | otherwise =
+          let t = frameTime n
+              new = BS.replicate (writeBytes * length (writesBetween (frameTime (n - 1)) t)) 1
+              shown = sampleBytes * (samplesUntil n - samplesUntil (n - 1))
+              (frame, stopped, p') = playout sampleBytes shown t new p
+          in Simulated t shown (BS.length frame) stopped (BS.length p'.buffered)
+               : go p' (n + 1)
+
+    writesBetween :: Double -> Double -> [Double]
+    writesBetween t0 t1 =
+      [ w
+      | w <- takeWhile (<= t1) [fromIntegral i * writeSeconds / speed | i <- [1 :: Int ..]]
+      , w > t0
+      , maybe True (w <=) stop
+      ]
+
+    frameTime :: Int -> Double
+    frameTime n = fromIntegral n / fromIntegral fps
+
+    samplesUntil :: Int -> Int
+    samplesUntil n = n * 44100 `div` fps
+
+    fps :: Int
+    fps = 120
+
+writeBytes, sampleBytes :: Int
+writeBytes = 503 * sampleBytes
+sampleBytes = 4
+
+writeSeconds :: Double
+writeSeconds = 503 / 44100
+
 test_worker :: Assertion
 test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
   let path = dir </> "fifo"
@@ -242,16 +327,10 @@ test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
       samplesBytes = frameBytes * (44100 `div` 60)
       pattern = samples (replicate 100 (1000, -1000))
   bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ -> do
-    -- The writer can open the fifo once the worker opened it, which also
-    -- drops what the fifo held before, so the samples go on until they come.
-    writer <- forkIO . withWriter path $ \h -> forever $ do
-      BS.hPut h pattern
-      threadDelay writeInterval
-    frame <- (`finally` killThread writer) . expectWithin $ firstSamples events
+    frame <- withWriting path pattern . expectWithin $ firstSamples events
     assertBool
       ("whole samples: " <> show (BS.length frame))
       (BS.length frame `mod` frameBytes == 0)
-    assertBool "a frame long at most" (BS.length frame <= samplesBytes)
     assertBool "the samples" (frame `BS.isPrefixOf` BS.concat (replicate 100 pattern))
     atomically $ writeTVar reading Nothing
     threadDelay frameInterval
@@ -266,23 +345,9 @@ test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
         VisualizerSamples bytes | not (BS.null bytes) -> pure bytes
         _ -> firstSamples events
 
-    -- Opening a fifo without a reader fails, so it opens again until the
-    -- worker reads it.
-    withWriter :: FilePath -> (Handle -> IO ()) -> IO ()
-    withWriter path k =
-      try @IOException (openBinaryFile path WriteMode) >>= \case
-        Left _ -> threadDelay writeInterval >> withWriter path k
-        Right h -> k h `finally` hClose h
-
-    -- A tenth of a frame at 60 frames a second.
-    writeInterval :: Int
-    writeInterval = 1000000 `div` 600
-
     frameInterval :: Int
     frameInterval = 1000000 `div` 60
 
--- | The spectrum comes without samples in the fifo, of the silence that the
--- window starts with.
 test_workerSpectrum :: Assertion
 test_workerSpectrum = withSystemTempDirectory "visualizer" $ \dir -> do
   let path = dir </> "fifo"
@@ -290,12 +355,35 @@ test_workerSpectrum = withSystemTempDirectory "visualizer" $ \dir -> do
   events <- newTQueueIO
   reading <- newTVarIO (Just Spectrum)
   bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ ->
-    expectWithin (atomically (readTQueue events)) >>= \case
-      VisualizerSpectrum spectra -> do
-        assertEqual "the channels" 2 (length spectra)
-        assertEqual "the bins" [32768 `div` 2 + 1, 32768 `div` 2 + 1] (map VS.length spectra)
-        assertEqual "silence" [0, 0] (map VS.maximum spectra)
-      e -> assertFailure $ "event: " <> show e
+    withWriting path (samples (replicate 100 (1000, -1000))) $
+      expectWithin (atomically (readTQueue events)) >>= \case
+        VisualizerSpectrum spectra -> do
+          assertEqual "the channels" 2 (length spectra)
+          assertEqual "the bins" [32768 `div` 2 + 1, 32768 `div` 2 + 1] (map VS.length spectra)
+          assertBool "the samples" (all ((> 0) . VS.maximum) spectra)
+        e -> assertFailure $ "event: " <> show e
+
+-- | Write the samples to the fifo again and again while an action runs. The
+-- writer can open the fifo once the worker opened it, which also drops
+-- what the fifo held before, so the samples go on until they come.
+withWriting :: FilePath -> BS.ByteString -> IO a -> IO a
+withWriting path pcm act = do
+  writer <- forkIO . withWriter $ \h -> forever $ do
+    BS.hPut h pcm
+    threadDelay writeInterval
+  act `finally` killThread writer
+  where
+    -- Opening a fifo without a reader fails, so it opens again until the
+    -- worker reads it.
+    withWriter :: (Handle -> IO ()) -> IO ()
+    withWriter k =
+      try @IOException (openBinaryFile path WriteMode) >>= \case
+        Left _ -> threadDelay writeInterval >> withWriter k
+        Right h -> k h `finally` hClose h
+
+    -- A tenth of a frame at 60 frames a second.
+    writeInterval :: Int
+    writeInterval = 1000000 `div` 600
 
 test_workerFails :: Assertion
 test_workerFails = withSystemTempDirectory "visualizer" $ \dir -> do

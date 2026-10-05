@@ -266,9 +266,9 @@ ncmpcpp.
     themed terminal. ncmpcpp's characters for four and five eighths are
     five eighths and a sextant of four sixths, out of order, so reprise
     uses `▀` and `🮄`.
-  - **Silence fills the window while no samples come,** e.g. while MPD is
-    paused, so the bars fall. Once the window is silent, the worker sends
-    no more.
+  - **Silence fills the window once MPD stopped writing,** e.g. paused,
+    which it did if two writes didn't come. So the bars fall, and once the
+    window is silent, the worker sends no more.
 - **The ellipse** draws the left channel across and the right one up, as
   ncmpcpp's stereo ellipse does. Mono is a diagonal, and stereo widens it.
   - **Not a goniometer.** A goniometer turns the picture by 45°, so mono is
@@ -287,12 +287,23 @@ ncmpcpp.
     has a dot in nearly every cell of the picture, so it hid the older
     ones.
   - **The samples of the last frames stay** for `visualizer.trail`.
-- A frame shows the samples of its own time, `44100 / fps` of them. The
-  worker waits for each frame on the clock, so a late frame doesn't make
-  the next ones late, and it keeps no more than a frame of samples, so the
-  picture doesn't fall behind the sound. The samples that the fifo held
-  before the visualizer showed are old, so the worker drops them. ncmpcpp
-  resets the output for that, which needs its name in the config.
+- **A frame shows the samples of its own time,** `44100 / fps` of them on
+  average, e.g. 367 or 368 at 120 frames a second. The worker waits for
+  each frame on the clock, so a late frame doesn't make the next ones late.
+  - **MPD writes in writes longer than a frame:** 503 samples every 11.4 ms
+    on the author's MPD. A frame that took what had come showed 0 samples
+    in one frame of three at 120 frames a second, and the spectrum fell
+    through them.
+  - **So the worker buffers a write.** Frames show samples once the buffer
+    holds a frame and a write more, and until it runs out. The size of a
+    write comes from the reads: a pipe gives a write that short whole, so
+    the shortest read is a write. It costs a write of lag, 11 ms.
+  - **The clocks of MPD and reprise drift,** so the buffer would grow.
+    Beyond a frame and two writes, the oldest samples are dropped, and the
+    picture doesn't fall behind the sound.
+  - **The samples that the fifo held before the visualizer showed are
+    old,** so the worker drops them. ncmpcpp resets the output for that,
+    which needs its name in the config.
 - A frame that the UI can't take in time is dropped: the worker doesn't
   wait for brick's channel of events.
 - Measured at 160×45 at 60 fps, 60 frames a second without a drop:
