@@ -287,8 +287,10 @@ benchmark reprise-bench
     import:         language
 
     build-depends:    base
+                    , bytestring
                     , containers
                     , deepseq
+                    , optics-core
                     , reprise
                     , reprise:mpd-protocol
                     , tasty-bench

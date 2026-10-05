@@ -249,6 +249,10 @@ ncmpcpp.
   resets the output for that, which needs its name in the config.
 - A frame that the UI can't take in time is dropped: the worker doesn't
   wait for brick's channel of events.
+- Measured at 160×45 at 60 fps, on a private MPD that played generated
+  pink noise: 60 frames a second without a drop, about 7% of a core, and
+  about 140 KiB a second to the terminal. Drawing a frame takes 360 µs, and
+  vty writes one in 46 µs (see [Benchmarks](#benchmarks)).
 - The spectrum, ncmpcpp's other visualizations and ncmpcpp's mono ellipse
   come later, if ever.
 
@@ -1598,7 +1602,9 @@ songs and a terminal of 160×45:
   delete, and the keys of a find that matches nothing, which goes through the
   whole queue. It handles the listing of a directory as long as the queue,
   sorted by name. It also makes a frame of the queue, and vty writes a frame
-  for xterm-256color, which covers the pin of vty-unix.
+  for xterm-256color, which covers the pin of vty-unix. It makes and writes
+  a frame of the visualizer after a second of noise, which it draws 60
+  times a second.
 
 CI builds the suites but doesn't run them, because timings on shared
 machines are too noisy to fail a build on. To check a change, save the

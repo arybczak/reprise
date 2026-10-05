@@ -4,14 +4,21 @@ module Main (main) where
 
 import Control.DeepSeq
 import Control.Monad
+import Data.Bits
+import Data.ByteString qualified as BS
+import Data.ByteString.Builder qualified as BB
+import Data.ByteString.Lazy qualified as BL
 import Data.IORef
+import Data.Int
 import Data.Map.Strict qualified as M
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
+import Data.Word
 import Graphics.Vty qualified as V
 import Graphics.Vty.Platform.Unix.Output qualified as V
 import Graphics.Vty.Platform.Unix.Settings qualified as V
+import Optics.Core
 import System.Posix.IO
 import Test.Tasty.Bench
 
@@ -54,13 +61,21 @@ main =
         "screen"
         [ afterKeys scrolling $ \s ->
             bench "a frame of the queue" $ nf (renderScreen defaultEnv) s
-        , env xterm $ \ ~(Terminal out dc frame) ->
-            bench "the output of a whole frame for xterm-256color" . whnfIO $ do
-              -- Without the last frame, vty writes every row.
-              writeIORef (V.assumedStateRef out) V.initialAssumedState
-              V.outputPicture dc (V.picForImage frame)
+        , env (xterm (renderScreen defaultEnv <$> (keys scrolling =<< loaded))) $ \t ->
+            bench "the output of a whole frame for xterm-256color" . whnfIO $ output t
+        , env (Settled <$> visualized) $ \ ~(Settled s) ->
+            bench "a frame of the visualizer" $ nf (renderScreen visualizerEnv) s
+        , env (xterm (renderScreen visualizerEnv <$> visualized)) $ \t ->
+            bench "the output of a whole frame of the visualizer for xterm-256color" . whnfIO $
+              output t
         ]
     ]
+  where
+    -- Without the last frame, vty writes every row.
+    output :: Terminal -> IO ()
+    output ~(Terminal out dc frame) = do
+      writeIORef (V.assumedStateRef out) V.initialAssumedState
+      V.outputPicture dc (V.picForImage frame)
 
 -- | The default config and keymaps, with colors.
 defaultEnv :: AppEnv
@@ -71,6 +86,10 @@ defaultEnv =
     , colorMode = WithColors
     , collator = userCollator
     }
+
+-- | The default config with a data source of the visualizer.
+visualizerEnv :: AppEnv
+visualizerEnv = defaultEnv & #config % #visualizer % #dataSource ?~ "fifo"
 
 -- | A benchmark of the state after the queue arrived from MPD and the keys
 -- were pressed.
@@ -99,6 +118,42 @@ instance NFData Settled where
 scrolling :: [T.Text]
 scrolling = replicate (snd terminalSize) "down"
 
+-- | The visualizer after a second of noise, which covers much of the
+-- screen as loud music does.
+visualized :: IO AppState
+visualized = do
+  s <- loaded
+  foldM (flip (handleIn visualizerEnv)) s (key "8" : map VisualizerSamples noise)
+  where
+    noise :: [BS.ByteString]
+    noise = [frame (take frameLength (drop (i * frameLength) samples)) | i <- [0 .. fps - 1]]
+
+    frame :: [(Int16, Int16)] -> BS.ByteString
+    frame = BL.toStrict . BB.toLazyByteString . foldMap (\(l, r) -> BB.int16LE l <> BB.int16LE r)
+
+    -- The two channels have some of their noise in common.
+    samples :: [(Int16, Int16)]
+    samples = pairs (map sample (iterate next 1))
+
+    pairs :: [Int] -> [(Int16, Int16)]
+    pairs = \case
+      a : b : rest -> (fromIntegral a, fromIntegral ((a + b) `div` 2)) : pairs rest
+      _ -> []
+
+    -- Numerical Recipes' linear congruential generator, at half of full
+    -- scale.
+    next :: Word32 -> Word32
+    next x = 1664525 * x + 1013904223
+
+    sample :: Word32 -> Int
+    sample w = fromIntegral (fromIntegral @Word32 @Int16 (w `shiftR` 16)) `div` 2
+
+    fps :: Int
+    fps = 60
+
+    frameLength :: Int
+    frameLength = 44100 `div` fps
+
 -- | The reply to @plchanges@ after the song in the middle of the queue was
 -- deleted: every song after it moved up.
 deletedInTheMiddle :: AppEvent
@@ -123,8 +178,8 @@ data Terminal = Terminal V.Output V.DisplayContext V.Image
 instance NFData Terminal where
   rnf (Terminal _ _ frame) = rnf frame
 
-xterm :: IO Terminal
-xterm = do
+xterm :: IO V.Image -> IO Terminal
+xterm frame = do
   devNull <- openFd "/dev/null" WriteOnly defaultFileFlags
   out <-
     V.buildOutput
@@ -137,15 +192,17 @@ xterm = do
         , V.settingTermName = "xterm-256color"
         }
   dc <- V.displayContext out terminalSize
-  scrolled <- keys scrolling =<< loaded
-  pure (Terminal out dc (renderScreen defaultEnv scrolled))
+  Terminal out dc <$> frame
 
 ----------------------------------------
 -- Helpers
 
 handle :: AppEvent -> AppState -> IO AppState
-handle e s = do
-  (s', _, _) <- runEvent defaultEnv 1 e s
+handle = handleIn defaultEnv
+
+handleIn :: AppEnv -> AppEvent -> AppState -> IO AppState
+handleIn e event s = do
+  (s', _, _) <- runEvent e 1 event s
   pure s'
 
 key :: T.Text -> AppEvent
@@ -155,12 +212,14 @@ keys :: [T.Text] -> AppState -> IO AppState
 keys ks s = foldM (flip handle) s (map key ks)
 
 -- | A number that depends on what the events change: the queue, the
--- selection, the browser's items, the view and the prompt.
+-- selection, the browser's items, the visualizer's frames, the view and the
+-- prompt.
 settled :: AppState -> Int
 settled s =
   Seq.length s.mirror.queue
     + S.size s.queueState.selection.keys
     + Seq.length s.browser.items
+    + Seq.length s.visualizer.frames
     + (focusedView s).cursor
     + (focusedView s).offset
     + maybe 0 (T.length . (.question)) s.prompt
