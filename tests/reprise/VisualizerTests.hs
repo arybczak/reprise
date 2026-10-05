@@ -36,6 +36,7 @@ import Reprise.Style
 import Reprise.UI.Layout
 import Reprise.Visualizer.Spectrum
 import Reprise.Visualizer.Worker
+import Reprise.Width
 import Utils
 
 visualizerTests :: TestTree
@@ -110,6 +111,26 @@ test_bars = do
     "hanging in the bottom half"
     [(r, 22) | r <- [4 .. 7]]
     (filled (mainLinesOf hanging))
+  -- -46 dB is 0.6 of the way from -100 dB to -10 dB, so 2.4 of the 4 rows.
+  let partly = VS.map (* (10 ** (-46 / 20))) full
+  ending <-
+    (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum [silent, partly]] s
+  assertEqual
+    "the end of a hanging bar"
+    ["█", "█", "🮃"]
+    [T.take 1 (T.drop 22 l) | l <- take 3 (drop 4 (mainLinesOf ending))]
+  assertBool
+    "no reverse video"
+    ( and
+        [ not (V.hasStyle st V.reverseVideo)
+        | (a, _) <- imageSpans (renderScreen visualizing ending)
+        , V.SetTo st <- [V.attrStyle a]
+        ]
+    )
+  assertEqual
+    "the upper blocks are one column wide"
+    [1]
+    (L.nub (map (textWidth . T.singleton) "▔🮂🮃▀🮄🮅🮆"))
   where
     filled :: [T.Text] -> [(Int, Int)]
     filled ls = [(r, c) | (r, l) <- zip [0 ..] ls, (c, ch) <- zip [0 ..] (T.unpack l), ch /= ' ']

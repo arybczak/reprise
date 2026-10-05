@@ -256,8 +256,16 @@ ncmpcpp.
     `visualizer_spectrum_gain` of 10.
   - **The bars** are the block characters `▁▂▃▄▅▆▇█`, so they have eight
     steps in a cell. In stereo, the left channel rises from the middle and
-    the right one hangs from it, in reverse video, as in ncmpcpp. The
-    colors go from the foot of a bar to its top.
+    the right one hangs from it. The colors go from the foot of a bar to
+    its top.
+  - **A hanging bar ends in upper blocks,** `▔🮂🮃▀🮄🮅🮆`, most of them from
+    Symbols for Legacy Computing, as ncmpcpp does with the author's
+    `visualizer_spectrum_smooth_look_legacy_chars`. A lower block in
+    reverse video looks the same, but the terminal fills the rest of the
+    cell with its default background, which is black on a transparent or
+    themed terminal. ncmpcpp's characters for four and five eighths are
+    five eighths and a sextant of four sixths, out of order, so reprise
+    uses `▀` and `🮄`.
   - **Silence fills the window while no samples come,** e.g. while MPD is
     paused, so the bars fall. Once the window is silent, the worker sends
     no more.
@@ -1516,8 +1524,10 @@ options, `allow_for_physical_item_deletion`,
 - `visualizer_spectrum_hz_min` and `visualizer_spectrum_hz_max`: the
   spectrum shows the range of human hearing.
 - `visualizer_spectrum_log_scale_x`, `visualizer_spectrum_log_scale_y`,
-  `visualizer_spectrum_smooth_look` and its legacy characters: the
-  spectrum is always on log scales, of eighth blocks, as the author has it.
+  `visualizer_spectrum_smooth_look` and
+  `visualizer_spectrum_smooth_look_legacy_chars`: the spectrum is always on
+  log scales, of eighth blocks, with the upper blocks of Symbols for Legacy
+  Computing, as the author has it.
 - `visualizer_look`: the dots of the ellipse are braille, and the bars of
   the spectrum are blocks.
 - `visualizer_output_name` and `visualizer_sync_interval`: the worker drops

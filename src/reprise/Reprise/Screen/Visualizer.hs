@@ -25,7 +25,6 @@ import Data.Char
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe
 import Data.Sequence qualified as Seq
-import Data.Set qualified as S
 import Data.Vector.Storable qualified as VS
 import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as MVU
@@ -128,8 +127,7 @@ bars colorMode cfg w h = \case
             in V.horizCat . map (run colorMode) $ runsOf [cell growth rows fromFoot l | l <- ls]
       in V.vertCat (map row [0 .. rows - 1])
 
-    -- The part of a bar in a row, from the foot of the bar. A hanging bar
-    -- is a rising one in reverse video, as in ncmpcpp.
+    -- The part of a bar in a row, from the foot of the bar.
     cell :: Growth -> Int -> Int -> Double -> (Style, Char)
     cell growth rows fromFoot level =
       let filled = level * fromIntegral rows - fromIntegral fromFoot
@@ -141,11 +139,7 @@ bars colorMode cfg w h = \case
            | eighths <= 0 -> (mempty, ' ')
            | otherwise -> case growth of
                Rising -> (color, lowerBlock eighths)
-               Hanging ->
-                 (color <> reversed, lowerBlock (eighthsPerCell - eighths))
-
-    reversed :: Style
-    reversed = mempty & #attributes .~ S.singleton Reverse
+               Hanging -> (color, upperBlock eighths)
 
 -- | The level of each of the columns, from 0 to 1. The columns go from the
 -- lowest frequency that people hear to the highest, on a log scale, as in
@@ -206,6 +200,14 @@ fullBlock = '█'
 -- | The block of the lower eighths of a cell, of 1 to 7.
 lowerBlock :: Int -> Char
 lowerBlock eighths = chr (ord '▁' + eighths - 1)
+
+-- | The block of the upper eighths of a cell, of 1 to 7. Most are in
+-- Symbols for Legacy Computing, as in ncmpcpp. A lower block in reverse
+-- video would be the same, but the terminal would draw the rest of the
+-- cell in its default background, which isn't that of a transparent
+-- terminal.
+upperBlock :: Int -> Char
+upperBlock eighths = "▔🮂🮃▀🮄🮅🮆" !! (eighths - 1)
 
 ----------------------------------------
 -- The ellipse
