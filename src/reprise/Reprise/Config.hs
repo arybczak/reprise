@@ -26,6 +26,8 @@ module Reprise.Config
   , ProgressChars (..)
   , VisualizerConfig (..)
   , LyricsConfig (..)
+  , LyricsFetcher (..)
+  , lyricsFetcherName
   , Visualization (..)
   , visualizationName
   , FrameRate (..)
@@ -264,13 +266,25 @@ data VisualizerConfig = VisualizerConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml VisualizerConfig
 
-newtype LyricsConfig = LyricsConfig
+data LyricsConfig = LyricsConfig
   { directory :: Maybe FilePath
   -- ^ Where the lyrics are stored, @$XDG_DATA_HOME/reprise/lyrics@ without
   -- it. A leading @~/@ is the home directory. ncmpcpp's is @~/.lyrics@.
+  , fetchers :: [LyricsFetcher]
+  -- ^ Where the lyrics that aren't stored are fetched from, in order. None
+  -- shows only the stored ones.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml LyricsConfig
+
+data LyricsFetcher
+  = -- | lrclib.net.
+    Lrclib
+  deriving stock (Eq, Show, Enum, Bounded)
+
+lyricsFetcherName :: LyricsFetcher -> T.Text
+lyricsFetcherName = \case
+  Lrclib -> "lrclib"
 
 data Visualization
   = -- | The levels of the frequencies, as bars.
@@ -463,7 +477,7 @@ defaultVisualizer =
     }
 
 defaultLyrics :: LyricsConfig
-defaultLyrics = LyricsConfig {directory = Nothing}
+defaultLyrics = LyricsConfig {directory = Nothing, fetchers = [Lrclib]}
 
 defaultStyles :: StylesConfig
 defaultStyles =
@@ -622,6 +636,9 @@ instance FromYaml Display where
 
 instance FromYaml Visualization where
   parseYaml = oneOf [(visualizationName v, v) | v <- [minBound .. maxBound]]
+
+instance FromYaml LyricsFetcher where
+  parseYaml = oneOf [(lyricsFetcherName f, f) | f <- [minBound .. maxBound]]
 
 instance FromYaml SortBy where
   parseYaml = oneOf [(sortByName by, by) | by <- [minBound .. maxBound]]
@@ -834,6 +851,8 @@ defaultKeymaps =
             )
           , -- As in ncmpcpp.
             (VisualizerScreen, keymap [plain Space ~> Toggle ToggleVisualization])
+          , -- As in ncmpcpp.
+            (LyricsScreen, keymap [char '`' ~> RefetchLyrics])
           ]
     }
   where

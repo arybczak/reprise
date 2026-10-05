@@ -24,6 +24,7 @@ module Reprise.State
   , BrowserState (..)
   , VisualizerState (..)
   , LyricsState (..)
+  , LyricsStatus (..)
   , Location (..)
   , BrowserItem (..)
   , Listing (..)
@@ -290,13 +291,20 @@ data LyricsState = LyricsState
   , token :: Int
   -- ^ Of the request of the song's lyrics. A reply with another token is
   -- of a song that the screen showed before.
-  , result :: Maybe LyricsResult
-  -- ^ Nothing until the reply comes.
+  , status :: LyricsStatus
   , returnTo :: ScreenName
   -- ^ The screen that the lyrics were shown from, which showing them again
   -- goes back to.
   }
   deriving stock (Eq, Show, Generic)
+
+data LyricsStatus
+  = -- | Until the worker reads the stored lyrics, which takes no time to
+    -- see, so the screen shows nothing.
+    ReadingLyrics
+  | FetchingLyrics
+  | ShowingLyrics LyricsResult
+  deriving stock (Eq, Show)
 
 -- | Settings that the user can toggle while reprise runs. They start from
 -- the config.
@@ -359,7 +367,7 @@ initialState config =
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , visualizer = VisualizerState Nothing Seq.empty []
-    , lyrics = LyricsState Nothing 0 Nothing QueueScreen
+    , lyrics = LyricsState Nothing 0 ReadingLyrics QueueScreen
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
@@ -536,8 +544,12 @@ displayedElapsed s = case s.seek of
 
 -- | The lines of the lyrics screen at a width, with long lines wrapped.
 lyricsLines :: Int -> LyricsState -> [T.Text]
-lyricsLines width st = concatMap (wrapText width) $ case st.song *> st.result of
-  Nothing -> []
-  Just (LyricsFound text) -> T.lines text
-  Just LyricsMissing -> ["No lyrics found"]
-  Just (LyricsFailed reason) -> [reason]
+lyricsLines width st = concatMap (wrapText width) $ case (st.song, st.status) of
+  (Nothing, _) -> []
+  (_, ReadingLyrics) -> []
+  (_, FetchingLyrics) -> ["Fetching the lyrics…"]
+  (_, ShowingLyrics result) -> case result of
+    LyricsFound _ text -> T.lines text
+    LyricsInstrumental -> ["Instrumental"]
+    LyricsMissing -> ["No lyrics found"]
+    LyricsFailed reason -> [reason]

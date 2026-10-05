@@ -25,7 +25,7 @@ import Effectful.Output.Static.Local.List
 
 import Reprise.Config
 import Reprise.Event
-import Reprise.Mpd.Protocol.Types
+import Reprise.Lyrics
 
 data UiRequest :: Effect where
   UiRequest :: UiCommand -> UiRequest m ()
@@ -41,9 +41,9 @@ data UiCommand
     KeepScreen
   | -- | Read the samples of the visualizer for a visualization, or stop.
     Visualize (Maybe Visualization)
-  | -- | Load the lyrics of a song, for the request with the token. A newer
+  | -- | Load the lyrics of a request, with its token. A newer
     -- request replaces one that the worker didn't take yet.
-    FetchLyrics Int Song
+    FetchLyrics Int LyricsRequest
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -69,6 +69,6 @@ keepScreen = send $ UiRequest KeepScreen
 visualize :: UiRequest :> es => Maybe Visualization -> Eff es ()
 visualize = send . UiRequest . Visualize
 
--- | Load the lyrics of a song, for the request with the token.
-fetchLyrics :: UiRequest :> es => Int -> Song -> Eff es ()
+-- | Load the lyrics of a request, with its token.
+fetchLyrics :: UiRequest :> es => Int -> LyricsRequest -> Eff es ()
 fetchLyrics token = send . UiRequest . FetchLyrics token

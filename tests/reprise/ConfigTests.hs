@@ -151,6 +151,9 @@ test_lyrics = do
   assertEqual "the default directory" Nothing defaultConfig.lyrics.directory
   config <- expectRight $ decode "lyrics:\n  directory: ~/.lyrics\n"
   assertEqual "the directory" (Just "~/.lyrics") config.lyrics.directory
+  assertEqual "LRCLIB by default" [Lrclib] defaultConfig.lyrics.fetchers
+  stored <- expectRight $ decode "lyrics:\n  fetchers: []\n"
+  assertEqual "only the stored lyrics" [] stored.lyrics.fetchers
 
 test_noWindowTitle :: Assertion
 test_noWindowTitle = do
@@ -160,6 +163,7 @@ test_noWindowTitle = do
 test_errors :: Assertion
 test_errors = do
   assertError "unknown key with a hint" "window_titel" (decode "window_titel: x\n")
+  assertError "unknown fetcher" "genius" (decode "lyrics:\n  fetchers: [genius]\n")
   assertError
     "bad style"
     "unknown color or attribute purple"

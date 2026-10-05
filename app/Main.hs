@@ -18,6 +18,7 @@ import Data.Version
 import Effectful
 import Graphics.Vty qualified as V
 import Graphics.Vty.Platform.Unix qualified as V
+import Network.HTTP.Client.TLS
 import Options.Applicative
 import System.Directory
 import System.Environment
@@ -30,6 +31,7 @@ import Reprise.App
 import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.Mpd
+import Reprise.Lyrics.Lrclib
 import Reprise.Lyrics.Worker
 import Reprise.Mpd.Address
 import Reprise.Mpd.Worker
@@ -118,8 +120,18 @@ main = do
       (getXdgDirectory XdgData ("reprise" </> "lyrics"))
       expandHome
       config.lyrics.directory
+  manager <- newTlsManager
+  let userAgent = "reprise/" <> T.pack (showVersion Paths.version) <> " (" <> repository <> ")"
+      fetcher = \case
+        Lrclib -> lrclibLyrics (lrclibGet manager userAgent)
   void . restarted . lyricsWorker $
-    LyricsSource {directory = lyricsDirectory, requested = lyrics, emit = B.writeBChan events}
+    LyricsSource
+      { directory = lyricsDirectory
+      , fetchers = map fetcher config.lyrics.fetchers
+      , requested = lyrics
+      , emit = B.writeBChan events
+      , logLine = logLine
+      }
   installWidthTable
   let buildVty = V.mkVty V.defaultConfig
   vty <- buildVty
@@ -178,3 +190,7 @@ openLog = do
   pure $ \msg -> withMVar lock $ \() -> do
     time <- getZonedTime
     T.hPutStrLn h $ T.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S %z " time) <> msg
+
+-- | Where reprise lives, for the user agent of its requests.
+repository :: T.Text
+repository = "https://github.com/arybczak/reprise"

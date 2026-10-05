@@ -1,0 +1,1 @@
+{"id":13976,"name":"Karma Police","trackName":"Karma Police","artistName":"Radiohead","albumName":"OK Computer","duration":264.0,"instrumental":false,"hasWordSync":false,"plainLyrics":"First line\nSecond line","syncedLyrics":"[00:01.00] First line\n[00:02.50] Second line","lyricsfile":"version: '1.0'\nlines:\n- text: First line\n  start_ms: 1000\n"}

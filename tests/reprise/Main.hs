@@ -16,6 +16,7 @@ import KeysTests
 import LayerTests
 import LayoutTests
 import LineEditTests
+import LrclibTests
 import LyricsTests
 import MirrorTests
 import QueueTests
@@ -46,6 +47,7 @@ main = do
       , layerTests
       , layoutTests
       , lineEditTests
+      , lrclibTests
       , lyricsTests
       , mirrorTests
       , queueTests

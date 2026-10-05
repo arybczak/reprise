@@ -152,6 +152,7 @@ handleEvent = \case
   VisualizerSamples samples -> visualizerSamples samples
   VisualizerSpectrum spectra -> visualizerSpectrum spectra
   VisualizerFailed reason -> showError reason
+  LyricsFetching token -> lyricsFetching token
   LyricsLoaded token result -> lyricsLoaded token result
   Confirmed action -> runConfirmed action
   where
@@ -343,6 +344,9 @@ runAction = \case
     _ -> Nothing
   action@Parent -> verb action $ \case
     BrowserScreen -> Just leave
+    _ -> Nothing
+  action@RefetchLyrics -> verb action $ \case
+    LyricsScreen -> Just refetchLyrics
     _ -> Nothing
   action@NextSortMode -> verb action $ \case
     BrowserScreen -> Just nextSortMode

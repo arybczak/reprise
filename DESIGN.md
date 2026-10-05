@@ -373,20 +373,47 @@ ncmpcpp.
 - **A worker thread reads them,** as the handlers can't do IO. It takes only
   the newest request, so the songs that the screen passed by aren't read,
   and a token drops the lyrics of a song that the screen left.
-- **Next: fetching from lrclib.net.** It has a public JSON API, and plain
-  and timed lyrics. ncmpcpp's fetchers scrape pages that Google finds, and
+- **Lyrics that aren't stored are fetched** from `lyrics.fetchers`, in
+  order, and stored, so that they are fetched once. The screen says
+  "Fetching the lyrics…" only once the worker found none stored, so stored
+  lyrics show without a flash of it.
+  - **"Not there" is remembered** until reprise exits: no lyrics, or an
+    instrumental. So the songs that a fetcher doesn't have aren't asked for
+    each time they show. An instrumental isn't stored, as ncmpcpp has no
+    way to read that back.
+  - **A failure is neither stored nor remembered,** e.g. no network, or a
+    busy server: LRCLIB answers 503 at times. A later request tries again,
+    and the next fetcher is asked meanwhile.
+  - **`` ` `` fetches the lyrics again,** as in ncmpcpp, and stores them
+    anew, e.g. over wrong ones.
+  - **A file is written whole:** to a temporary file, then renamed over the
+    old one, with the permissions of a new file.
+- **The fetcher is lrclib.net.** It has a public JSON API, and plain and
+  timed lyrics. ncmpcpp's fetchers scrape pages that Google finds, and
   Google itself shows the lyrics at the top of a search, but it serves
   search only to clients with JavaScript since 2025: a fetch of "lyrics
   Radiohead Karma Police" got a page without them, with curl's user agent
   and with Firefox's. Of 40 random songs of the author's library, LRCLIB had
   17, 13 of them with timed lyrics. Most of the others were classical
   music and instrumentals.
+  - **The lookup:** by the artist, the title, the album and the length,
+    which LRCLIB matches within 2 seconds. Else a search of the artist and
+    the title, which takes a result within those 2 seconds, with lyrics
+    rather than an instrumental. Else both again with the title without
+    what follows it in brackets. In the author's library the titles end in
+    `(Bonus Track)`, `(Remix)`, `[Film Score]` and the like, which LRCLIB
+    doesn't have. Titles that end in ` - Allegro` and other movements are
+    the most common ending, but those are part of the title, so they stay.
   - **The replies decode with yamlet,** with types derived generically. Each
     of 52 songs in five replies had the same keys, and only the lyrics
     could be null. Unknown keys are allowed, as LRCLIB adds some.
-  - **LRCLIB is HTTPS only,** so reprise needs `http-client-tls`.
-  - **A busy server is a failure, not a miss:** LRCLIB answers 503 at times,
-    and a failure is neither stored nor remembered.
+  - **LRCLIB is HTTPS only,** so reprise needs `http-client-tls`. The
+    requests name reprise in the user agent, as LRCLIB asks.
+  - **A request gives up after 10 seconds.** LRCLIB answered 30 requests in
+    0.86 s at most, and the worker serves one request at a time, so one
+    that hangs holds up the next.
+  - **The tests replay LRCLIB's answers** with other lyrics in them, through
+    a fake of the HTTP request.
 - **Later:** timed lyrics in a `.lrc` file next to the `.txt`, with the
   current line highlighted; fetching the playing song's lyrics in the
   background; following the playing song; editing in `$EDITOR`.
@@ -578,7 +605,8 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Visualizer.Samples` | The format of the samples that the worker reads and the visualizer draws |
 | `Reprise.Visualizer.Spectrum` | The spectrum of the samples, with pocketfft's FFT in `cbits` |
 | `Reprise.Lyrics` | Where the lyrics of a song are stored, as ncmpcpp stores them |
-| `Reprise.Lyrics.Worker` | The thread that reads the lyrics that the lyrics screen asks for |
+| `Reprise.Lyrics.Worker` | The thread that loads the lyrics that the lyrics screen asks for: the stored ones, else fetched ones, which it stores |
+| `Reprise.Lyrics.Lrclib` | The lyrics of a song from lrclib.net |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
@@ -627,7 +655,7 @@ Libraries:
 | Config | `yamlet` |
 | CLI | `optparse-applicative` |
 | Regex, diacritics folding, collation | `text-icu` (see [Find and filter](#find-and-filter)) |
-| HTTP (later: lyrics, artist info) | `http-client` and `http-client-tls` |
+| HTTP (lyrics, later artist info) | `http-client` and `http-client-tls` |
 | Effects | `effectful` (see [Effects](#effects)) |
 | FFT | pocketfft, in `cbits` (see [Visualizer](#core)) |
 | Record updates | `optics-core` (see [Code](#code)) |
@@ -1316,6 +1344,7 @@ visualizer:
 
 lyrics:
   directory: ~                   # $XDG_DATA_HOME/reprise/lyrics; ncmpcpp's is ~/.lyrics
+  fetchers: [lrclib]             # in order; [] shows only the stored lyrics
 
 styles:                          # used across screens
   label: white                   # field names, e.g. in the search engine
@@ -1492,6 +1521,9 @@ keys:
 
   visualizer:
     space: toggle visualization  # as in ncmpcpp
+
+  lyrics:
+    "`": refetch_lyrics          # as in ncmpcpp
 ```
 
 Later features add to it: the queue's `ctrl-q o` (sort dialog), the media
@@ -1583,6 +1615,7 @@ Many single-character keys collide with YAML syntax:
 | `color1`, `color2`, `window_border_color` | `styles.label`, `styles.value`, `styles.popup_border` |
 | `visualizer_data_source`, `visualizer_in_stereo`, `visualizer_type`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.in_stereo`, `visualizer.visualization`, `visualizer.fps`, `visualizer.colors` |
 | `lyrics_directory` | `lyrics.directory`, `$XDG_DATA_HOME/reprise/lyrics` without it |
+| `lyrics_fetchers` | `lyrics.fetchers`, of `lrclib`, which replaces ncmpcpp's fetchers (see [Core](#core)) |
 
 How the author's ncmpcpp settings were translated:
 - **Prefixes and suffixes became styles.** `current_item_prefix`/`suffix`
@@ -1667,8 +1700,7 @@ options, `allow_for_physical_item_deletion`,
 - **`external_editor = mcedit` with `use_console_editor = yes`.** Only lyrics
   editing uses it, which comes later. Proposed default: `$VISUAL`, then
   `$EDITOR`. The author sets mcedit in their own config.
-- **The options of other later features:** `lyrics_fetchers` (genius is gone,
-  and the fetchers get redesigned), `follow_now_playing_lyrics`,
+- **The options of other later features:** `follow_now_playing_lyrics`,
   `lines_scrolled`, `mouse_list_scroll_whole_page`, `mpd_music_dir` and the
   tag editor's options.
 
@@ -1960,8 +1992,8 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
 
 - **The external editor default** waits for lyrics editing (see
   [Not carried over yet](#not-carried-over-yet)).
-- **The media library's mtime sort and the lyrics fetchers** get redesigned
-  when those features arrive.
+- **The media library's mtime sort** gets redesigned when the media library
+  arrives.
 - **Reloading the config while reprise runs** is not planned for the core. A
   restart is cheap, and the screens' state comes back from MPD.
 - **Scripting** is not planned. The action registry is what a scripting layer

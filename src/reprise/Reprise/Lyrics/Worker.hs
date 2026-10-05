@@ -1,16 +1,21 @@
--- | The thread that loads the lyrics that the lyrics screen asks for.
+-- | The thread that loads the lyrics that the lyrics screen asks for: the
+-- stored ones, else the ones that the fetchers find, which it stores.
 module Reprise.Lyrics.Worker
   ( LyricsSource (..)
   , lyricsWorker
   ) where
 
+import Control.Applicative
 import Control.Concurrent.STM
 import Control.Exception
 import Data.ByteString qualified as BS
 import Data.Functor
+import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import System.Directory
 import System.FilePath
+import System.IO
 import System.IO.Error
 
 import Reprise.Event
@@ -19,32 +24,82 @@ import Reprise.Mpd.Protocol.Types
 
 data LyricsSource = LyricsSource
   { directory :: FilePath
-  , requested :: TVar (Maybe (Int, Song))
+  , fetchers :: [Song -> IO LyricsResult]
+  -- ^ Asked in order, until one has the lyrics.
+  , requested :: TVar (Maybe (Int, LyricsRequest))
   -- ^ The newest request, with its token. The worker takes only the
   -- newest, so the songs that the screen passed by aren't loaded.
   , emit :: AppEvent -> IO ()
+  , logLine :: T.Text -> IO ()
   }
 
 -- | Load the lyrics of each new request.
 lyricsWorker :: LyricsSource -> IO ()
-lyricsWorker src = go Nothing
+lyricsWorker src = go Nothing M.empty
   where
-    go :: Maybe Int -> IO ()
-    go served = do
-      (token, song) <-
+    -- The token of the request served last, and what the fetchers had for
+    -- the songs whose lyrics they didn't find, by their files. A failure
+    -- isn't remembered, so that a request can try again.
+    go :: Maybe Int -> M.Map FilePath LyricsResult -> IO ()
+    go served known = do
+      (token, request) <-
         atomically $
           readTVar src.requested >>= \case
-            Just (token, song) | Just token /= served -> pure (token, song)
+            Just (token, request) | Just token /= served -> pure (token, request)
             _ -> retry
-      src.emit . LyricsLoaded token =<< storedLyrics src.directory song
-      go (Just token)
+      let file = lyricsFileName request.song
+          known' = if request.refetch then M.delete file known else known
+      stored <-
+        if request.refetch then pure LyricsMissing else storedLyrics (src.directory </> file)
+      result <- case stored of
+        LyricsMissing
+          | Just r <- M.lookup file known' -> pure r
+          | not (null src.fetchers) -> do
+              src.emit $ LyricsFetching token
+              fetched <- fetchFrom Nothing src.fetchers request.song
+              case fetched of
+                LyricsFound _ text -> store file text
+                _ -> pure ()
+              pure fetched
+        other -> pure other
+      src.emit $ LyricsLoaded token result
+      go (Just token) $ case result of
+        LyricsMissing -> M.insert file result known'
+        LyricsInstrumental -> M.insert file result known'
+        _ -> known'
 
--- | The lyrics of a song in the directory. A file that isn't UTF-8 shows,
--- with its bytes that aren't as replacement characters.
-storedLyrics :: FilePath -> Song -> IO LyricsResult
-storedLyrics dir song =
-  try @IOException (BS.readFile (dir </> lyricsFileName song)) <&> \case
-    Right bytes -> LyricsFound . T.stripEnd . T.replace "\r\n" "\n" $ T.decodeUtf8Lenient bytes
+    -- The lyrics of the first fetcher that has them, or else the first
+    -- failure, or else that none has them.
+    fetchFrom :: Maybe T.Text -> [Song -> IO LyricsResult] -> Song -> IO LyricsResult
+    fetchFrom failed fetchers song = case fetchers of
+      [] -> pure $ maybe LyricsMissing LyricsFailed failed
+      fetcher : rest ->
+        fetcher song >>= \case
+          LyricsMissing -> fetchFrom failed rest song
+          LyricsFailed reason -> fetchFrom (failed <|> Just reason) rest song
+          found -> pure found
+
+    -- Through a temporary file, so that a file of lyrics is never half
+    -- written. The lyrics show even if they can't be stored.
+    store :: FilePath -> T.Text -> IO ()
+    store file text = do
+      stored <- try @IOException $ do
+        createDirectoryIfMissing True src.directory
+        (temporary, h) <- openBinaryTempFileWithDefaultPermissions src.directory (file <.> "part")
+        BS.hPut h (T.encodeUtf8 (text <> "\n")) `finally` hClose h
+        renameFile temporary (src.directory </> file)
+      either
+        (src.logLine . ("The lyrics can't be stored: " <>) . T.pack . displayException)
+        pure
+        stored
+
+-- | The lyrics in a file. A file that isn't UTF-8 shows, with its bytes
+-- that aren't as replacement characters.
+storedLyrics :: FilePath -> IO LyricsResult
+storedLyrics path =
+  try @IOException (BS.readFile path) <&> \case
+    Right bytes ->
+      LyricsFound Stored . T.stripEnd . T.replace "\r\n" "\n" $ T.decodeUtf8Lenient bytes
     Left err
       | isDoesNotExistError err -> LyricsMissing
       | otherwise ->
