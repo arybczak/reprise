@@ -56,13 +56,13 @@ visualizerWorker src = do
       Right h -> (`finally` hClose h) $ do
         void (readAvailable h)
         start <- getMonotonicTime
-        frames transform h start 1 0 (newPlayout start) BS.empty 0
+        window <- newSampleWindow src.channels
+        frames transform window h start 1 0 (newPlayout start) 0
   where
-    -- The window of the spectrum, and the frames of silence since the last
-    -- samples.
+    -- The frames of silence since the last samples.
     frames
-      :: Transform -> Handle -> Double -> Int -> Int -> Playout -> BS.ByteString -> Int -> IO ()
-    frames transform h start n previous p window quiet = do
+      :: Transform -> SampleWindow -> Handle -> Double -> Int -> Int -> Playout -> Int -> IO ()
+    frames transform window h start n previous p quiet = do
       sleepUntil $ start + fromIntegral n / fromIntegral src.fps
       visualization <- readTVarIO src.reading
       forM_ visualization $ \v -> do
@@ -74,28 +74,34 @@ visualizerWorker src = do
         case v of
           Ellipse -> do
             src.emit $ VisualizerSamples frame
-            continue window 0
+            continue 0
           Spectrum
             | not (BS.null frame) -> do
-                let window' = BS.takeEnd windowBytes (window <> frame)
-                spectrum window'
-                continue window' 0
+                pushSamples window frame
+                spectrum
+                continue 0
             -- The spectrum falls through silence, and stays once the
             -- window is silent.
             | stopped -> do
-                let window' = BS.takeEnd windowBytes (window <> BS.replicate shown 0)
-                when (quiet < silentFrames) $ spectrum window'
-                continue window' (quiet + 1)
-            | otherwise -> continue window quiet
+                pushSilence window shown
+                when (quiet < silentFrames) spectrum
+                continue (quiet + 1)
+            | otherwise -> continue quiet
       where
         -- A frame that came late doesn't make the next ones late.
-        frames' :: Double -> Playout -> BS.ByteString -> Int -> IO ()
+        frames' :: Double -> Playout -> Int -> IO ()
         frames' sent =
-          frames transform h start (max (n + 1) (ceiling ((sent - start) * fromIntegral src.fps))) n
+          frames
+            transform
+            window
+            h
+            start
+            (max (n + 1) (ceiling ((sent - start) * fromIntegral src.fps)))
+            n
 
-        spectrum :: BS.ByteString -> IO ()
-        spectrum w = do
-          spectra <- forM [0 .. src.channels - 1] $ \c -> spectrumOf transform src.channels c w
+        spectrum :: IO ()
+        spectrum = do
+          spectra <- forM [0 .. src.channels - 1] $ spectrumOf transform window
           src.emit $ VisualizerSpectrum spectra
 
     -- The samples from the start until a frame.
@@ -105,9 +111,6 @@ visualizerWorker src = do
     -- The bytes of a sample of every channel.
     sampleBytes :: Int
     sampleBytes = bytesPerSample * src.channels
-
-    windowBytes :: Int
-    windowBytes = sampleBytes * windowSamples
 
     -- The frames of silence that fill the window.
     silentFrames :: Int

@@ -70,8 +70,8 @@ main =
         , env (xterm (renderScreen visualizerEnv <$> ellipseShown)) $ \t ->
             bench "the output of a whole frame of the ellipse for xterm-256color" . whnfIO $
               output t
-        , env (Planned <$> newTransform) $ \ ~(Planned transform) ->
-            bench "the spectra of the channels for a frame" . nfIO $ spectraOf transform noiseWindow
+        , env (Planned <$> newTransform <*> noiseWindow) $ \ ~(Planned transform window) ->
+            bench "the spectra of the channels for a frame" . nfIO $ spectraOf transform window
         , env (Settled <$> spectrumShown) $ \ ~(Settled s) ->
             bench "a frame of the spectrum" $ nf (renderScreen visualizerEnv) s
         , env (xterm (renderScreen visualizerEnv <$> spectrumShown)) $ \t ->
@@ -123,12 +123,12 @@ newtype Settled = Settled AppState
 instance NFData Settled where
   rnf (Settled s) = rnf (settled s)
 
--- | The plan of a transform has no 'NFData' instance, and it is ready once
--- it is made.
-newtype Planned = Planned Transform
+-- | A transform and a window of samples have no 'NFData' instances, and
+-- they are ready once they are made.
+data Planned = Planned Transform SampleWindow
 
 instance NFData Planned where
-  rnf (Planned t) = t `seq` ()
+  rnf (Planned t w) = t `seq` w `seq` ()
 
 -- | The keys that scroll the queue down a little, as while a key is held.
 scrolling :: [T.Text]
@@ -148,16 +148,20 @@ ellipseShown = do
 spectrumShown :: IO AppState
 spectrumShown = do
   s <- loaded
-  spectra <- (`spectraOf` noiseWindow) =<< newTransform
+  transform <- newTransform
+  spectra <- spectraOf transform =<< noiseWindow
   foldM (flip (handleIn visualizerEnv)) s [key "8", VisualizerSpectrum spectra]
 
 -- | The spectra of the channels, as the worker computes them for a frame.
-spectraOf :: Transform -> BS.ByteString -> IO [VS.Vector Double]
-spectraOf transform window = forM [0, 1] $ \c -> spectrumOf transform 2 c window
+spectraOf :: Transform -> SampleWindow -> IO [VS.Vector Double]
+spectraOf transform window = forM [0, 1] $ spectrumOf transform window
 
--- | The noise of a spectrum's window.
-noiseWindow :: BS.ByteString
-noiseWindow = BS.takeEnd (windowSamples * 4) (BS.concat noise)
+-- | A spectrum's window of noise.
+noiseWindow :: IO SampleWindow
+noiseWindow = do
+  window <- newSampleWindow 2
+  pushSamples window (BS.concat noise)
+  pure window
 
 -- | A second of frames of noise, as MPD writes them.
 noise :: [BS.ByteString]

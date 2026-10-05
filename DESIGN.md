@@ -247,6 +247,14 @@ ncmpcpp.
     BSD-3, the FFT of NumPy and SciPy, and one file. FFTW is GPL, so every
     binary of reprise would be too, and it is a system library to install.
     The worker makes the plan and the coefficients of the window once.
+  - **The worker keeps its buffers:** the buffer of the transform, and the
+    last samples, which new ones push out in place. Made anew for each
+    frame, they were about 700 KB a frame of large objects, and GHC's heap
+    grew to 20 MiB on the spectrum, 8 MiB of it lost to fragmentation,
+    against 8 MiB on the ellipse. Now it is 12 MiB. The rest are the
+    magnitudes that the worker sends, 128 KiB a channel. Mapping them to
+    the columns in the worker would save that, but the worker would need
+    the width of the screen and the layout's mapping.
   - **The columns** go from 20 Hz to 20 kHz, the range of human hearing, on
     a log scale. A column has the mean of the magnitudes of its bins. The
     lowest columns are narrower than a bin, so they interpolate between

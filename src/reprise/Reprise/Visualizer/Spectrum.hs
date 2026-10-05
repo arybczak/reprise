@@ -3,6 +3,10 @@
 module Reprise.Visualizer.Spectrum
   ( Transform
   , newTransform
+  , SampleWindow
+  , newSampleWindow
+  , pushSamples
+  , pushSilence
   , spectrumOf
   , windowSamples
   , binFrequency
@@ -14,18 +18,22 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Unsafe qualified as BS
 import Data.Vector.Storable qualified as VS
 import Data.Vector.Storable.Mutable qualified as VSM
+import Data.Word
 import Foreign.C.Types
 import Foreign.ForeignPtr
+import Foreign.Marshal.Utils
 import Foreign.Ptr
 
 import Reprise.Visualizer.Samples
 
--- | pocketfft's plan of a real FFT of 'transformLength' points, and the
--- window of the samples. A plan holds no state of a transform, so threads
--- can share it.
+-- | pocketfft's plan of a real FFT of 'transformLength' points, the window
+-- of the samples, and the buffer of a transform, which a frame would
+-- otherwise allocate anew. Because of the buffer, one thread at a time can
+-- use it.
 data Transform = Transform
   { plan :: ForeignPtr RfftPlan
   , window :: VS.Vector Double
+  , work :: VSM.IOVector Double
   }
 
 data RfftPlan
@@ -37,6 +45,7 @@ newTransform = do
   Transform
     <$> newForeignPtr c_destroy_rfft_plan plan
     <*> pure (VS.generate windowSamples blackman)
+    <*> VSM.new transformLength
   where
     -- The Blackman window, as in ncmpcpp, for its low side lobes.
     blackman :: Int -> Double
@@ -47,27 +56,58 @@ newTransform = do
     alpha :: Double
     alpha = 0.16
 
--- | The magnitudes of the spectrum of a channel, one for each bin, from the
--- last 'windowSamples' samples of every channel, as MPD writes them. Fewer
--- are the end of a window of silence.
-spectrumOf :: Transform -> Int -> Int -> BS.ByteString -> IO (VS.Vector Double)
-spectrumOf transform channels channel pcm = do
-  let windowBytes = windowSamples * bytesPerSample * channels
-      samples = BS.replicate (windowBytes - BS.length pcm) 0 <> BS.takeEnd windowBytes pcm
-  work <- VSM.new @IO @Double transformLength
+-- | The last 'windowSamples' samples of every channel, as MPD writes them,
+-- after silence. New samples push out the oldest in place, which a frame
+-- would otherwise copy.
+data SampleWindow = SampleWindow
+  { channels :: Int
+  , bytes :: VSM.IOVector Word8
+  }
+
+-- | A window of silence.
+newSampleWindow :: Int -> IO SampleWindow
+newSampleWindow channels =
+  SampleWindow channels <$> VSM.replicate (windowSamples * bytesPerSample * channels) 0
+
+-- | Push the samples of every channel into the window.
+pushSamples :: SampleWindow -> BS.ByteString -> IO ()
+pushSamples samples pcm = do
+  let pushed = BS.takeEnd (VSM.length samples.bytes) pcm
+  end <- pushOut samples (BS.length pushed)
+  VSM.unsafeWith end $ \dst ->
+    BS.unsafeUseAsCStringLen pushed $ \(src, n) -> copyBytes dst (castPtr src) n
+
+-- | Push a number of bytes of silence into the window.
+pushSilence :: SampleWindow -> Int -> IO ()
+pushSilence samples n = do
+  end <- pushOut samples (min n (VSM.length samples.bytes))
+  VSM.set end 0
+
+-- | Move the bytes of the window to its start by a number of bytes, and
+-- return the end that they leave for new ones.
+pushOut :: SampleWindow -> Int -> IO (VSM.IOVector Word8)
+pushOut samples n = do
+  let kept = VSM.length samples.bytes - n
+  VSM.move (VSM.slice 0 kept samples.bytes) (VSM.slice n kept samples.bytes)
+  pure $ VSM.slice kept n samples.bytes
+
+-- | The magnitudes of the spectrum of a channel of the window, one for each
+-- bin.
+spectrumOf :: Transform -> SampleWindow -> Int -> IO (VS.Vector Double)
+spectrumOf transform samples channel = do
   out <- VSM.new (transformLength `div` 2 + 1)
   r <-
     withForeignPtr transform.plan $ \p ->
-      BS.unsafeUseAsCString samples $ \src ->
+      VSM.unsafeWith samples.bytes $ \src ->
         VS.unsafeWith transform.window $ \win ->
-          VSM.unsafeWith work $ \w ->
+          VSM.unsafeWith transform.work $ \w ->
             VSM.unsafeWith out $ \o ->
               c_spectrum
                 p
                 (castPtr src)
                 (castPtr win)
                 (fromIntegral windowSamples)
-                (fromIntegral channels)
+                (fromIntegral samples.channels)
                 (fromIntegral channel)
                 (castPtr w)
                 (castPtr o)

@@ -60,6 +60,7 @@ visualizerTests =
         ("tests" </> "reprise" </> "golden" </> "visualizer.txt")
         (BL.fromStrict . T.encodeUtf8 . T.unlines <$> mainLines visualizing [circle])
     , testCase "the spectrum of a sine" test_sineSpectrum
+    , testCase "the window of the spectrum" test_window
     , testCase "every frame shows the samples of its time" test_playout
     , testCase "MPD stops writing" test_playoutStops
     , testCase "the lag is bounded" test_playoutLag
@@ -249,8 +250,10 @@ test_sineSpectrum = do
           | i <- [0 .. windowSamples - 1]
           , let t = fromIntegral i / 44100
           ]
-  left <- spectrumOf transform 2 0 sine
-  right <- spectrumOf transform 2 1 sine
+  window <- newSampleWindow 2
+  pushSamples window sine
+  left <- spectrumOf transform window 0
+  right <- spectrumOf transform window 1
   let peak = VS.maxIndex left
   assertBool
     ("the peak at " <> show (binFrequency peak) <> " Hz")
@@ -259,6 +262,38 @@ test_sineSpectrum = do
     ("its magnitude " <> show (left VS.! peak))
     (abs (left VS.! peak - amplitude * 0.42 / 2) < 0.01)
   assertEqual "the silent channel" 0 (VS.maximum right)
+
+-- | The window holds the last samples, whether they came at once or in
+-- pieces, and silence pushes them out.
+test_window :: Assertion
+test_window = do
+  transform <- newTransform
+  let count = 2 * windowSamples
+      noise =
+        samples
+          [ (fromIntegral (i * 7919), fromIntegral (i * 104729))
+          | i <- [0 .. count - 1]
+          ]
+      bytesOf n = 4 * n
+      half = windowSamples `div` 2
+      spectra w = forM [0, 1] $ spectrumOf transform w
+      windowOf pcm = do
+        w <- newSampleWindow 2
+        pushSamples w pcm
+        pure w
+  whole <- spectra =<< windowOf (BS.takeEnd (bytesOf windowSamples) noise)
+  pieces <- newSampleWindow 2
+  let (first, rest) = BS.splitAt (bytesOf 1000) noise
+      (middle, end) = BS.splitAt (BS.length rest - bytesOf 3) rest
+  mapM_ (pushSamples pieces) [first, middle, end]
+  assertEqual "in pieces" whole =<< spectra pieces
+  pushSilence pieces (bytesOf half)
+  silenced <-
+    spectra
+      =<< windowOf (BS.takeEnd (bytesOf half) noise <> BS.replicate (bytesOf half) 0)
+  assertEqual "half silent" silenced =<< spectra pieces
+  pushSilence pieces (bytesOf count)
+  assertEqual "silent" [0, 0] . map VS.maximum =<< spectra pieces
 
 -- | MPD writes 503 samples at a time, as the author's does, which is longer
 -- than a frame at 120 frames a second. Once the buffer holds a frame and
