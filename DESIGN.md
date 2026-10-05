@@ -232,15 +232,17 @@ ncmpcpp.
   is the path of the fifo, and the visualizer says how to set it when it is
   missing. A worker thread opens the fifo while the visualizer shows, and
   only then.
-- It is a goniometer. The left and the right channel are turned by 45°, so
-  mono is a vertical line and stereo spreads to the sides. ncmpcpp's stereo
-  ellipse draws the channels without the turn.
+- It draws the left channel across and the right one up, as ncmpcpp's
+  stereo ellipse does. Mono is a diagonal, and stereo widens it.
+  - **Not a goniometer.** A goniometer turns the picture by 45°, so mono is
+    a vertical line and its width is the difference between the channels.
+    Most music is close to mono, so on a wide terminal it was a narrow
+    column in the middle.
   - **Braille dots,** two by four in a cell, so the screen has 8 times as
     many points as cells.
   - **It fills the screen.** The width and the height scale apart, as in
-    ncmpcpp's ellipse, so on a wide terminal stereo spreads further than
-    mono goes up and down, and a circle is an ellipse. Scaled alike, it
-    would leave the sides of the screen empty.
+    ncmpcpp's ellipse, so a circle is an ellipse as wide as the terminal.
+    Scaled alike, it would leave the sides of a wide screen empty.
   - **The samples of the last frames stay** for `visualizer.trail` and fade
     through `visualizer.colors`. A cell has the color of the newest frame
     with a dot in it. ncmpcpp colors by the distance from the center.
@@ -1461,13 +1463,13 @@ options, `allow_for_physical_item_deletion`,
 `show_hidden_files_in_local_browser`.
 
 **The visualizer's other options**
-- `visualizer_type` and the spectrum's options: the visualizer is a
-  goniometer, and the spectrum comes later, if ever.
+- `visualizer_type` and the spectrum's options: the visualizer is the
+  stereo ellipse, and the spectrum comes later, if ever.
 - `visualizer_look`: the dots are braille.
 - `visualizer_output_name` and `visualizer_sync_interval`: the worker drops
   the old samples itself, instead of resetting the output.
-- `visualizer_autoscale`: the scale of a goniometer shows how loud the
-  music is.
+- `visualizer_autoscale`: the size of the picture shows how loud the music
+  is.
 - `visualizer_data_source` with a UDP address, for Mopidy. reprise is a
   client of MPD.
 

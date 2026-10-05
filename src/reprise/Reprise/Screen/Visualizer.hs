@@ -1,7 +1,7 @@
--- | The visualizer: a goniometer of the samples that MPD's fifo output
--- writes. It turns the left and the right channel by 45°, so that mono is a
--- vertical line and stereo spreads to the sides. The samples are braille
--- dots, eight in a cell, and those of the last frames stay while they fade.
+-- | The visualizer: the samples that MPD's fifo output writes, with the
+-- left channel across and the right one up, as in ncmpcpp's stereo ellipse.
+-- Mono is a diagonal, and stereo widens it. The samples are braille dots,
+-- eight in a cell, and those of the last frames stay while they fade.
 module Reprise.Screen.Visualizer
   ( visualizerView
   , visualizerSamples
@@ -38,7 +38,7 @@ visualizerView env s v = case env.config.visualizer.dataSource of
   Nothing ->
     V.text' (toAttr env.colorMode mempty) . truncateToWidth v.width $
       "Set visualizer.data_source in the config to the fifo of MPD's fifo output"
-  Just _ -> goniometer env.colorMode env.config.visualizer v.width v.height s.visualizer.frames
+  Just _ -> scope env.colorMode env.config.visualizer v.width v.height s.visualizer.frames
 
 -- | Read the samples while the visualizer shows, and only then. It runs
 -- after every event.
@@ -75,9 +75,9 @@ trailFrames cfg =
 
 -- | The samples of the frames as braille dots in a grid of the given size.
 -- A cell has the color of the newest frame with a dot in it.
-goniometer
+scope
   :: ColorMode -> VisualizerConfig -> Int -> Int -> Seq.Seq BS.ByteString -> V.Image
-goniometer colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
+scope colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
   where
     -- The dots of each cell, and the age of the newest frame with a dot in
     -- it.
@@ -103,18 +103,14 @@ goniometer colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
     channels :: Int
     channels = if cfg.inStereo then 2 else 1
 
-    -- The dots of a frame's samples. Full scale on both channels is the
-    -- top or the bottom of the grid, and full scale on one with the other
-    -- at zero is halfway to a side. The two axes scale apart, so that the
-    -- picture fills a wide screen, as ncmpcpp's ellipse does.
+    -- The dots of a frame's samples: the left channel across and the right
+    -- one up, each at full scale at the edges of the grid.
     points :: BS.ByteString -> [(Int, Int)]
     points pcm =
-      [ (round (centerX + x * centerX), round (centerY - y * centerY))
+      [ (round (centerX + left * centerX), round (centerY - right * centerY))
       | i <- [0 .. BS.length pcm `div` (bytesPerSample * channels) - 1]
       , let left = sampleAt pcm (i * channels)
             right = if cfg.inStereo then sampleAt pcm (i * channels + 1) else left
-            x = (left - right) / 2
-            y = (left + right) / 2
       ]
 
     dotsWide, dotsHigh :: Int

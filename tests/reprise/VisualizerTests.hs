@@ -46,8 +46,8 @@ visualizerTests =
     , testCase "the frames of the trail stay" test_trail
     , testCase "silence after silence keeps the screen" test_silence
     , testCase "no room for the visualizer" test_noRoom
-    , testCase "mono is a vertical line" test_mono
-    , testCase "one channel alone is a diagonal" test_oneChannel
+    , testCase "mono is a diagonal" test_mono
+    , testCase "the left channel alone is a horizontal line" test_oneChannel
     , testCase "older frames fade through the colors" test_fading
     , goldenVsString
         "a circle"
@@ -108,27 +108,17 @@ test_noRoom = do
 
 test_mono :: Assertion
 test_mono = do
-  ls <-
-    mainLines visualizing [samples [(v, v) | v <- [minBound, minBound + 1000 .. maxBound]]]
-  let columns = [c | l <- ls, (c, ch) <- zip [0 :: Int ..] (T.unpack l), ch /= ' ']
-  assertBool "dots on several rows" (length columns > 1)
-  case columns of
-    c : _ -> assertEqual "one column" [c] (L.nub columns)
-    [] -> assertFailure "no dots"
-
-test_oneChannel :: Assertion
-test_oneChannel = do
-  ls <-
-    mainLines visualizing [samples [(v, 0) | v <- [minBound, minBound + 1000 .. maxBound]]]
-  let dots =
-        [ (row, c)
-        | (row, l) <- zip [0 :: Int ..] ls
-        , (c, ch) <- zip [0 :: Int ..] (T.unpack l)
-        , ch /= ' '
-        ]
+  dots <- dotsOf [(v, v) | v <- [minBound, minBound + 1000 .. maxBound]]
+  assertBool "dots on several rows" (length (L.nub (map fst dots)) > 1)
   case (dots, reverse dots) of
     ((_, top) : _, (_, bottom) : _) -> assertBool "up to the right" (top > bottom)
     _ -> assertFailure "no dots"
+
+test_oneChannel :: Assertion
+test_oneChannel = do
+  dots <- dotsOf [(v, 0) | v <- [minBound, minBound + 1000 .. maxBound]]
+  assertBool "dots in several columns" (length (L.nub (map snd dots)) > 1)
+  assertEqual "one row" 1 (length (L.nub (map fst dots)))
 
 -- | With two colors and two frames on the screen, the newer frame has the
 -- first color and the older one the second.
@@ -227,6 +217,18 @@ mainLines :: AppEnv -> [BS.ByteString] -> IO [T.Text]
 mainLines env frames = do
   s <- shownWith env frames
   pure . take (mainHeight s.terminalSize) . drop 2 $ imageLines (renderScreen env s)
+
+-- | The rows and the columns of the cells with dots, from the top, after
+-- the visualizer showed a frame of the samples.
+dotsOf :: [(Int16, Int16)] -> IO [(Int, Int)]
+dotsOf frame = do
+  ls <- mainLines visualizing [samples frame]
+  pure
+    [ (row, column)
+    | (row, l) <- zip [0 ..] ls
+    , (column, c) <- zip [0 ..] (T.unpack l)
+    , c /= ' '
+    ]
 
 -- | A frame of samples of the left and the right channel, as MPD writes
 -- them.
