@@ -92,7 +92,10 @@ browserView env s v =
       row (i, isFound) item =
         let flags =
               RowFlags
-                { playing = False
+                { queued = case item of
+                    EntryItem (SongEntry song) -> (song.file, song.range) `S.member` s.mirror.queued
+                    _ -> False
+                , playing = False
                 , selected = isSelected (itemKey item) s.browser.selection
                 , found = isFound
                 , cursor = i == v.cursor

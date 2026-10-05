@@ -37,7 +37,9 @@ data RowContext = RowContext
 
 -- | What the row is, which lays styles over its own.
 data RowFlags = RowFlags
-  { playing :: Bool
+  { queued :: Bool
+  -- ^ The song is in the queue, which screens other than the queue show.
+  , playing :: Bool
   , selected :: Bool
   , found :: Bool
   , cursor :: Bool
@@ -97,7 +99,8 @@ renderOtherRow ctx flags =
 overlayStyle :: ListsConfig -> RowFlags -> Style
 overlayStyle lists flags =
   mconcat
-    [ if flags.playing then lists.playingStyle else mempty
+    [ if flags.queued then lists.queuedStyle else mempty
+    , if flags.playing then lists.playingStyle else mempty
     , if flags.selected then lists.selectedStyle else mempty
     , if flags.found then lists.foundStyle else mempty
     , if flags.cursor then lists.cursorStyle else mempty

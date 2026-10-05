@@ -140,6 +140,9 @@ data ListsConfig = ListsConfig
   , foundStyle :: Style
   -- ^ The items that match an unfinished find.
   , playingStyle :: Style
+  , queuedStyle :: Style
+  -- ^ The songs that are in the queue, in the other screens. ncmpcpp
+  -- always makes them bold.
   , keepCursorCentered :: Bool
   , ignoreLeadingThe :: Bool
   , missingTag :: T.Text
@@ -334,6 +337,7 @@ defaultLists =
     , selectedStyle = style "yellow on 24"
     , foundStyle = style "underline"
     , playingStyle = style "bold"
+    , queuedStyle = style "bold"
     , keepCursorCentered = False
     , ignoreLeadingThe = False
     , missingTag = "<empty>"

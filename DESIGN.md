@@ -200,6 +200,11 @@ ncmpcpp.
   screen.
 - Filter.
 - Find and filter always ignore diacritics.
+- Songs that are in the queue have `lists.queued_style` in the other
+  screens, bold by default, which ncmpcpp hardcodes. A song is in the queue
+  if the queue has its file, and for a track of a cue sheet, the same part
+  of the file. The style lies over the row's like the other states of a
+  row, so it works the same in the classic display and in columns.
 - Sorting can ignore a leading "the".
 
 **Layout**
@@ -272,10 +277,6 @@ Implemented when the author misses them.
   issues the minimal set of `move` commands instead of ncmpcpp's `swap` per
   quicksort step.
 - Add random items: songs, or tags such as artists and albums.
-
-**Marking songs that are already in the queue** when they show up in other
-screens. ncmpcpp hardcodes bold. reprise will either do the same or let a
-format decide, since formats can apply bold too (`<bold>...</>`).
 
 **Interaction**
 - Mouse support: seek on the progress bar, scroll, click to select or play.
@@ -1089,6 +1090,7 @@ lists:                           # every list screen
   selected_style: yellow on 24
   found_style: underline         # the matches while a find is typed
   playing_style: bold
+  queued_style: bold             # songs in the queue, in the other screens
   keep_cursor_centered: false
   ignore_leading_the: false
   missing_tag: '<empty>'

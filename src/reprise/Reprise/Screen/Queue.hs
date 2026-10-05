@@ -79,7 +79,8 @@ queueView env s v =
         renderRow
           ctx
           RowFlags
-            { playing = isJust playingId && song.songId == playingId
+            { queued = False
+            , playing = isJust playingId && song.songId == playingId
             , selected = maybe False (`isSelected` s.queueState.selection) song.songId
             , found = isFound
             , cursor = i == v.cursor && cursorVisible s

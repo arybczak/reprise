@@ -50,6 +50,7 @@ layoutTests =
     , testCase "a line prompt" test_promptLine
     , testCase "the matches of a find" test_foundStyle
     , testCase "the matches of a find in the browser" test_browserFoundStyle
+    , testCase "the songs in the queue in the browser" test_queuedStyle
     ]
 
 test_promptLine :: Assertion
@@ -122,6 +123,19 @@ test_browserFoundStyle = do
         ]
   assertEqual "found" [True] (underlined "[Singles]")
   assertEqual "not found" [False] (underlined "[Albums]")
+
+-- | The queue has @dir/1.flac@, but not @dir/9.flac@.
+test_queuedStyle :: Assertion
+test_queuedStyle = do
+  let s =
+        browsing
+          [ (["2"], ["directory: dir"])
+          , (["enter"], ["file: dir/1.flac", "file: dir/9.flac"])
+          ]
+      style name =
+        [V.attrStyle a | (a, t) <- imageSpans (renderScreen testAppEnv s), T.strip t == name]
+  assertEqual "queued" [V.SetTo V.bold] (style "1.flac")
+  assertEqual "not queued" [V.Default] (style "9.flac")
 
 test_selected :: Assertion
 test_selected = do

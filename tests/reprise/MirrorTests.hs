@@ -2,6 +2,7 @@ module MirrorTests (mirrorTests) where
 
 import Control.Exception
 import Data.Foldable
+import Data.Set qualified as S
 import Data.Text qualified as T
 import Optics.Core
 import Test.QuickCheck hiding (shuffle)
@@ -60,6 +61,7 @@ test_truncate = do
           emptyMirror
   r <- expectRight $ applyQueueChanges 0 (statusOf Stopped Nothing 2) [queued 1 "c"] m
   assertEqual "files" ["a", "c"] (files r)
+  assertEqual "the queued songs" (S.fromList [("a", Nothing), ("c", Nothing)]) r.queued
 
 test_gap :: Assertion
 test_gap = do

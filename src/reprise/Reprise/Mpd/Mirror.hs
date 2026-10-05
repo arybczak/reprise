@@ -19,6 +19,7 @@ import Data.Foldable
 import Data.List qualified as L
 import Data.Maybe
 import Data.Sequence qualified as Seq
+import Data.Set qualified as S
 import Data.Text qualified as T
 import GHC.Generics
 import Optics.Core
@@ -36,6 +37,10 @@ data Mirror = Mirror
   , totalLength :: Seconds
   -- ^ The length of the songs of the queue. The header shows it on every
   -- redraw, so it is summed only when the queue changes.
+  , queued :: ~(S.Set (T.Text, Maybe SongRange))
+  -- ^ The files of the songs of the queue, with their parts, so that the
+  -- other screens can mark them on every redraw. Made when a screen first
+  -- needs it after a change of the queue.
   , lengthFromCurrent :: Seconds
   -- ^ The length of the current song and the songs after it, or of the
   -- whole queue without a current song. It is summed when the status
@@ -44,7 +49,7 @@ data Mirror = Mirror
   deriving stock (Eq, Show, Generic)
 
 emptyMirror :: Mirror
-emptyMirror = Mirror Nothing 0 Seq.empty Nothing 0 0
+emptyMirror = Mirror Nothing 0 Seq.empty Nothing 0 S.empty 0
 
 -- | Replace the whole queue.
 setQueue :: Double -> Status -> [Song] -> Mirror -> Mirror
@@ -88,6 +93,7 @@ withQueue q m =
   m
     & #queue .~ q
     & #totalLength .~ songsLength q
+    & #queued .~ S.fromList [(song.file, song.range) | song <- toList q]
 
 -- | Songs without a length count as 0.
 songsLength :: Seq.Seq Song -> Seconds
