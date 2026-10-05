@@ -303,6 +303,8 @@ data LyricsState = LyricsState
   , returnTo :: ScreenName
   -- ^ The screen that the lyrics were shown from, which showing them again
   -- goes back to.
+  , inBackground :: Maybe Song
+  -- ^ The song whose lyrics were fetched in the background last.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -375,7 +377,7 @@ initialState config =
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , visualizer = VisualizerState Nothing Seq.empty []
-    , lyrics = LyricsState Nothing 0 ReadingLyrics True QueueScreen
+    , lyrics = LyricsState Nothing 0 ReadingLyrics True QueueScreen Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
@@ -607,7 +609,7 @@ playingTimedLyrics :: AppState -> Maybe (TimedLyrics, Seconds)
 playingTimedLyrics s = do
   song <- s.lyrics.song
   playing <- currentSong s.mirror
-  guard $ playing.file == song.file && playing.range == song.range
+  guard $ sameSong playing song
   ShowingLyrics (LyricsFound _ lyrics) <- Just s.lyrics.status
   timed <- lyrics.timed
   elapsed <- displayedElapsed s

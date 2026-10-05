@@ -273,6 +273,9 @@ data LyricsConfig = LyricsConfig
   , fetchers :: [LyricsFetcher]
   -- ^ Where the lyrics that aren't stored are fetched from, in order. None
   -- shows only the stored ones.
+  , fetchInBackground :: Bool
+  -- ^ Fetch the lyrics of each song that plays, so that they are stored
+  -- when the lyrics screen shows them.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml LyricsConfig
@@ -477,7 +480,8 @@ defaultVisualizer =
     }
 
 defaultLyrics :: LyricsConfig
-defaultLyrics = LyricsConfig {directory = Nothing, fetchers = [Lrclib]}
+defaultLyrics =
+  LyricsConfig {directory = Nothing, fetchers = [Lrclib], fetchInBackground = False}
 
 defaultStyles :: StylesConfig
 defaultStyles =

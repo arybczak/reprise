@@ -115,6 +115,7 @@ main = do
         , emit = void . B.writeBChanNonBlocking events
         }
   lyrics <- newTVarIO Nothing
+  lyricsInBackground <- newTVarIO Nothing
   lyricsDirectory <-
     maybe
       (getXdgDirectory XdgData ("reprise" </> "lyrics"))
@@ -129,6 +130,7 @@ main = do
       { directory = lyricsDirectory
       , fetchers = map fetcher config.lyrics.fetchers
       , requested = lyrics
+      , background = lyricsInBackground
       , emit = B.writeBChan events
       , logLine = logLine
       }
@@ -152,6 +154,7 @@ main = do
             , events = events
             , visualizing = visualizing
             , lyrics = lyrics
+            , lyricsInBackground = lyricsInBackground
             }
       )
       (initialState config)

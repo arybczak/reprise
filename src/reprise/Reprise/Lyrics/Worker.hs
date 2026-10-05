@@ -30,41 +30,73 @@ data LyricsSource = LyricsSource
   , requested :: TVar (Maybe (Int, LyricsRequest))
   -- ^ The newest request, with its token. The worker takes only the
   -- newest, so the songs that the screen passed by aren't loaded.
+  , background :: TVar (Maybe Song)
+  -- ^ The song whose lyrics to fetch and store without showing them, e.g.
+  -- the one that plays. A request of the screen goes first.
   , emit :: AppEvent -> IO ()
   , logLine :: T.Text -> IO ()
   }
 
--- | Load the lyrics of each new request.
+-- | Load the lyrics of each new request, and fetch the lyrics of each new
+-- song in the background.
 lyricsWorker :: LyricsSource -> IO ()
-lyricsWorker src = go Nothing M.empty
+lyricsWorker src = go Nothing Nothing M.empty
   where
-    -- The token of the request served last, and what the fetchers had for
-    -- the songs whose lyrics they didn't find, by their files. A failure
-    -- isn't remembered, so that a request can try again.
-    go :: Maybe Int -> M.Map FilePath LyricsResult -> IO ()
-    go served known = do
-      (token, request) <-
+    -- The token of the request served last, the song fetched in the
+    -- background last, and what the fetchers had for the songs whose
+    -- lyrics they didn't find, by their files. A failure isn't remembered,
+    -- so that a request can try again.
+    go :: Maybe Int -> Maybe Song -> M.Map FilePath LyricsResult -> IO ()
+    go served fetched known = do
+      next <-
         atomically $
-          readTVar src.requested >>= \case
-            Just (token, request) | Just token /= served -> pure (token, request)
-            _ -> retry
-      let file = lyricsFileName request.song
-          known' = if request.refetch then M.delete file known else known
-      stored <-
-        if request.refetch then pure LyricsMissing else storedLyrics src.directory request.song
+          ( readTVar src.requested >>= \case
+              Just (token, request) | Just token /= served -> pure $ Left (token, request)
+              _ -> retry
+          )
+            `orElse` ( readTVar src.background >>= \case
+                         Just song | Just song /= fetched -> pure $ Right song
+                         _ -> retry
+                     )
+      case next of
+        Left (token, request) -> do
+          (result, known') <-
+            load (src.emit (LyricsFetching token)) request.refetch request.song known
+          src.emit $ LyricsLoaded token result
+          go (Just token) fetched known'
+        Right song -> do
+          (result, known') <- load (pure ()) False song known
+          case result of
+            LyricsFailed reason ->
+              src.logLine $ "The lyrics of " <> lyricsName song <> " can't be fetched: " <> reason
+            _ -> pure ()
+          go served (Just song) known'
+
+    -- The lyrics of a song: stored, or what the fetchers had before, or
+    -- else fetched and stored, after an action. Also what is remembered
+    -- after.
+    load
+      :: IO ()
+      -> Bool
+      -> Song
+      -> M.Map FilePath LyricsResult
+      -> IO (LyricsResult, M.Map FilePath LyricsResult)
+    load fetching refetch song known = do
+      let file = lyricsFileName song
+          known' = if refetch then M.delete file known else known
+      stored <- if refetch then pure LyricsMissing else storedLyrics src.directory song
       result <- case stored of
         LyricsMissing
           | Just r <- M.lookup file known' -> pure r
           | not (null src.fetchers) -> do
-              src.emit $ LyricsFetching token
-              fetched <- fetchFrom Nothing src.fetchers request.song
-              case fetched of
-                LyricsFound _ lyrics -> store request.song lyrics
+              fetching
+              fetchedLyrics <- fetchFrom Nothing src.fetchers song
+              case fetchedLyrics of
+                LyricsFound _ lyrics -> store song lyrics
                 _ -> pure ()
-              pure fetched
+              pure fetchedLyrics
         other -> pure other
-      src.emit $ LyricsLoaded token result
-      go (Just token) $ case result of
+      pure . (result,) $ case result of
         LyricsMissing -> M.insert file result known'
         LyricsInstrumental -> M.insert file result known'
         _ -> known'

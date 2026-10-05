@@ -160,13 +160,15 @@ handleEvent = \case
     statusSubsystems = [PlayerSubsystem, MixerSubsystem, OptionsSubsystem, UpdateSubsystem, DatabaseSubsystem]
 
 -- | Run after every event: schedule the next redraw of the elapsed time,
--- update the window title, and read the visualizer's samples while it shows.
+-- update the window title, read the visualizer's samples while it shows, and
+-- fetch the lyrics of a new song that plays.
 afterEvent :: App es => Eff es ()
 afterEvent = do
   restartTitle
   scheduleTick
   updateWindowTitle
   updateVisualizer
+  updateLyrics
 
 -- | Scroll the header's title from its start when it shows another subject.
 restartTitle :: App es => Eff es ()

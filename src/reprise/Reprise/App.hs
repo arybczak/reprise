@@ -23,6 +23,7 @@ import Reprise.Event
 import Reprise.Handler
 import Reprise.Keys
 import Reprise.Lyrics
+import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.UI.Layout
 
@@ -34,6 +35,8 @@ data Channels = Channels
   -- ^ What the visualizer's worker reads the samples for.
   , lyrics :: TVar (Maybe (Int, LyricsRequest))
   -- ^ The newest request of lyrics for their worker, with its token.
+  , lyricsInBackground :: TVar (Maybe Song)
+  -- ^ The song whose lyrics their worker fetches in the background.
   }
 
 -- | The size of the channel of events from the workers and the timers. A
@@ -81,6 +84,8 @@ dispatch env channels event = do
     Visualize v -> liftIO . atomically $ writeTVar channels.visualizing v
     FetchLyrics token wanted ->
       liftIO . atomically $ writeTVar channels.lyrics (Just (token, wanted))
+    FetchLyricsInBackground song ->
+      liftIO . atomically $ writeTVar channels.lyricsInBackground (Just song)
   where
     microsecondsPerSecond :: Double
     microsecondsPerSecond = 1000000

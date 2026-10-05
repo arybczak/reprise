@@ -13,6 +13,7 @@ module Reprise.Lyrics
   , lyricsName
   , lyricsFileName
   , timedLyricsFileName
+  , sameSong
   , firstTag
   , cleanTitle
   ) where
@@ -172,3 +173,8 @@ cleanTitle title = case T.unsnoc stripped of
         | c == open -> opening open close (depth - 1) cs
         | c == close -> opening open close (depth + 1) cs
         | otherwise -> opening open close depth cs
+
+-- | Whether two songs are the same file, or the same part of a file, e.g.
+-- in the queue and in the database.
+sameSong :: Song -> Song -> Bool
+sameSong a b = a.file == b.file && a.range == b.range

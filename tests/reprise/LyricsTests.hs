@@ -50,6 +50,8 @@ lyricsTests =
     , testCase "the line being sung" test_sung
     , testCase "scrolling stops following the song" test_stopFollowing
     , testCase "a redraw when the next line is sung" test_nextLine
+    , testCase "the worker fetches in the background" test_workerInBackground
+    , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
     ]
 
 -- | The first is the name of a file in the author's lyrics from ncmpcpp.
@@ -326,6 +328,54 @@ test_nextLine = do
   r <- runEvents 0.25 [Tick 0] shown
   assertEqual "at the next line" (Just 1) (nextLyricsLine r.state)
 
+test_workerInBackground :: Assertion
+test_workerInBackground = withSystemTempDirectory "lyrics" $ \dir -> do
+  requested <- newTVarIO Nothing
+  background <- newTVarIO Nothing
+  events <- newTQueueIO
+  (calls, fetcher) <- counted (pure (LyricsFound (Fetched "LRCLIB") (plainLyrics "Ahead")))
+  let source =
+        LyricsSource
+          { directory = dir
+          , fetchers = [fetcher]
+          , requested = requested
+          , background = background
+          , emit = atomically . writeTQueue events
+          , logLine = \_ -> pure ()
+          }
+      one = song 0 [(Artist, ["A"]), (Title, ["One"])] 60
+  bracket (forkIO (lyricsWorker source)) killThread $ \_ -> do
+    atomically . writeTVar background $ Just one
+    ahead <- timeout (5 * 1000000) . untilJust $ do
+      exists <- doesFileExist (dir </> "A - One.txt")
+      if exists
+        then Just <$> BS.readFile (dir </> "A - One.txt")
+        else Nothing <$ threadDelay 1000
+    assertEqual "stored" (Just "Ahead\n") ahead
+    atomically . writeTVar requested $ Just (1, LyricsRequest one False)
+    loaded <- timeout (5 * 1000000) . atomically $ readTQueue events
+    assertEqual "read, not fetched" (Just (LyricsLoaded 1 (stored "Ahead"))) loaded
+  assertEqual "one fetch" 1 =<< readIORef calls
+  where
+    untilJust :: IO (Maybe b) -> IO b
+    untilJust act = act >>= maybe (untilJust act) pure
+
+test_fetchInBackground :: Assertion
+test_fetchInBackground = do
+  let env = testAppEnv & #config % #lyrics % #fetchInBackground .~ True
+      songs =
+        [ song 0 [(Artist, ["A"]), (Title, ["One"])] 60
+        , song 1 [(Artist, ["A"]), (Title, ["Two"])] 60
+        ]
+      fetched r = [lyricsName s | FetchLyricsInBackground s <- r.commands]
+  s <- testState (40, 10) (statusOf Playing (Just 0) 2) songs
+  first <- runEventsWith env 0 [Tick 0, Tick 0] s
+  assertEqual "once" ["A - One"] (fetched first)
+  next <- runEventsWith env 0 [StatusFetched (statusOf Playing (Just 1) 2)] first.state
+  assertEqual "the next song" ["A - Two"] (fetched next)
+  off <- runEvents 0 [Tick 0] s
+  assertEqual "not unless the config says so" [] (fetched off)
+
 -- | The lyrics screen of the first song, which plays, with 'timedTwenty'.
 timedShown :: PlayerState -> IO AppState
 timedShown st = do
@@ -361,12 +411,14 @@ withWorker
   -> IO a
 withWorker dir fetchers k = do
   requested <- newTVarIO Nothing
+  background <- newTVarIO Nothing
   events <- newTQueueIO
   let source =
         LyricsSource
           { directory = dir
           , fetchers = fetchers
           , requested = requested
+          , background = background
           , emit = atomically . writeTQueue events
           , logLine = \_ -> pure ()
           }

@@ -16,6 +16,7 @@ module Reprise.Effect.UiRequest
   , keepScreen
   , visualize
   , fetchLyrics
+  , fetchLyricsInBackground
   ) where
 
 import Data.Text qualified as T
@@ -26,6 +27,7 @@ import Effectful.Output.Static.Local.List
 import Reprise.Config
 import Reprise.Event
 import Reprise.Lyrics
+import Reprise.Mpd.Protocol.Types
 
 data UiRequest :: Effect where
   UiRequest :: UiCommand -> UiRequest m ()
@@ -44,6 +46,9 @@ data UiCommand
   | -- | Load the lyrics of a request, with its token. A newer
     -- request replaces one that the worker didn't take yet.
     FetchLyrics Int LyricsRequest
+  | -- | Fetch and store the lyrics of a song without showing them, after a
+    -- request of the screen.
+    FetchLyricsInBackground Song
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -72,3 +77,7 @@ visualize = send . UiRequest . Visualize
 -- | Load the lyrics of a request, with its token.
 fetchLyrics :: UiRequest :> es => Int -> LyricsRequest -> Eff es ()
 fetchLyrics token = send . UiRequest . FetchLyrics token
+
+-- | Fetch and store the lyrics of a song without showing them.
+fetchLyricsInBackground :: UiRequest :> es => Song -> Eff es ()
+fetchLyricsInBackground = send . UiRequest . FetchLyricsInBackground

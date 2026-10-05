@@ -428,8 +428,12 @@ ncmpcpp.
   - **The screen is drawn again when the next line is sung,** besides the
     redraws of the elapsed time. Where the screen starts is worked out when
     it is drawn, so following the song needs no events of its own.
-- **Later:** fetching the playing song's lyrics in the background;
-  following the playing song; editing in `$EDITOR`.
+- **`lyrics.fetch_in_background` fetches the lyrics of each song that
+  plays,** as ncmpcpp's `fetch_lyrics_for_current_song_in_background`
+  does, so that they are stored when the screen shows them. The worker
+  takes a request of the screen first, so the screen doesn't wait for the
+  background. A failure in the background goes to the log.
+- **Later:** following the playing song; editing in `$EDITOR`.
 
 ### Later
 
@@ -1358,6 +1362,7 @@ visualizer:
 lyrics:
   directory: ~                   # $XDG_DATA_HOME/reprise/lyrics; ncmpcpp's is ~/.lyrics
   fetchers: [lrclib]             # in order; [] shows only the stored lyrics
+  fetch_in_background: false     # fetch the lyrics of each song that plays
 
 styles:                          # used across screens
   label: white                   # field names, e.g. in the search engine
@@ -1629,6 +1634,7 @@ Many single-character keys collide with YAML syntax:
 | `visualizer_data_source`, `visualizer_in_stereo`, `visualizer_type`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.in_stereo`, `visualizer.visualization`, `visualizer.fps`, `visualizer.colors` |
 | `lyrics_directory` | `lyrics.directory`, `$XDG_DATA_HOME/reprise/lyrics` without it |
 | `lyrics_fetchers` | `lyrics.fetchers`, of `lrclib`, which replaces ncmpcpp's fetchers (see [Core](#core)) |
+| `fetch_lyrics_for_current_song_in_background` | `lyrics.fetch_in_background` |
 
 How the author's ncmpcpp settings were translated:
 - **Prefixes and suffixes became styles.** `current_item_prefix`/`suffix`

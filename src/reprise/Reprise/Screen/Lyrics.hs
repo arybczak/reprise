@@ -7,8 +7,10 @@ module Reprise.Screen.Lyrics
   , refetchLyrics
   , lyricsFetching
   , lyricsLoaded
+  , updateLyrics
   ) where
 
+import Control.Monad
 import Data.Maybe
 import Data.Text qualified as T
 import Effectful
@@ -20,6 +22,7 @@ import Reprise.Config
 import Reprise.Effect.UiRequest
 import Reprise.Handler.Core
 import Reprise.Lyrics
+import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
@@ -80,8 +83,26 @@ refetchLyrics = do
 request :: App es => Song -> Bool -> ScreenName -> Eff es ()
 request song refetch returnTo = do
   token <- newToken
-  modifyS $ #lyrics .~ LyricsState (Just song) token ReadingLyrics True returnTo
+  modifyS $
+    #lyrics
+      %~ (#song ?~ song)
+      . (#token .~ token)
+      . (#status .~ ReadingLyrics)
+      . (#following .~ True)
+      . (#returnTo .~ returnTo)
   fetchLyrics token (LyricsRequest song refetch)
+
+-- | Fetch the lyrics of each new song that plays in the background, if the
+-- config says so. It runs after every event.
+updateLyrics :: App es => Eff es ()
+updateLyrics = do
+  env <- getAppEnv
+  s <- getS
+  when (env.config.lyrics.fetchInBackground && not (null env.config.lyrics.fetchers)) $
+    forM_ (currentSong s.mirror) $ \playing ->
+      unless (maybe False (sameSong playing) s.lyrics.inBackground) $ do
+        modifyS $ #lyrics % #inBackground ?~ playing
+        fetchLyricsInBackground playing
 
 -- | The lyrics of the request with the token aren't stored, so they are
 -- being fetched.
