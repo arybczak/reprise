@@ -43,7 +43,7 @@ lyricsTests =
     , testCase "` fetches the lyrics again" test_refetch
     , testCase "the worker reads the stored lyrics" test_worker
     , testCase "the worker fetches and stores the lyrics" test_workerFetches
-    , testCase "the worker remembers what isn't there, not failures" test_workerRemembers
+    , testCase "the worker asks again for what wasn't there" test_workerAsksAgain
     , testCase "the worker fetches the lyrics again" test_workerRefetches
     , testCase "the worker without fetchers" test_workerWithoutFetchers
     , testCase "timed lyrics from LRC" test_parseLrc
@@ -215,20 +215,14 @@ test_workerFetches = withSystemTempDirectory "lyrics" $ \dir -> do
       =<< ask 2 "Two" False
   assertEqual "one fetch" 1 =<< readIORef calls
 
-test_workerRemembers :: Assertion
-test_workerRemembers = withSystemTempDirectory "lyrics" $ \dir -> do
-  (missingCalls, missing) <- counted (pure LyricsMissing)
+test_workerAsksAgain :: Assertion
+test_workerAsksAgain = withSystemTempDirectory "lyrics" $ \dir -> do
+  (calls, missing) <- counted (pure LyricsMissing)
   withWorker dir [missing] $ \ask -> do
-    assertEqual "missing" [LyricsFetching 1, LyricsLoaded 1 LyricsMissing]
-      =<< ask 1 "One" False
-    assertEqual "remembered" [LyricsLoaded 2 LyricsMissing] =<< ask 2 "One" False
-  assertEqual "one fetch of the missing" 1 =<< readIORef missingCalls
-  (brokenCalls, broken) <- counted (pure (LyricsFailed "busy"))
-  withWorker dir [broken] $ \ask -> do
-    let failed n = [LyricsFetching n, LyricsLoaded n (LyricsFailed "busy")]
-    assertEqual "failed" (failed 1) =<< ask 1 "One" False
-    assertEqual "failed again" (failed 2) =<< ask 2 "One" False
-  assertEqual "two fetches of the broken" 2 =<< readIORef brokenCalls
+    let notFound n = [LyricsFetching n, LyricsLoaded n LyricsMissing]
+    assertEqual "missing" (notFound 1) =<< ask 1 "One" False
+    assertEqual "asked again" (notFound 2) =<< ask 2 "One" False
+  assertEqual "two fetches" 2 =<< readIORef calls
   (_, first) <- counted (pure (LyricsFailed "down"))
   (_, second) <- counted (pure (LyricsFound (Fetched "B") (plainLyrics "Words")))
   withWorker dir [first, second] $ \ask ->

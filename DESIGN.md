@@ -377,13 +377,16 @@ ncmpcpp.
   order, and stored, so that they are fetched once. The screen says
   "Fetching the lyrics…" only once the worker found none stored, so stored
   lyrics show without a flash of it.
-  - **"Not there" is remembered** until reprise exits: no lyrics, or an
-    instrumental. So the songs that a fetcher doesn't have aren't asked for
-    each time they show. An instrumental isn't stored, as ncmpcpp has no
-    way to read that back.
-  - **A failure is neither stored nor remembered,** e.g. no network, or a
-    busy server: LRCLIB answers 503 at times. A later request tries again,
-    and the next fetcher is asked meanwhile.
+  - **What the fetchers don't have isn't remembered,** so the fetchers are
+    asked each time the lyrics of a song without stored ones show. A memory
+    of that went stale: the fetchers get lyrics, the network comes back,
+    and the config names other fetchers, e.g. a new one, which the songs
+    that the old ones didn't have weren't asked of. The requests come from
+    the user, and the worker takes only the newest, so they are few. An
+    instrumental isn't stored either, as ncmpcpp has no way to read that
+    back.
+  - **A failure isn't stored,** e.g. no network, or a busy server: LRCLIB
+    answers 503 at times. The next fetcher is asked meanwhile.
   - **`` ` `` fetches the lyrics again,** as in ncmpcpp, and stores them
     anew, e.g. over wrong ones.
   - **A file is written whole:** to a temporary file, then renamed over the

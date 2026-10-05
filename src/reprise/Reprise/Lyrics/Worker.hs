@@ -11,7 +11,6 @@ import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
 import Data.Functor
-import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import System.Directory
@@ -40,14 +39,12 @@ data LyricsSource = LyricsSource
 -- | Load the lyrics of each new request, and fetch the lyrics of each new
 -- song in the background.
 lyricsWorker :: LyricsSource -> IO ()
-lyricsWorker src = go Nothing Nothing M.empty
+lyricsWorker src = go Nothing Nothing
   where
-    -- The token of the request served last, the song fetched in the
-    -- background last, and what the fetchers had for the songs whose
-    -- lyrics they didn't find, by their files. A failure isn't remembered,
-    -- so that a request can try again.
-    go :: Maybe Int -> Maybe Song -> M.Map FilePath LyricsResult -> IO ()
-    go served fetched known = do
+    -- The token of the request served last, and the song fetched in the
+    -- background last.
+    go :: Maybe Int -> Maybe Song -> IO ()
+    go served fetched = do
       next <-
         atomically $
           ( readTVar src.requested >>= \case
@@ -60,34 +57,25 @@ lyricsWorker src = go Nothing Nothing M.empty
                      )
       case next of
         Left (token, request) -> do
-          (result, known') <-
-            load (src.emit (LyricsFetching token)) request.refetch request.song known
+          result <- load (src.emit (LyricsFetching token)) request.refetch request.song
           src.emit $ LyricsLoaded token result
-          go (Just token) fetched known'
+          go (Just token) fetched
         Right song -> do
-          (result, known') <- load (pure ()) False song known
+          result <- load (pure ()) False song
           case result of
             LyricsFailed reason ->
               src.logLine $ "The lyrics of " <> lyricsName song <> " can't be fetched: " <> reason
             _ -> pure ()
-          go served (Just song) known'
+          go served (Just song)
 
-    -- The lyrics of a song: stored, or what the fetchers had before, or
-    -- else fetched and stored, after an action. Also what is remembered
-    -- after.
-    load
-      :: IO ()
-      -> Bool
-      -> Song
-      -> M.Map FilePath LyricsResult
-      -> IO (LyricsResult, M.Map FilePath LyricsResult)
-    load fetching refetch song known = do
-      let file = lyricsFileName song
-          known' = if refetch then M.delete file known else known
+    -- The lyrics of a song: stored, or else fetched and stored, after an
+    -- action. What the fetchers didn't have isn't remembered, as they may
+    -- have it later, or the config may name other fetchers.
+    load :: IO () -> Bool -> Song -> IO LyricsResult
+    load fetching refetch song = do
       stored <- if refetch then pure LyricsMissing else storedLyrics src.directory song
-      result <- case stored of
+      case stored of
         LyricsMissing
-          | Just r <- M.lookup file known' -> pure r
           | not (null src.fetchers) -> do
               fetching
               fetchedLyrics <- fetchFrom Nothing src.fetchers song
@@ -96,10 +84,6 @@ lyricsWorker src = go Nothing Nothing M.empty
                 _ -> pure ()
               pure fetchedLyrics
         other -> pure other
-      pure . (result,) $ case result of
-        LyricsMissing -> M.insert file result known'
-        LyricsInstrumental -> M.insert file result known'
-        _ -> known'
 
     -- The lyrics of the first fetcher that has them, or else the first
     -- failure, or else that none has them.
