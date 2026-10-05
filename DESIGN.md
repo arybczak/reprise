@@ -1528,10 +1528,12 @@ yamlet is not on Hackage yet. Until it is, `cabal.project` pulls it in as a
 tags, so the pin is the newest commit of its `master` at the time of pinning.
 CI can only fetch it if the yamlet repository is public too, which it is.
 
-vty-unix is pinned the same way, to a fork that caches the escape sequences
-of colors and row starts. vty-unix evaluated them anew for every color change
-and every row, which made scrolling a list cost about 40% more CPU. The fix is
-sent upstream; the pin goes once a release of vty-unix has it.
+vty-unix is pinned the same way, to a fork that evaluates escape sequences
+faster. vty-unix evaluates one for every color change and every row, and its
+evaluator built the output a byte at a time, which made scrolling a list cost
+about 40% more CPU. The fix is sent upstream; the pin goes once a release of
+vty-unix has it. Caching the sequences of colors and row starts instead was
+as fast for reprise's frames, but it only helps the sequences that it covers.
 
 ### Cabal files
 

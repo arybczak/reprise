@@ -6,9 +6,9 @@ source-repository-package
   location: https://github.com/arybczak/yamlet.git
   tag: 7065c7a71a2f178a6f3028d6be9abf95c81b7845
 
--- vty-unix with its escape sequences cached, which makes scrolling a list
--- much cheaper. Until a release of vty-unix has it.
+-- vty-unix with a faster evaluation of escape sequences, which makes
+-- scrolling a list much cheaper. Until a release of vty-unix has it.
 source-repository-package
   type: git
   location: https://github.com/arybczak/vty-unix.git
-  tag: 32a733413c61872edd8c8d4a0692204094c4f9d9
+  tag: 97759555f67cf2f33c559aaa86b2373002073ed2
