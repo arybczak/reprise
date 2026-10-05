@@ -142,6 +142,10 @@ library
                      Reprise.Visualizer.Worker
                      Reprise.Width
 
+    -- reprise-bench computes the spectra of a frame in 171 µs with -O3,
+    -- and in 208 µs without. -ffast-math made no difference beyond the
+    -- noise. Cabal doesn't build the C sources again when this changes.
+    cc-options:      -O3
     c-sources:       cbits/pocketfft/pocketfft.c
                      cbits/spectrum.c
                      cbits/width.c

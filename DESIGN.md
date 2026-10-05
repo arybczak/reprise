@@ -287,10 +287,20 @@ ncmpcpp.
   resets the output for that, which needs its name in the config.
 - A frame that the UI can't take in time is dropped: the worker doesn't
   wait for brick's channel of events.
-- Measured at 160×45 at 60 fps, on a private MPD that played generated
-  pink noise: 60 frames a second without a drop, about 7% of a core, and
-  about 140 KiB a second to the terminal. Drawing a frame takes 360 µs, and
-  vty writes one in 46 µs (see [Benchmarks](#benchmarks)).
+- Measured at 160×45 at 60 fps, 60 frames a second without a drop:
+  - **The ellipse,** on a private MPD that played generated pink noise:
+    about 7% of a core, and about 140 KiB a second to the terminal.
+  - **The spectrum,** on the author's MPD with music: about 9.5% of a core,
+    and about 780 KiB a second to the terminal, as most of its cells change
+    in every frame.
+  - **A frame** (see [Benchmarks](#benchmarks)): the worker computes the
+    spectra of the two channels in 171 µs, the layout draws the spectrum in
+    390 µs and the ellipse in 430 µs, and vty writes them in 110 µs and
+    60 µs.
+- **The C code is built with `-O3`,** which makes the spectra of a frame
+  18% faster, 171 µs instead of 208 µs. `-ffast-math` made no difference
+  beyond the noise, so it isn't worth giving up exact floating point in
+  pocketfft.
 - ncmpcpp's sound wave and its mono ellipse come later, if ever.
 
 ### Later
@@ -1652,8 +1662,8 @@ songs and a terminal of 160×45:
   whole queue. It handles the listing of a directory as long as the queue,
   sorted by name. It also makes a frame of the queue, and vty writes a frame
   for xterm-256color, which covers the pin of vty-unix. It makes and writes
-  a frame of the visualizer after a second of noise, which it draws 60
-  times a second.
+  a frame of each visualization after a second of noise, which it draws 60
+  times a second, and computes the spectra of the channels for a frame.
 
 CI builds the suites but doesn't run them, because timings on shared
 machines are too noisy to fail a build on. To check a change, save the
