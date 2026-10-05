@@ -3,15 +3,18 @@ module BrowserTests (browserTests) where
 import Data.ByteString qualified as BS
 import Data.Foldable
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Optics.Core
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import Reprise.Action
+import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
+import Reprise.Screen.Browser
 import Reprise.Selection
 import Reprise.State
 import Utils
@@ -54,6 +57,7 @@ browserTests =
     , testCase "selecting what was found" test_selectFound
     , testCase "jump to the browser" test_jumpToBrowser
     , testCase "a stream isn't in the browser" test_jumpWithStream
+    , testCase "a long path scrolls" test_longPath
     ]
 
 test_showLists :: Assertion
@@ -351,6 +355,25 @@ test_jumpWithStream = do
       r = press ["G"] (testState (80, 12) (statusOf Stopped Nothing 1) [stream])
   assertEqual "no listing" [] r.requests
   assertEqual "the error" (Just True) ((.isError) <$> r.state.message)
+
+-- | Nothing plays, and the title scrolls all the same.
+test_longPath :: Assertion
+test_longPath = do
+  let long = "a-very-long-directory-name-that-does-not-fit-in-the-header-next-to-the-volume"
+      entered = press ["enter"] (answer ["directory: " <> T.encodeUtf8 long] (press ["2"] queueShown))
+  case reverse entered.pending of
+    p : _ -> do
+      let listed = runEvents 10 [replyTo [] p] entered.state
+          redraws = [d | After d (Tick _) <- listed.commands]
+      assertEqual "a redraw in a second" [1] redraws
+      assertBool
+        ("the start: " <> T.unpack (browserTitle listed.state))
+        ("Browse: /a-very-long" `T.isPrefixOf` browserTitle listed.state)
+      let later = listed.state & #now .~ 13
+      assertBool
+        ("three seconds later: " <> T.unpack (browserTitle later))
+        ("Browse: very-long" `T.isPrefixOf` browserTitle later)
+    [] -> assertFailure "no listing"
 
 ----------------------------------------
 -- Helpers

@@ -55,15 +55,7 @@ headerTitle env s = line env s env.config.header.style left right
     left = [Span (Just env.config.header.titleStyle) (screenTitle env s (focusedView s).screen)]
 
     right :: [Span Style]
-    right = [Span (Just env.config.header.volumeStyle) state]
-
-    state :: T.Text
-    state = case s.connection of
-      Connecting -> "Connecting…"
-      Disconnected _ -> "Disconnected"
-      Connected _ -> case s.mirror.status >>= (.volume) of
-        Just v -> "Volume: " <> T.pack (show v) <> "%"
-        Nothing -> "Volume: n/a"
+    right = [Span (Just env.config.header.volumeStyle) (headerRight s)]
 
 screenTitle :: AppEnv -> AppState -> ScreenName -> T.Text
 screenTitle env s = \case
@@ -301,7 +293,7 @@ playerStatus env s = case (s.mirror.status, currentSong s.mirror) of
             songSpans = renderFormat ctx song cfg.song
             shown
               | spansWidth songSpans <= room = songSpans
-              | otherwise = [Span Nothing (scroll room (floor e) (spansText songSpans))]
+              | otherwise = [Span Nothing (scrollText room (floor e) (spansText songSpans))]
         in line env s cfg.style (Span (Just cfg.stateStyle) label : shown) right
   _ -> line env s cfg.style [] []
   where
@@ -313,17 +305,6 @@ playerStatus env s = case (s.mirror.status, currentSong s.mirror) of
       RenderContext
         env.config.lists.tagSeparator
         [Span (Just env.config.lists.missingTagStyle) env.config.lists.missingTag]
-
--- | Text that doesn't fit, scrolled by one character for each second.
-scroll :: Int -> Int -> T.Text -> T.Text
-scroll room seconds t =
-  let looped = t <> separator
-      n = T.length looped
-      start = seconds `mod` max 1 n
-  in takeWidth room (T.drop start looped <> looped)
-  where
-    separator :: T.Text
-    separator = " ** "
 
 ----------------------------------------
 -- Helpers

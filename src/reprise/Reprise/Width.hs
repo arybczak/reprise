@@ -11,6 +11,7 @@ module Reprise.Width
   , takeWidth
   , truncateToWidth
   , ellipsis
+  , scrollText
 
     -- * The width table
   , installWidthTable
@@ -51,6 +52,17 @@ truncateToWidth width t
 
 ellipsis :: T.Text
 ellipsis = "…"
+
+-- | Text that doesn't fit in the width, scrolled by a character for each
+-- step, e.g. each second. It goes round with a separator.
+scrollText :: Int -> Int -> T.Text -> T.Text
+scrollText width steps t =
+  let looped = t <> separator
+      start = steps `mod` max 1 (T.length looped)
+  in takeWidth width (T.drop start looped <> looped)
+  where
+    separator :: T.Text
+    separator = " ** "
 
 foreign import ccall unsafe "reprise_use_utf8_ctype"
   c_useUtf8Ctype :: IO CInt

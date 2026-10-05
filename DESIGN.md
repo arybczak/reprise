@@ -568,7 +568,8 @@ the snapshot tests render it to text.
 The elapsed time is redrawn by a timer, not by polling. After each event, the
 handler computes when the screen next changes, the next whole second or the
 next cell of the progress bar, and sets a timer for then. A stream without a
-length has no progress bar, so only the seconds count.
+length has no progress bar, so only the seconds count. The same timer
+scrolls the browser's title, also while nothing plays.
 
 The worker threads use `mpd-protocol` through a small `Mpd` effect. Actions
 never use it directly; they go through `MpdRequest`.
@@ -732,7 +733,10 @@ Python.
 
 From top to bottom, as in ncmpcpp's classic design:
 - **Header, line 1:** the screen's title on the left (for the queue, with the
-  song count and the total and remaining time), the volume on the right.
+  song count and the total and remaining time), the volume on the right. A
+  path in the browser's title that doesn't fit scrolls by a character each
+  second, from its start whenever the browser lists another directory or
+  playlist, as in ncmpcpp.
 - **Header, line 2:** a horizontal line with the mode flags on the right:
   repeat, random, single, consume, crossfade, and "updating the database".
 - **The main view.**

@@ -4,6 +4,7 @@ module Reprise.Screen.Browser
   ( -- * Drawing
     browserView
   , browserTitle
+  , browserTitleScrolls
   , toggleBrowserDisplay
 
     -- * Moving
@@ -66,6 +67,7 @@ import Reprise.Selection
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.SongList
+import Reprise.Width
 
 ----------------------------------------
 -- Drawing
@@ -154,9 +156,30 @@ toggleBrowserDisplay = do
       Classic -> "classic"
       Columns -> "columns"
 
--- | The title in the header: what the browser lists.
+-- | The title in the header: what the browser lists. A path that doesn't fit
+-- next to the volume scrolls by a character each second from its start, as
+-- in ncmpcpp.
 browserTitle :: AppState -> T.Text
-browserTitle s = "Browse: /" <> maybe "" locationPath s.browser.location
+browserTitle s
+  | browserTitleScrolls s =
+      prefix <> scrollText (pathRoom s) (floor (s.now - s.browser.shownAt)) (titlePath s)
+  | otherwise = prefix <> titlePath s
+
+-- | Whether the browser's title scrolls, for which it is drawn again each
+-- second.
+browserTitleScrolls :: AppState -> Bool
+browserTitleScrolls s = textWidth (titlePath s) > pathRoom s
+
+prefix :: T.Text
+prefix = "Browse: "
+
+titlePath :: AppState -> T.Text
+titlePath s = "/" <> maybe "" locationPath s.browser.location
+
+-- | The columns that the path has in the title, with a space before the
+-- volume.
+pathRoom :: AppState -> Int
+pathRoom s = max 0 (fst s.terminalSize - textWidth prefix - textWidth (headerRight s) - 1)
 
 ----------------------------------------
 -- Moving
@@ -268,8 +291,9 @@ browserFailed token err =
     _ -> keepScreen
 
 -- | Show the entries of the latest listing. The reply to a listing that a
--- newer one replaced changes nothing. The selection stays in a listing of
--- the same, without the items that are gone.
+-- newer one replaced changes nothing. The selection and the scrolling of
+-- the title go on in a listing of the same, the selection without the items
+-- that are gone.
 browserListed :: App es => Int -> [Entry] -> Eff es ()
 browserListed token entries =
   getsS (.browser.listing) >>= \case
@@ -277,9 +301,9 @@ browserListed token entries =
       env <- getAppEnv
       s <- getS
       let items = arrange env s.toggles.browserSort l.location entries
+          same = s.browser.location == Just l.location
           selection
-            | s.browser.location == Just l.location =
-                restrictTo (S.fromList (map itemKey (toList items))) s.browser.selection
+            | same = restrictTo (S.fromList (map itemKey (toList items))) s.browser.selection
             | otherwise = noSelection
       modifyS $
         #browser
@@ -290,6 +314,7 @@ browserListed token entries =
             (itemRows env s.toggles.browserDisplay items)
             selection
             Nothing
+            (if same then s.browser.shownAt else s.now)
       modifyWithEnv $ placeCursor l.cursor
     _ -> keepScreen
 

@@ -621,8 +621,9 @@ currentDuration s = s.mirror.status >>= (.duration)
 ----------------------------------------
 -- Redraws
 
--- | Schedule a redraw for the next change of the elapsed time on the screen:
--- the next whole second, or the next cell of the progress bar.
+-- | Schedule a redraw for the next change of the screen with time: of the
+-- elapsed time, the next whole second or the next cell of the progress bar,
+-- or of the browser's title while it scrolls.
 scheduleTick :: App es => Eff es ()
 scheduleTick = do
   s <- getS
@@ -634,7 +635,19 @@ scheduleTick = do
       after (t - s.now) (Tick token)
 
 nextRedraw :: AppState -> Maybe Double
-nextRedraw s = do
+nextRedraw s = case catMaybes [elapsedRedraw s, titleRedraw] of
+  [] -> Nothing
+  ts -> Just (minimum ts)
+  where
+    -- The next whole second since the browser began to list what it lists.
+    titleRedraw :: Maybe Double
+    titleRedraw = do
+      guard $ (focusedView s).screen == BrowserScreen && browserTitleScrolls s
+      let shown = s.now - s.browser.shownAt
+      pure $ s.browser.shownAt + fromIntegral (floor @Double @Int shown + 1)
+
+elapsedRedraw :: AppState -> Maybe Double
+elapsedRedraw s = do
   st <- s.mirror.status
   guard $ st.state == Playing && isNothing s.seek
   e <- realToFrac <$> elapsedAt s.now s.mirror

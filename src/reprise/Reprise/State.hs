@@ -45,6 +45,7 @@ module Reprise.State
     -- * Queries
   , cursorVisible
   , cursorHideDelay
+  , headerRight
   , displayedElapsed
   ) where
 
@@ -205,6 +206,9 @@ data BrowserState = BrowserState
   -- ^ Of the items of what the browser lists.
   , listing :: Maybe Listing
   -- ^ The listing that was requested last, until its reply comes.
+  , shownAt :: Double
+  -- ^ When the browser began to list what it lists, from which a title
+  -- that doesn't fit scrolls.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -310,7 +314,7 @@ initialState config =
     { connection = Connecting
     , mirror = emptyMirror
     , queueState = QueueState noSelection Nothing
-    , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
+    , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing 0
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
@@ -393,6 +397,16 @@ cursorVisible s = s.now - s.lastInput < cursorHideDelay
 -- default @playlist_disable_highlight_delay@.
 cursorHideDelay :: Double
 cursorHideDelay = 5
+
+-- | The right of the header's first line: the volume, or the state of the
+-- connection.
+headerRight :: AppState -> T.Text
+headerRight s = case s.connection of
+  Connecting -> "Connecting…"
+  Disconnected _ -> "Disconnected"
+  Connected _ -> case s.mirror.status >>= (.volume) of
+    Just v -> "Volume: " <> T.pack (show v) <> "%"
+    Nothing -> "Volume: n/a"
 
 -- | The elapsed time to show: the target of a seek in progress, or the
 -- interpolated elapsed time.
