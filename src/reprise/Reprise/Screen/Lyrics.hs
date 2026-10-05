@@ -53,8 +53,7 @@ scrollLyrics t = do
   modifyWithEnv . modifyView $ #offset .~ lyricsOffset s (focusedView s)
   scrollLines t
 
--- | Show the lyrics of the song under the cursor, from the top. On the
--- lyrics screen, go back to the screen that showed them.
+-- | Show the lyrics of the song under the cursor, from the top.
 showLyrics :: App es => Eff es ()
 showLyrics = showSongScreen LyricsScreen $ \song -> request song False
 

@@ -38,6 +38,7 @@ lyricsTests =
     , testCase "fetched lyrics and the other outcomes" test_outcomes
     , testCase "l on the lyrics goes back" test_back
     , testCase "nowhere to go back to" test_nowhereBack
+    , testCase "back from any screen" test_backAnywhere
     , testCase "l without a song under the cursor" test_noSong
     , testCase "the lyrics of a song that the screen left are dropped" test_stale
     , testCase "the lyrics scroll" test_scroll
@@ -631,3 +632,11 @@ mainLines s = take (mainHeight s.terminalSize) . drop 2 $ screenLines s
 
 key :: T.Text -> AppEvent
 key = KeyPressed . either (error . T.unpack) id . parseKeySpec
+
+-- | From the browser, which the queue showed, by the action, which no key
+-- of the browser is bound to.
+test_backAnywhere :: Assertion
+test_backAnywhere = do
+  r <- runEvents 0 (map key ["2", ":", "b", "a", "c", "k", "enter"]) =<< queueShown
+  assertEqual "the queue" QueueScreen (focusedView r.state).screen
+  assertEqual "after the browser" (Just BrowserScreen) (focusedView r.state).previous

@@ -1,7 +1,7 @@
 Help                                                                 Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
-i           show the info of the song under the cursor, or go back
-l           show the lyrics of the song under the cursor, or go back
+i           show the info of the song under the cursor
+l           show the lyrics of the song under the cursor
 o           jump to the playing song
 p           pause or resume
 q           quit

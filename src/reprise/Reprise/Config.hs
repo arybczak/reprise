@@ -894,8 +894,11 @@ defaultKeymaps =
                 [ char '`' ~> RefetchLyrics
                 , char 'e' ~> EditLyrics
                 , plain Space ~> Toggle ToggleFollowPlaying
+                , -- As the key that showed them, as in ncmpcpp.
+                  char 'l' ~> Back
                 ]
             )
+          , (SongInfoScreen, keymap [char 'i' ~> Back])
           ]
     }
   where

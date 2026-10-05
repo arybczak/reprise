@@ -338,6 +338,7 @@ runAction = \case
   JumpToPlaying -> do
     modifyWithEnv . modifyView $ switchScreen QueueScreen
     modifyWithEnv jumpToPlaying
+  Back -> goBack
   JumpToBrowser ->
     getsS songUnderCursor >>= \case
       Nothing -> showMessage "There is no song under the cursor"

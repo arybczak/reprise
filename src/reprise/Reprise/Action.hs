@@ -45,6 +45,7 @@ data Action
   = Move MoveTarget
   | JumpToPlaying
   | JumpToBrowser
+  | Back
   | Select SelectTarget
   | Activate
   | AddOrRemove
@@ -212,6 +213,7 @@ registry =
   [ spec "move" (alternatives (map fst moveTargets)) $ one (fmap Move . moveTarget)
   , spec "jump_to_playing" "" $ none JumpToPlaying
   , spec "jump_to_browser" "" $ none JumpToBrowser
+  , spec "back" "" $ none Back
   , spec "select" "[up | down] | range | invert | none | album | artist | found" $ \case
       [] -> Right . Select $ SelectItem Nothing
       [Word w] -> Select <$> choice "selection" selectTargets w
@@ -439,6 +441,7 @@ renderAction = \case
   Move t -> "move " <> moveName t
   JumpToPlaying -> "jump_to_playing"
   JumpToBrowser -> "jump_to_browser"
+  Back -> "back"
   Select t -> case t of
     SelectItem Nothing -> "select"
     SelectItem (Just m) -> "select " <> moveName m
@@ -539,6 +542,7 @@ describeAction = \case
   Move t -> "move " <> T.replace "_" " " (moveName t)
   JumpToPlaying -> "jump to the playing song"
   JumpToBrowser -> "show the song under the cursor in the browser"
+  Back -> "go back to the previous screen"
   Select t -> case t of
     SelectItem Nothing -> "toggle selection"
     SelectItem (Just m) -> "toggle selection, move " <> moveName m
@@ -573,8 +577,8 @@ describeAction = \case
     FindNext -> "find next"
     FindPrevious -> "find previous"
   Filter -> "filter"
-  Show LyricsScreen -> "show the lyrics of the song under the cursor, or go back"
-  Show SongInfoScreen -> "show the info of the song under the cursor, or go back"
+  Show LyricsScreen -> "show the lyrics of the song under the cursor"
+  Show SongInfoScreen -> "show the info of the song under the cursor"
   Show s -> "show " <> T.replace "_" " " (screenName s)
   NextScreen _ -> "next screen"
   PreviousScreen _ -> "previous screen"

@@ -40,8 +40,7 @@ songInfoView env s v =
                 env.config.lists.missingTag
         ]
 
--- | Show the info of the song under the cursor, from the top. On the song
--- info screen, go back to the screen that showed it.
+-- | Show the info of the song under the cursor, from the top.
 showSongInfo :: App es => Eff es ()
 showSongInfo = showSongScreen SongInfoScreen $ \song -> do
   token <- newToken

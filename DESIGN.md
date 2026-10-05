@@ -355,8 +355,8 @@ ncmpcpp.
 - ncmpcpp's sound wave and its mono ellipse come later, if ever.
 
 **Song info**
-- **`i` shows the info of the song under the cursor** of a list, and on the
-  song info screen goes back, as `l` does the lyrics. It is text that
+- **`i` shows the info of the song under the cursor** of a list, and `i` on
+  the song info screen is `back`, as `l` on the lyrics. It is text that
   scrolls, with labels in `styles.label` and values in `styles.value`, in
   ncmpcpp's order:
   - **the file:** its name and directory, and the part of it, e.g. of a cue
@@ -381,11 +381,14 @@ ncmpcpp.
 - MPD 0.24's `Added` of a song isn't shown.
 
 **Lyrics**
-- **`l` shows the lyrics of the song under the cursor** of a list, and on
-  the lyrics screen goes back to the screen that showed them, as ncmpcpp's
-  `show_lyrics` does. A screen without songs says so, rather than showing
-  the lyrics of another song, e.g. the playing one, so that `l` always
-  means the song that the user points at.
+- **`l` shows the lyrics of the song under the cursor** of a list, and `l`
+  on the lyrics screen is `back`, to the screen that showed them, as
+  ncmpcpp's `show_lyrics` does. A screen without songs says so, rather
+  than showing the lyrics of another song, e.g. the playing one, so that
+  `l` always means the song that the user points at.
+- **Showing and going back are two actions,** `show lyrics` and `back`,
+  bound to one key in two keymaps. ncmpcpp's `show_lyrics` did both, so
+  `:show lyrics` on the lyrics screen would have left them.
 - **The lyrics are text that scrolls,** like the help screen, with long
   lines wrapped at spaces. The header shows the song.
 - **They are stored as ncmpcpp stores them,** a text file for each song in
@@ -944,8 +947,8 @@ without building any of the framework:
      of a song, its lyrics and its info, go back to, as a full-screen popup
      would. It is navigation, so it is the view's, not the screens': each
      of them kept its own, and passed it on when it showed another song.
-     Another screen has one too, for a "back" action, which reprise doesn't
-     have yet.
+     Another screen has one too: the action `back` shows it on any screen.
+     Only the screens of a song bind a key to it, the key that showed them.
    - Today there is exactly one view. A second view of the queue would only
      need a second view record.
 2. **Size comes from the view.** Page up/down, centering and scrolling read
@@ -1572,8 +1575,8 @@ keys:
     3: show search_engine
     7: show outputs
     8: show visualizer
-    l: show lyrics               # of the song under the cursor; on the lyrics, back
-    i: show song_info            # of the song under the cursor; on the info, back
+    l: show lyrics               # of the song under the cursor
+    i: show song_info            # of the song under the cursor
     tab: next_screen [browser, visualizer, media_library]
     shift-tab: previous_screen [browser, visualizer, media_library]
     f1: show help
@@ -1645,6 +1648,10 @@ keys:
     "`": refetch_lyrics          # as in ncmpcpp
     e: edit_lyrics               # in editor.command, $VISUAL or $EDITOR
     space: toggle follow_playing # of the lyrics here, as in ncmpcpp
+    l: back                      # as the key that showed them, as in ncmpcpp
+
+  song_info:
+    i: back
 ```
 
 Later features add to it: the queue's `ctrl-q o` (sort dialog), the media
