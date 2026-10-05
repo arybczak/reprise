@@ -517,8 +517,18 @@ Implemented when the author misses them.
   comes back with them.
 - The tag editor's screen key is `6`, as in ncmpcpp.
 
-**Lyrics in the files' tags**, ncmpcpp's `tags` fetcher. MPD's
-`readcomments` gives them without the music directory.
+**Lyrics in the files' tags**, ncmpcpp's `tags` fetcher. It comes with the
+tag editor, which needs the same two things.
+- **MPD can't give them.** `readcomments` leaves out a value with a control
+  character, and a line end is one, so multi-line lyrics never come.
+- **So reprise reads the files,** as ncmpcpp does, under the music
+  directory, which comes back as an option.
+- **TagLib reads them** for every format, as the property `LYRICS`, else
+  `UNSYNCEDLYRICS`, as ncmpcpp looks them up: ID3v2's `USLT`, MP4's
+  `©lyr`, the comments of FLAC and Ogg. Its C API has it since TagLib 2.0,
+  `taglib_property_get`, so a binding of `tag_c` is enough.
+- **It was left for later,** as the author's library has none: of 296
+  random files, 3 had a lyrics tag, of a license or empty.
 
 **Last.fm artist info**
 - ncmpcpp uses a hardcoded API key and regex scraping of the wiki page. This
