@@ -25,6 +25,8 @@ import Data.Char
 import Data.List.NonEmpty qualified as NE
 import Data.Maybe
 import Data.Sequence qualified as Seq
+import Data.Set qualified as S
+import Data.Text qualified as T
 import Data.Vector.Storable qualified as VS
 import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as MVU
@@ -124,22 +126,23 @@ bars colorMode cfg w h = \case
             let fromFoot = case growth of
                   Rising -> rows - 1 - i
                   Hanging -> i
-            in V.horizCat . map (run colorMode) $ runsOf [cell growth rows fromFoot l | l <- ls]
+            in rowImage colorMode cfg.colors [cell growth rows fromFoot l | l <- ls]
       in V.vertCat (map row [0 .. rows - 1])
 
-    -- The part of a bar in a row, from the foot of the bar.
-    cell :: Growth -> Int -> Int -> Double -> (Style, Char)
+    -- The part of a bar in a row, from the foot of the bar, with the index
+    -- of its color.
+    cell :: Growth -> Int -> Int -> Double -> Maybe (Int, Char)
     cell growth rows fromFoot level =
       let filled = level * fromIntegral rows - fromIntegral fromFoot
           eighths = floor @Double @Int (filled * fromIntegral eighthsPerCell)
           n = NE.length cfg.colors
-          color = cfg.colors NE.!! min (n - 1) (fromFoot * n `div` rows)
+          color = min (n - 1) (fromFoot * n `div` rows)
       in if
-           | filled >= 1 -> (color, fullBlock)
-           | eighths <= 0 -> (mempty, ' ')
-           | otherwise -> case growth of
-               Rising -> (color, lowerBlock eighths)
-               Hanging -> (color, upperBlock eighths)
+           | filled >= 1 -> Just (color, fullBlock)
+           | eighths <= 0 -> Nothing
+           | otherwise -> Just . (color,) $ case growth of
+               Rising -> lowerBlock eighths
+               Hanging -> upperBlock eighths
 
 -- | The level of each of the columns, from 0 to 1. The columns go from the
 -- lowest frequency that people hear to the highest, on a log scale, as in
@@ -230,12 +233,12 @@ ellipse colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
       (,) <$> VU.unsafeFreeze dotsM <*> VU.unsafeFreeze colorsM
 
     row :: Int -> V.Image
-    row y = V.horizCat . map (run colorMode) $ runsOf [cellAt (y * w + x) | x <- [0 .. w - 1]]
+    row y = rowImage colorMode cfg.colors [cellAt (y * w + x) | x <- [0 .. w - 1]]
 
-    cellAt :: Int -> (Style, Char)
+    cellAt :: Int -> Maybe (Int, Char)
     cellAt i = case dots VU.! i of
-      0 -> (mempty, ' ')
-      d -> (cfg.colors NE.!! (colors VU.! i), chr (brailleBlank + fromIntegral d))
+      0 -> Nothing
+      d -> Just (colors VU.! i, chr (brailleBlank + fromIntegral d))
 
     channels :: Int
     channels = if cfg.inStereo then 2 else 1
@@ -287,13 +290,37 @@ brailleBit column row
 ----------------------------------------
 -- Helpers
 
--- | Runs of cells of the same style, with their characters.
-runsOf :: [(Style, Char)] -> [(Style, String)]
-runsOf = \case
-  [] -> []
-  (style, c) : rest ->
-    let (same, other) = span ((== style) . fst) rest
-    in (style, c : map snd same) : runsOf other
+-- | A row of cells, each a character in one of the colors, by its index, or
+-- blank. A run of a color is a text of its own, so that vty has as few to
+-- write as it can. When no color shows on a space, a blank joins the run
+-- that it is in, e.g. a row of the spectrum is one run.
+rowImage :: ColorMode -> NE.NonEmpty Style -> [Maybe (Int, Char)] -> V.Image
+rowImage colorMode colors = V.horizCat . go Nothing ""
+  where
+    go :: Maybe Int -> String -> [Maybe (Int, Char)] -> [V.Image]
+    go color reversed = \case
+      [] -> flush color reversed
+      Just (c, ch) : rest
+        | color == Just c -> go color (ch : reversed) rest
+        | blanksJoin, Nothing <- color -> go (Just c) (ch : reversed) rest
+        | otherwise -> flush color reversed <> go (Just c) [ch] rest
+      Nothing : rest
+        | blanksJoin || isNothing color -> go color (' ' : reversed) rest
+        | otherwise -> flush color reversed <> go Nothing [' '] rest
 
-run :: ColorMode -> (Style, String) -> V.Image
-run colorMode (style, text) = V.string (toAttr colorMode style) text
+    -- The characters of a run, from the last.
+    flush :: Maybe Int -> String -> [V.Image]
+    flush color reversed =
+      [ V.text' (toAttr colorMode (maybe mempty (colors NE.!!) color)) (T.pack (reverse reversed))
+      | not (null reversed)
+      ]
+
+    -- A background, an underline or reverse video shows on a space.
+    blanksJoin :: Bool
+    blanksJoin =
+      all
+        ( \s ->
+            isNothing s.background
+              && S.null (S.intersection s.attributes (S.fromList [Underline, Reverse]))
+        )
+        colors

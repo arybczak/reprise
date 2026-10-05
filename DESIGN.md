@@ -325,9 +325,21 @@ ncmpcpp.
     and about 780 KiB a second to the terminal, as most of its cells change
     in every frame.
   - **A frame** (see [Benchmarks](#benchmarks)): the worker computes the
-    spectra of the two channels in 171 µs, the layout draws the spectrum in
-    390 µs and the ellipse in 430 µs, and vty writes them in 110 µs and
-    60 µs.
+    spectra of the two channels in 160 µs, the layout draws the spectrum in
+    163 µs and the ellipse in 205 µs, and vty writes them in 41 µs and
+    51 µs.
+- **A row is as few texts as it can be.** A cell in the drawing is a color
+  by its index, or blank, and a run of a color is one text. A space looks
+  the same in every foreground color, so a blank joins the run that it is
+  in, unless a color has a background, an underline or reverse video, which
+  show on a space. A row of the spectrum is then one text. At 480×106,
+  cells of styles and a text for every run took 3.2 ms to draw the spectrum
+  and 3.8 ms for the ellipse, and this takes 1.1 ms and 1.2 ms. At 60
+  frames a second, reprise then took 12% of a core for the spectrum,
+  against ncmpcpp's 10%.
+- **vty writes every row that changed whole,** where ncurses writes only
+  the cells that changed. At 480×106 a frame of the spectrum is about 72 KB.
+  Writing only the changed parts of a row would take a change to vty-unix.
 - **The C code is built with `-O3`,** which makes the spectra of a frame
   18% faster, 171 µs instead of 208 µs. `-ffast-math` made no difference
   beyond the noise, so it isn't worth giving up exact floating point in

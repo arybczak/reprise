@@ -46,6 +46,7 @@ visualizerTests =
     [ testCase "showing the visualizer reads the samples, leaving it stops" test_reading
     , testCase "space switches the visualization" test_switch
     , testCase "the bars of the spectrum" test_bars
+    , testCase "a row is as few texts as it can be" test_runs
     , testCase "without a data source, the screen says how to set one" test_noSource
     , testCase "samples after the visualizer stopped are dropped" test_staleSamples
     , testCase "the frames of the trail stay" test_trail
@@ -140,6 +141,30 @@ test_bars = do
 
     mainLinesOf :: AppState -> [T.Text]
     mainLinesOf s = take (mainHeight s.terminalSize) . drop 2 $ imageLines (renderScreen visualizing s)
+
+-- | A bar in the middle of a row and the blanks around it are one text,
+-- unless the color has a background, which would show on the blanks.
+test_runs :: Assertion
+test_runs = do
+  let bins = 32768 `div` 2 + 1
+      edge x = 20 * 1000 ** (x / 40)
+      bar = VS.generate bins $ \k ->
+        if binFrequency k >= edge 22 && binFrequency k < edge 23 then 1 else 0
+      spansIn env = do
+        s <- testState (40, 12) (statusOf Stopped Nothing 0) []
+        r <- runEventsWith env 0 [key "8", VisualizerSpectrum [bar]] s
+        pure . length $ imageSpans (renderScreen env r.state)
+      withBackground =
+        visualizing & #config % #visualizer % #colors .~ (style "red on blue" NE.:| [])
+  joined <- spansIn visualizing
+  apart <- spansIn withBackground
+  assertEqual
+    "the blanks on both sides of the bar in each of the 8 rows"
+    (2 * 8)
+    (apart - joined)
+  where
+    style :: T.Text -> Style
+    style = either (error . T.unpack) id . parseStyle
 
 test_noSource :: Assertion
 test_noSource = do
