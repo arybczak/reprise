@@ -60,6 +60,7 @@ import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
+import Data.Vector.Storable qualified as VS
 import GHC.Generics
 import Optics.Core
 
@@ -266,13 +267,16 @@ data ItemKey
   | PlaylistKey T.Text
   deriving stock (Eq, Ord, Show)
 
--- | The samples that the visualizer shows.
+-- | What the visualizer shows.
 data VisualizerState = VisualizerState
-  { reading :: Bool
-  -- ^ Whether reprise asked for the samples, which it does while the
+  { reading :: Maybe Visualization
+  -- ^ What reprise asked the samples for, which it does while the
   -- visualizer shows.
   , frames :: Seq.Seq BS.ByteString
-  -- ^ The samples of the frames on the screen, the newest first.
+  -- ^ The samples of the frames of the ellipse on the screen, the newest
+  -- first.
+  , spectrum :: [VS.Vector Double]
+  -- ^ The magnitudes of each channel's spectrum.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -285,6 +289,7 @@ data Toggles = Toggles
   , showBitrate :: Bool
   , browserDisplay :: Display
   , browserSort :: SortBy
+  , visualization :: Visualization
   }
   deriving stock (Eq, Show, Generic)
 
@@ -335,7 +340,7 @@ initialState config =
     , mirror = emptyMirror
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
-    , visualizer = VisualizerState False Seq.empty
+    , visualizer = VisualizerState Nothing Seq.empty []
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
@@ -344,6 +349,7 @@ initialState config =
           , showBitrate = config.statusBar.showBitrate
           , browserDisplay = config.browser.display
           , browserSort = config.browser.sort.by
+          , visualization = config.visualizer.visualization
           }
     , views = M.singleton mainView (newView config.startupScreen)
     , layout = Single mainView

@@ -14,6 +14,7 @@ import Data.Map.Strict qualified as M
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
+import Data.Vector.Storable qualified as VS
 import Data.Word
 import Graphics.Vty qualified as V
 import Graphics.Vty.Platform.Unix.Output qualified as V
@@ -33,6 +34,7 @@ import Reprise.Selection
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.Layout
+import Reprise.Visualizer.Spectrum
 
 main :: IO ()
 main =
@@ -63,10 +65,17 @@ main =
             bench "a frame of the queue" $ nf (renderScreen defaultEnv) s
         , env (xterm (renderScreen defaultEnv <$> (keys scrolling =<< loaded))) $ \t ->
             bench "the output of a whole frame for xterm-256color" . whnfIO $ output t
-        , env (Settled <$> visualized) $ \ ~(Settled s) ->
-            bench "a frame of the visualizer" $ nf (renderScreen visualizerEnv) s
-        , env (xterm (renderScreen visualizerEnv <$> visualized)) $ \t ->
-            bench "the output of a whole frame of the visualizer for xterm-256color" . whnfIO $
+        , env (Settled <$> ellipseShown) $ \ ~(Settled s) ->
+            bench "a frame of the ellipse" $ nf (renderScreen visualizerEnv) s
+        , env (xterm (renderScreen visualizerEnv <$> ellipseShown)) $ \t ->
+            bench "the output of a whole frame of the ellipse for xterm-256color" . whnfIO $
+              output t
+        , env (Planned <$> newTransform) $ \ ~(Planned transform) ->
+            bench "the spectra of the channels for a frame" . nfIO $ spectraOf transform noiseWindow
+        , env (Settled <$> spectrumShown) $ \ ~(Settled s) ->
+            bench "a frame of the spectrum" $ nf (renderScreen visualizerEnv) s
+        , env (xterm (renderScreen visualizerEnv <$> spectrumShown)) $ \t ->
+            bench "the output of a whole frame of the spectrum for xterm-256color" . whnfIO $
               output t
         ]
     ]
@@ -114,20 +123,46 @@ newtype Settled = Settled AppState
 instance NFData Settled where
   rnf (Settled s) = rnf (settled s)
 
+-- | The plan of a transform has no 'NFData' instance, and it is ready once
+-- it is made.
+newtype Planned = Planned Transform
+
+instance NFData Planned where
+  rnf (Planned t) = t `seq` ()
+
 -- | The keys that scroll the queue down a little, as while a key is held.
 scrolling :: [T.Text]
 scrolling = replicate (snd terminalSize) "down"
 
--- | The visualizer after a second of noise, which covers much of the
--- screen as loud music does.
-visualized :: IO AppState
-visualized = do
+-- | The ellipse after a second of noise, which covers much of the screen as
+-- loud music does.
+ellipseShown :: IO AppState
+ellipseShown = do
   s <- loaded
-  foldM (flip (handleIn visualizerEnv)) s (key "8" : map VisualizerSamples noise)
-  where
-    noise :: [BS.ByteString]
-    noise = [frame (take frameLength (drop (i * frameLength) samples)) | i <- [0 .. fps - 1]]
+  foldM
+    (flip (handleIn visualizerEnv))
+    s
+    (key "8" : key "space" : map VisualizerSamples noise)
 
+-- | The spectrum of the noise, which has bars as high as loud music does.
+spectrumShown :: IO AppState
+spectrumShown = do
+  s <- loaded
+  spectra <- (`spectraOf` noiseWindow) =<< newTransform
+  foldM (flip (handleIn visualizerEnv)) s [key "8", VisualizerSpectrum spectra]
+
+-- | The spectra of the channels, as the worker computes them for a frame.
+spectraOf :: Transform -> BS.ByteString -> IO [VS.Vector Double]
+spectraOf transform window = forM [0, 1] $ \c -> spectrumOf transform 2 c window
+
+-- | The noise of a spectrum's window.
+noiseWindow :: BS.ByteString
+noiseWindow = BS.takeEnd (windowSamples * 4) (BS.concat noise)
+
+-- | A second of frames of noise, as MPD writes them.
+noise :: [BS.ByteString]
+noise = [frame (take frameLength (drop (i * frameLength) samples)) | i <- [0 .. fps - 1]]
+  where
     frame :: [(Int16, Int16)] -> BS.ByteString
     frame = BL.toStrict . BB.toLazyByteString . foldMap (\(l, r) -> BB.int16LE l <> BB.int16LE r)
 
@@ -212,14 +247,15 @@ keys :: [T.Text] -> AppState -> IO AppState
 keys ks s = foldM (flip handle) s (map key ks)
 
 -- | A number that depends on what the events change: the queue, the
--- selection, the browser's items, the visualizer's frames, the view and the
--- prompt.
+-- selection, the browser's items, the visualizer's frames and spectra, the
+-- view and the prompt.
 settled :: AppState -> Int
 settled s =
   Seq.length s.mirror.queue
     + S.size s.queueState.selection.keys
     + Seq.length s.browser.items
     + Seq.length s.visualizer.frames
+    + sum (map VS.length s.visualizer.spectrum)
     + (focusedView s).cursor
     + (focusedView s).offset
     + maybe 0 (T.length . (.question)) s.prompt

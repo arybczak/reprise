@@ -16,6 +16,7 @@ import Data.Text qualified as T
 import GHC.Clock
 import Graphics.Vty qualified as V
 
+import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
@@ -28,8 +29,8 @@ import Reprise.UI.Layout
 data Channels = Channels
   { requests :: TQueue PendingRequest
   , events :: B.BChan AppEvent
-  , visualizing :: TVar Bool
-  -- ^ Whether the visualizer's worker reads the samples.
+  , visualizing :: TVar (Maybe Visualization)
+  -- ^ What the visualizer's worker reads the samples for.
   }
 
 -- | The size of the channel of events from the workers and the timers. A
@@ -74,7 +75,7 @@ dispatch env channels event = do
       threadDelay (ceiling (delay * microsecondsPerSecond))
       B.writeBChan channels.events e
     KeepScreen -> B.continueWithoutRedraw
-    Visualize on -> liftIO . atomically $ writeTVar channels.visualizing on
+    Visualize v -> liftIO . atomically $ writeTVar channels.visualizing v
   where
     microsecondsPerSecond :: Double
     microsecondsPerSecond = 1000000

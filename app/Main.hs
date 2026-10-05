@@ -92,7 +92,7 @@ main = do
   logLine <- openLog
   requests <- newTQueueIO
   events <- B.newBChan eventChannelSize
-  visualizing <- newTVarIO False
+  visualizing <- newTVarIO Nothing
   let workers = Workers {emit = B.writeBChan events, logLine = logLine, requests = requests}
       restarted worker = forkIO . forever $ do
         r <- try @SomeException worker

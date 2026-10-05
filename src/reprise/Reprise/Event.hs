@@ -7,6 +7,7 @@ module Reprise.Event
 
 import Data.ByteString qualified as BS
 import Data.Text qualified as T
+import Data.Vector.Storable qualified as VS
 
 import Reprise.Action
 import Reprise.Keys
@@ -49,6 +50,9 @@ data AppEvent
   | -- | The samples of the visualizer's next frame, as MPD's fifo output
     -- wrote them. Empty while nothing plays.
     VisualizerSamples BS.ByteString
+  | -- | The magnitudes of each channel's spectrum for the visualizer's next
+    -- frame.
+    VisualizerSpectrum [VS.Vector Double]
   | -- | The visualizer's data source can't be read, with the reason.
     VisualizerFailed T.Text
   | -- | The user confirmed a destructive action.

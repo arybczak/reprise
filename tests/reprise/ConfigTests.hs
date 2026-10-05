@@ -141,6 +141,9 @@ test_visualizer = do
   assertEqual "the data source" (Just "~/.config/mpd/feed") config.visualizer.dataSource
   assertEqual "the rate" (FrameRate 30) config.visualizer.fps
   assertEqual "the colors" (style "red" NE.:| [style "82"]) config.visualizer.colors
+  assertEqual "the spectrum first" Spectrum defaultConfig.visualizer.visualization
+  ellipse <- expectRight $ decode "visualizer:\n  visualization: ellipse\n"
+  assertEqual "the ellipse first" Ellipse ellipse.visualizer.visualization
 
 test_noWindowTitle :: Assertion
 test_noWindowTitle = do

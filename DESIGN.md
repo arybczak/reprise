@@ -232,8 +232,37 @@ ncmpcpp.
   is the path of the fifo, and the visualizer says how to set it when it is
   missing. A worker thread opens the fifo while the visualizer shows, and
   only then.
-- It draws the left channel across and the right one up, as ncmpcpp's
-  stereo ellipse does. Mono is a diagonal, and stereo widens it.
+- It has two visualizations, the spectrum and the ellipse. It starts with
+  `visualizer.visualization`, the spectrum as in ncmpcpp, and `toggle
+  visualization` switches, on space in the visualizer as in ncmpcpp.
+- **The spectrum** shows the levels of the frequencies as bars.
+  - **The worker computes it,** in its own thread, which can call C
+    without `unsafePerformIO`, and sends the magnitudes of the bins. The
+    layout maps them to the columns, which only it knows.
+  - **The window** is the last 16384 samples, about a third of a second,
+    with a Blackman window, padded with silence to 32768: ncmpcpp's with
+    the author's `visualizer_spectrum_dft_size` of 2. Fewer samples would
+    blur the low frequencies, and more would make the spectrum lag.
+  - **pocketfft computes the FFT,** in C, in `cbits/pocketfft`. It is under
+    BSD-3, the FFT of NumPy and SciPy, and one file. FFTW is GPL, so every
+    binary of reprise would be too, and it is a system library to install.
+    The worker makes the plan and the coefficients of the window once.
+  - **The columns** go from 20 Hz to 20 kHz, the range of human hearing, on
+    a log scale. A column has the mean of the magnitudes of its bins. The
+    lowest columns are narrower than a bin, so they interpolate between
+    the bins around their middles.
+  - **The levels** are in decibels, from -100 dB for an empty bar to
+    -10 dB for a full one: ncmpcpp's with the author's
+    `visualizer_spectrum_gain` of 10.
+  - **The bars** are the block characters `▁▂▃▄▅▆▇█`, so they have eight
+    steps in a cell. In stereo, the left channel rises from the middle and
+    the right one hangs from it, in reverse video, as in ncmpcpp. The
+    colors go from the foot of a bar to its top.
+  - **Silence fills the window while no samples come,** e.g. while MPD is
+    paused, so the bars fall. Once the window is silent, the worker sends
+    no more.
+- **The ellipse** draws the left channel across and the right one up, as
+  ncmpcpp's stereo ellipse does. Mono is a diagonal, and stereo widens it.
   - **Not a goniometer.** A goniometer turns the picture by 45°, so mono is
     a vertical line and its width is the difference between the channels.
     Most music is close to mono, so on a wide terminal it was a narrow
@@ -262,8 +291,7 @@ ncmpcpp.
   pink noise: 60 frames a second without a drop, about 7% of a core, and
   about 140 KiB a second to the terminal. Drawing a frame takes 360 µs, and
   vty writes one in 46 µs (see [Benchmarks](#benchmarks)).
-- The spectrum, ncmpcpp's other visualizations and ncmpcpp's mono ellipse
-  come later, if ever.
+- ncmpcpp's sound wave and its mono ellipse come later, if ever.
 
 ### Later
 
@@ -454,6 +482,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
 | `Reprise.Visualizer.Worker` | The thread that reads MPD's fifo output while the visualizer shows, and sends the samples of each frame |
 | `Reprise.Visualizer.Samples` | The format of the samples that the worker reads and the visualizer draws |
+| `Reprise.Visualizer.Spectrum` | The spectrum of the samples, with pocketfft's FFT in `cbits` |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
@@ -504,6 +533,7 @@ Libraries:
 | Regex, diacritics folding, collation | `text-icu` (see [Find and filter](#find-and-filter)) |
 | HTTP (later: lyrics, artist info) | `http-client` and `http-client-tls` |
 | Effects | `effectful` (see [Effects](#effects)) |
+| FFT | pocketfft, in `cbits` (see [Visualizer](#core)) |
 | Record updates | `optics-core` (see [Code](#code)) |
 
 ### MPD connection
@@ -1183,8 +1213,9 @@ progress_bar:
 visualizer:
   data_source: ~                 # the fifo of MPD's fifo output; ~/ is the home directory
   in_stereo: true                # the fifo's format is 44100:16:2, or 44100:16:1
+  visualization: spectrum        # or ellipse, which toggle visualization switches to
   fps: 60
-  trail: 150ms                   # how long the samples of a frame stay
+  trail: 150ms                   # how long the samples of the ellipse stay
   colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # quiet to loud
 
 styles:                          # used across screens
@@ -1358,6 +1389,9 @@ keys:
     backspace: parent
     ctrl-t:
       o: next_sort_mode
+
+  visualizer:
+    space: toggle visualization  # as in ncmpcpp
 ```
 
 Later features add to it: the queue's `ctrl-q o` (sort dialog), the media
@@ -1447,7 +1481,7 @@ Many single-character keys collide with YAML syntax:
 | `display_remaining_time`, `display_bitrate` | `status_bar.show_remaining_time`, `status_bar.show_bitrate` |
 | `progressbar_look`, `progressbar_color`, `progressbar_elapsed_color` | `progress_bar.chars`, `progress_bar.style`, `progress_bar.elapsed_style` |
 | `color1`, `color2`, `window_border_color` | `styles.label`, `styles.value`, `styles.popup_border` |
-| `visualizer_data_source`, `visualizer_in_stereo`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.in_stereo`, `visualizer.fps`, `visualizer.colors` |
+| `visualizer_data_source`, `visualizer_in_stereo`, `visualizer_type`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.in_stereo`, `visualizer.visualization`, `visualizer.fps`, `visualizer.colors` |
 
 How the author's ncmpcpp settings were translated:
 - **Prefixes and suffixes became styles.** `current_item_prefix`/`suffix`
@@ -1467,9 +1501,15 @@ options, `allow_for_physical_item_deletion`,
 `show_hidden_files_in_local_browser`.
 
 **The visualizer's other options**
-- `visualizer_type` and the spectrum's options: the visualizer is the
-  stereo ellipse, and the spectrum comes later, if ever.
-- `visualizer_look`: the dots are braille.
+- `visualizer_spectrum_dft_size` and `visualizer_spectrum_gain`: the
+  author's values are named constants.
+- `visualizer_spectrum_hz_min` and `visualizer_spectrum_hz_max`: the
+  spectrum shows the range of human hearing.
+- `visualizer_spectrum_log_scale_x`, `visualizer_spectrum_log_scale_y`,
+  `visualizer_spectrum_smooth_look` and its legacy characters: the
+  spectrum is always on log scales, of eighth blocks, as the author has it.
+- `visualizer_look`: the dots of the ellipse are braille, and the bars of
+  the spectrum are blocks.
 - `visualizer_output_name` and `visualizer_sync_interval`: the worker drops
   the old samples itself, instead of resetting the output.
 - `visualizer_autoscale`: the size of the picture shows how loud the music
@@ -1651,7 +1691,7 @@ reprise/                          repository root
 ├── bench/
 │   ├── mpd-protocol/Main.hs
 │   └── reprise/Main.hs
-├── cbits/width.c
+├── cbits/                        width.c, spectrum.c, pocketfft/ (vendored)
 ├── src/
 │   ├── mpd-protocol/             README.md, Reprise/Mpd/Protocol/...
 │   └── reprise/Reprise/...

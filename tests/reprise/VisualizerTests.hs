@@ -13,6 +13,7 @@ import Data.List.NonEmpty qualified as NE
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Vector.Storable qualified as VS
 import GHC.ByteOrder
 import Graphics.Vty qualified as V
 import Optics.Core
@@ -33,6 +34,7 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.Layout
+import Reprise.Visualizer.Spectrum
 import Reprise.Visualizer.Worker
 import Utils
 
@@ -41,6 +43,8 @@ visualizerTests =
   testGroup
     "Visualizer"
     [ testCase "showing the visualizer reads the samples, leaving it stops" test_reading
+    , testCase "space switches the visualization" test_switch
+    , testCase "the bars of the spectrum" test_bars
     , testCase "without a data source, the screen says how to set one" test_noSource
     , testCase "samples after the visualizer stopped are dropped" test_staleSamples
     , testCase "the frames of the trail stay" test_trail
@@ -53,7 +57,9 @@ visualizerTests =
         "a circle"
         ("tests" </> "reprise" </> "golden" </> "visualizer.txt")
         (BL.fromStrict . T.encodeUtf8 . T.unlines <$> mainLines visualizing [circle])
+    , testCase "the spectrum of a sine" test_sineSpectrum
     , testCase "the worker sends the samples of the fifo" test_worker
+    , testCase "the worker sends the spectrum" test_workerSpectrum
     , testCase "the worker reports a data source that it can't read" test_workerFails
     ]
 
@@ -61,9 +67,55 @@ test_reading :: Assertion
 test_reading = do
   s <- testState (40, 12) (statusOf Stopped Nothing 0) []
   shown <- runEventsWith visualizing 0 [key "8"] s
-  assertEqual "started" [Visualize True] [c | c@(Visualize _) <- shown.commands]
+  assertEqual "started" [Visualize (Just Spectrum)] [c | c@(Visualize _) <- shown.commands]
   left <- runEventsWith visualizing 0 [key "1"] shown.state
-  assertEqual "stopped" [Visualize False] [c | c@(Visualize _) <- left.commands]
+  assertEqual "stopped" [Visualize Nothing] [c | c@(Visualize _) <- left.commands]
+
+test_switch :: Assertion
+test_switch = do
+  s <- testState (40, 12) (statusOf Stopped Nothing 0) []
+  r <- runEventsWith visualizing 0 [key "8", key "space"] s
+  assertEqual
+    "the samples"
+    [Visualize (Just Spectrum), Visualize (Just Ellipse)]
+    [c | c@(Visualize _) <- r.commands]
+  assertEqual "the message" (Just "Visualization: ellipse") ((.text) <$> r.state.message)
+  back <- runEventsWith visualizing 0 [key "space"] r.state
+  assertEqual "back" Spectrum back.state.toggles.visualization
+
+-- | A full bar around 1 kHz, in column 22 of 40: from 20 Hz times 1000 to
+-- the power of 22 / 40, 893 Hz, to 1000 to the power of 23 / 40, 1062 Hz.
+-- A column shows the mean of its bins, so they are all at full scale.
+test_bars :: Assertion
+test_bars = do
+  let bins = 32768 `div` 2 + 1
+      silent = VS.replicate bins 0
+      edge x = 20 * 1000 ** (x / 40)
+      full = VS.generate bins $ \k ->
+        if binFrequency k >= edge 22 && binFrequency k < edge 23 then 1 else 0
+  s <- testState (40, 12) (statusOf Stopped Nothing 0) []
+  mono <- (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum [full]] s
+  let cells = filled (mainLinesOf mono)
+  assertEqual "a column" [22] (L.nub (map snd cells))
+  assertEqual "full" 8 (length cells)
+  stereo <-
+    (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum [full, silent]] s
+  assertEqual
+    "rising in the top half"
+    [(r, 22) | r <- [0 .. 3]]
+    (filled (mainLinesOf stereo))
+  hanging <-
+    (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum [silent, full]] s
+  assertEqual
+    "hanging in the bottom half"
+    [(r, 22) | r <- [4 .. 7]]
+    (filled (mainLinesOf hanging))
+  where
+    filled :: [T.Text] -> [(Int, Int)]
+    filled ls = [(r, c) | (r, l) <- zip [0 ..] ls, (c, ch) <- zip [0 ..] (T.unpack l), ch /= ' ']
+
+    mainLinesOf :: AppState -> [T.Text]
+    mainLinesOf s = take (mainHeight s.terminalSize) . drop 2 $ imageLines (renderScreen visualizing s)
 
 test_noSource :: Assertion
 test_noSource = do
@@ -103,7 +155,7 @@ test_silence = do
 test_noRoom :: Assertion
 test_noRoom = do
   s <- testState (40, 4) (statusOf Stopped Nothing 0) []
-  r <- runEventsWith visualizing 0 [key "8", VisualizerSamples circle] s
+  r <- runEventsWith visualizing 0 [key "8", key "space", VisualizerSamples circle] s
   assertEqual "the lines" 4 (length (imageLines (renderScreen visualizing r.state)))
 
 test_mono :: Assertion
@@ -135,12 +187,36 @@ test_loudness = do
     style :: T.Text -> Style
     style = either (error . T.unpack) id . parseStyle
 
+-- | The Blackman window passes 0.42 of a sine, and a real sine is half in
+-- the bin of its frequency and half in the bin of the negative one.
+test_sineSpectrum :: Assertion
+test_sineSpectrum = do
+  transform <- newTransform
+  let amplitude = 0.9
+      frequency = 1000
+      sine =
+        samples
+          [ (round (amplitude * fromIntegral (maxBound @Int16) * sin (2 * pi * frequency * t)), 0)
+          | i <- [0 .. windowSamples - 1]
+          , let t = fromIntegral i / 44100
+          ]
+  left <- spectrumOf transform 2 0 sine
+  right <- spectrumOf transform 2 1 sine
+  let peak = VS.maxIndex left
+  assertBool
+    ("the peak at " <> show (binFrequency peak) <> " Hz")
+    (abs (binFrequency peak - frequency) <= binFrequency 1)
+  assertBool
+    ("its magnitude " <> show (left VS.! peak))
+    (abs (left VS.! peak - amplitude * 0.42 / 2) < 0.01)
+  assertEqual "the silent channel" 0 (VS.maximum right)
+
 test_worker :: Assertion
 test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
   let path = dir </> "fifo"
   createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
   events <- newTQueueIO
-  reading <- newTVarIO True
+  reading <- newTVarIO (Just Ellipse)
   let frameBytes = 4
       samplesBytes = frameBytes * (44100 `div` 60)
       pattern = samples (replicate 100 (1000, -1000))
@@ -156,7 +232,7 @@ test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
       (BS.length frame `mod` frameBytes == 0)
     assertBool "a frame long at most" (BS.length frame <= samplesBytes)
     assertBool "the samples" (frame `BS.isPrefixOf` BS.concat (replicate 100 pattern))
-    atomically $ writeTVar reading False
+    atomically $ writeTVar reading Nothing
     threadDelay frameInterval
     void . atomically $ flushTQueue events
     threadDelay (2 * frameInterval)
@@ -184,10 +260,26 @@ test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
     frameInterval :: Int
     frameInterval = 1000000 `div` 60
 
+-- | The spectrum comes without samples in the fifo, of the silence that the
+-- window starts with.
+test_workerSpectrum :: Assertion
+test_workerSpectrum = withSystemTempDirectory "visualizer" $ \dir -> do
+  let path = dir </> "fifo"
+  createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
+  events <- newTQueueIO
+  reading <- newTVarIO (Just Spectrum)
+  bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ ->
+    expectWithin (atomically (readTQueue events)) >>= \case
+      VisualizerSpectrum spectra -> do
+        assertEqual "the channels" 2 (length spectra)
+        assertEqual "the bins" [32768 `div` 2 + 1, 32768 `div` 2 + 1] (map VS.length spectra)
+        assertEqual "silence" [0, 0] (map VS.maximum spectra)
+      e -> assertFailure $ "event: " <> show e
+
 test_workerFails :: Assertion
 test_workerFails = withSystemTempDirectory "visualizer" $ \dir -> do
   events <- newTQueueIO
-  reading <- newTVarIO True
+  reading <- newTVarIO (Just Ellipse)
   bracket (forkIO . visualizerWorker $ source (dir </> "missing") reading events) killThread $ \_ ->
     expectWithin (atomically (readTQueue events)) >>= \case
       VisualizerFailed _ -> pure ()
@@ -200,11 +292,11 @@ test_workerFails = withSystemTempDirectory "visualizer" $ \dir -> do
 visualizing :: AppEnv
 visualizing = testAppEnv & #config % #visualizer % #dataSource ?~ "fifo"
 
--- | The state after the visualizer showed the frames, the oldest first.
+-- | The state after the ellipse showed the frames, the oldest first.
 shownWith :: AppEnv -> [BS.ByteString] -> IO AppState
 shownWith env frames = do
   s <- testState (40, 12) (statusOf Stopped Nothing 0) []
-  (.state) <$> runEventsWith env 0 (key "8" : map VisualizerSamples frames) s
+  (.state) <$> runEventsWith env 0 (key "8" : key "space" : map VisualizerSamples frames) s
 
 -- | The lines of the main area, after the header's two, once the visualizer
 -- showed the frames.
@@ -251,7 +343,7 @@ circle =
     scaled :: Double -> Int16
     scaled = round . (* 30000)
 
-source :: FilePath -> TVar Bool -> TQueue AppEvent -> VisualizerSource
+source :: FilePath -> TVar (Maybe Visualization) -> TQueue AppEvent -> VisualizerSource
 source path reading events =
   VisualizerSource
     { path = path

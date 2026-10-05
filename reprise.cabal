@@ -18,6 +18,8 @@ extra-doc-files:
   README.md
 
 extra-source-files:
+  cbits/pocketfft/LICENSE.md
+  cbits/pocketfft/pocketfft.h
   src/mpd-protocol/README.md
   tests/mpd-protocol/replies/*.golden
   tests/mpd-protocol/replies/*.txt
@@ -136,10 +138,13 @@ library
                      Reprise.UI.Layout
                      Reprise.UI.SongList
                      Reprise.Visualizer.Samples
+                     Reprise.Visualizer.Spectrum
                      Reprise.Visualizer.Worker
                      Reprise.Width
 
-    c-sources:       cbits/width.c
+    c-sources:       cbits/pocketfft/pocketfft.c
+                     cbits/spectrum.c
+                     cbits/width.c
 
 executable reprise
     import:         language
@@ -241,6 +246,7 @@ test-suite reprise-tests
                     , temporary
                     , text
                     , unix
+                    , vector
                     , vty
 
     hs-source-dirs: tests/reprise
@@ -296,6 +302,7 @@ benchmark reprise-bench
                     , tasty-bench
                     , text
                     , unix
+                    , vector
                     , vty
                     , vty-unix
 

@@ -150,6 +150,7 @@ handleEvent = \case
         keepScreen
       else modifyS $ #cursorTimer .~ False
   VisualizerSamples samples -> visualizerSamples samples
+  VisualizerSpectrum spectra -> visualizerSpectrum spectra
   VisualizerFailed reason -> showError reason
   Confirmed action -> runConfirmed action
   where
@@ -502,6 +503,7 @@ toggle = \case
     follow <- getsS (.toggles.followPlaying)
     when follow (modifyWithEnv jumpToPlaying)
   ToggleBitrate -> localToggle "Bitrate" #showBitrate
+  ToggleVisualization -> nextVisualization
   where
     localToggle :: App es => T.Text -> Lens' Toggles Bool -> Eff es ()
     localToggle name field = do

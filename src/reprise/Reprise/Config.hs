@@ -25,6 +25,8 @@ module Reprise.Config
   , ProgressBarConfig (..)
   , ProgressChars (..)
   , VisualizerConfig (..)
+  , Visualization (..)
+  , visualizationName
   , FrameRate (..)
   , StylesConfig (..)
   , KeysConfig (..)
@@ -248,14 +250,29 @@ data VisualizerConfig = VisualizerConfig
   -- ^ The fifo of MPD's fifo output, in the format @44100:16:2@, or
   -- @44100:16:1@ without 'inStereo'. A leading @~/@ is the home directory.
   , inStereo :: Bool
+  , visualization :: Visualization
+  -- ^ The one that the visualizer shows first.
   , fps :: FrameRate
   , trail :: Duration
-  -- ^ How long the samples of a frame stay on the screen.
+  -- ^ How long the samples of a frame of the ellipse stay on the screen.
   , colors :: NE.NonEmpty Style
-  -- ^ From the quietest samples, in the center, to the loudest.
+  -- ^ From quiet to loud: from the center of the ellipse to its edges, and
+  -- from the foot of a bar of the spectrum to its top.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml VisualizerConfig
+
+data Visualization
+  = -- | The levels of the frequencies, as bars.
+    Spectrum
+  | -- | The left channel across and the right one up.
+    Ellipse
+  deriving stock (Eq, Show, Enum, Bounded)
+
+visualizationName :: Visualization -> T.Text
+visualizationName = \case
+  Spectrum -> "spectrum"
+  Ellipse -> "ellipse"
 
 -- | Frames per second, at least one.
 newtype FrameRate = FrameRate Int
@@ -425,6 +442,7 @@ defaultVisualizer =
   VisualizerConfig
     { dataSource = Nothing
     , inStereo = True
+    , visualization = Spectrum
     , fps = FrameRate 60
     , trail = 0.15
     , colors =
@@ -581,6 +599,9 @@ instance FromYaml Align where
 
 instance FromYaml Display where
   parseYaml = oneOf [("classic", Classic), ("columns", Columns)]
+
+instance FromYaml Visualization where
+  parseYaml = oneOf [(visualizationName v, v) | v <- [minBound .. maxBound]]
 
 instance FromYaml SortBy where
   parseYaml = oneOf [(sortByName by, by) | by <- [minBound .. maxBound]]
@@ -789,6 +810,8 @@ defaultKeymaps =
                 , group (ctrl 't') "toggle" [char 'o' ~> NextSortMode]
                 ]
             )
+          , -- As in ncmpcpp.
+            (VisualizerScreen, keymap [plain Space ~> Toggle ToggleVisualization])
           ]
     }
   where

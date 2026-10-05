@@ -21,6 +21,7 @@ import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Output.Static.Local.List
 
+import Reprise.Config
 import Reprise.Event
 
 data UiRequest :: Effect where
@@ -35,8 +36,8 @@ data UiCommand
     After Double AppEvent
   | -- | The event changed nothing on the screen, so it isn't redrawn.
     KeepScreen
-  | -- | Start or stop reading the samples of the visualizer.
-    Visualize Bool
+  | -- | Read the samples of the visualizer for a visualization, or stop.
+    Visualize (Maybe Visualization)
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -58,6 +59,6 @@ after delay = send . UiRequest . After delay
 keepScreen :: UiRequest :> es => Eff es ()
 keepScreen = send $ UiRequest KeepScreen
 
--- | Start or stop reading the samples of the visualizer.
-visualize :: UiRequest :> es => Bool -> Eff es ()
+-- | Read the samples of the visualizer for a visualization, or stop.
+visualize :: UiRequest :> es => Maybe Visualization -> Eff es ()
 visualize = send . UiRequest . Visualize

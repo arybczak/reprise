@@ -125,6 +125,7 @@ data ToggleTarget
   | ToggleAlbumSeparators
   | ToggleFollowPlaying
   | ToggleBitrate
+  | ToggleVisualization
   deriving stock (Eq, Show)
 
 data VolumeChange = VolumeBy Int | VolumeTo Int
@@ -322,6 +323,7 @@ registry =
       , ("album_separators", ToggleAlbumSeparators)
       , ("follow_playing", ToggleFollowPlaying)
       , ("bitrate", ToggleBitrate)
+      , ("visualization", ToggleVisualization)
       ]
 
     volumeChange :: T.Text -> Either T.Text VolumeChange
@@ -516,6 +518,7 @@ toggleName = \case
   ToggleAlbumSeparators -> "album_separators"
   ToggleFollowPlaying -> "follow_playing"
   ToggleBitrate -> "bitrate"
+  ToggleVisualization -> "visualization"
 
 signed :: Int -> T.Text
 signed n = if n >= 0 then "+" <> T.pack (show n) else T.pack (show n)
