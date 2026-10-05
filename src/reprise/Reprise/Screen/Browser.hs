@@ -11,6 +11,7 @@ module Reprise.Screen.Browser
     -- * Listing
   , openBrowser
   , relistBrowser
+  , browserChanged
   , browserListed
   , browserFailed
   , activateItem
@@ -18,8 +19,10 @@ module Reprise.Screen.Browser
   ) where
 
 import Control.Exception
+import Control.Monad
 import Data.Foldable
 import Data.Map.Strict qualified as M
+import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Effectful
@@ -105,19 +108,41 @@ openBrowser :: App es => Eff es ()
 openBrowser = do
   location <- getsS (.browser.location)
   case location of
-    Nothing -> list (InDirectory "") Nothing
+    Nothing -> list (InDirectory "") AtTop
     Just _ -> pure ()
 
--- | List again what the browser lists, e.g. after a new connection. Before
--- its first listing, only a browser that shows lists the root.
+-- | List again what the browser lists, with the cursor on the same item,
+-- e.g. after a new connection. A listing on its way is requested again, as
+-- its reply may be lost or out of date. Before its first listing, only a
+-- browser that shows lists the root.
 relistBrowser :: App es => Eff es ()
 relistBrowser = do
   s <- getS
-  case s.browser.location of
-    Just location -> list location Nothing
-    Nothing
-      | (focusedView s).screen == BrowserScreen -> list (InDirectory "") Nothing
+  case (s.browser.listing, s.browser.location) of
+    (Just l, _) -> list l.location l.cursor
+    (Nothing, Just location) ->
+      list location . maybe AtTop (StayOn . itemKey) $
+        Seq.lookup (fst (browserPosition s)) s.browser.items
+    (Nothing, Nothing)
+      | (focusedView s).screen == BrowserScreen -> list (InDirectory "") AtTop
       | otherwise -> pure ()
+
+-- | List again after a change of the database, or of the stored playlists,
+-- which show at the root and open as playlists.
+browserChanged :: App es => [Subsystem] -> Eff es ()
+browserChanged subsystems = do
+  location <- getsS (.browser.location)
+  let storedPlaylists = case location of
+        Just (InDirectory "") -> True
+        Just (InPlaylist _) -> True
+        _ -> False
+  when
+    ( isJust location
+        && ( DatabaseSubsystem `elem` subsystems
+               || (StoredPlaylistSubsystem `elem` subsystems && storedPlaylists)
+           )
+    )
+    relistBrowser
 
 -- | Enter the directory or open the playlist under the cursor, or go up
 -- from @..@.
@@ -126,8 +151,8 @@ activateItem = do
   s <- getS
   forM_ (Seq.lookup (focusedView s).cursor s.browser.items) $ \case
     ParentItem -> leave
-    EntryItem (DirectoryEntry d) -> list (InDirectory d.path) Nothing
-    EntryItem (PlaylistEntry p) -> list (InPlaylist p.path) Nothing
+    EntryItem (DirectoryEntry d) -> list (InDirectory d.path) AtTop
+    EntryItem (PlaylistEntry p) -> list (InPlaylist p.path) AtTop
     EntryItem (SongEntry _) -> notAvailable "Playing a song from the browser"
 
 -- | Go up to the directory of what the browser lists, with the cursor on
@@ -137,7 +162,9 @@ leave :: App es => Eff es ()
 leave = do
   b <- getsS (.browser)
   forM_ (maybe b.location (Just . (.location)) b.listing) $ \location ->
-    forM_ (parentOf location) $ \up -> list up (Just location)
+    forM_ (parentOf location) $ \up -> list up . JumpTo $ case location of
+      InDirectory path -> DirectoryKey path
+      InPlaylist path -> PlaylistKey path
 
 -- | The directory that a directory or a playlist is in.
 parentOf :: Location -> Maybe Location
@@ -149,10 +176,10 @@ parentOf = \case
     directoryOf :: T.Text -> T.Text
     directoryOf = T.dropEnd 1 . fst . T.breakOnEnd "/"
 
-list :: App es => Location -> Maybe Location -> Eff es ()
-list location cursorOn = do
+list :: App es => Location -> ListingCursor -> Eff es ()
+list location cursor = do
   token <- newToken
-  modifyS $ #browser % #listing ?~ Listing token location cursorOn
+  modifyS $ #browser % #listing ?~ Listing token location cursor
   case location of
     InDirectory path -> requestOr (lsInfo path) (BrowserFailed token) (BrowserListed token)
     InPlaylist name ->
@@ -167,7 +194,7 @@ browserFailed :: App es => Int -> MpdError -> Eff es ()
 browserFailed token err =
   getsS (.browser.listing) >>= \case
     Just l | l.token == token -> case (err, parentOf l.location) of
-      (AckError ack, Just up) | ack.code == AckNoExist -> list up Nothing
+      (AckError ack, Just up) | ack.code == AckNoExist -> list up AtTop
       _ -> do
         modifyS $ #browser % #listing .~ Nothing
         showError . T.pack $ displayException err
@@ -182,26 +209,41 @@ browserListed token entries =
       let items =
             Seq.fromList $
               [ParentItem | l.location /= InDirectory ""] <> map EntryItem entries
-          found = l.cursorOn >>= \c -> Seq.findIndexL (isAt c) items
       modifyS $ #browser .~ BrowserState (Just l.location) items Nothing
-      modifyWithEnv $ placeCursor found
+      modifyWithEnv $ placeCursor l.cursor
     _ -> keepScreen
-  where
-    isAt :: Location -> BrowserItem -> Bool
-    isAt location item = case (location, item) of
-      (InDirectory path, EntryItem (DirectoryEntry d)) -> d.path == path
-      (InPlaylist path, EntryItem (PlaylistEntry p)) -> p.path == path
-      _ -> False
 
--- | Put the browser's cursor on an item in the middle of the list, or on the
--- first item, also while the view shows another screen.
-placeCursor :: Maybe Int -> AppEnv -> AppState -> AppState
-placeCursor found env s
-  | (focusedView s).screen == BrowserScreen = maybe (restoreView (0, 0)) jumpTo found env s
-  | otherwise =
-      let h = listHeight env s (focusedView s & #screen .~ BrowserScreen)
-          position = maybe (0, 0) (\i -> (i, max 0 (i - h `div` 2))) found
-      in s & #views % ix s.focus % #positions % at BrowserScreen ?~ position
+-- | Put the browser's cursor where a listing says, also while the view shows
+-- another screen.
+placeCursor :: ListingCursor -> AppEnv -> AppState -> AppState
+placeCursor cursor env s =
+  let (c, o) = browserPosition s
+      h = listHeight env s (focusedView s & #screen .~ BrowserScreen)
+      indexOf k = Seq.findIndexL ((== k) . itemKey) s.browser.items
+      (c', o') = case cursor of
+        AtTop -> (0, 0)
+        JumpTo k -> maybe (0, 0) (\i -> (i, i - h `div` 2)) (indexOf k)
+        StayOn k -> (fromMaybe c (indexOf k), o)
+  in if (focusedView s).screen == BrowserScreen
+       then restoreView (c', o') env s
+       else s & #views % ix s.focus % #positions % at BrowserScreen ?~ (c', max 0 o')
+
+-- | The cursor and the offset of the browser in the focused view, which
+-- remembers them while it shows another screen.
+browserPosition :: AppState -> (Int, Int)
+browserPosition s
+  | v.screen == BrowserScreen = (v.cursor, v.offset)
+  | otherwise = M.findWithDefault (0, 0) BrowserScreen v.positions
+  where
+    v :: View
+    v = focusedView s
+
+itemKey :: BrowserItem -> ItemKey
+itemKey = \case
+  ParentItem -> ParentKey
+  EntryItem (DirectoryEntry d) -> DirectoryKey d.path
+  EntryItem (SongEntry song) -> SongKey song.file song.range
+  EntryItem (PlaylistEntry p) -> PlaylistKey p.path
 
 locationPath :: Location -> T.Text
 locationPath = \case

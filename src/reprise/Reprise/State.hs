@@ -25,6 +25,8 @@ module Reprise.State
   , Location (..)
   , BrowserItem (..)
   , Listing (..)
+  , ListingCursor (..)
+  , ItemKey (..)
   , Toggles (..)
 
     -- * Views
@@ -216,11 +218,30 @@ data BrowserItem
 data Listing = Listing
   { token :: Int
   , location :: Location
-  , cursorOn :: Maybe Location
-  -- ^ The directory or the playlist to put the cursor on, e.g. the one that
-  -- the user went up from.
+  , cursor :: ListingCursor
   }
   deriving stock (Eq, Show, Generic)
+
+-- | Where the cursor goes when a listing comes.
+data ListingCursor
+  = -- | To the first item, e.g. in a directory that the user entered.
+    AtTop
+  | -- | To an item in the middle of the list, e.g. the directory that the
+    -- user went up from.
+    JumpTo ItemKey
+  | -- | To the item that it was on, without scrolling, when the browser lists
+    -- the same again, e.g. after the database changed. Without the item, it
+    -- stays where it was.
+    StayOn ItemKey
+  deriving stock (Eq, Show)
+
+-- | What an item is found by in a new listing.
+data ItemKey
+  = ParentKey
+  | DirectoryKey T.Text
+  | SongKey T.Text (Maybe SongRange)
+  | PlaylistKey T.Text
+  deriving stock (Eq, Show)
 
 -- | Settings that the user can toggle while reprise runs. They start from
 -- the config.

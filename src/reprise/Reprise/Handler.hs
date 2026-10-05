@@ -89,10 +89,13 @@ handleEvent = \case
       (#connection .~ Disconnected reason)
         . (#mirror % #status .~ Nothing)
         . (#seek .~ Nothing)
-  MpdChanged subsystems
-    | PlaylistSubsystem `elem` subsystems -> fetchQueueChanges
-    | any (`elem` statusSubsystems) subsystems -> request status StatusFetched
-    | otherwise -> pure ()
+  MpdChanged subsystems -> do
+    -- The changes of the queue come with the status.
+    if
+      | PlaylistSubsystem `elem` subsystems -> fetchQueueChanges
+      | any (`elem` statusSubsystems) subsystems -> request status StatusFetched
+      | otherwise -> pure ()
+    browserChanged subsystems
   QueueFetched (st, songs) -> do
     now <- getsS (.now)
     updateMirror $ setQueue now st songs

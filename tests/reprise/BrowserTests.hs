@@ -28,6 +28,10 @@ browserTests =
     , testCase "a new connection lists again" test_reconnect
     , testCase "the browser goes up from a directory that is gone" test_gone
     , testCase "another error of a listing shows" test_listingError
+    , testCase "a change of the database lists again" test_databaseChanged
+    , testCase "the cursor stays where its song was" test_songGone
+    , testCase "stored playlists show at the root" test_storedPlaylistsChanged
+    , testCase "a listing again while another screen shows" test_changedElsewhere
     ]
 
 test_showLists :: Assertion
@@ -110,8 +114,43 @@ test_listingError = do
   -- Not up from b, which failed.
   assertEqual "keys go on from the root" [] (press ["backspace"] r.state).requests
 
+test_databaseChanged :: Assertion
+test_databaseChanged = do
+  let r = runEvents 0 [MpdChanged [DatabaseSubsystem]] onY
+  assertBool "the listing of b" ([Request "lsinfo" ["b"]] `elem` r.requests)
+  let s = answer ["file: b/w.flac", "file: b/x.flac", "file: b/y.flac"] r
+  assertEqual "the cursor is on y" 3 (focusedView s).cursor
+  let reconnected = runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0)] s
+  assertEqual "after a new connection" 2 (focusedView (answer bReply reconnected)).cursor
+
+test_songGone :: Assertion
+test_songGone = do
+  let s = answer ["file: b/x.flac"] (runEvents 0 [MpdChanged [DatabaseSubsystem]] onY)
+  assertEqual "the last item" 1 (focusedView s).cursor
+
+test_storedPlaylistsChanged :: Assertion
+test_storedPlaylistsChanged = do
+  let changed = runEvents 0 [MpdChanged [StoredPlaylistSubsystem]]
+  assertEqual "at the root" [[Request "lsinfo" []]] (changed root).requests
+  assertEqual "in a directory" [] (changed onY).requests
+
+test_changedElsewhere :: Assertion
+test_changedElsewhere = do
+  let r = runEvents 0 [KeyPressed (key "1"), MpdChanged [DatabaseSubsystem]] onY
+      s = answer ["file: b/w.flac", "file: b/x.flac", "file: b/y.flac"] r
+      shown = press ["2"] s
+  assertEqual "no listing" [] shown.requests
+  assertEqual "the cursor is on y" 3 (focusedView shown.state).cursor
+
 ----------------------------------------
 -- Helpers
+
+-- | The browser in b, with the cursor on its second song.
+onY :: AppState
+onY = (press ["down", "down"] (answer bReply (press ["down", "enter"] root))).state
+
+bReply :: [BS.ByteString]
+bReply = ["file: b/x.flac", "file: b/y.flac"]
 
 -- | Fail the last request of a result.
 failLast :: MpdError -> Result -> Result
@@ -130,7 +169,10 @@ rootReply :: [BS.ByteString]
 rootReply = ["directory: a", "directory: b", "playlist: p"]
 
 press :: [T.Text] -> AppState -> Result
-press ks = runEvents 0 (map (KeyPressed . either (error . T.unpack) id . parseKeySpec) ks)
+press ks = runEvents 0 (map (KeyPressed . key) ks)
+
+key :: T.Text -> KeySpec
+key = either (error . T.unpack) id . parseKeySpec
 
 -- | Answer the last request of a result.
 answer :: [BS.ByteString] -> Result -> AppState

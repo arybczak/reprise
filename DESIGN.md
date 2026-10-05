@@ -141,8 +141,9 @@ ncmpcpp.
   subdirectories, and a playlist is loaded.
 - Update the database for the current directory.
 - An idle `database` event lists the directory again, and so does a
-  `stored_playlist` event at the root. The cursor stays on its entry. If the
-  directory is gone, the browser goes up until it finds one.
+  `stored_playlist` event at the root or in a playlist, and a new
+  connection. The cursor stays on its entry, or where it was if the entry is
+  gone. If the directory is gone, the browser goes up until it finds one.
 - `jump_to_browser` opens the directory of the song under the cursor, with
   the cursor on that song, as ncmpcpp's `G` does.
 
