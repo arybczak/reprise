@@ -44,6 +44,7 @@ song pos tags len =
     { file = "dir/" <> T.pack (show pos) <> ".flac"
     , tags = M.fromList tags
     , duration = Just len
+    , range = Nothing
     , lastModified = Nothing
     , format = Nothing
     , position = Just (SongPos pos)

@@ -61,6 +61,7 @@ Right
                     )
                 ]
             , duration = Just 2.000
+            , range = Nothing
             , lastModified = Just 2026-10-03 22:44:31 UTC
             , format = Just "8000:16:1"
             , position = Just 0

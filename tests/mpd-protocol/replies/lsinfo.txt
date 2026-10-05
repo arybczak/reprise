@@ -1,0 +1,25 @@
+file: Album/01.flac
+Last-Modified: 2026-10-05T01:06:07Z
+Added: 2026-10-05T01:06:14Z
+Format: 44100:16:1
+Title: Song1
+Artist: A
+Album: Album
+Time: 1
+duration: 1.000
+file: Album/02.flac
+Last-Modified: 2026-10-05T01:06:07Z
+Added: 2026-10-05T01:06:14Z
+Format: 44100:16:1
+Title: Song2
+Artist: A
+Album: Album
+Time: 1
+duration: 1.000
+playlist: Album/album.cue
+Last-Modified: 2026-10-05T01:06:07Z
+playlist: Album/album.m3u
+Last-Modified: 2026-10-05T01:06:07Z
+directory: Album/album.cue
+Last-Modified: 2026-10-05T01:06:07Z
+OK

@@ -1,0 +1,14 @@
+Right
+    [ DirectoryEntry
+        ( Directory
+            { path = "Album"
+            , lastModified = Just 2026-10-05 01:06:07 UTC
+            }
+        )
+    , PlaylistEntry
+        ( Playlist
+            { path = "Stored One"
+            , lastModified = Just 2026-10-05 01:06:24 UTC
+            }
+        )
+    ]

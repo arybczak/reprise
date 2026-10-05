@@ -79,3 +79,17 @@ test_arguments = do
     "single"
     [Request "single" ["oneshot"]]
     (commandRequests $ setSingle SingleOneshot)
+  assertEqual "the root" [Request "lsinfo" []] (commandRequests $ lsInfo "")
+  assertEqual "a directory" [Request "lsinfo" ["a/b"]] (commandRequests $ lsInfo "a/b")
+  assertEqual
+    "a whole playlist"
+    [Request "load" ["p"]]
+    (commandRequests $ load "p" Nothing Nothing)
+  assertEqual
+    "a part of a playlist"
+    [Request "load" ["p", "1:3"]]
+    (commandRequests $ load "p" (Just $ Range 1 (Just 3)) Nothing)
+  assertEqual
+    "a position needs a range"
+    [Request "load" ["p", "0:", "+0"]]
+    (commandRequests $ load "p" Nothing (Just $ AfterCurrent 0))

@@ -143,6 +143,7 @@ song pos i =
           , (Track, [T.pack (show (i `mod` 10 + 1))])
           ]
     , duration = Just 200
+    , range = Nothing
     , lastModified = Nothing
     , format = Nothing
     , position = Just (SongPos pos)

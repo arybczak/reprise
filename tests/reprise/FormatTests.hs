@@ -176,6 +176,7 @@ song file tags =
     { file = file
     , tags = M.fromList tags
     , duration = Nothing
+    , range = Nothing
     , lastModified = Nothing
     , format = Nothing
     , position = Nothing

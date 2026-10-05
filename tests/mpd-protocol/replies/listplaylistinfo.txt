@@ -1,0 +1,23 @@
+file: Album/whole.flac
+Range: 0.000-2.000
+Last-Modified: 2026-10-05T01:06:07Z
+Added: 2026-10-05T01:06:07Z
+Format: 44100:16:1
+AlbumArtist: A
+Album: Cue Album
+Track: 01
+Title: Cue One
+Time: 2
+duration: 2.000
+file: Album/whole.flac
+Range: 2.000-
+Last-Modified: 2026-10-05T01:06:07Z
+Added: 2026-10-05T01:06:07Z
+Format: 44100:16:1
+AlbumArtist: A
+Album: Cue Album
+Track: 02
+Title: Cue Two
+Time: 2
+duration: 2.000
+OK

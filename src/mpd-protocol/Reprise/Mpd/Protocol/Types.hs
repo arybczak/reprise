@@ -4,12 +4,18 @@ module Reprise.Mpd.Protocol.Types
     Song (..)
   , SongId (..)
   , SongPos (..)
+  , SongRange (..)
   , Seconds (..)
 
     -- ** Tags
   , Tag (..)
   , tagName
   , tagFromName
+
+    -- * Database
+  , Entry (..)
+  , Directory (..)
+  , Playlist (..)
 
     -- * Status
   , Status (..)
@@ -60,6 +66,9 @@ data Song = Song
   , tags :: M.Map Tag [T.Text]
   -- ^ The values of each tag, in the order MPD sent them.
   , duration :: Maybe Seconds
+  , range :: Maybe SongRange
+  -- ^ The part of the file that the song is, e.g. a track of a cue sheet.
+  -- Two such songs have the same file.
   , lastModified :: Maybe Time.UTCTime
   , format :: Maybe T.Text
   -- ^ The audio format, e.g. @44100:16:2@.
@@ -69,6 +78,14 @@ data Song = Song
   -- ^ The id in the queue, for a song in the queue.
   , priority :: Int
   -- ^ The priority in the queue, 0 unless set.
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
+
+-- | A part of a file, from a point up to another one or to the end.
+data SongRange = SongRange
+  { start :: Seconds
+  , end :: Maybe Seconds
   }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
@@ -176,6 +193,36 @@ tagFromName name = M.lookup (T.toCaseFold name) tagsByName
   where
     tagsByName :: M.Map T.Text Tag
     tagsByName = M.fromList [(T.toCaseFold (tagName t), t) | t <- [minBound .. maxBound]]
+
+----------------------------------------
+-- Database
+
+-- | An entry of a directory listing.
+data Entry
+  = DirectoryEntry Directory
+  | SongEntry Song
+  | PlaylistEntry Playlist
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
+
+data Directory = Directory
+  { path :: T.Text
+  -- ^ Relative to the music directory.
+  , lastModified :: Maybe Time.UTCTime
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
+
+-- | A stored playlist, or a playlist file in the music directory, e.g. a
+-- cue sheet.
+data Playlist = Playlist
+  { path :: T.Text
+  -- ^ The name of a stored playlist, or the path of a file relative to the
+  -- music directory.
+  , lastModified :: Maybe Time.UTCTime
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
 
 ----------------------------------------
 -- Status

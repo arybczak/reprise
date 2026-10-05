@@ -1,0 +1,72 @@
+Right
+    [ SongEntry
+        ( Song
+            { file = "Album/01.flac"
+            , tags = fromList
+                [
+                    ( Artist
+                    , [ "A" ]
+                    )
+                ,
+                    ( Album
+                    , [ "Album" ]
+                    )
+                ,
+                    ( Title
+                    , [ "Song1" ]
+                    )
+                ]
+            , duration = Just 1.000
+            , range = Nothing
+            , lastModified = Just 2026-10-05 01:06:07 UTC
+            , format = Just "44100:16:1"
+            , position = Nothing
+            , songId = Nothing
+            , priority = 0
+            }
+        )
+    , SongEntry
+        ( Song
+            { file = "Album/02.flac"
+            , tags = fromList
+                [
+                    ( Artist
+                    , [ "A" ]
+                    )
+                ,
+                    ( Album
+                    , [ "Album" ]
+                    )
+                ,
+                    ( Title
+                    , [ "Song2" ]
+                    )
+                ]
+            , duration = Just 1.000
+            , range = Nothing
+            , lastModified = Just 2026-10-05 01:06:07 UTC
+            , format = Just "44100:16:1"
+            , position = Nothing
+            , songId = Nothing
+            , priority = 0
+            }
+        )
+    , PlaylistEntry
+        ( Playlist
+            { path = "Album/album.cue"
+            , lastModified = Just 2026-10-05 01:06:07 UTC
+            }
+        )
+    , PlaylistEntry
+        ( Playlist
+            { path = "Album/album.m3u"
+            , lastModified = Just 2026-10-05 01:06:07 UTC
+            }
+        )
+    , DirectoryEntry
+        ( Directory
+            { path = "Album/album.cue"
+            , lastModified = Just 2026-10-05 01:06:07 UTC
+            }
+        )
+    ]

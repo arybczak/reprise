@@ -1,0 +1,68 @@
+Right
+    [ Song
+        { file = "Album/whole.flac"
+        , tags = fromList
+            [
+                ( Album
+                , [ "Cue Album" ]
+                )
+            ,
+                ( AlbumArtist
+                , [ "A" ]
+                )
+            ,
+                ( Title
+                , [ "Cue One" ]
+                )
+            ,
+                ( Track
+                , [ "01" ]
+                )
+            ]
+        , duration = Just 2.000
+        , range = Just
+            ( SongRange
+                { start = 0.000
+                , end = Just 2.000
+                }
+            )
+        , lastModified = Just 2026-10-05 01:06:07 UTC
+        , format = Just "44100:16:1"
+        , position = Nothing
+        , songId = Nothing
+        , priority = 0
+        }
+    , Song
+        { file = "Album/whole.flac"
+        , tags = fromList
+            [
+                ( Album
+                , [ "Cue Album" ]
+                )
+            ,
+                ( AlbumArtist
+                , [ "A" ]
+                )
+            ,
+                ( Title
+                , [ "Cue Two" ]
+                )
+            ,
+                ( Track
+                , [ "02" ]
+                )
+            ]
+        , duration = Just 2.000
+        , range = Just
+            ( SongRange
+                { start = 2.000
+                , end = Nothing
+                }
+            )
+        , lastModified = Just 2026-10-05 01:06:07 UTC
+        , format = Just "44100:16:1"
+        , position = Nothing
+        , songId = Nothing
+        , priority = 0
+        }
+    ]

@@ -3,6 +3,7 @@ module ConnectionTests (connectionTests) where
 import Control.Concurrent
 import Control.Exception
 import Data.Foldable
+import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Test.Tasty
@@ -38,6 +39,7 @@ connectionTests =
         , ("volume", test_volume)
         , ("options", test_options)
         , ("update", test_update)
+        , ("directories and playlists", test_directoriesAndPlaylists)
         , ("stats", test_stats)
         , ("outputs", test_outputs)
         , ("idle", test_idle)
@@ -269,6 +271,34 @@ test_update :: TestServer -> Assertion
 test_update server = withConn server $ \conn -> do
   job <- run conn $ update (Just "a")
   assertBool "job id" (job > 0)
+
+test_directoriesAndPlaylists :: TestServer -> Assertion
+test_directoriesAndPlaylists server = withConn server $ \conn -> do
+  run conn $
+    addFiles ["a/one.flac", "b/three.flac"] *> command "save" ["p"] (const (Right ()))
+  -- MPD lists a directory in no particular order.
+  root <- run conn $ lsInfo ""
+  assertEqual
+    "the root"
+    ["directory a", "directory b", "playlist p"]
+    (L.sort $ map describe root)
+  a <- run conn $ lsInfo "a"
+  assertEqual "a directory" ["file a/one.flac", "file a/two.flac"] (L.sort $ map describe a)
+  playlist <- run conn $ listPlaylistInfo "p"
+  assertEqual "a playlist" ["a/one.flac", "b/three.flac"] (map (.file) playlist)
+  run conn $ clear *> load "p" (Just $ Range 1 Nothing) Nothing
+  assertQueue conn "a part of a playlist" ["b/three.flac"]
+  run conn $ load "p" (Just $ Range 0 (Just 1)) (Just $ At 0)
+  assertQueue conn "at a position" ["a/one.flac", "b/three.flac"]
+  -- The other tests list no playlists, but the server keeps it.
+  _ <- rawCommand server "rm p"
+  pure ()
+  where
+    describe :: Entry -> T.Text
+    describe = \case
+      DirectoryEntry d -> "directory " <> d.path
+      SongEntry s -> "file " <> s.file
+      PlaylistEntry p -> "playlist " <> p.path
 
 test_stats :: TestServer -> Assertion
 test_stats server = withConn server $ \conn -> do

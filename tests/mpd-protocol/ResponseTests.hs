@@ -27,6 +27,9 @@ responseTests =
         , golden "status-playing" status
         , golden "currentsong" currentSong
         , golden "playlistinfo" playlistInfo
+        , golden "lsinfo-root" $ lsInfo ""
+        , golden "lsinfo" $ lsInfo "Album"
+        , golden "listplaylistinfo" $ listPlaylistInfo "Album/album.cue"
         , golden "stats" stats
         , golden "outputs" outputs
         , golden "command-list" $ (,) <$> status <*> currentSong
@@ -37,12 +40,14 @@ responseTests =
     , testCase "parseAck" test_parseAck
     , testCase "errors for people" test_displayError
     , testCase "readSeconds" test_readSeconds
+    , testCase "readRange" test_readRange
     , testCase "readTime" test_readTime
     , testCase "malformed replies" test_malformedReplies
     , testCase "empty value" test_emptyValue
     , testCase "unknown subsystem" test_unknownSubsystem
     , testCase "volume without a mixer" test_volumeWithoutMixer
     , testCase "parsed songs hold no thunks" test_songsEvaluated
+    , testCase "parsed entries hold no thunks" test_entriesEvaluated
     ]
 
 -- | A thunk in a parsed song would keep its slice of the reply, and with it
@@ -54,6 +59,15 @@ test_songsEvaluated = do
     either (assertFailure . show) pure $
       parseCommandReply playlistInfo =<< parseReply (BS8.lines reply)
   found <- thunks songs
+  assertEqual "thunks" [] found
+
+test_entriesEvaluated :: Assertion
+test_entriesEvaluated = do
+  reply <- BS.readFile (replyFile "lsinfo" ".txt")
+  entries <-
+    either (assertFailure . show) pure $
+      parseCommandReply (lsInfo "Album") =<< parseReply (BS8.lines reply)
+  found <- thunks entries
   assertEqual "thunks" [] found
 
 test_parseAck :: Assertion
@@ -90,6 +104,14 @@ test_readSeconds = do
   assertEqual "empty" Nothing (readSeconds "")
   assertEqual "no digits after the dot" Nothing (readSeconds "2.")
   assertEqual "negative" Nothing (readSeconds "-2")
+
+test_readRange :: Assertion
+test_readRange = do
+  assertEqual "both ends" (Just $ SongRange 0 (Just 2.5)) (readRange "0.000-2.500")
+  assertEqual "up to the end" (Just $ SongRange 2 Nothing) (readRange "2.000-")
+  assertEqual "no dash" Nothing (readRange "2.000")
+  assertEqual "no start" Nothing (readRange "-2.000")
+  assertEqual "bad end" Nothing (readRange "0-x")
 
 test_readTime :: Assertion
 test_readTime = do

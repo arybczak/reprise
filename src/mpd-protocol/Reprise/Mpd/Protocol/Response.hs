@@ -19,11 +19,13 @@ module Reprise.Mpd.Protocol.Response
   , readInt
   , readBool
   , readSeconds
+  , readRange
   , readTime
 
     -- * Replies of commands
   , parseSong
   , parseSongs
+  , parseEntries
   , parseStatus
   , parseStats
   , parseOutputs
@@ -212,6 +214,15 @@ readSeconds s = case BS8.break (== '.') s of
       | not (BS.null d) && BS8.all (\c -> c >= '0' && c <= '9') d = fst <$> BS8.readInteger d
       | otherwise = Nothing
 
+-- | A part of a song's file, e.g. @0.000-2.000@, or @2.000-@ up to the end.
+readRange :: BS.ByteString -> Maybe SongRange
+readRange s = case BS8.break (== '-') s of
+  (start, rest) -> do
+    end <- BS.stripPrefix "-" rest
+    SongRange
+      <$> readSeconds start
+      <*> if BS.null end then Just Nothing else Just <$> readSeconds end
+
 -- | An ISO 8601 time, e.g. @2024-01-02T03:04:05Z@.
 --
 -- The parser of the time library took most of the time of reading a reply
@@ -248,23 +259,52 @@ parseSongs = go []
     go songs = \case
       [] -> Right $! reverse songs
       Field "file" file : rest -> do
-        let (fields, next) = collect noSongFields rest
+        let (fields, next) = collectSong (== "file") noSongFields rest
         s <- parseSingle (songFrom file) fields
         go (s : songs) next
       f : _ -> Left $ "unexpected key: " <> decode f.key
 
-    -- The fields up to the next song.
-    collect :: SongFields -> [Field] -> (SongFields, [Field])
-    collect !fields = \case
-      next@(Field "file" _ : _) -> (fields, next)
-      f : fs -> collect (addSongField fields f) fs
-      [] -> (fields, [])
+-- | Parse a directory listing, e.g. the reply to @lsinfo@, in one pass as
+-- 'parseSongs' does.
+parseEntries :: [Field] -> Either T.Text [Entry]
+parseEntries = go []
+  where
+    go :: [Entry] -> [Field] -> Either T.Text [Entry]
+    go entries = \case
+      [] -> Right $! reverse entries
+      Field "file" file : rest -> do
+        let (fields, next) = collectSong isEntryKey noSongFields rest
+        s <- parseSingle (songFrom file) fields
+        go (SongEntry s : entries) next
+      Field "directory" path : rest ->
+        named entries (\t -> DirectoryEntry (Directory (decode path) t)) rest
+      Field "playlist" path : rest ->
+        named entries (\t -> PlaylistEntry (Playlist (decode path) t)) rest
+      f : _ -> Left $ "unexpected key: " <> decode f.key
+
+    -- A directory or a playlist, which has no other field to keep.
+    named :: [Entry] -> (Maybe Time.UTCTime -> Entry) -> [Field] -> Either T.Text [Entry]
+    named entries entry rest = do
+      let (fields, next) = break (isEntryKey . (.key)) rest
+      e <- parseSingle (fmap entry . optional "Last-Modified" readTime . fieldMap) fields
+      go (e : entries) next
+
+    isEntryKey :: BS.ByteString -> Bool
+    isEntryKey k = k == "file" || k == "directory" || k == "playlist"
+
+-- | The fields of a song up to the key that starts the next entry.
+collectSong :: (BS.ByteString -> Bool) -> SongFields -> [Field] -> (SongFields, [Field])
+collectSong isNext !fields = \case
+  next@(f : _) | isNext f.key -> (fields, next)
+  f : fs -> collectSong isNext (addSongField fields f) fs
+  [] -> (fields, [])
 
 -- | The fields of a song after its @file@ key, not parsed yet: the first
 -- value of each key, and the tags.
 data SongFields = SongFields
   { rawDuration :: Maybe BS.ByteString
   , rawTime :: Maybe BS.ByteString
+  , rawRange :: Maybe BS.ByteString
   , rawLastModified :: Maybe BS.ByteString
   , rawPosition :: Maybe BS.ByteString
   , rawId :: Maybe BS.ByteString
@@ -275,12 +315,13 @@ data SongFields = SongFields
   }
 
 noSongFields :: SongFields
-noSongFields = SongFields Nothing Nothing Nothing Nothing Nothing Nothing Nothing []
+noSongFields = SongFields Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing []
 
 addSongField :: SongFields -> Field -> SongFields
 addSongField s (Field k v) = case k of
   "duration" -> s {rawDuration = s.rawDuration <|> Just v}
   "Time" -> s {rawTime = s.rawTime <|> Just v}
+  "Range" -> s {rawRange = s.rawRange <|> Just v}
   "Last-Modified" -> s {rawLastModified = s.rawLastModified <|> Just v}
   "Pos" -> s {rawPosition = s.rawPosition <|> Just v}
   "Id" -> s {rawId = s.rawId <|> Just v}
@@ -298,6 +339,7 @@ songFrom :: BS.ByteString -> SongFields -> Either T.Text Song
 songFrom file s = do
   duration <- traverse (parseValue "duration" readSeconds) s.rawDuration
   time <- traverse (parseValue "Time" readInt) s.rawTime
+  range <- traverse (parseValue "Range" readRange) s.rawRange
   lastModified <- traverse (parseValue "Last-Modified" readTime) s.rawLastModified
   position <- traverse (parseValue "Pos" readInt) s.rawPosition
   songId <- traverse (parseValue "Id" readInt) s.rawId
@@ -307,6 +349,7 @@ songFrom file s = do
       { file = decode file
       , tags = M.fromListWith (flip (++)) [(t, [decode v]) | (t, v) <- reverse s.rawTags]
       , duration = maybe (fromIntegral <$> time) Just duration
+      , range = range
       , lastModified = lastModified
       , format = decode <$> s.rawFormat
       , position = SongPos <$> position

@@ -66,6 +66,11 @@ module Reprise.Mpd.Protocol.Command
 
     -- * Database
   , update
+  , lsInfo
+
+    -- * Playlists
+  , listPlaylistInfo
+  , load
 
     -- * Outputs
   , outputs
@@ -77,6 +82,7 @@ module Reprise.Mpd.Protocol.Command
   , ping
   ) where
 
+import Data.Maybe
 import Data.Text qualified as T
 
 import Reprise.Mpd.Protocol.Request
@@ -156,8 +162,8 @@ instance Argument Position where
     AfterCurrent n -> "+" <> toArgument n
     BeforeCurrent n -> "-" <> toArgument n
 
--- | A range of positions in the queue, from 'start' up to, but not including,
--- 'end'. Without an end, the range reaches the end of the queue.
+-- | A range of positions in the queue or in a playlist, from 'start' up to,
+-- but not including, 'end'. Without an end, the range reaches the end.
 data Range = Range
   { start :: SongPos
   , end :: Maybe SongPos
@@ -321,6 +327,30 @@ replayGainStatus = command "replay_gain_status" [] $ \fields ->
 update :: Maybe T.Text -> Command Int
 update uri = command "update" (maybe [] pure uri) $ \fields ->
   required "updating_db" readInt (fieldMap fields)
+
+-- | The entries of a directory, @""@ for the root. MPD also lists the stored
+-- playlists at the root, which it has deprecated.
+lsInfo :: T.Text -> Command [Entry]
+lsInfo path = command "lsinfo" [path | not (T.null path)] parseEntries
+
+----------------------------------------
+-- Playlists
+
+-- | The songs of a stored playlist, or of a playlist file in the music
+-- directory.
+listPlaylistInfo :: T.Text -> Command [Song]
+listPlaylistInfo name = command "listplaylistinfo" [name] parseSongs
+
+-- | Add a playlist, or a range of its songs, to the queue, at the end or at
+-- a position.
+load :: T.Text -> Maybe Range -> Maybe Position -> Command ()
+load name range pos = command "load" (name : arguments) noReply
+  where
+    -- MPD takes a position only after a range.
+    arguments :: [T.Text]
+    arguments = case pos of
+      Nothing -> maybe [] (pure . toArgument) range
+      Just p -> [toArgument (fromMaybe (Range 0 Nothing) range), toArgument p]
 
 ----------------------------------------
 -- Outputs
