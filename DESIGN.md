@@ -118,11 +118,33 @@ ncmpcpp.
 - Delete, move, clear, shuffle, set priority.
 
 **Browser (MPD database)**
-- `lsinfo` navigation, with a `..` entry.
+- `lsinfo` navigation, with a `..` entry. The header shows the path.
+- `activate` enters a directory, opens a playlist and plays a song. A song
+  that is already in the queue plays there instead of being added again.
+- Going up puts the cursor on the directory or the playlist that was left.
+- Playlists open like directories, with their songs and a `..` entry:
+  - **Which playlists:** stored playlists, which `lsinfo` lists at the root,
+    and playlist files in the music directory, e.g. `.m3u` files and cue
+    sheets.
+  - **Stored playlists come from `lsinfo` only.** MPD has deprecated listing
+    them at the root. When it stops, they leave the browser, and the
+    playlist editor shows them.
+  - **A cue sheet shows once.** MPD lists it both as a playlist and as a
+    directory of its tracks. The browser hides the directory, so a cue sheet
+    opens like any other playlist.
+  - **Songs of an open playlist are added with `load` and a range,** not with
+    `add`. The tracks of a cue sheet are ranges of one file, and adding the
+    file would add all of it.
+  - **The browser deletes no playlists.** Only the playlist editor will.
 - Sort by type, name, mtime, a custom format, or not at all.
-- Add, add and play.
-- Stored playlists: browse, load, delete.
+- Add, add and play, add or remove. A directory is added with its
+  subdirectories, and a playlist is loaded.
 - Update the database for the current directory.
+- An idle `database` event lists the directory again, and so does a
+  `stored_playlist` event at the root. The cursor stays on its entry. If the
+  directory is gone, the browser goes up until it finds one.
+- `jump_to_browser` opens the directory of the song under the cursor, with
+  the cursor on that song, as ncmpcpp's `G` does.
 
 **Search engine**
 - The constraint form, searching the database or the queue. The fields are
@@ -156,7 +178,10 @@ ncmpcpp.
     compare the artist only.
   - Shuffling the selection needs selected songs next to each other, because
     MPD shuffles a range.
-- Incremental find (next/previous), wrapping around at the end.
+- Incremental find (next/previous), wrapping around at the end. The last
+  pattern is shared by all screens, as in Emacs and Vim, so a pattern found
+  in one screen can be found again in another. ncmpcpp keeps one for each
+  screen.
 - Filter.
 - Find and filter always ignore diacritics.
 - Sorting can ignore a leading "the".
@@ -203,7 +228,7 @@ Implemented when the author misses them.
 **Playlist editor**
 - Two columns: stored playlists and their contents.
 - Load, add, rename, delete, move, clear.
-- Until then, the browser can browse, load and delete stored playlists.
+- Until then, the browser can open and load stored playlists.
 
 **Tag editor and tiny tag editor**
 - They write tags into the files with TagLib, so the music directory option
@@ -291,10 +316,15 @@ selection and deleting takes as many keys, and shows what goes before it
 goes, so it needs no confirmation.
 
 **Old compatibility tricks**
-- MPD versions older than 0.23. In return reprise gets filter expressions,
-  relative positions in `addid`, and `searchadd`/`findadd` with a position.
+- MPD versions older than 0.23.1. In return reprise gets filter expressions,
+  relative positions in `addid`, `searchadd`/`findadd` with a position, and
+  `load` with a position.
 - The "add and play" trick (`play <old length>`): `addid` returns the id, and
-  reprise plays that id.
+  reprise plays that id. A directory or a playlist has no id, so reprise sends
+  `add` or `load` at the queue's length N and `play N` in one command list.
+  MPD runs a command list without other clients' commands in between, so the
+  songs start at N even if the mirror missed a change. Only a queue that got
+  shorter than N fails, with MPD's error.
 - `--test-lyrics-fetchers`.
 
 Dropped config options are listed in [Configuration](#dropped-options).
@@ -438,6 +468,9 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
 - Queries (`lsinfo`, `find`, ...) deliver their result to the screen that asked
   for it. A reply to a query that a newer one has replaced, e.g. the listing
   of a directory the user has already left, is dropped.
+- A query can name its own event for a failure, when the screen can recover.
+  The browser goes up when the directory it lists is gone, instead of only
+  showing MPD's error.
 
 MPD closes a connection that was unused for longer than its
 `connection_timeout`, 60 seconds by default, and the command connection is
@@ -1139,6 +1172,7 @@ keys:
     "{": move previous_artist
     "}": move next_artist
     o: jump_to_playing
+    G: jump_to_browser           # the song under the cursor
 
     # selecting
     shift-up: select up          # toggle the selection, then move

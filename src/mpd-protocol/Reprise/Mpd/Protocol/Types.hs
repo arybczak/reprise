@@ -344,9 +344,9 @@ data Version = Version Int Int Int
   deriving anyclass (NFData)
 
 -- | The oldest version of MPD that the library supports. It needs the
--- relative positions of 0.23.
+-- relative positions of 0.23, and @load@ with a position from 0.23.1.
 minimumVersion :: Version
-minimumVersion = Version 0 23 0
+minimumVersion = Version 0 23 1
 
 ----------------------------------------
 -- Errors
@@ -417,7 +417,7 @@ data AckCode
 data ConnectionError
   = -- | The connection couldn't be opened, or MPD didn't greet as expected.
     ConnectFailed T.Text
-  | -- | MPD is older than 0.23.
+  | -- | MPD is older than 'minimumVersion'.
     UnsupportedVersion Version
   | -- | MPD closed the connection before it began a reply. MPD closes a
     -- connection that was unused for longer than its @connection_timeout@,

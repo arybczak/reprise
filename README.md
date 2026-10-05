@@ -10,7 +10,7 @@ It reads its configuration from `$XDG_CONFIG_HOME/reprise/config.yaml`.
 
 ## Building
 
-reprise needs GHC 9.6 or newer, and MPD 0.23 or newer to connect to.
+reprise needs GHC 9.6 or newer, and MPD 0.23.1 or newer to connect to.
 
 ```
 cabal build all
