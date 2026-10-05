@@ -91,6 +91,8 @@ data AppState = AppState
   -- ^ The width and the height.
   , pendingKeys :: Maybe PendingKeys
   , prompt :: Maybe Prompt
+  , findPattern :: Maybe T.Text
+  -- ^ The pattern of the last find, which every screen finds again.
   , message :: Maybe Message
   , seek :: Maybe SeekState
   , now :: Double
@@ -172,8 +174,6 @@ data SeekState = SeekState
 data QueueState = QueueState
   { selection :: Selection SongId
   -- ^ By id, so that the selection follows the songs when they move.
-  , findPattern :: Maybe T.Text
-  -- ^ The pattern of the last find, for the next and the previous match.
   , findRows :: Maybe FindRows
   }
   deriving stock (Eq, Show, Generic)
@@ -197,6 +197,9 @@ data BrowserState = BrowserState
   -- ^ In MPD's order, for another sort.
   , items :: Seq.Seq BrowserItem
   -- ^ The entries in the order of the sort, after @..@.
+  , rows :: Seq.Seq Folded
+  -- ^ The text of each item as finds match it, made lazily, as finds reach
+  -- the items.
   , selection :: Selection ItemKey
   -- ^ Of the items of what the browser lists.
   , listing :: Maybe Listing
@@ -304,8 +307,8 @@ initialState config =
   AppState
     { connection = Connecting
     , mirror = emptyMirror
-    , queueState = QueueState noSelection Nothing Nothing
-    , browser = BrowserState Nothing [] Seq.empty noSelection Nothing
+    , queueState = QueueState noSelection Nothing
+    , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
@@ -320,6 +323,7 @@ initialState config =
     , terminalSize = (0, 0)
     , pendingKeys = Nothing
     , prompt = Nothing
+    , findPattern = Nothing
     , message = Nothing
     , seek = Nothing
     , now = 0

@@ -19,14 +19,10 @@ module Reprise.Screen.Queue
   , moveSelection
 
     -- * Finding
-  , startFind
-  , findAsYouType
-  , acceptFind
-  , findAgain
+  , queueRows
   ) where
 
 import Control.Monad
-import Data.Char
 import Data.Foldable
 import Data.Maybe
 import Data.Sequence qualified as Seq
@@ -129,16 +125,7 @@ select t = do
   case t of
     SelectFound -> do
       rows <- queueRows
-      s <- getS
-      case compilePattern <$> s.queueState.findPattern of
-        Nothing -> showMessage "Nothing was found yet"
-        Just (Left err) -> showError (capitalize err)
-        Just (Right p) -> case matchAll p rows of
-          Left err -> showError (capitalize err)
-          Right found -> do
-            let ids = [i | (Just i, True) <- zip (toList ((.songId) <$> q)) (toList found)]
-            modifyS $ #queueState % #selection %~ addKeys ids
-            showMessage $ countSongs (length ids) <> " found and selected"
+      selectFound (#queueState % #selection) ((.songId) <$> q) rows countSongs
     _ -> selectInList (#queueState % #selection) ((\song -> (song.songId, Just song)) <$> q) t
   case t of
     SelectItem (Just m) -> modifyWithEnv (moveQueueCursor m)
@@ -196,76 +183,6 @@ moveSelection t = do
 ----------------------------------------
 -- Finding
 
-startFind :: Direction -> AppState -> AppState
-startFind direction s =
-  let v = focusedView s
-  in openLine
-       question
-       emptyLineEdit
-       (ForFind $ Finding direction (v.cursor, v.offset) Nothing)
-       s
-  where
-    question :: T.Text
-    question = case direction of
-      Forward -> "Find forward: "
-      Backward -> "Find backward: "
-
--- | Move to the first match from where the find started, on every key, so
--- that the result doesn't depend on how the pattern was typed. Returns the
--- find with a note on what it found.
-findAsYouType :: App es => Finding -> T.Text -> Eff es Finding
-findAsYouType f text = do
-  rows <- queueRows
-  note <-
-    if T.null text
-      then modifyWithEnv (restoreView f.origin) >> pure Nothing
-      else case compilePattern text of
-        -- The cursor stays until the pattern is complete again.
-        Left err -> pure (Just err)
-        Right p -> case search p f.direction (fst f.origin) rows of
-          Left err -> pure (Just err)
-          Right Nothing -> modifyWithEnv (restoreView f.origin) >> pure (Just "no match")
-          Right (Just found) -> do
-            modifyWithEnv (jumpTo found.index)
-            pure (wrapNote f.direction found)
-  pure $ f & #note .~ note
-
--- | Keep the pattern for the next and the previous match. An empty pattern
--- finds the last pattern again, as in Vim.
-acceptFind :: App es => Finding -> T.Text -> Eff es ()
-acceptFind f text
-  | T.null text = findAgain f.direction
-  | otherwise = case compilePattern text of
-      Left _ -> do
-        modifyWithEnv (restoreView f.origin)
-        showError $ "Invalid pattern: " <> text
-      Right _ -> do
-        modifyS $ #queueState % #findPattern ?~ text
-        forM_ f.note (showMessage . capitalize)
-
--- | Move to the next or the previous match of the last pattern.
-findAgain :: App es => Direction -> Eff es ()
-findAgain direction = do
-  rows <- queueRows
-  s <- getS
-  case s.queueState.findPattern of
-    Nothing -> showMessage "Nothing was found yet"
-    Just text -> case compilePattern text of
-      Left err -> showError (capitalize err)
-      Right p -> case search p direction (focusedView s).cursor rows of
-        Left err -> showError (capitalize err)
-        Right Nothing -> showMessage $ "No match for " <> text
-        Right (Just found) -> do
-          modifyWithEnv (jumpTo found.index)
-          forM_ (wrapNote direction found) (showMessage . capitalize)
-
-wrapNote :: Direction -> Found -> Maybe T.Text
-wrapNote direction found
-  | found.wrapped = Just $ case direction of
-      Forward -> "wrapped around to the top"
-      Backward -> "wrapped around to the bottom"
-  | otherwise = Nothing
-
 -- | The rows of the queue as finds match them: the ones of the last find,
 -- unless the queue or its display changed since.
 queueRows :: App es => Eff es (Seq.Seq Folded)
@@ -280,8 +197,3 @@ queueRows = do
           rows = foldText . rowText env.config.lists env.config.songs display <$> s.mirror.queue
       modifyS $ #queueState % #findRows ?~ FindRows s.mirror.queueVersion display rows
       pure rows
-
-capitalize :: T.Text -> T.Text
-capitalize t = case T.uncons t of
-  Just (c, rest) -> T.cons (toUpper c) rest
-  Nothing -> t

@@ -925,7 +925,9 @@ Details for incremental find:
   a match near its start it goes through the whole queue. The text of each
   row, with its diacritics folded, is made once, when a find first reaches
   it, and kept until the queue or its display changes. In a queue of 4254
-  songs, this took a key that finds nothing from 6.9 ms to 1.8 ms.
+  songs, this took a key that finds nothing from 6.9 ms to 1.8 ms. The
+  browser keeps the rows of each listing the same way, from the listing
+  until the next one or a new sort.
 
 There is no plain-text mode. To match a literal string with special
 characters, escape them (`AC/DC \(Live\)`) or quote it with ICU's `\Q...\E`.

@@ -61,6 +61,7 @@ layoutTests =
     , testCase "a selected song has the selected style" test_selected
     , testCase "a line prompt" test_promptLine
     , testCase "the matches of a find" test_foundStyle
+    , testCase "the matches of a find in the browser" test_browserFoundStyle
     ]
 
 test_promptLine :: Assertion
@@ -119,6 +120,20 @@ test_foundStyle = do
     | (a, t) <- imageSpans (renderScreen testAppEnv done)
     , T.strip t == "alpha"
     ]
+
+test_browserFoundStyle :: Assertion
+test_browserFoundStyle = do
+  -- The cursor is on the match, and its style combines with the match's.
+  let s = press ["/", "S", "i", "n"] (browsing [(["2"], rootReply)])
+      underlined name =
+        [ case V.attrStyle a of
+            V.SetTo st -> V.hasStyle st V.underline
+            _ -> False
+        | (a, t) <- imageSpans (renderScreen testAppEnv s)
+        , T.strip t == name
+        ]
+  assertEqual "found" [True] (underlined "[Singles]")
+  assertEqual "not found" [False] (underlined "[Albums]")
 
 test_selected :: Assertion
 test_selected = do

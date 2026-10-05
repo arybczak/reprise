@@ -52,9 +52,11 @@ import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Find
 import Reprise.Format
 import Reprise.Groups
 import Reprise.Handler.Core
+import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
@@ -76,23 +78,37 @@ browserView env s v =
           , display = env.config.browser.display
           , width = v.width
           }
-      visible = Seq.take (listHeight env s v) (Seq.drop v.offset s.browser.items)
-      row i item =
+      h = listHeight env s v
+      visible = Seq.take h (Seq.drop v.offset s.browser.items)
+      -- The matches of a find show while the user types it.
+      found = case s.prompt of
+        Just (Prompt _ (Line edit (ForFind _)))
+          | Right p <- compilePattern (lineEditText edit)
+          , Right matched <- matchAll p (Seq.take h (Seq.drop v.offset s.browser.rows)) ->
+              toList matched
+        _ -> repeat False
+      row (i, isFound) item =
         let flags =
               RowFlags
                 { playing = False
                 , selected = isSelected (itemKey item) s.browser.selection
-                , found = False
+                , found = isFound
                 , cursor = i == v.cursor
                 }
-        in case item of
-             ParentItem -> renderOtherRow ctx flags [Span Nothing ".."]
-             EntryItem (DirectoryEntry d) ->
-               renderOtherRow ctx flags [Span Nothing ("[" <> baseName d.path <> "]")]
-             EntryItem (PlaylistEntry p) ->
-               renderOtherRow ctx flags $ playlistPrefix p <> [Span Nothing (baseName p.path)]
-             EntryItem (SongEntry song) -> renderRow ctx flags song
-  in V.vertCat $ zipWith row [v.offset ..] (toList visible)
+        in case rowContent env item of
+             SongRow song -> renderRow ctx flags song
+             OtherRow spans -> renderOtherRow ctx flags spans
+  in V.vertCat $ zipWith row (zip [v.offset ..] found) (toList visible)
+
+-- | What the row of an item shows.
+data RowContent = SongRow Song | OtherRow [Span Style]
+
+rowContent :: AppEnv -> BrowserItem -> RowContent
+rowContent env = \case
+  ParentItem -> OtherRow [Span Nothing ".."]
+  EntryItem (DirectoryEntry d) -> OtherRow [Span Nothing ("[" <> baseName d.path <> "]")]
+  EntryItem (PlaylistEntry p) -> OtherRow $ playlistPrefix p <> [Span Nothing (baseName p.path)]
+  EntryItem (SongEntry song) -> SongRow song
   where
     -- A field of the prefix reads the playlist's path as the file.
     playlistPrefix :: Playlist -> [Span Style]
@@ -111,6 +127,12 @@ browserView env s v =
           , priority = 0
           }
         env.config.browser.playlistPrefix
+
+-- | The text of each item as finds match it.
+itemRows :: AppEnv -> Seq.Seq BrowserItem -> Seq.Seq Folded
+itemRows env = fmap $ \item -> foldText $ case rowContent env item of
+  SongRow song -> rowText env.config.lists env.config.songs env.config.browser.display song
+  OtherRow spans -> spansText spans
 
 -- | The title in the header: what the browser lists.
 browserTitle :: AppState -> T.Text
@@ -230,7 +252,9 @@ browserListed token entries =
             | s.browser.location == Just l.location =
                 restrictTo (S.fromList (map itemKey (toList items))) s.browser.selection
             | otherwise = noSelection
-      modifyS $ #browser .~ BrowserState (Just l.location) entries items selection Nothing
+      modifyS $
+        #browser
+          .~ BrowserState (Just l.location) entries items (itemRows env items) selection Nothing
       modifyWithEnv $ placeCursor l.cursor
     _ -> keepScreen
 
@@ -241,7 +265,9 @@ selectInBrowser :: App es => SelectTarget -> Eff es ()
 selectInBrowser t = do
   items <- getsS (.browser.items)
   case t of
-    SelectFound -> notAvailable "Selecting what a find found in the browser"
+    SelectFound -> do
+      rows <- getsS (.browser.rows)
+      selectFound (#browser % #selection) (fst . selectable <$> items) rows countItems
     _ -> selectInList (#browser % #selection) (selectable <$> items) t
   case t of
     SelectItem (Just m) -> modifyWithEnv (moveBrowserCursor m)
@@ -369,7 +395,7 @@ addedText env = \case
   [(_, EntryItem (SongEntry song))] -> "Added: " <> songText env song
   [(_, EntryItem (DirectoryEntry d))] -> "Added /" <> d.path
   [(_, EntryItem (PlaylistEntry p))] -> "Loaded " <> p.path
-  items -> "Added " <> T.pack (show (length items)) <> " items"
+  items -> "Added " <> countItems (length items)
 
 -- | A song as the status bar shows it.
 songText :: AppEnv -> Song -> T.Text
@@ -403,8 +429,8 @@ nextSortMode = do
   s <- getS
   forM_ s.browser.location $ \location -> do
     let current = Seq.lookup (fst (browserPosition s)) s.browser.items
-    modifyS $
-      #browser % #items .~ arrange env s.toggles.browserSort location s.browser.entries
+        items = arrange env s.toggles.browserSort location s.browser.entries
+    modifyS $ (#browser % #items .~ items) . (#browser % #rows .~ itemRows env items)
     modifyWithEnv . placeCursor $ maybe AtTop (StayOn . itemKey) current
   showMessage $ "Sort: " <> sortByName s.toggles.browserSort
 

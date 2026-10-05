@@ -19,6 +19,8 @@ module Reprise.Handler.Core
   , showError
   , notAvailable
   , countSongs
+  , countItems
+  , capitalize
   , screenText
 
     -- * Prompts
@@ -34,9 +36,12 @@ module Reprise.Handler.Core
 
     -- * Selection
   , selectInList
+  , selectFound
   ) where
 
 import Control.Monad
+import Data.Char
+import Data.Foldable
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Effectful
@@ -49,6 +54,7 @@ import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Find
 import Reprise.Groups
 import Reprise.Keymap
 import Reprise.LineEdit
@@ -108,6 +114,14 @@ message isError text = do
 
 countSongs :: Int -> T.Text
 countSongs n = T.pack (show n) <> if n == 1 then " song" else " songs"
+
+countItems :: Int -> T.Text
+countItems n = T.pack (show n) <> if n == 1 then " item" else " items"
+
+capitalize :: T.Text -> T.Text
+capitalize t = case T.uncons t of
+  Just (c, rest) -> T.cons (toUpper c) rest
+  Nothing -> t
 
 screenText :: ScreenName -> T.Text
 screenText screen = T.replace "_" " " (screenName screen) <> " screen"
@@ -202,6 +216,28 @@ selectInList selection items = \case
             group = earlier <> [c] <> later
         modifyS $ selection %~ addKeys [k | i <- group, Just k <- [Seq.lookup i items >>= fst]]
         showMessage $ name <> " around the cursor selected"
+
+-- | Select the items that the last find's pattern matches. The rows are the
+-- text of the items as finds match it.
+selectFound
+  :: (App es, Ord k)
+  => Lens' AppState (Selection k)
+  -> Seq.Seq (Maybe k)
+  -> Seq.Seq Folded
+  -> (Int -> T.Text)
+  -- ^ How many items, e.g. @3 songs@.
+  -> Eff es ()
+selectFound selection itemKeys rows count = do
+  s <- getS
+  case compilePattern <$> s.findPattern of
+    Nothing -> showMessage "Nothing was found yet"
+    Just (Left err) -> showError (capitalize err)
+    Just (Right p) -> case matchAll p rows of
+      Left err -> showError (capitalize err)
+      Right found -> do
+        let ks = [k | (Just k, True) <- zip (toList itemKeys) (toList found)]
+        modifyS $ selection %~ addKeys ks
+        showMessage $ count (length ks) <> " found and selected"
 
 -- | Bring back a cursor and an offset, e.g. after a cancelled find.
 restoreView :: (Int, Int) -> AppEnv -> AppState -> AppState

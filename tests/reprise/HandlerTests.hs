@@ -210,7 +210,7 @@ test_findAsYouType = do
     "kept"
     (3, Nothing)
     ((focusedView accepted.state).cursor, accepted.state.prompt)
-  assertEqual "the pattern" (Just "al") accepted.state.queueState.findPattern
+  assertEqual "the pattern" (Just "al") accepted.state.findPattern
   assertEqual
     "on the help screen"
     (Just "The help screen has no find forward")

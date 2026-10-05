@@ -49,6 +49,9 @@ browserTests =
     , testCase "a range" test_selectRange
     , testCase ".. can't be selected" test_selectParent
     , testCase "the selection stays in the same listing" test_selectionKept
+    , testCase "find" test_find
+    , testCase "the pattern of a find is shared by the screens" test_sharedPattern
+    , testCase "selecting what was found" test_selectFound
     ]
 
 test_showLists :: Assertion
@@ -306,6 +309,27 @@ test_selectionKept = do
   assertEqual "the song is gone" [] (toList gone.browser.selection.keys)
   let left = answer rootReply (press ["backspace"] selected)
   assertEqual "another listing" [] (toList left.browser.selection.keys)
+
+test_find :: Assertion
+test_find = do
+  let r = press ["/", "b", "enter"] root
+  assertEqual "the cursor is on b" 1 (focusedView r.state).cursor
+  assertEqual "the pattern" (Just "b") r.state.findPattern
+  assertEqual
+    "the next match wraps around"
+    1
+    (focusedView (press ["."] r.state).state).cursor
+
+test_sharedPattern :: Assertion
+test_sharedPattern = do
+  let r = press ["/", "p", "enter", "1", "."] root
+  assertEqual "the queue finds it" (Just "No match for p") ((.text) <$> r.state.message)
+
+test_selectFound :: Assertion
+test_selectFound = do
+  let r = press ["/", "b", "enter", "ctrl-s", "f"] root
+  assertEqual "selected" [DirectoryKey "b"] (toList r.state.browser.selection.keys)
+  assertEqual "the message" (Just "1 item found and selected") ((.text) <$> r.state.message)
 
 ----------------------------------------
 -- Helpers

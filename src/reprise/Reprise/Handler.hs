@@ -11,6 +11,7 @@ import Control.Exception
 import Control.Monad
 import Data.Foldable
 import Data.Maybe
+import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Effectful
@@ -345,13 +346,14 @@ runAction = \case
   action@(MoveSelection t) -> verb action $ \case
     QueueScreen -> Just $ moveSelection t
     _ -> Nothing
-  action@(Find t) -> verb action $ \case
-    QueueScreen -> Just $ case t of
-      FindForward -> modifyS (startFind Forward)
-      FindBackward -> modifyS (startFind Backward)
-      FindNext -> findAgain Forward
-      FindPrevious -> findAgain Backward
-    _ -> Nothing
+  action@(Find t) -> verb action $ \screen ->
+    if screen `elem` [QueueScreen, BrowserScreen]
+      then Just $ case t of
+        FindForward -> modifyS (startFind Forward)
+        FindBackward -> modifyS (startFind Backward)
+        FindNext -> findAgain Forward
+        FindPrevious -> findAgain Backward
+      else Nothing
   Crossfade n -> mutate $ setCrossfade n
   AddPath path -> mutate $ add path Nothing
   CommandPrompt start ->
@@ -469,6 +471,87 @@ toggle = \case
       modifyS $ #toggles % field %~ not
       v <- getsS (view (#toggles % field))
       showMessage $ name <> ": " <> onOff v
+
+----------------------------------------
+-- Finding
+
+startFind :: Direction -> AppState -> AppState
+startFind direction s =
+  let v = focusedView s
+  in openLine
+       question
+       emptyLineEdit
+       (ForFind $ Finding direction (v.cursor, v.offset) Nothing)
+       s
+  where
+    question :: T.Text
+    question = case direction of
+      Forward -> "Find forward: "
+      Backward -> "Find backward: "
+
+-- | Move to the first match from where the find started, on every key, so
+-- that the result doesn't depend on how the pattern was typed. Returns the
+-- find with a note on what it found.
+findAsYouType :: App es => Finding -> T.Text -> Eff es Finding
+findAsYouType f text = do
+  rows <- focusedRows
+  note <-
+    if T.null text
+      then modifyWithEnv (restoreView f.origin) >> pure Nothing
+      else case compilePattern text of
+        -- The cursor stays until the pattern is complete again.
+        Left err -> pure (Just err)
+        Right p -> case search p f.direction (fst f.origin) rows of
+          Left err -> pure (Just err)
+          Right Nothing -> modifyWithEnv (restoreView f.origin) >> pure (Just "no match")
+          Right (Just found) -> do
+            modifyWithEnv (jumpTo found.index)
+            pure (wrapNote f.direction found)
+  pure $ f & #note .~ note
+
+-- | Keep the pattern for the next and the previous match, in every screen.
+-- An empty pattern finds the last pattern again, as in Vim.
+acceptFind :: App es => Finding -> T.Text -> Eff es ()
+acceptFind f text
+  | T.null text = findAgain f.direction
+  | otherwise = case compilePattern text of
+      Left _ -> do
+        modifyWithEnv (restoreView f.origin)
+        showError $ "Invalid pattern: " <> text
+      Right _ -> do
+        modifyS $ #findPattern ?~ text
+        forM_ f.note (showMessage . capitalize)
+
+-- | Move to the next or the previous match of the last pattern.
+findAgain :: App es => Direction -> Eff es ()
+findAgain direction = do
+  rows <- focusedRows
+  s <- getS
+  case s.findPattern of
+    Nothing -> showMessage "Nothing was found yet"
+    Just text -> case compilePattern text of
+      Left err -> showError (capitalize err)
+      Right p -> case search p direction (focusedView s).cursor rows of
+        Left err -> showError (capitalize err)
+        Right Nothing -> showMessage $ "No match for " <> text
+        Right (Just found) -> do
+          modifyWithEnv (jumpTo found.index)
+          forM_ (wrapNote direction found) (showMessage . capitalize)
+
+wrapNote :: Direction -> Found -> Maybe T.Text
+wrapNote direction found
+  | found.wrapped = Just $ case direction of
+      Forward -> "wrapped around to the top"
+      Backward -> "wrapped around to the bottom"
+  | otherwise = Nothing
+
+-- | The rows of the focused list as finds match them.
+focusedRows :: App es => Eff es (Seq.Seq Folded)
+focusedRows =
+  getsS ((.screen) . focusedView) >>= \case
+    QueueScreen -> queueRows
+    BrowserScreen -> getsS (.browser.rows)
+    _ -> pure Seq.empty
 
 ----------------------------------------
 -- Seeking
