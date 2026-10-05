@@ -52,6 +52,8 @@ browserTests =
     , testCase "find" test_find
     , testCase "the pattern of a find is shared by the screens" test_sharedPattern
     , testCase "selecting what was found" test_selectFound
+    , testCase "jump to the browser" test_jumpToBrowser
+    , testCase "a stream isn't in the browser" test_jumpWithStream
     ]
 
 test_showLists :: Assertion
@@ -330,6 +332,25 @@ test_selectFound = do
   let r = press ["/", "b", "enter", "ctrl-s", "f"] root
   assertEqual "selected" [DirectoryKey "b"] (toList r.state.browser.selection.keys)
   assertEqual "the message" (Just "1 item found and selected") ((.text) <$> r.state.message)
+
+test_jumpToBrowser :: Assertion
+test_jumpToBrowser = do
+  let r = press ["G"] queued
+  assertEqual "the screen" BrowserScreen (focusedView r.state).screen
+  assertEqual "the listing of dir" [[Request "lsinfo" ["dir"]]] r.requests
+  let s = answer ["file: dir/9.flac", "file: dir/0.flac"] r
+  assertEqual "the cursor is on the song" 2 (focusedView s).cursor
+  assertEqual
+    "no song"
+    (Just "There is no song under the cursor")
+    ((.text) <$> (press ["G"] queueShown).state.message)
+
+test_jumpWithStream :: Assertion
+test_jumpWithStream = do
+  let stream = song 0 [] 60 & #file .~ "http://example.com/stream"
+      r = press ["G"] (testState (80, 12) (statusOf Stopped Nothing 1) [stream])
+  assertEqual "no listing" [] r.requests
+  assertEqual "the error" (Just True) ((.isError) <$> r.state.message)
 
 ----------------------------------------
 -- Helpers

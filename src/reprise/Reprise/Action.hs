@@ -44,6 +44,7 @@ import Yamlet
 data Action
   = Move MoveTarget
   | JumpToPlaying
+  | JumpToBrowser
   | Select SelectTarget
   | Activate
   | AddOrRemove
@@ -201,6 +202,7 @@ registry :: [ActionSpec]
 registry =
   [ spec "move" (alternatives (map fst moveTargets)) $ one (fmap Move . moveTarget)
   , spec "jump_to_playing" "" $ none JumpToPlaying
+  , spec "jump_to_browser" "" $ none JumpToBrowser
   , spec "select" "[up | down] | range | invert | none | album | artist | found" $ \case
       [] -> Right . Select $ SelectItem Nothing
       [Word w] -> Select <$> choice "selection" selectTargets w
@@ -424,6 +426,7 @@ renderAction :: Action -> T.Text
 renderAction = \case
   Move t -> "move " <> moveName t
   JumpToPlaying -> "jump_to_playing"
+  JumpToBrowser -> "jump_to_browser"
   Select t -> case t of
     SelectItem Nothing -> "select"
     SelectItem (Just m) -> "select " <> moveName m
@@ -520,6 +523,7 @@ describeAction :: Action -> T.Text
 describeAction = \case
   Move t -> "move " <> T.replace "_" " " (moveName t)
   JumpToPlaying -> "jump to the playing song"
+  JumpToBrowser -> "show the song under the cursor in the browser"
   Select t -> case t of
     SelectItem Nothing -> "toggle selection"
     SelectItem (Just m) -> "toggle selection, move " <> moveName m

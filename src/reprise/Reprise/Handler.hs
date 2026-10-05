@@ -314,6 +314,12 @@ runAction = \case
   JumpToPlaying -> do
     modifyWithEnv . modifyView $ switchScreen QueueScreen
     modifyWithEnv jumpToPlaying
+  JumpToBrowser ->
+    getsS songUnderCursor >>= \case
+      Nothing -> showMessage "There is no song under the cursor"
+      Just song -> do
+        modifyWithEnv . modifyView $ switchScreen BrowserScreen
+        locateSong song
   action@Activate -> verb action $ \case
     QueueScreen -> Just activate
     BrowserScreen -> Just activateItem
@@ -420,6 +426,17 @@ verb action implementation = do
   case implementation screen of
     Just k -> k
     Nothing -> showMessage $ "The " <> screenText screen <> " has no " <> renderAction action
+
+-- | The song under the cursor of the focused list.
+songUnderCursor :: AppState -> Maybe Song
+songUnderCursor s =
+  let v = focusedView s
+  in case v.screen of
+       QueueScreen -> Seq.lookup v.cursor s.mirror.queue
+       BrowserScreen -> case Seq.lookup v.cursor s.browser.items of
+         Just (EntryItem (SongEntry song)) -> Just song
+         _ -> Nothing
+       _ -> Nothing
 
 -- | Run a destructive action that the user confirmed.
 runConfirmed :: App es => Action -> Eff es ()

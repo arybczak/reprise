@@ -621,6 +621,7 @@ defaultKeymaps =
           , char '{' ~> Move MovePreviousArtist
           , char '}' ~> Move MoveNextArtist
           , char 'o' ~> JumpToPlaying
+          , char 'G' ~> JumpToBrowser
           , shift ArrowUp ~> Select (SelectItem (Just MoveUp))
           , shift ArrowDown ~> Select (SelectItem (Just MoveDown))
           , plain InsertKey ~> Select (SelectItem Nothing)

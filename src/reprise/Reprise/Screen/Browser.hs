@@ -16,6 +16,7 @@ module Reprise.Screen.Browser
   , browserListed
   , browserFailed
   , leave
+  , locateSong
 
     -- * Adding
   , activateItem
@@ -223,15 +224,24 @@ leave = do
       InDirectory path -> DirectoryKey path
       InPlaylist path -> PlaylistKey path
 
+-- | List the directory of a song, with the cursor on the song, as ncmpcpp's
+-- @jump_to_browser@ does. A stream isn't in the database.
+locateSong :: App es => Song -> Eff es ()
+locateSong song
+  | "://" `T.isInfixOf` song.file = showError "The song isn't in MPD's database"
+  | otherwise =
+      list (InDirectory (directoryOf song.file)) (JumpTo (SongKey song.file song.range))
+
 -- | The directory that a directory or a playlist is in.
 parentOf :: Location -> Maybe Location
 parentOf = \case
   InDirectory "" -> Nothing
   InDirectory path -> Just $ InDirectory (directoryOf path)
   InPlaylist path -> Just $ InDirectory (directoryOf path)
-  where
-    directoryOf :: T.Text -> T.Text
-    directoryOf = T.dropEnd 1 . fst . T.breakOnEnd "/"
+
+-- | The directory of a path, @""@ for the root.
+directoryOf :: T.Text -> T.Text
+directoryOf = T.dropEnd 1 . fst . T.breakOnEnd "/"
 
 list :: App es => Location -> ListingCursor -> Eff es ()
 list location cursor = do

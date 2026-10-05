@@ -1,5 +1,6 @@
 Help                                                                 Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
+p           pause or resume
 q           quit
 s           stop
 {           move previous artist
@@ -19,6 +20,5 @@ insert      toggle selection
 delete      delete
 f1          show help
 ctrl-f      filter
-shift-tab   previous screen
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]
