@@ -1,5 +1,6 @@
 -- | What only the UI loop can do: halt, set the terminal's title, send an
--- event later, skip a redraw, and start the samples of the visualizer.
+-- event later, skip a redraw, start the samples of the visualizer, and ask
+-- for lyrics.
 module Reprise.Effect.UiRequest
   ( -- * Effect
     UiRequest (..)
@@ -14,6 +15,7 @@ module Reprise.Effect.UiRequest
   , after
   , keepScreen
   , visualize
+  , fetchLyrics
   ) where
 
 import Data.Text qualified as T
@@ -23,6 +25,7 @@ import Effectful.Output.Static.Local.List
 
 import Reprise.Config
 import Reprise.Event
+import Reprise.Mpd.Protocol.Types
 
 data UiRequest :: Effect where
   UiRequest :: UiCommand -> UiRequest m ()
@@ -38,6 +41,9 @@ data UiCommand
     KeepScreen
   | -- | Read the samples of the visualizer for a visualization, or stop.
     Visualize (Maybe Visualization)
+  | -- | Load the lyrics of a song, for the request with the token. A newer
+    -- request replaces one that the worker didn't take yet.
+    FetchLyrics Int Song
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -62,3 +68,7 @@ keepScreen = send $ UiRequest KeepScreen
 -- | Read the samples of the visualizer for a visualization, or stop.
 visualize :: UiRequest :> es => Maybe Visualization -> Eff es ()
 visualize = send . UiRequest . Visualize
+
+-- | Load the lyrics of a song, for the request with the token.
+fetchLyrics :: UiRequest :> es => Int -> Song -> Eff es ()
+fetchLyrics token = send . UiRequest . FetchLyrics token

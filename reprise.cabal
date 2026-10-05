@@ -124,11 +124,14 @@ library
                      Reprise.Keymap
                      Reprise.Keys
                      Reprise.LineEdit
+                     Reprise.Lyrics
+                     Reprise.Lyrics.Worker
                      Reprise.Mpd.Address
                      Reprise.Mpd.Mirror
                      Reprise.Mpd.Worker
                      Reprise.Screen.Browser
                      Reprise.Screen.Help
+                     Reprise.Screen.Lyrics
                      Reprise.Screen.Queue
                      Reprise.Screen.Queue.Edits
                      Reprise.Screen.Visualizer
@@ -273,6 +276,7 @@ test-suite reprise-tests
                     LayerTests
                     LayoutTests
                     LineEditTests
+                    LyricsTests
                     MirrorTests
                     QueueTests
                     StyleTests

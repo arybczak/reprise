@@ -30,6 +30,7 @@ import Reprise.App
 import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.Mpd
+import Reprise.Lyrics.Worker
 import Reprise.Mpd.Address
 import Reprise.Mpd.Worker
 import Reprise.State
@@ -111,6 +112,14 @@ main = do
         , reading = visualizing
         , emit = void . B.writeBChanNonBlocking events
         }
+  lyrics <- newTVarIO Nothing
+  lyricsDirectory <-
+    maybe
+      (getXdgDirectory XdgData ("reprise" </> "lyrics"))
+      expandHome
+      config.lyrics.directory
+  void . restarted . lyricsWorker $
+    LyricsSource {directory = lyricsDirectory, requested = lyrics, emit = B.writeBChan events}
   installWidthTable
   let buildVty = V.mkVty V.defaultConfig
   vty <- buildVty
@@ -126,7 +135,12 @@ main = do
             , colorMode = colorMode
             , collator = userCollator
             }
-          Channels {requests = requests, events = events, visualizing = visualizing}
+          Channels
+            { requests = requests
+            , events = events
+            , visualizing = visualizing
+            , lyrics = lyrics
+            }
       )
       (initialState config)
 

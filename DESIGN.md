@@ -354,6 +354,43 @@ ncmpcpp.
   pocketfft.
 - ncmpcpp's sound wave and its mono ellipse come later, if ever.
 
+**Lyrics**
+- **`l` shows the lyrics of the song under the cursor** of a list, and on
+  the lyrics screen goes back to the screen that showed them, as ncmpcpp's
+  `show_lyrics` does. A screen without songs says so, rather than showing
+  the lyrics of another song, e.g. the playing one, so that `l` always
+  means the song that the user points at.
+- **The lyrics are text that scrolls,** like the help screen, with long
+  lines wrapped at spaces. The header shows the song.
+- **They are stored as ncmpcpp stores them,** a text file for each song in
+  `lyrics.directory`: `<artist> - <title>.txt`, of the first artist and the
+  first title, or without both the name of the song's file without its
+  extension. The name leaves out the characters that Windows forbids, as
+  ncmpcpp does with its default `generate_win32_compatible_filenames`. So
+  the author's 394 lyrics from ncmpcpp show as they are, and ncmpcpp reads
+  the ones that reprise stores. A file that isn't UTF-8 shows, with
+  replacement characters for its bytes that aren't.
+- **A worker thread reads them,** as the handlers can't do IO. It takes only
+  the newest request, so the songs that the screen passed by aren't read,
+  and a token drops the lyrics of a song that the screen left.
+- **Next: fetching from lrclib.net.** It has a public JSON API, and plain
+  and timed lyrics. ncmpcpp's fetchers scrape pages that Google finds, and
+  Google itself shows the lyrics at the top of a search, but it serves
+  search only to clients with JavaScript since 2025: a fetch of "lyrics
+  Radiohead Karma Police" got a page without them, with curl's user agent
+  and with Firefox's. Of 40 random songs of the author's library, LRCLIB had
+  17, 13 of them with timed lyrics. Most of the others were classical
+  music and instrumentals.
+  - **The replies decode with yamlet,** with types derived generically. Each
+    of 52 songs in five replies had the same keys, and only the lyrics
+    could be null. Unknown keys are allowed, as LRCLIB adds some.
+  - **LRCLIB is HTTPS only,** so reprise needs `http-client-tls`.
+  - **A busy server is a failure, not a miss:** LRCLIB answers 503 at times,
+    and a failure is neither stored nor remembered.
+- **Later:** timed lyrics in a `.lrc` file next to the `.txt`, with the
+  current line highlighted; fetching the playing song's lyrics in the
+  background; following the playing song; editing in `$EDITOR`.
+
 ### Later
 
 Implemented when the author misses them.
@@ -384,12 +421,8 @@ Implemented when the author misses them.
   comes back with them.
 - The tag editor's screen key is `6`, as in ncmpcpp.
 
-**Lyrics**
-- Local cache and the `tags` source come first.
-- ncmpcpp's web fetchers are all Google "I'm Feeling Lucky" scrapes, which
-  break easily. They get redesigned, not ported. lrclib.net has a public JSON
-  API and is a possible replacement.
-- Background fetching, follow now playing, edit in an external editor.
+**Lyrics in the files' tags**, ncmpcpp's `tags` fetcher. MPD's
+`readcomments` gives them without the music directory.
 
 **Last.fm artist info**
 - ncmpcpp uses a hardcoded API key and regex scraping of the wiki page. This
@@ -544,6 +577,8 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Visualizer.Worker` | The thread that reads MPD's fifo output while the visualizer shows, and sends the samples of each frame |
 | `Reprise.Visualizer.Samples` | The format of the samples that the worker reads and the visualizer draws |
 | `Reprise.Visualizer.Spectrum` | The spectrum of the samples, with pocketfft's FFT in `cbits` |
+| `Reprise.Lyrics` | Where the lyrics of a song are stored, as ncmpcpp stores them |
+| `Reprise.Lyrics.Worker` | The thread that reads the lyrics that the lyrics screen asks for |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
@@ -551,10 +586,10 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list, and runs of consecutive positions |
 | `Reprise.Selection` | The selection of a list by the keys of its items, with the ends of the next range. `Reprise.Handler.Core` applies the select actions to any list with it |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
-| `Reprise.Width` | The width of text in terminal columns, cutting text to a width, and the table of character widths that reprise installs for vty |
+| `Reprise.Width` | The width of text in terminal columns, cutting and wrapping text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
 | `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
-| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser`, `Visualizer` and `Help`. Later: `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `Lyrics`, `SongInfo`, `ServerInfo`, ... |
+| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser`, `Visualizer`, `Lyrics` and `Help`. Later: `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `SongInfo`, `ServerInfo`, ... |
 
 The modules form layers, and an import only goes down:
 
@@ -1279,6 +1314,9 @@ visualizer:
   trail: 150ms                   # how long the samples of the ellipse stay
   colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # quiet to loud
 
+lyrics:
+  directory: ~                   # $XDG_DATA_HOME/reprise/lyrics; ncmpcpp's is ~/.lyrics
+
 styles:                          # used across screens
   label: white                   # field names, e.g. in the search engine
   value: green                   # field values
@@ -1387,6 +1425,7 @@ keys:
     3: show search_engine
     7: show outputs
     8: show visualizer
+    l: show lyrics               # of the song under the cursor; on the lyrics, back
     tab: next_screen [browser, visualizer, media_library]
     shift-tab: previous_screen [browser, visualizer, media_library]
     f1: show help
@@ -1543,6 +1582,7 @@ Many single-character keys collide with YAML syntax:
 | `progressbar_look`, `progressbar_color`, `progressbar_elapsed_color` | `progress_bar.chars`, `progress_bar.style`, `progress_bar.elapsed_style` |
 | `color1`, `color2`, `window_border_color` | `styles.label`, `styles.value`, `styles.popup_border` |
 | `visualizer_data_source`, `visualizer_in_stereo`, `visualizer_type`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.in_stereo`, `visualizer.visualization`, `visualizer.fps`, `visualizer.colors` |
+| `lyrics_directory` | `lyrics.directory`, `$XDG_DATA_HOME/reprise/lyrics` without it |
 
 How the author's ncmpcpp settings were translated:
 - **Prefixes and suffixes became styles.** `current_item_prefix`/`suffix`
@@ -1612,9 +1652,9 @@ options, `allow_for_physical_item_deletion`,
 | `message_delay_time` | A fixed timeout, as a named constant |
 | `discard_colors_if_item_is_selected` | Styles combine (see [Conventions](#conventions)) |
 | `colors_enabled` | The `NO_COLOR` environment variable turns colors off |
-| `ncmpcpp_directory`, `lyrics_directory` | XDG directories: `$XDG_CONFIG_HOME/reprise`, `$XDG_DATA_HOME/reprise/lyrics` |
+| `ncmpcpp_directory` | The XDG directory `$XDG_CONFIG_HOME/reprise` |
 | `store_lyrics_in_song_dir` | Needs the music directory, which is gone |
-| `generate_win32_compatible_filenames` | Lyrics cache file names are always portable |
+| `generate_win32_compatible_filenames` | The names of lyrics files always leave out the characters that Windows forbids, as ncmpcpp does by default |
 | `active_window_border` | Only split screens and the tag editor used it |
 | `header_visibility`, `statusbar_visibility` | The header and the status bar are always shown |
 | `cyclic_scrolling` | Moving past the last item stops there |
@@ -1689,7 +1729,7 @@ The layers, from cheapest to most expensive:
    pieces underneath already have their own tests.
 
 The visualizer's worker reads a real fifo, which the test writes as MPD's
-fifo output does.
+fifo output does. The lyrics' worker reads a temporary directory of lyrics.
 
 There is no separate mock MPD interpreter. Layer 2 replaces it for actions,
 and the real server covers the protocol. A scripted `MpdRequest` handler is

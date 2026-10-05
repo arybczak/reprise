@@ -17,6 +17,7 @@ widthTests =
   testGroup
     "Width"
     [ testCase "truncation" test_truncate
+    , testCase "wrapping" test_wrap
     , testCase "an emoji is wide" test_emoji
     , testCase "a row with an emoji fits the terminal" test_emojiRowFits
     , testCase "the ranges are vty's" test_sameRanges
@@ -28,6 +29,17 @@ test_truncate = do
   assertEqual "ellipsis" "ab…" (truncateToWidth 3 "abcd")
   assertEqual "wide characters" "日…" (truncateToWidth 4 "日本語")
   assertEqual "wide character width" 6 (textWidth "日本語")
+
+test_wrap :: Assertion
+test_wrap = do
+  assertEqual "short enough" ["one two"] (wrapText 7 "one two")
+  assertEqual "at spaces" ["one two", "three"] (wrapText 7 "one two three")
+  assertEqual "a long word" ["abcd", "efgh", "ij"] (wrapText 4 "abcdefghij")
+  assertEqual "a long word after a short one" ["a", "bcde", "f g"] (wrapText 4 "a bcdef g")
+  assertEqual "wide characters" ["日本", "語"] (wrapText 5 "日本語")
+  assertEqual "a character wider than the width" ["日", "本"] (wrapText 1 "日本")
+  assertEqual "an empty line" [""] (wrapText 4 "")
+  assertEqual "no width" ["abc"] (wrapText 0 "abc")
 
 test_sameRanges :: Assertion
 test_sameRanges = do

@@ -33,6 +33,8 @@ module Reprise.Handler.Core
   , moveListCursor
   , restoreView
   , screenLength
+  , scrollLines
+  , songUnderCursor
 
     -- * Selection
   , selectInList
@@ -244,8 +246,7 @@ restoreView :: (Int, Int) -> AppEnv -> AppState -> AppState
 restoreView (c, o) = modifyView $ (#cursor .~ c) . (#offset .~ o)
 
 -- | Change the focused view, then keep its cursor in the list and visible.
--- The help screen is text without a cursor, so only its offset is kept in
--- the text.
+-- A screen of text has no cursor, so only its offset is kept in the text.
 modifyView :: (View -> View) -> AppEnv -> AppState -> AppState
 modifyView f env s =
   s
@@ -255,17 +256,52 @@ modifyView f env s =
           h = max 1 (listHeight env s v')
           c = max 0 (min (n - 1) v'.cursor)
           o
-            | v'.screen == HelpScreen = v'.offset
+            | v'.screen `elem` textScreens = v'.offset
             | env.config.lists.keepCursorCentered = c - h `div` 2
             | c < v'.offset = c
             | c >= v'.offset + h = c - h + 1
             | otherwise = v'.offset
       in v' & #cursor .~ c & #offset .~ max 0 (min (n - h) o)
 
+-- | The screens of text without items, which a move scrolls.
+textScreens :: [ScreenName]
+textScreens = [LyricsScreen, HelpScreen]
+
+-- | Scroll the focused screen of text.
+scrollLines :: App es => MoveTarget -> Eff es ()
+scrollLines t = do
+  env <- getAppEnv
+  s <- getS
+  let v = focusedView s
+      h = max 1 (listHeight env s v)
+  case t of
+    MoveUp -> scroll (-1)
+    MoveDown -> scroll 1
+    MovePageUp -> scroll (-h)
+    MovePageDown -> scroll h
+    MoveFirst -> modifyWithEnv . modifyView $ #offset .~ 0
+    MoveLast -> modifyWithEnv . modifyView $ #offset .~ screenLength env s v.screen
+    _ -> showMessage $ "The " <> screenText v.screen <> " has no " <> renderAction (Move t)
+  where
+    scroll :: App es => Int -> Eff es ()
+    scroll delta = modifyWithEnv . modifyView $ #offset %~ (+ delta)
+
 -- | The number of items or lines of a screen.
 screenLength :: AppEnv -> AppState -> ScreenName -> Int
 screenLength env s = \case
   QueueScreen -> Seq.length s.mirror.queue
   BrowserScreen -> Seq.length s.browser.items
+  LyricsScreen -> length (lyricsLines (fst s.terminalSize) s.lyrics)
   HelpScreen -> length (helpLines env.keymaps)
   _ -> 0
+
+-- | The song under the cursor of the focused list.
+songUnderCursor :: AppState -> Maybe Song
+songUnderCursor s =
+  let v = focusedView s
+  in case v.screen of
+       QueueScreen -> Seq.lookup v.cursor s.mirror.queue
+       BrowserScreen -> case Seq.lookup v.cursor s.browser.items of
+         Just (EntryItem (SongEntry song)) -> Just song
+         _ -> Nothing
+       _ -> Nothing

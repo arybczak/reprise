@@ -25,6 +25,7 @@ module Reprise.Config
   , ProgressBarConfig (..)
   , ProgressChars (..)
   , VisualizerConfig (..)
+  , LyricsConfig (..)
   , Visualization (..)
   , visualizationName
   , FrameRate (..)
@@ -76,6 +77,7 @@ data Config = Config
   , statusBar :: StatusBarConfig
   , progressBar :: ProgressBarConfig
   , visualizer :: VisualizerConfig
+  , lyrics :: LyricsConfig
   , styles :: StylesConfig
   , keys :: KeysConfig
   }
@@ -262,6 +264,14 @@ data VisualizerConfig = VisualizerConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml VisualizerConfig
 
+newtype LyricsConfig = LyricsConfig
+  { directory :: Maybe FilePath
+  -- ^ Where the lyrics are stored, @$XDG_DATA_HOME/reprise/lyrics@ without
+  -- it. A leading @~/@ is the home directory. ncmpcpp's is @~/.lyrics@.
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromYaml) via GenericYaml LyricsConfig
+
 data Visualization
   = -- | The levels of the frequencies, as bars.
     Spectrum
@@ -296,6 +306,7 @@ data KeysConfig = KeysConfig
   , playlistEditor :: KeymapOverride
   , outputs :: KeymapOverride
   , visualizer :: KeymapOverride
+  , lyrics :: KeymapOverride
   , help :: KeymapOverride
   }
   deriving stock (Eq, Show, Generic)
@@ -320,6 +331,7 @@ defaultConfig =
     , statusBar = defaultStatusBar
     , progressBar = defaultProgressBar
     , visualizer = defaultVisualizer
+    , lyrics = defaultLyrics
     , styles = defaultStyles
     , keys = defaultKeys
     }
@@ -450,6 +462,9 @@ defaultVisualizer =
           NE.:| map style ["82", "118", "154", "190", "226", "220", "214", "208", "202", "196", "160"]
     }
 
+defaultLyrics :: LyricsConfig
+defaultLyrics = LyricsConfig {directory = Nothing}
+
 defaultStyles :: StylesConfig
 defaultStyles =
   StylesConfig
@@ -469,6 +484,7 @@ defaultKeys =
     , playlistEditor = noOverride
     , outputs = noOverride
     , visualizer = noOverride
+    , lyrics = noOverride
     , help = noOverride
     }
   where
@@ -554,6 +570,10 @@ instance GenericYamlOptions ProgressBarConfig where
 instance GenericYamlOptions VisualizerConfig where
   yamlOptions = options
   yamlDefault = Just defaultVisualizer
+
+instance GenericYamlOptions LyricsConfig where
+  yamlOptions = options
+  yamlDefault = Just defaultLyrics
 
 instance GenericYamlOptions StylesConfig where
   yamlOptions = options
@@ -674,6 +694,7 @@ keymapsOf user =
       , (PlaylistEditorScreen, (.playlistEditor))
       , (OutputsScreen, (.outputs))
       , (VisualizerScreen, (.visualizer))
+      , (LyricsScreen, (.lyrics))
       , (HelpScreen, (.help))
       ]
 
@@ -724,6 +745,7 @@ defaultKeymaps =
           , char '3' ~> Show SearchEngineScreen
           , char '7' ~> Show OutputsScreen
           , char '8' ~> Show VisualizerScreen
+          , char 'l' ~> Show LyricsScreen
           , plain Tab ~> NextScreen [BrowserScreen, VisualizerScreen, MediaLibraryScreen]
           , shift Tab ~> PreviousScreen [BrowserScreen, VisualizerScreen, MediaLibraryScreen]
           , plain (Function 1) ~> Show HelpScreen

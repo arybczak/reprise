@@ -11,6 +11,7 @@ module Reprise.Width
   , takeWidth
   , truncateToWidth
   , ellipsis
+  , wrapText
   , scrollText
 
     -- * The width table
@@ -52,6 +53,32 @@ truncateToWidth width t
 
 ellipsis :: T.Text
 ellipsis = "…"
+
+-- | Text broken at spaces into lines that fit in the width. A word wider
+-- than the width is broken where it doesn't fit.
+wrapText :: Int -> T.Text -> [T.Text]
+wrapText width t
+  | width <= 0 || textWidth t <= width = [t]
+  | otherwise = go (T.splitOn " " t)
+  where
+    go :: [T.Text] -> [T.Text]
+    go = \case
+      [] -> []
+      word : rest
+        | textWidth word > width ->
+            -- A character wider than the width still takes a line.
+            let piece = case takeWidth width word of
+                  "" -> T.take 1 word
+                  fitting -> fitting
+                remainder = T.drop (T.length piece) word
+            in piece : go ([remainder | not (T.null remainder)] <> rest)
+        | otherwise -> let (line, rest') = fill word rest in line : go rest'
+
+    fill :: T.Text -> [T.Text] -> (T.Text, [T.Text])
+    fill line = \case
+      word : rest
+        | textWidth line + 1 + textWidth word <= width -> fill (line <> " " <> word) rest
+      rest -> (line, rest)
 
 -- | Text that doesn't fit in the width, scrolled by a character for each
 -- step, e.g. each second. It goes round with a separator.

@@ -16,6 +16,7 @@ import KeysTests
 import LayerTests
 import LayoutTests
 import LineEditTests
+import LyricsTests
 import MirrorTests
 import QueueTests
 import Reprise.Width
@@ -45,6 +46,7 @@ main = do
       , layerTests
       , layoutTests
       , lineEditTests
+      , lyricsTests
       , mirrorTests
       , queueTests
       , styleTests

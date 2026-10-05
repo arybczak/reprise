@@ -22,6 +22,7 @@ import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
 import Reprise.Screen.Help
+import Reprise.Screen.Lyrics
 import Reprise.Screen.Queue
 import Reprise.Screen.Visualizer
 import Reprise.State
@@ -107,6 +108,7 @@ mainView env s =
        QueueScreen -> queueView env s v
        BrowserScreen -> browserView env s v
        VisualizerScreen -> visualizerView env s v
+       LyricsScreen -> lyricsView env s v
        HelpScreen -> helpView env v
        _ -> V.emptyImage
 

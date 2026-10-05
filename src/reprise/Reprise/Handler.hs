@@ -35,7 +35,7 @@ import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
-import Reprise.Screen.Help
+import Reprise.Screen.Lyrics
 import Reprise.Screen.Queue
 import Reprise.Screen.Visualizer
 import Reprise.Selection
@@ -152,6 +152,7 @@ handleEvent = \case
   VisualizerSamples samples -> visualizerSamples samples
   VisualizerSpectrum spectra -> visualizerSpectrum spectra
   VisualizerFailed reason -> showError reason
+  LyricsLoaded token result -> lyricsLoaded token result
   Confirmed action -> runConfirmed action
   where
     statusSubsystems :: [Subsystem]
@@ -324,7 +325,8 @@ runAction = \case
   action@(Move t) -> verb action $ \case
     QueueScreen -> Just $ modifyWithEnv (moveQueueCursor t)
     BrowserScreen -> Just $ modifyWithEnv (moveBrowserCursor t)
-    HelpScreen -> Just $ scrollHelp t
+    LyricsScreen -> Just $ scrollLines t
+    HelpScreen -> Just $ scrollLines t
     _ -> Nothing
   JumpToPlaying -> do
     modifyWithEnv . modifyView $ switchScreen QueueScreen
@@ -397,6 +399,7 @@ runAction = \case
       VolumeBy n -> changeVolume n
       VolumeTo n -> setVolume n
   Toggle t -> toggle t
+  Show LyricsScreen -> showLyrics
   Show screen
     | screen `elem` [QueueScreen, BrowserScreen, VisualizerScreen, HelpScreen] -> do
         modifyWithEnv . modifyView $ switchScreen screen
@@ -441,17 +444,6 @@ verb action implementation = do
   case implementation screen of
     Just k -> k
     Nothing -> showMessage $ "The " <> screenText screen <> " has no " <> renderAction action
-
--- | The song under the cursor of the focused list.
-songUnderCursor :: AppState -> Maybe Song
-songUnderCursor s =
-  let v = focusedView s
-  in case v.screen of
-       QueueScreen -> Seq.lookup v.cursor s.mirror.queue
-       BrowserScreen -> case Seq.lookup v.cursor s.browser.items of
-         Just (EntryItem (SongEntry song)) -> Just song
-         _ -> Nothing
-       _ -> Nothing
 
 -- | Run a destructive action that the user confirmed.
 runConfirmed :: App es => Action -> Eff es ()

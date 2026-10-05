@@ -23,6 +23,7 @@ module Reprise.State
   , FindRows (..)
   , BrowserState (..)
   , VisualizerState (..)
+  , LyricsState (..)
   , Location (..)
   , BrowserItem (..)
   , Listing (..)
@@ -53,6 +54,7 @@ module Reprise.State
   , titleScrolls
   , headerRight
   , displayedElapsed
+  , lyricsLines
   ) where
 
 import Data.ByteString qualified as BS
@@ -72,6 +74,7 @@ import Reprise.Find
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.LineEdit
+import Reprise.Lyrics
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
 import Reprise.Selection
@@ -96,6 +99,7 @@ data AppState = AppState
   , queueState :: QueueState
   , browser :: BrowserState
   , visualizer :: VisualizerState
+  , lyrics :: LyricsState
   , toggles :: Toggles
   , views :: M.Map ViewId View
   , layout :: Layout
@@ -280,6 +284,20 @@ data VisualizerState = VisualizerState
   }
   deriving stock (Eq, Show, Generic)
 
+-- | What the lyrics screen shows.
+data LyricsState = LyricsState
+  { song :: Maybe Song
+  , token :: Int
+  -- ^ Of the request of the song's lyrics. A reply with another token is
+  -- of a song that the screen showed before.
+  , result :: Maybe LyricsResult
+  -- ^ Nothing until the reply comes.
+  , returnTo :: ScreenName
+  -- ^ The screen that the lyrics were shown from, which showing them again
+  -- goes back to.
+  }
+  deriving stock (Eq, Show, Generic)
+
 -- | Settings that the user can toggle while reprise runs. They start from
 -- the config.
 data Toggles = Toggles
@@ -341,6 +359,7 @@ initialState config =
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , visualizer = VisualizerState Nothing Seq.empty []
+    , lyrics = LyricsState Nothing 0 Nothing QueueScreen
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
@@ -448,6 +467,7 @@ screenTitle env s = \case
         Just (InPlaylist path) -> path
         Nothing -> ""
     )
+  LyricsScreen -> ("Lyrics: ", maybe "" lyricsName s.lyrics.song)
   other -> (T.toTitle (T.replace "_" " " (screenName other)), "")
   where
     -- A short total, e.g. @1h 23m@.
@@ -513,3 +533,11 @@ displayedElapsed :: AppState -> Maybe Seconds
 displayedElapsed s = case s.seek of
   Just sk -> Just sk.target
   Nothing -> elapsedAt s.now s.mirror
+
+-- | The lines of the lyrics screen at a width, with long lines wrapped.
+lyricsLines :: Int -> LyricsState -> [T.Text]
+lyricsLines width st = concatMap (wrapText width) $ case st.song *> st.result of
+  Nothing -> []
+  Just (LyricsFound text) -> T.lines text
+  Just LyricsMissing -> ["No lyrics found"]
+  Just (LyricsFailed reason) -> [reason]

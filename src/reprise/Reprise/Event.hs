@@ -11,6 +11,7 @@ import Data.Vector.Storable qualified as VS
 
 import Reprise.Action
 import Reprise.Keys
+import Reprise.Lyrics
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 
@@ -55,6 +56,8 @@ data AppEvent
     VisualizerSpectrum [VS.Vector Double]
   | -- | The visualizer's data source can't be read, with the reason.
     VisualizerFailed T.Text
+  | -- | The lyrics of the request with the token.
+    LyricsLoaded Int LyricsResult
   | -- | The user confirmed a destructive action.
     Confirmed Action
   deriving stock (Eq, Show)

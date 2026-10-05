@@ -159,6 +159,7 @@ data ScreenName
   | PlaylistEditorScreen
   | OutputsScreen
   | VisualizerScreen
+  | LyricsScreen
   | HelpScreen
   deriving stock (Eq, Ord, Show, Enum, Bounded)
 
@@ -171,6 +172,7 @@ screenName = \case
   PlaylistEditorScreen -> "playlist_editor"
   OutputsScreen -> "outputs"
   VisualizerScreen -> "visualizer"
+  LyricsScreen -> "lyrics"
   HelpScreen -> "help"
 
 screenNames :: [ScreenName]
@@ -563,6 +565,7 @@ describeAction = \case
     FindNext -> "find next"
     FindPrevious -> "find previous"
   Filter -> "filter"
+  Show LyricsScreen -> "show the lyrics of the song under the cursor, or go back"
   Show s -> "show " <> T.replace "_" " " (screenName s)
   NextScreen _ -> "next screen"
   PreviousScreen _ -> "previous screen"

@@ -27,6 +27,7 @@ configTests =
     , testCase "columns" test_columns
     , testCase "durations" test_durations
     , testCase "the visualizer" test_visualizer
+    , testCase "the lyrics" test_lyrics
     , testCase "window title can be disabled" test_noWindowTitle
     , testCase "errors" test_errors
     ]
@@ -144,6 +145,12 @@ test_visualizer = do
   assertEqual "the spectrum first" Spectrum defaultConfig.visualizer.visualization
   ellipse <- expectRight $ decode "visualizer:\n  visualization: ellipse\n"
   assertEqual "the ellipse first" Ellipse ellipse.visualizer.visualization
+
+test_lyrics :: Assertion
+test_lyrics = do
+  assertEqual "the default directory" Nothing defaultConfig.lyrics.directory
+  config <- expectRight $ decode "lyrics:\n  directory: ~/.lyrics\n"
+  assertEqual "the directory" (Just "~/.lyrics") config.lyrics.directory
 
 test_noWindowTitle :: Assertion
 test_noWindowTitle = do
