@@ -236,8 +236,11 @@ ncmpcpp.
   mono is a vertical line and stereo spreads to the sides. ncmpcpp's stereo
   ellipse draws the channels without the turn.
   - **Braille dots,** two by four in a cell, so the screen has 8 times as
-    many points as cells. A cell is about twice as tall as wide, so the
-    dots are about square and a circle is round.
+    many points as cells.
+  - **It fills the screen.** The width and the height scale apart, as in
+    ncmpcpp's ellipse, so on a wide terminal stereo spreads further than
+    mono goes up and down, and a circle is an ellipse. Scaled alike, it
+    would leave the sides of the screen empty.
   - **The samples of the last frames stay** for `visualizer.trail` and fade
     through `visualizer.colors`. A cell has the color of the newest frame
     with a dot in it. ncmpcpp colors by the distance from the center.

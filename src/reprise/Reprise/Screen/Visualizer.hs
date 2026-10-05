@@ -104,11 +104,12 @@ goniometer colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
     channels = if cfg.inStereo then 2 else 1
 
     -- The dots of a frame's samples. Full scale on both channels is the
-    -- top or the bottom of the square in the middle of the grid, and full
-    -- scale on one with the other at zero is halfway to a side.
+    -- top or the bottom of the grid, and full scale on one with the other
+    -- at zero is halfway to a side. The two axes scale apart, so that the
+    -- picture fills a wide screen, as ncmpcpp's ellipse does.
     points :: BS.ByteString -> [(Int, Int)]
     points pcm =
-      [ (round (centerX + x * radius), round (centerY - y * radius))
+      [ (round (centerX + x * centerX), round (centerY - y * centerY))
       | i <- [0 .. BS.length pcm `div` (bytesPerSample * channels) - 1]
       , let left = sampleAt pcm (i * channels)
             right = if cfg.inStereo then sampleAt pcm (i * channels + 1) else left
@@ -120,10 +121,9 @@ goniometer colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
     dotsWide = w * dotColumns
     dotsHigh = h * dotRows
 
-    centerX, centerY, radius :: Double
+    centerX, centerY :: Double
     centerX = fromIntegral (dotsWide - 1) / 2
     centerY = fromIntegral (dotsHigh - 1) / 2
-    radius = fromIntegral (min dotsWide dotsHigh - 1) / 2
 
     colorIndex :: Int -> Int
     colorIndex age = min (NE.length cfg.colors - 1) (age * NE.length cfg.colors `div` trailFrames cfg)
