@@ -20,6 +20,7 @@ import MirrorTests
 import QueueTests
 import Reprise.Width
 import StyleTests
+import VisualizerTests
 import WidthTests
 import WorkerTests
 
@@ -47,6 +48,7 @@ main = do
       , mirrorTests
       , queueTests
       , styleTests
+      , visualizerTests
       , widthTests
       , workerTests
       ]

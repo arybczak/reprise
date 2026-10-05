@@ -37,6 +37,7 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
 import Reprise.Screen.Help
 import Reprise.Screen.Queue
+import Reprise.Screen.Visualizer
 import Reprise.Selection
 import Reprise.State
 
@@ -148,18 +149,21 @@ handleEvent = \case
         after remaining HideCursor
         keepScreen
       else modifyS $ #cursorTimer .~ False
+  VisualizerSamples samples -> visualizerSamples samples
+  VisualizerFailed reason -> showError reason
   Confirmed action -> runConfirmed action
   where
     statusSubsystems :: [Subsystem]
     statusSubsystems = [PlayerSubsystem, MixerSubsystem, OptionsSubsystem, UpdateSubsystem, DatabaseSubsystem]
 
--- | Run after every event: schedule the next redraw of the elapsed time and
--- update the window title.
+-- | Run after every event: schedule the next redraw of the elapsed time,
+-- update the window title, and read the visualizer's samples while it shows.
 afterEvent :: App es => Eff es ()
 afterEvent = do
   restartTitle
   scheduleTick
   updateWindowTitle
+  updateVisualizer
 
 -- | Scroll the header's title from its start when it shows another subject.
 restartTitle :: App es => Eff es ()
@@ -393,7 +397,7 @@ runAction = \case
       VolumeTo n -> setVolume n
   Toggle t -> toggle t
   Show screen
-    | screen `elem` [QueueScreen, BrowserScreen, HelpScreen] -> do
+    | screen `elem` [QueueScreen, BrowserScreen, VisualizerScreen, HelpScreen] -> do
         modifyWithEnv . modifyView $ switchScreen screen
         when (screen == BrowserScreen) openBrowser
     | otherwise -> notAvailable $ "The " <> screenText screen

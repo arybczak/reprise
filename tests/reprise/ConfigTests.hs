@@ -2,6 +2,7 @@ module ConfigTests (configTests) where
 
 import Control.Monad
 import Data.List qualified as L
+import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -25,6 +26,7 @@ configTests =
     , testCase "keymap changes merge with the defaults" test_keymapMerge
     , testCase "columns" test_columns
     , testCase "durations" test_durations
+    , testCase "the visualizer" test_visualizer
     , testCase "window title can be disabled" test_noWindowTitle
     , testCase "errors" test_errors
     ]
@@ -130,6 +132,16 @@ test_durations = do
   assertEqual "milliseconds" 0.5 config.mpd.timeout
   assertEqual "default" 5 defaultConfig.mpd.timeout
 
+test_visualizer :: Assertion
+test_visualizer = do
+  assertEqual "no data source by default" Nothing defaultConfig.visualizer.dataSource
+  config <-
+    expectRight $
+      decode "visualizer:\n  data_source: ~/.config/mpd/feed\n  fps: 30\n  colors: [red, 82]\n"
+  assertEqual "the data source" (Just "~/.config/mpd/feed") config.visualizer.dataSource
+  assertEqual "the rate" (FrameRate 30) config.visualizer.fps
+  assertEqual "the colors" (style "red" NE.:| [style "82"]) config.visualizer.colors
+
 test_noWindowTitle :: Assertion
 test_noWindowTitle = do
   config <- expectRight $ decode "window_title: ~\n"
@@ -167,6 +179,11 @@ test_errors = do
     "missing key \"format\""
     (decode "songs:\n  columns:\n    list:\n    - {width: 5}\n")
   assertError "line and column" "config.yaml:2:10" (decode "lists:\n  style: purple\n")
+  assertError
+    "no frames"
+    "expected at least 1 frame per second"
+    (decode "visualizer:\n  fps: 0\n")
+  assertError "no colors" "expected a non-empty list" (decode "visualizer:\n  colors: []\n")
   where
     assertError :: String -> String -> Either [String] Config -> Assertion
     assertError msg expected = \case

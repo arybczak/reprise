@@ -10,6 +10,7 @@ import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Data.Functor
+import Data.List qualified as L
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Time
@@ -33,6 +34,7 @@ import Reprise.Mpd.Address
 import Reprise.Mpd.Worker
 import Reprise.State
 import Reprise.Style
+import Reprise.Visualizer.Worker
 import Reprise.Width
 
 data Options = Options
@@ -90,12 +92,25 @@ main = do
   logLine <- openLog
   requests <- newTQueueIO
   events <- B.newBChan eventChannelSize
+  visualizing <- newTVarIO False
   let workers = Workers {emit = B.writeBChan events, logLine = logLine, requests = requests}
+      restarted worker = forkIO . forever $ do
+        r <- try @SomeException worker
+        either (logLine . ("A worker failed: " <>) . T.pack . displayException) pure r
+        threadDelay retryInterval
   forM_ [idleWorker, commandWorker] $ \worker ->
-    forkIO . forever $ do
-      r <- try @SomeException . runEff . runMpd settings $ worker workers
-      either (logLine . ("A worker failed: " <>) . T.pack . displayException) pure r
-      threadDelay retryInterval
+    restarted . runEff . runMpd settings $ worker workers
+  forM_ config.visualizer.dataSource $ \source -> do
+    path <- expandHome source
+    let FrameRate fps = config.visualizer.fps
+    restarted . visualizerWorker $
+      VisualizerSource
+        { path = path
+        , channels = if config.visualizer.inStereo then 2 else 1
+        , fps = fps
+        , reading = visualizing
+        , emit = void . B.writeBChanNonBlocking events
+        }
   installWidthTable
   let buildVty = V.mkVty V.defaultConfig
   vty <- buildVty
@@ -111,7 +126,7 @@ main = do
             , colorMode = colorMode
             , collator = userCollator
             }
-          Channels {requests = requests, events = events}
+          Channels {requests = requests, events = events, visualizing = visualizing}
       )
       (initialState config)
 
@@ -130,6 +145,12 @@ sources opts = do
       , envPort = envPort
       , existingSockets = existing
       }
+
+-- | A leading @~/@ is the home directory.
+expandHome :: FilePath -> IO FilePath
+expandHome path = case L.stripPrefix "~/" path of
+  Just rest -> (</> rest) <$> getHomeDirectory
+  Nothing -> pure path
 
 -- | Open the log in @$XDG_STATE_HOME/reprise/reprise.log@. Each run appends
 -- to it. The UI owns the terminal, so nothing else may print there.

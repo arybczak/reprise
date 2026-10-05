@@ -24,6 +24,8 @@ module Reprise.Config
   , StatusBarConfig (..)
   , ProgressBarConfig (..)
   , ProgressChars (..)
+  , VisualizerConfig (..)
+  , FrameRate (..)
   , StylesConfig (..)
   , KeysConfig (..)
   , defaultConfig
@@ -71,6 +73,7 @@ data Config = Config
   , header :: HeaderConfig
   , statusBar :: StatusBarConfig
   , progressBar :: ProgressBarConfig
+  , visualizer :: VisualizerConfig
   , styles :: StylesConfig
   , keys :: KeysConfig
   }
@@ -240,6 +243,24 @@ data ProgressChars = ProgressChars
   }
   deriving stock (Eq, Show)
 
+data VisualizerConfig = VisualizerConfig
+  { dataSource :: Maybe FilePath
+  -- ^ The fifo of MPD's fifo output, in the format @44100:16:2@, or
+  -- @44100:16:1@ without 'inStereo'. A leading @~/@ is the home directory.
+  , inStereo :: Bool
+  , fps :: FrameRate
+  , trail :: Duration
+  -- ^ How long the samples of a frame stay on the screen, as they fade.
+  , colors :: NE.NonEmpty Style
+  -- ^ The newest samples have the first, and they fade through the others.
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromYaml) via GenericYaml VisualizerConfig
+
+-- | Frames per second, at least one.
+newtype FrameRate = FrameRate Int
+  deriving newtype (Eq, Show)
+
 data StylesConfig = StylesConfig
   { label :: Style
   , value :: Style
@@ -257,6 +278,7 @@ data KeysConfig = KeysConfig
   , mediaLibrary :: KeymapOverride
   , playlistEditor :: KeymapOverride
   , outputs :: KeymapOverride
+  , visualizer :: KeymapOverride
   , help :: KeymapOverride
   }
   deriving stock (Eq, Show, Generic)
@@ -280,6 +302,7 @@ defaultConfig =
     , header = defaultHeader
     , statusBar = defaultStatusBar
     , progressBar = defaultProgressBar
+    , visualizer = defaultVisualizer
     , styles = defaultStyles
     , keys = defaultKeys
     }
@@ -397,6 +420,18 @@ defaultProgressBar =
     , elapsedStyle = style "28"
     }
 
+defaultVisualizer :: VisualizerConfig
+defaultVisualizer =
+  VisualizerConfig
+    { dataSource = Nothing
+    , inStereo = True
+    , fps = FrameRate 60
+    , trail = 0.15
+    , colors =
+        style "46"
+          NE.:| map style ["82", "118", "154", "190", "226", "220", "214", "208", "202", "196", "160"]
+    }
+
 defaultStyles :: StylesConfig
 defaultStyles =
   StylesConfig
@@ -415,6 +450,7 @@ defaultKeys =
     , mediaLibrary = noOverride
     , playlistEditor = noOverride
     , outputs = noOverride
+    , visualizer = noOverride
     , help = noOverride
     }
   where
@@ -497,6 +533,10 @@ instance GenericYamlOptions ProgressBarConfig where
   yamlOptions = options
   yamlDefault = Just defaultProgressBar
 
+instance GenericYamlOptions VisualizerConfig where
+  yamlOptions = options
+  yamlDefault = Just defaultVisualizer
+
 instance GenericYamlOptions StylesConfig where
   yamlOptions = options
   yamlDefault = Just defaultStyles
@@ -544,6 +584,13 @@ instance FromYaml Display where
 
 instance FromYaml SortBy where
   parseYaml = oneOf [(sortByName by, by) | by <- [minBound .. maxBound]]
+
+instance FromYaml FrameRate where
+  parseYaml n = do
+    rate <- parseYaml @Int n
+    if rate >= 1
+      then pure (FrameRate rate)
+      else failAt n "expected at least 1 frame per second"
 
 instance FromYaml ProgressChars where
   parseYaml n = withText chars n
@@ -605,6 +652,7 @@ keymapsOf user =
       , (MediaLibraryScreen, (.mediaLibrary))
       , (PlaylistEditorScreen, (.playlistEditor))
       , (OutputsScreen, (.outputs))
+      , (VisualizerScreen, (.visualizer))
       , (HelpScreen, (.help))
       ]
 
@@ -654,8 +702,9 @@ defaultKeymaps =
           , char '2' ~> Show BrowserScreen
           , char '3' ~> Show SearchEngineScreen
           , char '7' ~> Show OutputsScreen
-          , plain Tab ~> NextScreen [BrowserScreen, MediaLibraryScreen]
-          , shift Tab ~> PreviousScreen [BrowserScreen, MediaLibraryScreen]
+          , char '8' ~> Show VisualizerScreen
+          , plain Tab ~> NextScreen [BrowserScreen, VisualizerScreen, MediaLibraryScreen]
+          , shift Tab ~> PreviousScreen [BrowserScreen, VisualizerScreen, MediaLibraryScreen]
           , plain (Function 1) ~> Show HelpScreen
           , char ':' ~> CommandPrompt ""
           , char 'q' ~> Quit

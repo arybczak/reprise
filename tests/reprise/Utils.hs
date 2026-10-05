@@ -8,6 +8,7 @@ module Utils
   , testAppEnv
   , testState
   , runEvents
+  , runEventsWith
   , Result (..)
   , replyTo
   , failureOf
@@ -117,11 +118,14 @@ data Result = Result
 
 -- | Handle events at a monotonic time, and collect what they requested.
 runEvents :: Double -> [AppEvent] -> AppState -> IO Result
-runEvents now events s0 = foldM step (Result s0 [] [] []) events
+runEvents = runEventsWith testAppEnv
+
+runEventsWith :: AppEnv -> Double -> [AppEvent] -> AppState -> IO Result
+runEventsWith env now events s0 = foldM step (Result s0 [] [] []) events
   where
     step :: Result -> AppEvent -> IO Result
     step r e = do
-      (s, ps, cs) <- runEvent testAppEnv now e r.state
+      (s, ps, cs) <- runEvent env now e r.state
       pure $
         Result s (r.requests <> map pendingRequestLines ps) (r.pending <> ps) (r.commands <> cs)
 

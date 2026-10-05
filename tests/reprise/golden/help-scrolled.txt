@@ -1,5 +1,6 @@
 Help                                                                 Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
+o           jump to the playing song
 p           pause or resume
 q           quit
 s           stop
@@ -19,6 +20,5 @@ page_down   move page down
 insert      toggle selection
 delete      delete
 f1          show help
-ctrl-f      filter
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

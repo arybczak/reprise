@@ -28,6 +28,8 @@ import Reprise.UI.Layout
 data Channels = Channels
   { requests :: TQueue PendingRequest
   , events :: B.BChan AppEvent
+  , visualizing :: TVar Bool
+  -- ^ Whether the visualizer's worker reads the samples.
   }
 
 -- | The size of the channel of events from the workers and the timers. A
@@ -72,6 +74,7 @@ dispatch env channels event = do
       threadDelay (ceiling (delay * microsecondsPerSecond))
       B.writeBChan channels.events e
     KeepScreen -> B.continueWithoutRedraw
+    Visualize on -> liftIO . atomically $ writeTVar channels.visualizing on
   where
     microsecondsPerSecond :: Double
     microsecondsPerSecond = 1000000

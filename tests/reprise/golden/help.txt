@@ -10,6 +10,7 @@ Global
 2           show browser
 3           show search engine
 7           show outputs
+8           show visualizer
 :           run an action
 <           previous song
 >           next song
@@ -19,6 +20,5 @@ G           show the song under the cursor in the browser
 ]           move next album
 b           seek -1s
 f           seek +1s
-o           jump to the playing song
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

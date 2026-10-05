@@ -157,6 +157,7 @@ data ScreenName
   | MediaLibraryScreen
   | PlaylistEditorScreen
   | OutputsScreen
+  | VisualizerScreen
   | HelpScreen
   deriving stock (Eq, Ord, Show, Enum, Bounded)
 
@@ -168,6 +169,7 @@ screenName = \case
   MediaLibraryScreen -> "media_library"
   PlaylistEditorScreen -> "playlist_editor"
   OutputsScreen -> "outputs"
+  VisualizerScreen -> "visualizer"
   HelpScreen -> "help"
 
 screenNames :: [ScreenName]

@@ -59,7 +59,7 @@ contributors.
   but an Emacs-like window framework must stay possible (see
   [Screens and views](#screens-and-views)).
 
-Out of scope for now: visualizer, clock screen. The tag editor comes later.
+Out of scope for now: the clock screen. The tag editor comes later.
 
 ## Terms
 
@@ -226,6 +226,32 @@ ncmpcpp.
   its own heading with the whole key sequences, e.g. `ctrl-t r`. It is text
   without a cursor, so the movement actions scroll it.
 
+**Visualizer**
+- It reads MPD's fifo output, as ncmpcpp does, in the format `44100:16:2`,
+  or `44100:16:1` with `visualizer.in_stereo` off. `visualizer.data_source`
+  is the path of the fifo, and the visualizer says how to set it when it is
+  missing. A worker thread opens the fifo while the visualizer shows, and
+  only then.
+- It is a goniometer. The left and the right channel are turned by 45°, so
+  mono is a vertical line and stereo spreads to the sides. ncmpcpp's stereo
+  ellipse draws the channels without the turn.
+  - **Braille dots,** two by four in a cell, so the screen has 8 times as
+    many points as cells. A cell is about twice as tall as wide, so the
+    dots are about square and a circle is round.
+  - **The samples of the last frames stay** for `visualizer.trail` and fade
+    through `visualizer.colors`. A cell has the color of the newest frame
+    with a dot in it. ncmpcpp colors by the distance from the center.
+- A frame shows the samples of its own time, `44100 / fps` of them. The
+  worker waits for each frame on the clock, so a late frame doesn't make
+  the next ones late, and it keeps no more than a frame of samples, so the
+  picture doesn't fall behind the sound. The samples that the fifo held
+  before the visualizer showed are old, so the worker drops them. ncmpcpp
+  resets the output for that, which needs its name in the config.
+- A frame that the UI can't take in time is dropped: the worker doesn't
+  wait for brick's channel of events.
+- The spectrum, ncmpcpp's other visualizations and ncmpcpp's mono ellipse
+  come later, if ever.
+
 ### Later
 
 Implemented when the author misses them.
@@ -295,7 +321,7 @@ Implemented when the author misses them.
 
 ### Dropped
 
-**Visualizer, clock** are out of scope, with their options.
+**The clock** is out of scope, with its options.
 
 **Split screens** (locked screen, master/slave)
 - They are constrained, rarely used, and caused a lot of maintenance and
@@ -413,6 +439,8 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors and the order of text. Queries of the state that both the handlers and the layout need, such as whether the cursor shows, or the header's title and whether it scrolls |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
+| `Reprise.Visualizer.Worker` | The thread that reads MPD's fifo output while the visualizer shows, and sends the samples of each frame |
+| `Reprise.Visualizer.Samples` | The format of the samples that the worker reads and the visualizer draws |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
@@ -423,7 +451,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Width` | The width of text in terminal columns, cutting text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
 | `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
-| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser` and `Help`. Later: `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `Lyrics`, `SongInfo`, `ServerInfo`, ... |
+| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser`, `Visualizer` and `Help`. Later: `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `Lyrics`, `SongInfo`, `ServerInfo`, ... |
 
 The modules form layers, and an import only goes down:
 
@@ -1139,6 +1167,13 @@ progress_bar:
   style: 236
   elapsed_style: 28
 
+visualizer:
+  data_source: ~                 # the fifo of MPD's fifo output; ~/ is the home directory
+  in_stereo: true                # the fifo's format is 44100:16:2, or 44100:16:1
+  fps: 60
+  trail: 150ms                   # how long the samples of a frame fade
+  colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # newest first
+
 styles:                          # used across screens
   label: white                   # field names, e.g. in the search engine
   value: green                   # field values
@@ -1246,8 +1281,9 @@ keys:
     2: show browser
     3: show search_engine
     7: show outputs
-    tab: next_screen [browser, media_library]
-    shift-tab: previous_screen [browser, media_library]
+    8: show visualizer
+    tab: next_screen [browser, visualizer, media_library]
+    shift-tab: previous_screen [browser, visualizer, media_library]
     f1: show help
     ":": command
     q: quit
@@ -1398,6 +1434,7 @@ Many single-character keys collide with YAML syntax:
 | `display_remaining_time`, `display_bitrate` | `status_bar.show_remaining_time`, `status_bar.show_bitrate` |
 | `progressbar_look`, `progressbar_color`, `progressbar_elapsed_color` | `progress_bar.chars`, `progress_bar.style`, `progress_bar.elapsed_style` |
 | `color1`, `color2`, `window_border_color` | `styles.label`, `styles.value`, `styles.popup_border` |
+| `visualizer_data_source`, `visualizer_in_stereo`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.in_stereo`, `visualizer.fps`, `visualizer.colors` |
 
 How the author's ncmpcpp settings were translated:
 - **Prefixes and suffixes became styles.** `current_item_prefix`/`suffix`
@@ -1412,9 +1449,20 @@ How the author's ncmpcpp settings were translated:
 
 #### Dropped options
 
-Options for dropped features go with them: the visualizer, clock and split
-screen options, `allow_for_physical_item_deletion`,
+Options for dropped features go with them: the clock and split screen
+options, `allow_for_physical_item_deletion`,
 `show_hidden_files_in_local_browser`.
+
+**The visualizer's other options**
+- `visualizer_type` and the spectrum's options: the visualizer is a
+  goniometer, and the spectrum comes later, if ever.
+- `visualizer_look`: the dots are braille.
+- `visualizer_output_name` and `visualizer_sync_interval`: the worker drops
+  the old samples itself, instead of resetting the output.
+- `visualizer_autoscale`: the scale of a goniometer shows how loud the
+  music is.
+- `visualizer_data_source` with a UDP address, for Mopidy. reprise is a
+  client of MPD.
 
 **Dead or obsolete**
 - `visualizer_fifo_path` (not registered any more) and `lyrics_db` (unused).
@@ -1427,7 +1475,7 @@ screen options, `allow_for_physical_item_deletion`,
 **Replaced by action arguments or keymap entries**
 - `volume_change_step` → `volume +2`, `seek_time` → `seek +1s`,
   `mpd_crossfade_time` → `toggle crossfade 5`.
-- `screen_switcher_mode` → `tab: next_screen [browser, media_library]`.
+- `screen_switcher_mode` → `tab: next_screen [browser, visualizer, media_library]`.
 - `space_add_mode` → two actions, `add` and `add_or_remove`; space is bound to
   `add_or_remove`.
 
@@ -1523,6 +1571,9 @@ The layers, from cheapest to most expensive:
    a handful, for layout
    regressions (the which-key panel, popups, the column widths). The pure
    pieces underneath already have their own tests.
+
+The visualizer's worker reads a real fifo, which the test writes as MPD's
+fifo output does.
 
 There is no separate mock MPD interpreter. Layer 2 replaces it for actions,
 and the real server covers the protocol. A scripted `MpdRequest` handler is

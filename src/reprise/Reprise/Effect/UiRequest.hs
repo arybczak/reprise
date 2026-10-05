@@ -1,5 +1,5 @@
 -- | What only the UI loop can do: halt, set the terminal's title, send an
--- event later, and skip a redraw.
+-- event later, skip a redraw, and start the samples of the visualizer.
 module Reprise.Effect.UiRequest
   ( -- * Effect
     UiRequest (..)
@@ -13,6 +13,7 @@ module Reprise.Effect.UiRequest
   , setTitle
   , after
   , keepScreen
+  , visualize
   ) where
 
 import Data.Text qualified as T
@@ -34,6 +35,8 @@ data UiCommand
     After Double AppEvent
   | -- | The event changed nothing on the screen, so it isn't redrawn.
     KeepScreen
+  | -- | Start or stop reading the samples of the visualizer.
+    Visualize Bool
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -54,3 +57,7 @@ after delay = send . UiRequest . After delay
 -- | Skip the redraw after an event that changed nothing on the screen.
 keepScreen :: UiRequest :> es => Eff es ()
 keepScreen = send $ UiRequest KeepScreen
+
+-- | Start or stop reading the samples of the visualizer.
+visualize :: UiRequest :> es => Bool -> Eff es ()
+visualize = send . UiRequest . Visualize

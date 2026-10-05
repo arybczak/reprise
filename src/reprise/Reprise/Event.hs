@@ -5,6 +5,7 @@ module Reprise.Event
   ( AppEvent (..)
   ) where
 
+import Data.ByteString qualified as BS
 import Data.Text qualified as T
 
 import Reprise.Action
@@ -45,6 +46,11 @@ data AppEvent
   | MessageExpired Int
   | -- | The timer that hides the queue's cursor a while after the last key.
     HideCursor
+  | -- | The samples of the visualizer's next frame, as MPD's fifo output
+    -- wrote them. Empty while nothing plays.
+    VisualizerSamples BS.ByteString
+  | -- | The visualizer's data source can't be read, with the reason.
+    VisualizerFailed T.Text
   | -- | The user confirmed a destructive action.
     Confirmed Action
   deriving stock (Eq, Show)

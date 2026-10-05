@@ -23,6 +23,7 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
 import Reprise.Screen.Help
 import Reprise.Screen.Queue
+import Reprise.Screen.Visualizer
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.SongList
@@ -105,6 +106,7 @@ mainView env s =
   in V.resize w h $ case v.screen of
        QueueScreen -> queueView env s v
        BrowserScreen -> browserView env s v
+       VisualizerScreen -> visualizerView env s v
        HelpScreen -> helpView env v
        _ -> V.emptyImage
 

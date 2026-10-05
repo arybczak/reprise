@@ -99,6 +99,7 @@ library
                     , text                 >= 2.0.2
                     , text-icu             >= 0.8
                     , time                 >= 1.12
+                    , vector               >= 0.13
                     , vty                  >= 6.2
                     , vty-unix             >= 0.2
                     , yamlet               >= 1.0
@@ -128,11 +129,14 @@ library
                      Reprise.Screen.Help
                      Reprise.Screen.Queue
                      Reprise.Screen.Queue.Edits
+                     Reprise.Screen.Visualizer
                      Reprise.Selection
                      Reprise.State
                      Reprise.Style
                      Reprise.UI.Layout
                      Reprise.UI.SongList
+                     Reprise.Visualizer.Samples
+                     Reprise.Visualizer.Worker
                      Reprise.Width
 
     c-sources:       cbits/width.c
@@ -234,7 +238,9 @@ test-suite reprise-tests
                     , tasty-golden
                     , tasty-hunit
                     , tasty-quickcheck
+                    , temporary
                     , text
+                    , unix
                     , vty
 
     hs-source-dirs: tests/reprise
@@ -259,6 +265,7 @@ test-suite reprise-tests
                     MirrorTests
                     QueueTests
                     StyleTests
+                    VisualizerTests
                     WidthTests
                     WorkerTests
                     Utils

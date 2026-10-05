@@ -22,6 +22,7 @@ module Reprise.State
   , QueueState (..)
   , FindRows (..)
   , BrowserState (..)
+  , VisualizerState (..)
   , Location (..)
   , BrowserItem (..)
   , Listing (..)
@@ -54,6 +55,7 @@ module Reprise.State
   , displayedElapsed
   ) where
 
+import Data.ByteString qualified as BS
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Sequence qualified as Seq
@@ -92,6 +94,7 @@ data AppState = AppState
   , mirror :: Mirror
   , queueState :: QueueState
   , browser :: BrowserState
+  , visualizer :: VisualizerState
   , toggles :: Toggles
   , views :: M.Map ViewId View
   , layout :: Layout
@@ -263,6 +266,16 @@ data ItemKey
   | PlaylistKey T.Text
   deriving stock (Eq, Ord, Show)
 
+-- | The samples that the visualizer shows.
+data VisualizerState = VisualizerState
+  { reading :: Bool
+  -- ^ Whether reprise asked for the samples, which it does while the
+  -- visualizer shows.
+  , frames :: Seq.Seq BS.ByteString
+  -- ^ The samples of the frames on the screen, the newest first.
+  }
+  deriving stock (Eq, Show, Generic)
+
 -- | Settings that the user can toggle while reprise runs. They start from
 -- the config.
 data Toggles = Toggles
@@ -322,6 +335,7 @@ initialState config =
     , mirror = emptyMirror
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
+    , visualizer = VisualizerState False Seq.empty
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
