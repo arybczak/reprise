@@ -43,19 +43,17 @@ songInfoView env s v =
 -- | Show the info of the song under the cursor, from the top. On the song
 -- info screen, go back to the screen that showed it.
 showSongInfo :: App es => Eff es ()
-showSongInfo = do
-  returnTo <- getsS (.songInfo.returnTo)
-  showSongScreen SongInfoScreen returnTo $ \song screen -> do
-    token <- newToken
-    modifyS $ #songInfo .~ SongInfoState (Just song) token [] screen
-    -- A stream has no file to read, and its URL would be opened.
-    if "://" `T.isInfixOf` song.file
-      then pure ()
-      else
-        requestOr
-          (readComments song.file)
-          (const (SongCommentsFetched token []))
-          (SongCommentsFetched token)
+showSongInfo = showSongScreen SongInfoScreen $ \song -> do
+  token <- newToken
+  modifyS $ #songInfo .~ SongInfoState (Just song) token []
+  -- A stream has no file to read, and its URL would be opened.
+  if "://" `T.isInfixOf` song.file
+    then pure ()
+    else
+      requestOr
+        (readComments song.file)
+        (const (SongCommentsFetched token []))
+        (SongCommentsFetched token)
 
 -- | The comments of the file of the request with the token. Without them,
 -- e.g. if MPD can't read the file, the screen shows the rest.

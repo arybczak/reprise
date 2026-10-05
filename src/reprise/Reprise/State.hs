@@ -308,9 +308,6 @@ data LyricsState = LyricsState
   , following :: Bool
   -- ^ Whether the screen keeps the line being sung in view, until the user
   -- scrolls.
-  , returnTo :: ScreenName
-  -- ^ The screen that the lyrics were shown from, which showing them again
-  -- goes back to.
   , inBackground :: Maybe Song
   -- ^ The song whose lyrics were fetched in the background last.
   , playing :: Maybe Song
@@ -327,9 +324,6 @@ data SongInfoState = SongInfoState
   -- token is of a song that the screen showed before.
   , comments :: [(T.Text, T.Text)]
   -- ^ Of the song's file, for its ReplayGain. None until they come.
-  , returnTo :: ScreenName
-  -- ^ The screen that the song was shown from, which showing it again goes
-  -- back to.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -365,6 +359,9 @@ newtype ViewId = ViewId Int
 -- | How a screen is shown.
 data View = View
   { screen :: ScreenName
+  , previous :: Maybe ScreenName
+  -- ^ The screen that the view showed before this one, which the screens
+  -- of a song, e.g. its lyrics, go back to.
   , cursor :: Int
   , offset :: Int
   -- ^ The index of the first visible item.
@@ -378,9 +375,10 @@ data View = View
 
 -- | A view of a screen from its start.
 newView :: ScreenName -> View
-newView s = View s 0 0 0 0 M.empty
+newView s = View s Nothing 0 0 0 0 M.empty
 
--- | Show another screen in a view, at the position where the view left it.
+-- | Show another screen in a view, at the position where the view left it,
+-- after the one that it shows.
 switchScreen :: ScreenName -> View -> View
 switchScreen s v
   | s == v.screen = v
@@ -388,6 +386,7 @@ switchScreen s v
       let (c, o) = M.findWithDefault (0, 0) s v.positions
       in v
            & #positions %~ (M.insert v.screen (v.cursor, v.offset) . M.delete s)
+           & #previous ?~ v.screen
            & #screen .~ s
            & #cursor .~ c
            & #offset .~ o
@@ -404,8 +403,8 @@ initialState config =
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , visualizer = VisualizerState Nothing Seq.empty []
-    , lyrics = LyricsState Nothing 0 ReadingLyrics True QueueScreen Nothing Nothing
-    , songInfo = SongInfoState Nothing 0 [] QueueScreen
+    , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing
+    , songInfo = SongInfoState Nothing 0 []
     , toggles =
         Toggles
           { queueDisplay = config.queue.display

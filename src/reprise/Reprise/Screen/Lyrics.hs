@@ -56,9 +56,7 @@ scrollLyrics t = do
 -- | Show the lyrics of the song under the cursor, from the top. On the
 -- lyrics screen, go back to the screen that showed them.
 showLyrics :: App es => Eff es ()
-showLyrics = do
-  returnTo <- getsS (.lyrics.returnTo)
-  showSongScreen LyricsScreen returnTo $ \song screen -> request song False screen
+showLyrics = showSongScreen LyricsScreen $ \song -> request song False
 
 -- | Fetch the lyrics of the song on the screen again, and store them anew.
 refetchLyrics :: App es => Eff es ()
@@ -71,7 +69,7 @@ refetchLyrics = do
       | null env.config.lyrics.fetchers ->
           showMessage "There is nowhere to fetch the lyrics from: lyrics.fetchers is empty"
       | otherwise -> do
-          request song True s.lyrics.returnTo
+          request song True
           modifyWithEnv . modifyView $ #offset .~ 0
 
 -- | Edit the stored lyrics of the song on the screen: the times if they
@@ -102,11 +100,11 @@ lyricsEdited file failure = do
       ( file
           `elem` map ((env.lyricsDirectory </>) . ($ song)) [lyricsFileName, timedLyricsFileName]
       )
-      $ request song False s.lyrics.returnTo
+      $ request song False
 
 -- | Ask for the lyrics of a song, which the screen shows when they come.
-request :: App es => Song -> Bool -> ScreenName -> Eff es ()
-request song refetch returnTo = do
+request :: App es => Song -> Bool -> Eff es ()
+request song refetch = do
   token <- newToken
   modifyS $
     #lyrics
@@ -114,7 +112,6 @@ request song refetch returnTo = do
       . (#token .~ token)
       . (#status .~ ReadingLyrics)
       . (#following .~ True)
-      . (#returnTo .~ returnTo)
   fetchLyrics token (LyricsRequest song refetch)
 
 -- | Turn following the song that plays on or off. On, the screen shows the
@@ -127,7 +124,7 @@ toggleLyricsFollowing = do
     "Lyrics follow playing: " <> if s.toggles.lyricsFollowPlaying then "on" else "off"
   forM_ (currentSong s.mirror) $ \playing ->
     when (s.toggles.lyricsFollowPlaying && not (maybe False (sameSong playing) s.lyrics.song)) $
-      request playing False s.lyrics.returnTo
+      request playing False
 
 -- | Fetch the lyrics of each new song that plays in the background, if the
 -- config says so, and show them on the lyrics screen while it follows the
@@ -152,7 +149,7 @@ updateLyrics = do
             && (focusedView s).screen == LyricsScreen
             && not (sameAs (Just p) s.lyrics.song)
         )
-        $ request p False s.lyrics.returnTo
+        $ request p False
   where
     sameAs :: Maybe Song -> Maybe Song -> Bool
     sameAs a b = case (a, b) of

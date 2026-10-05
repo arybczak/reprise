@@ -37,6 +37,7 @@ lyricsTests =
     , testCase "l shows the lyrics of the song under the cursor" test_show
     , testCase "fetched lyrics and the other outcomes" test_outcomes
     , testCase "l on the lyrics goes back" test_back
+    , testCase "nowhere to go back to" test_nowhereBack
     , testCase "l without a song under the cursor" test_noSong
     , testCase "the lyrics of a song that the screen left are dropped" test_stale
     , testCase "the lyrics scroll" test_scroll
@@ -147,6 +148,24 @@ test_back :: Assertion
 test_back = do
   r <- runEvents 0 [key "l", key "l"] =<< queueShown
   assertEqual "the queue" QueueScreen (focusedView r.state).screen
+  assertEqual "after the lyrics" (Just LyricsScreen) (focusedView r.state).previous
+  browser <- runEvents 0 [key "2"] =<< queueShown
+  listed <- case browser.pending of
+    [p] -> runEvents 0 [replyTo ["file: x.flac", "Title: X"] p] browser.state
+    ps -> assertFailure $ "one listing, not " <> show (length ps)
+  back <- runEvents 0 [key "l", key "l"] listed.state
+  assertEqual "the browser" BrowserScreen (focusedView back.state).screen
+
+-- | The lyrics are the first screen, so no screen was before them.
+test_nowhereBack :: Assertion
+test_nowhereBack = do
+  let s0 = initialState (defaultConfig & #startupScreen .~ LyricsScreen)
+  r <- runEvents 0 [Resized 40 10, key "l"] s0
+  assertEqual "the lyrics" LyricsScreen (focusedView r.state).screen
+  assertEqual
+    "the message"
+    (Just "There is no screen to go back to")
+    ((.text) <$> r.state.message)
 
 test_noSong :: Assertion
 test_noSong = do
@@ -420,7 +439,10 @@ test_followPlaying = do
   assertEqual "the song under the cursor" ["A - Two"] (askedFor two)
   three <- runEvents 0 [StatusFetched (statusOf Playing (Just 2) 3)] two.state
   assertEqual "the next song" ["A - Three"] (askedFor three)
-  assertEqual "the same screen to go back to" QueueScreen three.state.lyrics.returnTo
+  assertEqual
+    "the same screen to go back to"
+    (Just QueueScreen)
+    (focusedView three.state).previous
   notFollowing <-
     runEvents 0 [key "down", key "l", StatusFetched (statusOf Playing (Just 2) 3)] s
   assertEqual "not unless it follows" ["A - Two"] (askedFor notFollowing)

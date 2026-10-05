@@ -298,20 +298,20 @@ screenLength env s = \case
   _ -> 0
 
 -- | Show a screen of a song, e.g. its lyrics, for the song under the cursor,
--- from the top, after an action that opens it for the song and the screen
--- that it is shown from. On that screen, go back to the screen that it was
--- shown from, of the screens that it was given.
-showSongScreen
-  :: App es => ScreenName -> ScreenName -> (Song -> ScreenName -> Eff es ()) -> Eff es ()
-showSongScreen target shownFrom open = do
+-- from the top, after an action that opens it for the song. On that screen,
+-- go back to the screen that the view showed before.
+showSongScreen :: App es => ScreenName -> (Song -> Eff es ()) -> Eff es ()
+showSongScreen target open = do
   s <- getS
-  let screen = (focusedView s).screen
+  let v = focusedView s
   if
-    | screen == target -> modifyWithEnv . modifyView $ switchScreen shownFrom
-    | Nothing <- screenDisplay s screen ->
-        showMessage $ "The " <> screenText screen <> " has no songs"
+    | v.screen == target -> case v.previous of
+        Just previous -> modifyWithEnv . modifyView $ switchScreen previous
+        Nothing -> showMessage "There is no screen to go back to"
+    | Nothing <- screenDisplay s v.screen ->
+        showMessage $ "The " <> screenText v.screen <> " has no songs"
     | Just song <- songUnderCursor s -> do
-        open song screen
+        open song
         modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen target
     | otherwise -> showMessage "There is no song under the cursor"
 
