@@ -78,37 +78,37 @@ test_cleaned = do
 test_notTheSong :: Assertion
 test_notTheSong = do
   (asked, result) <- lookedUp (kult "Arahja 2") [("/szukaj", 200, "search.html")]
-  assertEqual "missing" LyricsMissing result
+  assertEqual "missing" FetchedNothing result
   assertEqual "no song" ["/szukaj"] (map fst asked)
 
 -- | Its redirect isn't followed, as robots must not read where it goes.
 test_nothing :: Assertion
 test_nothing = do
   (asked, result) <- lookedUp (kult "Nothing") [("/szukaj", 302, "nothing.html")]
-  assertEqual "missing" LyricsMissing result
+  assertEqual "missing" FetchedNothing result
   assertEqual "only the search" ["/szukaj"] (map fst asked)
 
 test_failures :: Assertion
 test_failures = do
   (_, busy) <- lookedUp (kult "Arahja") [("/szukaj", 503, "nothing.html")]
-  assertEqual "a status" (LyricsFailed "tekstowo.pl answered with the status 503") busy
+  assertEqual "a status" (FetchFailed "tekstowo.pl answered with the status 503") busy
   calls <- newIORef []
   let unreachable p params = do
         modifyIORef' calls (<> [(p, params)])
         pure (Left "tekstowo.pl can't be reached: x")
   result <- tekstowoLyrics unreachable (kult "Arahja")
-  assertEqual "unreachable" (LyricsFailed "tekstowo.pl can't be reached: x") result
+  assertEqual "unreachable" (FetchFailed "tekstowo.pl can't be reached: x") result
   (_, pageless) <-
     lookedUp
       (kult "Arahja")
       [("/szukaj", 200, "search.html"), ("/kult/arahja", 200, "nothing.html")]
-  assertEqual "a page without lyrics" LyricsMissing pageless
+  assertEqual "a page without lyrics" FetchedNothing pageless
 
 -- | The lyrics of a song from pages by their paths, and what was asked.
 lookedUp
   :: Song
   -> [(BS.ByteString, Int, FilePath)]
-  -> IO ([(BS.ByteString, [(T.Text, T.Text)])], LyricsResult)
+  -> IO ([(BS.ByteString, [(T.Text, T.Text)])], FetchResult)
 lookedUp s answers = do
   calls <- newIORef []
   let get p params = do
@@ -122,12 +122,12 @@ lookedUp s answers = do
 kult :: T.Text -> Song
 kult title = song 0 [(Artist, ["Kult"]), (Title, [title])] 200
 
-fetched :: T.Text -> LyricsResult
-fetched = LyricsFound (Fetched "tekstowo.pl") . plainLyrics
+fetched :: T.Text -> FetchResult
+fetched = FetchedLyrics . plainLyrics
 
-isFound :: LyricsResult -> Bool
+isFound :: FetchResult -> Bool
 isFound = \case
-  LyricsFound _ _ -> True
+  FetchedLyrics _ -> True
   _ -> False
 
 page :: FilePath -> IO T.Text

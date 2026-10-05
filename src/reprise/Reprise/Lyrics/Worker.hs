@@ -5,7 +5,6 @@ module Reprise.Lyrics.Worker
   , lyricsWorker
   ) where
 
-import Control.Applicative
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
@@ -24,7 +23,7 @@ import Reprise.Mpd.Protocol.Types
 
 data LyricsSource = LyricsSource
   { directory :: FilePath
-  , fetchers :: [Song -> IO LyricsResult]
+  , fetchers :: [Fetcher]
   -- ^ Asked in order, until one has the lyrics.
   , requested :: TVar (Maybe (Int, LyricsRequest))
   -- ^ The newest request, with its token. The worker takes only the
@@ -57,44 +56,38 @@ lyricsWorker src = go Nothing Nothing
                      )
       case next of
         Left (token, request) -> do
-          result <- load (src.emit (LyricsFetching token)) request.refetch request.song
+          result <- load (src.emit . LyricsFetching token) request.refetch request.song
           src.emit $ LyricsLoaded token result
           go (Just token) fetched
         Right song -> do
-          result <- load (pure ()) False song
+          result <- load (\_ -> pure ()) False song
           case result of
-            LyricsFailed reason ->
-              src.logLine $ "The lyrics of " <> lyricsName song <> " can't be fetched: " <> reason
+            LyricsMissing asked ->
+              forM_ [(n, r) | (n, Just r) <- asked] $ \(fetcher, reason) ->
+                src.logLine $
+                  "The lyrics of "
+                    <> lyricsName song
+                    <> " can't be fetched from "
+                    <> fetcher
+                    <> ": "
+                    <> reason
             _ -> pure ()
           go served (Just song)
 
     -- The lyrics of a song: stored, or else fetched and stored, after an
     -- action. What the fetchers didn't have isn't remembered, as they may
     -- have it later, or the config may name other fetchers.
-    load :: IO () -> Bool -> Song -> IO LyricsResult
+    load :: (T.Text -> IO ()) -> Bool -> Song -> IO LyricsResult
     load fetching refetch song = do
-      stored <- if refetch then pure LyricsMissing else storedLyrics src.directory song
+      stored <- if refetch then pure (LyricsMissing []) else storedLyrics src.directory song
       case stored of
-        LyricsMissing
-          | not (null src.fetchers) -> do
-              fetching
-              fetchedLyrics <- fetchFrom Nothing src.fetchers song
-              case fetchedLyrics of
-                LyricsFound _ lyrics -> store song lyrics
-                _ -> pure ()
-              pure fetchedLyrics
+        LyricsMissing _ -> do
+          fetchedLyrics <- fetchFrom fetching [] src.fetchers song
+          case fetchedLyrics of
+            LyricsFound _ lyrics -> store song lyrics
+            _ -> pure ()
+          pure fetchedLyrics
         other -> pure other
-
-    -- The lyrics of the first fetcher that has them, or else the first
-    -- failure, or else that none has them.
-    fetchFrom :: Maybe T.Text -> [Song -> IO LyricsResult] -> Song -> IO LyricsResult
-    fetchFrom failed fetchers song = case fetchers of
-      [] -> pure $ maybe LyricsMissing LyricsFailed failed
-      fetcher : rest ->
-        fetcher song >>= \case
-          LyricsMissing -> fetchFrom failed rest song
-          LyricsFailed reason -> fetchFrom (failed <|> Just reason) rest song
-          found -> pure found
 
     -- The lyrics show even if they can't be stored.
     store :: Song -> Lyrics -> IO ()
@@ -130,7 +123,7 @@ storedLyrics dir song =
     _ ->
       readText (lyricsFileName song) <&> \case
         Right (Just text) -> LyricsFound Stored (plainLyrics text)
-        Right Nothing -> LyricsMissing
+        Right Nothing -> LyricsMissing []
         Left err -> LyricsFailed $ "The lyrics can't be read: " <> T.pack (displayException err)
   where
     -- The text of a file, or Nothing without the file.
@@ -142,3 +135,22 @@ storedLyrics dir song =
         Left err
           | isDoesNotExistError err -> Right Nothing
           | otherwise -> Left err
+
+-- | The lyrics of the first fetcher that has them, after an action with the
+-- name of each fetcher that is asked. Else the fetchers that were asked
+-- before, in reverse, with why each that failed did.
+fetchFrom
+  :: (T.Text -> IO ())
+  -> [(T.Text, Maybe T.Text)]
+  -> [Fetcher]
+  -> Song
+  -> IO LyricsResult
+fetchFrom fetching asked fetchers song = case fetchers of
+  [] -> pure . LyricsMissing $ reverse asked
+  fetcher : rest -> do
+    fetching fetcher.name
+    fetcher.fetch song >>= \case
+      FetchedLyrics lyrics -> pure $ LyricsFound (Fetched fetcher.name) lyrics
+      FetchedInstrumental -> pure LyricsInstrumental
+      FetchedNothing -> fetchFrom fetching ((fetcher.name, Nothing) : asked) rest song
+      FetchFailed reason -> fetchFrom fetching ((fetcher.name, Just reason) : asked) rest song

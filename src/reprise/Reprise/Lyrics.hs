@@ -5,6 +5,8 @@ module Reprise.Lyrics
   ( LyricsRequest (..)
   , LyricsResult (..)
   , LyricsOrigin (..)
+  , Fetcher (..)
+  , FetchResult (..)
   , Lyrics (..)
   , TimedLyrics (..)
   , plainLyrics
@@ -43,9 +45,28 @@ data LyricsResult
   = LyricsFound LyricsOrigin Lyrics
   | -- | The song has no words.
     LyricsInstrumental
-  | LyricsMissing
-  | -- | Why they can't be had now.
+  | -- | Neither stored nor fetched: the fetchers that were asked, in order,
+    -- with why each that failed did.
+    LyricsMissing [(T.Text, Maybe T.Text)]
+  | -- | Why the stored lyrics can't be read.
     LyricsFailed T.Text
+  deriving stock (Eq, Show)
+
+-- | Where lyrics that aren't stored are fetched from.
+data Fetcher = Fetcher
+  { name :: T.Text
+  -- ^ For the screen, e.g. @LRCLIB@.
+  , fetch :: Song -> IO FetchResult
+  }
+
+-- | What a fetcher had for a song.
+data FetchResult
+  = FetchedLyrics Lyrics
+  | -- | The song has no words.
+    FetchedInstrumental
+  | FetchedNothing
+  | -- | Why it can't fetch now.
+    FetchFailed T.Text
   deriving stock (Eq, Show)
 
 data LyricsOrigin

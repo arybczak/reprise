@@ -130,7 +130,7 @@ test_instrumental = do
   let longer = alexTheme "Alex Theme" 300
   (_, result) <-
     lookedUp longer [("/api/get", Right (404, missing)), ("/api/search", Right (200, found))]
-  assertEqual "instrumental" LyricsInstrumental result
+  assertEqual "instrumental" FetchedInstrumental result
 
 test_failures :: Assertion
 test_failures = do
@@ -138,26 +138,26 @@ test_failures = do
   (_, overloaded) <- lookedUp karmaPolice [("/api/get", Right (503, busy))]
   assertEqual
     "busy"
-    (LyricsFailed "LRCLIB: The server is busy, please retry in a moment")
+    (FetchFailed "LRCLIB: The server is busy, please retry in a moment")
     overloaded
   (_, unreachable) <- lookedUp karmaPolice [("/api/get", Left "LRCLIB can't be reached: x")]
-  assertEqual "unreachable" (LyricsFailed "LRCLIB can't be reached: x") unreachable
+  assertEqual "unreachable" (FetchFailed "LRCLIB can't be reached: x") unreachable
   (_, unknown) <- lookedUp karmaPolice [("/api/get", Right (500, "<html>"))]
-  assertEqual "unknown" (LyricsFailed "LRCLIB answered with the status 500") unknown
+  assertEqual "unknown" (FetchFailed "LRCLIB answered with the status 500") unknown
   (_, garbled) <- lookedUp karmaPolice [("/api/get", Right (200, "{\"id\": 1}"))]
-  assertEqual "garbled" (LyricsFailed "LRCLIB's answer can't be read") garbled
+  assertEqual "garbled" (FetchFailed "LRCLIB's answer can't be read") garbled
 
 test_noArtist :: Assertion
 test_noArtist = do
   (asked, result) <- lookedUp (song 0 [(Title, ["T"])] 60) []
-  assertEqual "missing" LyricsMissing result
+  assertEqual "missing" FetchedNothing result
   assertEqual "nothing asked" [] asked
 
 -- | The lyrics of a song from answers by the path, and what was asked.
 lookedUp
   :: Song
   -> [(BS.ByteString, Either T.Text (Int, BS.ByteString))]
-  -> IO ([(BS.ByteString, [(T.Text, T.Text)])], LyricsResult)
+  -> IO ([(BS.ByteString, [(T.Text, T.Text)])], FetchResult)
 lookedUp s answers = do
   calls <- newIORef []
   let get apiPath params = do
@@ -177,9 +177,9 @@ answer :: FilePath -> IO BS.ByteString
 answer name = BS.readFile ("tests" </> "reprise" </> "lrclib" </> name)
 
 -- | The lyrics in the answers: plain, and timed.
-answered :: LyricsResult
+answered :: FetchResult
 answered =
-  LyricsFound (Fetched "LRCLIB") $
+  FetchedLyrics $
     Lyrics
       "First line\nSecond line"
       ( Just

@@ -3,7 +3,8 @@
 -- | Lyrics from LRCLIB, lrclib.net: a free database of plain and timed
 -- lyrics with a JSON API.
 module Reprise.Lyrics.Lrclib
-  ( lrclibLyrics
+  ( lrclib
+  , lrclibLyrics
   , LrclibTrack (..)
   , chooseTrack
   ) where
@@ -19,10 +20,13 @@ import Reprise.Lyrics
 import Reprise.Lyrics.Http
 import Reprise.Mpd.Protocol.Types
 
+lrclib :: Get -> Fetcher
+lrclib = Fetcher "LRCLIB" . lrclibLyrics
+
 -- | The lyrics of a song from LRCLIB: by its artist, title, album and
 -- length, else by a search of its artist and title, and if neither has it,
 -- by its title without what follows in brackets.
-lrclibLyrics :: Get -> Song -> IO LyricsResult
+lrclibLyrics :: Get -> Song -> IO FetchResult
 lrclibLyrics get song = case (firstTag Artist song, firstTag Title song) of
   (Just artist, Just title) -> do
     found <- lookupTitle artist title
@@ -30,7 +34,7 @@ lrclibLyrics get song = case (firstTag Artist song, firstTag Title song) of
       Right Nothing
         | cleanTitle title /= title -> fromFound <$> lookupTitle artist (cleanTitle title)
       _ -> pure $ fromFound found
-  _ -> pure LyricsMissing
+  _ -> pure FetchedNothing
   where
     lookupTitle :: T.Text -> T.Text -> IO (Either T.Text (Maybe LrclibTrack))
     lookupTitle artist title = do
@@ -45,22 +49,19 @@ lrclibLyrics get song = case (firstTag Artist song, firstTag Title song) of
             other -> pure $ failure other
         other -> pure $ failure other
 
-    fromFound :: Either T.Text (Maybe LrclibTrack) -> LyricsResult
+    fromFound :: Either T.Text (Maybe LrclibTrack) -> FetchResult
     fromFound = \case
-      Left reason -> LyricsFailed reason
-      Right Nothing -> LyricsMissing
+      Left reason -> FetchFailed reason
+      Right Nothing -> FetchedNothing
       Right (Just track)
-        | track.instrumental -> LyricsInstrumental
+        | track.instrumental -> FetchedInstrumental
         | otherwise ->
             let timed = track.syncedLyrics >>= timedLyrics
                 plain = mfilter (not . T.null . T.strip) track.plainLyrics
             in case (plain, timed) of
-                 (Just text, _) -> fetched $ Lyrics text ((.timed) =<< timed)
-                 (Nothing, Just lyrics) -> fetched lyrics
-                 (Nothing, Nothing) -> LyricsMissing
-
-    fetched :: Lyrics -> LyricsResult
-    fetched = LyricsFound (Fetched "LRCLIB")
+                 (Just text, _) -> FetchedLyrics $ Lyrics text ((.timed) =<< timed)
+                 (Nothing, Just lyrics) -> FetchedLyrics lyrics
+                 (Nothing, Nothing) -> FetchedNothing
 
     -- A busy server answers 503 with a message, e.g. "The server is busy,
     -- please retry in a moment".

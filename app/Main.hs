@@ -133,8 +133,8 @@ main = do
   manager <- newTlsManager
   let userAgent = "reprise/" <> T.pack (showVersion Paths.version) <> " (" <> repository <> ")"
       fetcher = \case
-        Lrclib -> lrclibLyrics (httpsGet manager userAgent "LRCLIB" "lrclib.net")
-        Tekstowo -> tekstowoLyrics (httpsGet manager userAgent "tekstowo.pl" "www.tekstowo.pl")
+        Lrclib -> lrclib (httpsGet manager userAgent "LRCLIB" "lrclib.net")
+        Tekstowo -> tekstowo (httpsGet manager userAgent "tekstowo.pl" "www.tekstowo.pl")
   void . restarted . lyricsWorker $
     LyricsSource
       { directory = lyricsDirectory

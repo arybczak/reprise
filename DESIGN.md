@@ -374,9 +374,20 @@ ncmpcpp.
   the newest request, so the songs that the screen passed by aren't read,
   and a token drops the lyrics of a song that the screen left.
 - **Lyrics that aren't stored are fetched** from `lyrics.fetchers`, in
-  order, and stored, so that they are fetched once. The screen says
-  "Fetching the lyrics…" only once the worker found none stored, so stored
-  lyrics show without a flash of it.
+  order, and stored, so that they are fetched once.
+  - **The screen says which fetcher is asked,** e.g. "Fetching the lyrics
+    from LRCLIB…", as with two of them it can wait twice as long. It says
+    so only once the worker found no lyrics stored, so stored ones show
+    without a flash of it.
+  - **Without lyrics, it says where it looked:** "No lyrics found on LRCLIB
+    or tekstowo.pl", or "No lyrics stored" without fetchers. A fetcher that
+    failed has a line of why instead, which names it, so that a failure,
+    which may pass, isn't taken for lyrics that aren't there. It shows in
+    the screen, not in the status bar, as it lasts as long as the screen
+    shows the song. It doesn't say that `` ` `` tries again; the help
+    screen and the which-key panel tell the keys.
+  - **ncmpcpp's log of a line for each fetcher isn't kept:** once lyrics
+    come, it would be in their way, and the lines above say the same.
   - **What the fetchers don't have isn't remembered,** so the fetchers are
     asked each time the lyrics of a song without stored ones show. A memory
     of that went stale: the fetchers get lyrics, the network comes back,

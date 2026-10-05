@@ -56,9 +56,9 @@ data AppEvent
     VisualizerSpectrum [VS.Vector Double]
   | -- | The visualizer's data source can't be read, with the reason.
     VisualizerFailed T.Text
-  | -- | The lyrics of the request with the token aren't stored, so they are
-    -- being fetched.
-    LyricsFetching Int
+  | -- | The lyrics of the request with the token aren't stored, so a fetcher
+    -- with the name is asked for them.
+    LyricsFetching Int T.Text
   | -- | The lyrics of the request with the token.
     LyricsLoaded Int LyricsResult
   | -- | The editor of a file exited, with why it failed.

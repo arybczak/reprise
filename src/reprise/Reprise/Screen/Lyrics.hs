@@ -110,8 +110,8 @@ lyricsEdited file failure = do
     when
       ( file
           `elem` map ((env.lyricsDirectory </>) . ($ song)) [lyricsFileName, timedLyricsFileName]
-      ) $
-      request song False s.lyrics.returnTo
+      )
+      $ request song False s.lyrics.returnTo
 
 -- | Ask for the lyrics of a song, which the screen shows when they come.
 request :: App es => Song -> Bool -> ScreenName -> Eff es ()
@@ -169,10 +169,11 @@ updateLyrics = do
       (Nothing, Nothing) -> True
       _ -> False
 
--- | The lyrics of the request with the token aren't stored, so they are
--- being fetched.
-lyricsFetching :: App es => Int -> Eff es ()
-lyricsFetching token = forRequest token $ modifyS (#lyrics % #status .~ FetchingLyrics)
+-- | The lyrics of the request with the token aren't stored, so a fetcher
+-- with the name is asked for them.
+lyricsFetching :: App es => Int -> T.Text -> Eff es ()
+lyricsFetching token fetcher =
+  forRequest token $ modifyS (#lyrics % #status .~ FetchingLyrics fetcher)
 
 -- | The lyrics of the request with the token. Those of a song that the
 -- screen showed before are dropped.

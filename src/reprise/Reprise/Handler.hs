@@ -152,7 +152,7 @@ handleEvent = \case
   VisualizerSamples samples -> visualizerSamples samples
   VisualizerSpectrum spectra -> visualizerSpectrum spectra
   VisualizerFailed reason -> showError reason
-  LyricsFetching token -> lyricsFetching token
+  LyricsFetching token fetcher -> lyricsFetching token fetcher
   LyricsLoaded token result -> lyricsLoaded token result
   Edited file failure -> lyricsEdited file failure
   Confirmed action -> runConfirmed action

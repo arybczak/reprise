@@ -319,7 +319,8 @@ data LyricsStatus
   = -- | Until the worker reads the stored lyrics, which takes no time to
     -- see, so the screen shows nothing.
     ReadingLyrics
-  | FetchingLyrics
+  | -- | From the fetcher with the name.
+    FetchingLyrics T.Text
   | ShowingLyrics LyricsResult
   deriving stock (Eq, Show)
 
@@ -567,7 +568,7 @@ lyricsRows :: Int -> LyricsState -> [(Maybe Int, T.Text)]
 lyricsRows width st = case (st.song, st.status) of
   (Nothing, _) -> []
   (_, ReadingLyrics) -> []
-  (_, FetchingLyrics) -> untimed ["Fetching the lyrics…"]
+  (_, FetchingLyrics fetcher) -> untimed ["Fetching the lyrics from " <> fetcher <> "…"]
   (_, ShowingLyrics result) -> case result of
     LyricsFound _ lyrics -> case lyrics.timed of
       Just timed ->
@@ -577,11 +578,25 @@ lyricsRows width st = case (st.song, st.status) of
           ]
       Nothing -> untimed (T.lines lyrics.plain)
     LyricsInstrumental -> untimed ["Instrumental"]
-    LyricsMissing -> untimed ["No lyrics found"]
+    -- The fetchers' failures name them.
+    LyricsMissing [] -> untimed ["No lyrics stored"]
+    LyricsMissing asked ->
+      untimed $
+        [ "No lyrics found on " <> alternatives notThere
+        | let notThere = [f | (f, Nothing) <- asked]
+        , not (null notThere)
+        ]
+          <> [reason | (_, Just reason) <- asked]
     LyricsFailed reason -> untimed [reason]
   where
     untimed :: [T.Text] -> [(Maybe Int, T.Text)]
     untimed = concatMap (map (Nothing,) . wrapText width)
+
+    -- E.g. @A, B or C@.
+    alternatives :: [T.Text] -> T.Text
+    alternatives names = case reverse names of
+      lastName : rest@(_ : _) -> T.intercalate ", " (reverse rest) <> " or " <> lastName
+      _ -> T.concat names
 
 -- | The index of the timed line of the lyrics screen that is being sung:
 -- the last one whose time came, in the song that plays.
