@@ -1,3 +1,5 @@
+{-# LANGUAGE InterruptibleFFI #-}
+
 -- | The thread that reads the samples of MPD's fifo output for the
 -- visualizer, while the visualizer shows, and sends what each frame shows:
 -- the samples of the ellipse, or the spectrum.
@@ -17,6 +19,7 @@ import Control.Monad
 import Data.ByteString qualified as BS
 import Data.Maybe
 import Data.Text qualified as T
+import Foreign.C.Types
 import GHC.Clock
 import System.IO
 
@@ -60,14 +63,8 @@ visualizerWorker src = do
     frames
       :: Transform -> Handle -> Double -> Int -> Int -> Playout -> BS.ByteString -> Int -> IO ()
     frames transform h start n previous p window quiet = do
-      let deadline = start + fromIntegral n / fromIntegral src.fps
-      now <- getMonotonicTime
-      due <- registerDelay . max 0 $ ceiling ((deadline - now) * microsecondsPerSecond)
-      -- The visualizer can stop while the worker waits for the frame.
-      visualization <- atomically $ do
-        v <- readTVar src.reading
-        when (isJust v) $ readTVar due >>= check
-        pure v
+      sleepUntil $ start + fromIntegral n / fromIntegral src.fps
+      visualization <- readTVarIO src.reading
       forM_ visualization $ \v -> do
         new <- readAvailable h
         arrival <- getMonotonicTime
@@ -116,18 +113,16 @@ visualizerWorker src = do
     silentFrames :: Int
     silentFrames = (windowSamples * src.fps + sampleRate - 1) `div` sampleRate
 
-    microsecondsPerSecond :: Double
-    microsecondsPerSecond = 1000000
-
 -- | The samples between MPD's writes and the frames. MPD writes at the
 -- speed of the sound, but in writes that can be longer than a frame, so the
--- frames show samples once the buffer holds a frame and a write more.
+-- frames show samples once the buffer holds a frame and 'writesAhead'
+-- writes more.
 data Playout = Playout
   { buffered :: BS.ByteString
   -- ^ The samples that came and that no frame showed yet.
   , flowing :: Bool
   -- ^ Whether the frames show samples: from when the buffer holds a frame
-  -- and a write more, until it runs out.
+  -- and the writes ahead, until it runs out.
   , write :: Maybe Int
   -- ^ The bytes of a write of MPD: the fewest that a read gave, as a pipe
   -- gives a write that short whole.
@@ -151,11 +146,11 @@ playout sampleBytes shown arrival new p =
       lastWrite = if arrived then arrival else p.lastWrite
       margin = fromMaybe 0 write
       available = p.buffered <> new
-      flowing = BS.length available >= shown + if p.flowing then 0 else margin
+      flowing = BS.length available >= shown + if p.flowing then 0 else writesAhead * margin
       (frame, rest) = if flowing then BS.splitAt shown available else (BS.empty, available)
-      -- More than a frame and two writes is a lag, which the clocks of MPD
-      -- and reprise drift into.
-      excess = BS.length rest - (shown + 2 * margin)
+      -- More than a frame and a write beyond the writes ahead is a lag,
+      -- which the clocks of MPD and reprise drift into.
+      excess = BS.length rest - (shown + (writesAhead + 1) * margin)
       buffered = if excess > 0 then BS.drop (roundUp excess) rest else rest
       -- Without a write for two, MPD stopped writing.
       stopped =
@@ -166,6 +161,29 @@ playout sampleBytes shown arrival new p =
     -- To whole samples of every channel.
     roundUp :: Int -> Int
     roundUp n = (n + sampleBytes - 1) `div` sampleBytes * sampleBytes
+
+-- | The writes that the buffer holds ahead of the frames, so that a write
+-- that comes late by up to a write's time doesn't run it out. On the
+-- author's MPD, a write of 21 ms came between 19.3 ms and 22.7 ms after
+-- the last, and with a write ahead, the buffer ran out a few times a
+-- second.
+writesAhead :: Int
+writesAhead = 2
+
+-- | Sleep until a time of the monotonic clock. GHC's timers wake up to a
+-- millisecond late, which shows next to a frame of 8 ms. Like 'threadDelay',
+-- it lets an exception in, also in a thread that masks them, e.g. one that
+-- 'bracket' forked.
+sleepUntil :: Double -> IO ()
+sleepUntil t = do
+  now <- getMonotonicTime
+  when (now < t) $ do
+    c_sleepUntil (realToFrac t)
+    allowInterrupt
+    sleepUntil t
+
+foreign import ccall interruptible "reprise_sleep_until"
+  c_sleepUntil :: CDouble -> IO ()
 
 -- | Read what the fifo holds, without waiting for more.
 readAvailable :: Handle -> IO BS.ByteString

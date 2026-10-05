@@ -236,13 +236,18 @@ test_sineSpectrum = do
   assertEqual "the silent channel" 0 (VS.maximum right)
 
 -- | MPD writes 503 samples at a time, as the author's does, which is longer
--- than a frame at 120 frames a second. Once the buffer holds a frame and a
--- write, every frame shows the samples of its time.
+-- than a frame at 120 frames a second. Once the buffer holds a frame and
+-- two writes, every frame shows the samples of its time.
 test_playout :: Assertion
 test_playout = do
   let frames = simulate 1 Nothing
       steady = dropWhile (\f -> f.frame == 0) frames
-  assertBool "the start waits for a write more" (length frames - length steady <= 3)
+  case steady of
+    first : _ ->
+      assertBool
+        ("the first samples at " <> show first.time)
+        (first.time <= 3 * writeSeconds + 1 / 120)
+    [] -> assertFailure "no samples"
   assertEqual "every frame" [] [f | f <- steady, f.frame /= f.shown]
   assertEqual "no stop" [] [f | f <- steady, f.stopped]
 
@@ -256,17 +261,20 @@ test_playoutStops = do
   case stoppedAt of
     t : _ -> assertBool ("stopped at " <> show t) (t - 1 <= 2 * writeSeconds + 1 / 120)
     [] -> assertFailure "never stopped"
-  assertEqual "nothing to show" [] [f | f <- drop 3 later, f.frame /= 0]
+  assertEqual
+    "nothing to show once the buffer ran out"
+    []
+    [f | f <- dropWhile (\f -> f.frame /= 0) later, f.frame /= 0]
 
 -- | MPD's clock is a little faster than reprise's, so the buffer would
--- grow. It holds a frame and two writes at most.
+-- grow. It holds a frame and three writes at most.
 test_playoutLag :: Assertion
 test_playoutLag = do
   let frames = simulate 1.01 Nothing
   assertEqual
     "the lag"
     []
-    [f | f <- frames, f.buffered > f.shown + 2 * writeBytes + sampleBytes]
+    [f | f <- frames, f.buffered > f.shown + 3 * writeBytes + sampleBytes]
 
 data Simulated = Simulated
   { time :: Double
@@ -324,7 +332,6 @@ test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
   events <- newTQueueIO
   reading <- newTVarIO (Just Ellipse)
   let frameBytes = 4
-      samplesBytes = frameBytes * (44100 `div` 60)
       pattern = samples (replicate 100 (1000, -1000))
   bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ -> do
     frame <- withWriting path pattern . expectWithin $ firstSamples events

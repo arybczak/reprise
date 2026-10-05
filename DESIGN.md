@@ -290,17 +290,29 @@ ncmpcpp.
 - **A frame shows the samples of its own time,** `44100 / fps` of them on
   average, e.g. 367 or 368 at 120 frames a second. The worker waits for
   each frame on the clock, so a late frame doesn't make the next ones late.
+  - **The wait is `clock_nanosleep`,** in C. GHC's timers wake up to a
+    millisecond late, and at 120 frames a second the frames came 7.3 ms to
+    10 ms apart instead of 8.3 ms. With it, they come 7.5 ms to 9.2 ms
+    apart: the rest is the wait for the one capability of the RTS, which
+    the UI may be drawing on.
   - **MPD writes in writes longer than a frame:** 503 samples every 11.4 ms
-    on the author's MPD. A frame that took what had come showed 0 samples
-    in one frame of three at 120 frames a second, and the spectrum fell
-    through them.
-  - **So the worker buffers a write.** Frames show samples once the buffer
-    holds a frame and a write more, and until it runs out. The size of a
-    write comes from the reads: a pipe gives a write that short whole, so
-    the shortest read is a write. It costs a write of lag, 11 ms.
+    on the author's MPD for an mp3, and 924 every 21 ms for a MIDI file. A
+    frame that took what had come showed 0 samples in one frame of three
+    at 120 frames a second, and the spectrum fell through them.
+  - **So the worker buffers two writes.** Frames show samples once the
+    buffer holds a frame and two writes more, and until it runs out. With
+    one write, a write that came a little late, 19.3 ms to 22.7 ms after
+    the last instead of 21 ms, ran the buffer out a few times a second.
+    The size of a write comes from the reads: a pipe gives a write that
+    short whole, so the shortest read is a write. It costs two writes of
+    lag, 23 ms for the mp3.
   - **The clocks of MPD and reprise drift,** so the buffer would grow.
-    Beyond a frame and two writes, the oldest samples are dropped, and the
-    picture doesn't fall behind the sound.
+    Beyond a frame and three writes, the oldest samples are dropped, and
+    the picture doesn't fall behind the sound.
+  - **A rate that divides the screen's refresh rate is the smoothest.** At
+    120 frames a second on a screen of 160 Hz, a frame shows for two
+    refreshes, then one, then one; at 160 or 80 each frame shows as long as
+    the others.
   - **The samples that the fifo held before the visualizer showed are
     old,** so the worker drops them. ncmpcpp resets the output for that,
     which needs its name in the config.
@@ -1722,7 +1734,7 @@ reprise/                          repository root
 ├── bench/
 │   ├── mpd-protocol/Main.hs
 │   └── reprise/Main.hs
-├── cbits/                        width.c, spectrum.c, pocketfft/ (vendored)
+├── cbits/                        width.c, clock.c, spectrum.c, pocketfft/ (vendored)
 ├── src/
 │   ├── mpd-protocol/             README.md, Reprise/Mpd/Protocol/...
 │   └── reprise/Reprise/...
