@@ -96,6 +96,10 @@ data AppEnv = AppEnv
   , colorMode :: ColorMode
   , collator :: Collator
   -- ^ How lists sort text.
+  , lyricsDirectory :: FilePath
+  -- ^ Where the lyrics are stored, from the config.
+  , editor :: Maybe T.Text
+  -- ^ The command that edits a file, from the config or the environment.
   }
   deriving stock (Show, Generic)
 

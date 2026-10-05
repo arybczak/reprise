@@ -61,6 +61,8 @@ data AppEvent
     LyricsFetching Int
   | -- | The lyrics of the request with the token.
     LyricsLoaded Int LyricsResult
+  | -- | The editor of a file exited, with why it failed.
+    Edited FilePath (Maybe T.Text)
   | -- | The user confirmed a destructive action.
     Confirmed Action
   deriving stock (Eq, Show)

@@ -94,6 +94,8 @@ defaultEnv =
     , keymaps = keymapsOf defaultConfig.keys
     , colorMode = WithColors
     , collator = userCollator
+    , lyricsDirectory = "lyrics"
+    , editor = Nothing
     }
 
 -- | The default config with a data source of the visualizer.

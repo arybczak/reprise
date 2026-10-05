@@ -96,6 +96,8 @@ testAppEnv =
     , keymaps = keymapsOf defaultConfig.keys
     , colorMode = WithColors
     , collator = rootCollator
+    , lyricsDirectory = "lyrics"
+    , editor = Just "edit"
     }
 
 -- | The state with a terminal of the given size and a queue that MPD sent.

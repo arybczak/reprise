@@ -82,6 +82,7 @@ data Action
   | Priority Int
   | NextSortMode
   | RefetchLyrics
+  | EditLyrics
   deriving stock (Eq, Show)
 
 data MoveTarget
@@ -275,6 +276,7 @@ registry =
   , spec "priority" "0-255" $ one (fmap Priority . priority)
   , spec "next_sort_mode" "" $ none NextSortMode
   , spec "refetch_lyrics" "" $ none RefetchLyrics
+  , spec "edit_lyrics" "" $ none EditLyrics
   ]
   where
     -- An action whose arguments are words and lists.
@@ -501,6 +503,7 @@ renderAction = \case
   Priority p -> "priority " <> T.pack (show p)
   NextSortMode -> "next_sort_mode"
   RefetchLyrics -> "refetch_lyrics"
+  EditLyrics -> "edit_lyrics"
   where
     screenList :: [ScreenName] -> T.Text
     screenList ss = "[" <> T.intercalate ", " (map screenName ss) <> "]"
@@ -597,6 +600,7 @@ describeAction = \case
   Priority p -> "set priority " <> T.pack (show p)
   NextSortMode -> "next sort mode"
   RefetchLyrics -> "fetch the lyrics again"
+  EditLyrics -> "edit the lyrics"
 
 -- | Whether the action may throw away something the user didn't point at,
 -- so that it asks for confirmation. Its handler decides whether it does,

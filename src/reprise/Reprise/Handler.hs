@@ -154,6 +154,7 @@ handleEvent = \case
   VisualizerFailed reason -> showError reason
   LyricsFetching token -> lyricsFetching token
   LyricsLoaded token result -> lyricsLoaded token result
+  Edited file failure -> lyricsEdited file failure
   Confirmed action -> runConfirmed action
   where
     statusSubsystems :: [Subsystem]
@@ -346,6 +347,9 @@ runAction = \case
     _ -> Nothing
   action@Parent -> verb action $ \case
     BrowserScreen -> Just leave
+    _ -> Nothing
+  action@EditLyrics -> verb action $ \case
+    LyricsScreen -> Just editLyrics
     _ -> Nothing
   action@RefetchLyrics -> verb action $ \case
     LyricsScreen -> Just refetchLyrics

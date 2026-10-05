@@ -5,6 +5,7 @@ module Main
 
 import Brick qualified as B
 import Brick.BChan qualified as B
+import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
@@ -116,6 +117,12 @@ main = do
         }
   lyrics <- newTVarIO Nothing
   lyricsInBackground <- newTVarIO Nothing
+  editor <- case config.editor.command of
+    Just configured -> pure (Just configured)
+    Nothing -> do
+      let set name = mfilter (not . null) <$> lookupEnv name
+      visual <- set "VISUAL"
+      fmap T.pack . (visual <|>) <$> set "EDITOR"
   lyricsDirectory <-
     maybe
       (getXdgDirectory XdgData ("reprise" </> "lyrics"))
@@ -148,6 +155,8 @@ main = do
             , keymaps = keymapsOf config.keys
             , colorMode = colorMode
             , collator = userCollator
+            , lyricsDirectory = lyricsDirectory
+            , editor = editor
             }
           Channels
             { requests = requests

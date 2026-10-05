@@ -154,6 +154,9 @@ test_lyrics = do
   assertEqual "LRCLIB by default" [Lrclib] defaultConfig.lyrics.fetchers
   stored <- expectRight $ decode "lyrics:\n  fetchers: []\n"
   assertEqual "only the stored lyrics" [] stored.lyrics.fetchers
+  assertEqual "no editor by default" Nothing defaultConfig.editor.command
+  editing <- expectRight $ decode "editor:\n  command: mcedit\n"
+  assertEqual "the editor" (Just "mcedit") editing.editor.command
 
 test_noWindowTitle :: Assertion
 test_noWindowTitle = do

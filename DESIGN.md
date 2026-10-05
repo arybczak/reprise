@@ -440,7 +440,16 @@ ncmpcpp.
   ncmpcpp, with `toggle follow_playing`, which toggles the queue's on the
   other screens, as `toggle display` does the browser's in the browser.
   Turned on, it shows the lyrics of the song that plays at once.
-- **Later:** editing in `$EDITOR`.
+- **`e` edits the stored lyrics,** as in ncmpcpp: the `.lrc` if the times
+  show, else the `.txt`, which the editor makes if there is none, e.g. for
+  lyrics pasted from elsewhere. The lyrics show again when the editor exits.
+  - **The editor is `editor.command`,** else `$VISUAL`, else `$EDITOR`.
+    ncmpcpp's default was `nano`; with the environment, a user who set an
+    editor for every program needs no config.
+  - **`sh` runs the command,** as it can have arguments, e.g. `emacs -nw`,
+    with the file as `"$1"`, so that a song's title in the file's name is
+    never read as shell code. reprise suspends the UI while it runs, the way
+    [`run_in_terminal`](#external-commands-later) will.
 
 ### Later
 
@@ -622,7 +631,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Action` | The action registry: actions as data, with their names, argument parsers, descriptions, and whether they are destructive |
 | `Reprise.Handler` | The handlers of events, keys, prompts and the actions of every screen, e.g. playback and toggles. It passes the actions of a screen on to the screen's module |
 | `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
-| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors and the order of text. Queries of the state that both the handlers and the layout need, such as whether the cursor shows, or the header's title and whether it scrolls |
+| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors, the order of text, the directory of lyrics and the editor. Queries of the state that both the handlers and the layout need, such as whether the cursor shows, or the header's title and whether it scrolls |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
 | `Reprise.Visualizer.Worker` | The thread that reads MPD's fifo output while the visualizer shows, and sends the samples of each frame |
@@ -1372,6 +1381,9 @@ lyrics:
   fetch_in_background: false     # fetch the lyrics of each song that plays
   follow_playing: false          # show the lyrics of each song that plays
 
+editor:
+  command: ~                     # $VISUAL, else $EDITOR; sh runs it with the file
+
 styles:                          # used across screens
   label: white                   # field names, e.g. in the search engine
   value: green                   # field values
@@ -1381,8 +1393,8 @@ styles:                          # used across screens
 A column's width is relative if it ends in `%` and fixed otherwise.
 
 Options of later features get names in the same spirit, e.g.
-`media_library.primary_tag`, `lyrics.fetchers`, `hooks.on_song_change`,
-`mouse.scroll_lines`, `editor.command`, `header.design`.
+`media_library.primary_tag`, `hooks.on_song_change`, `mouse.scroll_lines`,
+`header.design`.
 
 ### MPD connection defaults
 
@@ -1550,6 +1562,7 @@ keys:
 
   lyrics:
     "`": refetch_lyrics          # as in ncmpcpp
+    e: edit_lyrics               # in editor.command, $VISUAL or $EDITOR
     space: toggle follow_playing # of the lyrics here, as in ncmpcpp
 ```
 
@@ -1645,6 +1658,7 @@ Many single-character keys collide with YAML syntax:
 | `lyrics_fetchers` | `lyrics.fetchers`, of `lrclib`, which replaces ncmpcpp's fetchers (see [Core](#core)) |
 | `fetch_lyrics_for_current_song_in_background` | `lyrics.fetch_in_background` |
 | `follow_now_playing_lyrics` | `lyrics.follow_playing` |
+| `external_editor` | `editor.command`, `$VISUAL` or `$EDITOR` without it. The author sets `mcedit` in their own config. `use_console_editor` is gone: the editor always gets the terminal |
 
 How the author's ncmpcpp settings were translated:
 - **Prefixes and suffixes became styles.** `current_item_prefix`/`suffix`
@@ -1726,9 +1740,6 @@ options, `allow_for_physical_item_deletion`,
 
 #### Not carried over yet
 
-- **`external_editor = mcedit` with `use_console_editor = yes`.** Only lyrics
-  editing uses it, which comes later. Proposed default: `$VISUAL`, then
-  `$EDITOR`. The author sets mcedit in their own config.
 - **The options of other later features:** `lines_scrolled`,
   `mouse_list_scroll_whole_page`, `mpd_music_dir` and the tag editor's
   options.
@@ -2019,8 +2030,6 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
 
 ## Postponed decisions
 
-- **The external editor default** waits for lyrics editing (see
-  [Not carried over yet](#not-carried-over-yet)).
 - **The media library's mtime sort** gets redesigned when the media library
   arrives.
 - **Reloading the config while reprise runs** is not planned for the core. A

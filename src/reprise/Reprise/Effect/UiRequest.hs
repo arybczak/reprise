@@ -17,6 +17,7 @@ module Reprise.Effect.UiRequest
   , visualize
   , fetchLyrics
   , fetchLyricsInBackground
+  , editFile
   ) where
 
 import Data.Text qualified as T
@@ -49,6 +50,9 @@ data UiCommand
   | -- | Fetch and store the lyrics of a song without showing them, after a
     -- request of the screen.
     FetchLyricsInBackground Song
+  | -- | Edit a file with an editor command, which has the terminal until it
+    -- exits.
+    Edit T.Text FilePath
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -81,3 +85,8 @@ fetchLyrics token = send . UiRequest . FetchLyrics token
 -- | Fetch and store the lyrics of a song without showing them.
 fetchLyricsInBackground :: UiRequest :> es => Song -> Eff es ()
 fetchLyricsInBackground = send . UiRequest . FetchLyricsInBackground
+
+-- | Edit a file with an editor command, which has the terminal until it
+-- exits.
+editFile :: UiRequest :> es => T.Text -> FilePath -> Eff es ()
+editFile command = send . UiRequest . Edit command

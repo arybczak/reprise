@@ -27,6 +27,7 @@ module Reprise.Config
   , VisualizerConfig (..)
   , LyricsConfig (..)
   , LyricsFetcher (..)
+  , EditorConfig (..)
   , lyricsFetcherName
   , Visualization (..)
   , visualizationName
@@ -80,6 +81,7 @@ data Config = Config
   , progressBar :: ProgressBarConfig
   , visualizer :: VisualizerConfig
   , lyrics :: LyricsConfig
+  , editor :: EditorConfig
   , styles :: StylesConfig
   , keys :: KeysConfig
   }
@@ -282,6 +284,14 @@ data LyricsConfig = LyricsConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml LyricsConfig
 
+newtype EditorConfig = EditorConfig
+  { command :: Maybe T.Text
+  -- ^ The command that edits a file, e.g. @mcedit@, which @sh@ runs with the
+  -- file after it. Without it, @$VISUAL@, else @$EDITOR@.
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromYaml) via GenericYaml EditorConfig
+
 data LyricsFetcher
   = -- | lrclib.net.
     Lrclib
@@ -351,6 +361,7 @@ defaultConfig =
     , progressBar = defaultProgressBar
     , visualizer = defaultVisualizer
     , lyrics = defaultLyrics
+    , editor = defaultEditor
     , styles = defaultStyles
     , keys = defaultKeys
     }
@@ -481,6 +492,9 @@ defaultVisualizer =
           NE.:| map style ["82", "118", "154", "190", "226", "220", "214", "208", "202", "196", "160"]
     }
 
+defaultEditor :: EditorConfig
+defaultEditor = EditorConfig {command = Nothing}
+
 defaultLyrics :: LyricsConfig
 defaultLyrics =
   LyricsConfig
@@ -595,6 +609,10 @@ instance GenericYamlOptions ProgressBarConfig where
 instance GenericYamlOptions VisualizerConfig where
   yamlOptions = options
   yamlDefault = Just defaultVisualizer
+
+instance GenericYamlOptions EditorConfig where
+  yamlOptions = options
+  yamlDefault = Just defaultEditor
 
 instance GenericYamlOptions LyricsConfig where
   yamlOptions = options
@@ -867,6 +885,7 @@ defaultKeymaps =
             ( LyricsScreen
             , keymap
                 [ char '`' ~> RefetchLyrics
+                , char 'e' ~> EditLyrics
                 , plain Space ~> Toggle ToggleFollowPlaying
                 ]
             )

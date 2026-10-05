@@ -4,17 +4,24 @@ module Reprise.App
   ( Channels (..)
   , app
   , eventChannelSize
+  , runEditor
   ) where
 
 import Brick qualified as B
 import Brick.BChan qualified as B
 import Control.Concurrent
 import Control.Concurrent.STM
+import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Functor
 import Data.Text qualified as T
 import GHC.Clock
 import Graphics.Vty qualified as V
+import System.Directory
+import System.Exit
+import System.FilePath
+import System.Process
 
 import Reprise.Config
 import Reprise.Effect.MpdRequest
@@ -86,6 +93,30 @@ dispatch env channels event = do
       liftIO . atomically $ writeTVar channels.lyrics (Just (token, wanted))
     FetchLyricsInBackground song ->
       liftIO . atomically $ writeTVar channels.lyricsInBackground (Just song)
+    Edit command file -> do
+      failure <- B.suspendAndResume' $ runEditor command file
+      vty <- B.getVtyHandle
+      (w, h) <- liftIO . V.displayBounds $ V.outputIface vty
+      dispatch env channels (Resized w h)
+      dispatch env channels (Edited file failure)
   where
     microsecondsPerSecond :: Double
     microsecondsPerSecond = 1000000
+
+-- | Edit a file with an editor command, in a directory that exists. The
+-- command is run by @sh@, as it can have arguments, e.g. @emacs -nw@, and
+-- the file is its argument, so that no name of a file is read as shell
+-- code. Returns why it failed.
+runEditor :: T.Text -> FilePath -> IO (Maybe T.Text)
+runEditor command file =
+  try @SomeException run <&> \case
+    Right ExitSuccess -> Nothing
+    Right (ExitFailure code) -> Just $ "The editor exited with " <> T.pack (show code)
+    Left err -> Just $ "The editor can't run: " <> T.pack (displayException err)
+  where
+    run :: IO ExitCode
+    run = do
+      createDirectoryIfMissing True (takeDirectory file)
+      (_, _, _, p) <-
+        createProcess $ proc "sh" ["-c", T.unpack command <> " \"$1\"", "sh", file]
+      waitForProcess p

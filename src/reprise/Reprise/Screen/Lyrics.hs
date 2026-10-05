@@ -5,6 +5,8 @@ module Reprise.Screen.Lyrics
   , scrollLyrics
   , showLyrics
   , refetchLyrics
+  , editLyrics
+  , lyricsEdited
   , lyricsFetching
   , lyricsLoaded
   , updateLyrics
@@ -17,6 +19,7 @@ import Data.Text qualified as T
 import Effectful
 import Graphics.Vty qualified as V
 import Optics.Core
+import System.FilePath
 
 import Reprise.Action
 import Reprise.Config
@@ -79,6 +82,36 @@ refetchLyrics = do
       | otherwise -> do
           request song True s.lyrics.returnTo
           modifyWithEnv . modifyView $ #offset .~ 0
+
+-- | Edit the stored lyrics of the song on the screen: the times if they
+-- show, else the text. Without either, the text, which the editor makes.
+editLyrics :: App es => Eff es ()
+editLyrics = do
+  env <- getAppEnv
+  s <- getS
+  case (s.lyrics.song, env.editor) of
+    (Nothing, _) -> showMessage "There are no lyrics to edit"
+    (_, Nothing) ->
+      showMessage "There is no editor: set editor.command in the config, or $VISUAL or $EDITOR"
+    (Just song, Just command) -> do
+      let file = case s.lyrics.status of
+            ShowingLyrics (LyricsFound _ lyrics) | isJust lyrics.timed -> timedLyricsFileName song
+            _ -> lyricsFileName song
+      editFile command (env.lyricsDirectory </> file)
+
+-- | The editor of a file exited. If the file is of the lyrics on the
+-- screen, they show again as the editor left them.
+lyricsEdited :: App es => FilePath -> Maybe T.Text -> Eff es ()
+lyricsEdited file failure = do
+  env <- getAppEnv
+  s <- getS
+  forM_ failure showError
+  forM_ s.lyrics.song $ \song ->
+    when
+      ( file
+          `elem` map ((env.lyricsDirectory </>) . ($ song)) [lyricsFileName, timedLyricsFileName]
+      ) $
+      request song False s.lyrics.returnTo
 
 -- | Ask for the lyrics of a song, which the screen shows when they come.
 request :: App es => Song -> Bool -> ScreenName -> Eff es ()

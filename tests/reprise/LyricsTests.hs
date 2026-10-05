@@ -17,6 +17,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Reprise.Action
+import Reprise.App
 import Reprise.Config
 import Reprise.Effect.UiRequest
 import Reprise.Event
@@ -54,6 +55,9 @@ lyricsTests =
     , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
     , testCase "the lyrics follow the song that plays" test_followPlaying
     , testCase "space turns following the song on and off" test_toggleFollowing
+    , testCase "e edits the lyrics" test_edit
+    , testCase "the lyrics show again after the editor" test_edited
+    , testCase "the editor gets the file as an argument" test_runEditor
     ]
 
 -- | The first is the name of a file in the author's lyrics from ncmpcpp.
@@ -391,6 +395,51 @@ test_toggleFollowing = do
   assertBool "not the queue's" (not on.state.toggles.followPlaying)
   off <- runEvents 0 [key "space"] on.state
   assertEqual "off" (Just "Lyrics follow playing: off") ((.text) <$> off.state.message)
+
+test_edit :: Assertion
+test_edit = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  token <- requestToken r
+  missing <- runEvents 0 [LyricsLoaded token LyricsMissing, key "e"] r.state
+  assertEqual "the text" [Edit "edit" ("lyrics" </> "A - One.txt")] (edits missing)
+  timed <-
+    runEvents 0 [LyricsLoaded token (LyricsFound Stored timedTwenty), key "e"] r.state
+  assertEqual "the times" [Edit "edit" ("lyrics" </> "A - One.lrc")] (edits timed)
+  noEditor <- runEventsWith (testAppEnv & #editor .~ Nothing) 0 [key "e"] missing.state
+  assertEqual "no editor" [] (edits noEditor)
+  assertBool
+    "says how to set one"
+    (maybe False ("editor.command" `T.isInfixOf`) ((.text) <$> noEditor.state.message))
+  where
+    edits :: Result -> [UiCommand]
+    edits r = [c | c@(Edit _ _) <- r.commands]
+
+test_edited :: Assertion
+test_edited = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  token <- requestToken r
+  shown <- runEvents 0 [LyricsLoaded token LyricsMissing] r.state
+  edited <- runEvents 0 [Edited ("lyrics" </> "A - One.txt") Nothing] shown.state
+  assertEqual "again" ["A - One"] (askedFor edited)
+  other <- runEvents 0 [Edited ("lyrics" </> "A - Two.txt") Nothing] shown.state
+  assertEqual "not of another file" [] (askedFor other)
+  failed <-
+    runEvents
+      0
+      [Edited ("lyrics" </> "A - One.txt") (Just "The editor exited with 1")]
+      shown.state
+  assertEqual
+    "the failure"
+    (Just ("The editor exited with 1", True))
+    ((\m -> (m.text, m.isError)) <$> failed.state.message)
+
+test_runEditor :: Assertion
+test_runEditor = withSystemTempDirectory "editor" $ \dir -> do
+  let file = dir </> "new" </> "$(touch pwned) `touch pwned` - A.txt"
+  assertEqual "written" Nothing =<< runEditor "printf words >" file
+  assertEqual "the file" "words" =<< BS.readFile file
+  assertBool "no shell code of the name" . not =<< doesFileExist "pwned"
+  assertEqual "a failure" (Just "The editor exited with 3") =<< runEditor "exit 3;" file
 
 threeSongs :: [Song]
 threeSongs =
