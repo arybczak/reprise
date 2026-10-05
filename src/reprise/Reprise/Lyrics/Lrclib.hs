@@ -3,67 +3,26 @@
 -- | Lyrics from LRCLIB, lrclib.net: a free database of plain and timed
 -- lyrics with a JSON API.
 module Reprise.Lyrics.Lrclib
-  ( LrclibGet
-  , lrclibGet
-  , lrclibLyrics
+  ( lrclibLyrics
   , LrclibTrack (..)
   , chooseTrack
   ) where
 
-import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BL
 import Data.Maybe
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
 import GHC.Generics
-import Network.HTTP.Client
-import Network.HTTP.Types
 import Yamlet
 
 import Reprise.Lyrics
+import Reprise.Lyrics.Http
 import Reprise.Mpd.Protocol.Types
-
--- | A GET of a path of LRCLIB's API with the parameters of its query: the
--- status and the body of the reply, or why there is none.
-type LrclibGet =
-  BS.ByteString -> [(T.Text, T.Text)] -> IO (Either T.Text (Int, BS.ByteString))
-
--- | A GET with a manager that speaks TLS, as LRCLIB is HTTPS only, and with
--- the user agent, by which LRCLIB asks clients to name themselves.
-lrclibGet :: Manager -> T.Text -> LrclibGet
-lrclibGet manager userAgent apiPath params = do
-  let request =
-        setQueryString [(T.encodeUtf8 k, Just (T.encodeUtf8 v)) | (k, v) <- params] $
-          lrclibRequest
-            { path = apiPath
-            , requestHeaders = [(hUserAgent, T.encodeUtf8 userAgent)]
-            , responseTimeout = responseTimeoutMicro lrclibTimeout
-            }
-  try (httpLbs request manager) >>= \case
-    Right response ->
-      pure $ Right (statusCode (responseStatus response), BL.toStrict (responseBody response))
-    Left err -> pure . Left $ case err of
-      HttpExceptionRequest _ ResponseTimeout -> "LRCLIB didn't answer in time"
-      HttpExceptionRequest _ ConnectionTimeout -> "LRCLIB didn't answer in time"
-      HttpExceptionRequest _ content -> "LRCLIB can't be reached: " <> T.pack (show content)
-      InvalidUrlException url why -> "LRCLIB's URL " <> T.pack url <> " is invalid: " <> T.pack why
-  where
-    lrclibRequest :: Request
-    lrclibRequest = defaultRequest {host = "lrclib.net", port = 443, secure = True}
-
--- | How long LRCLIB has to answer, in microseconds. It answered 30 requests
--- in 0.86 s at most on 2026-10-05. The worker serves one request at a time,
--- so a request that hangs holds up the next ones, and it gives up after
--- about ten times that.
-lrclibTimeout :: Int
-lrclibTimeout = 10 * 1000000
 
 -- | The lyrics of a song from LRCLIB: by its artist, title, album and
 -- length, else by a search of its artist and title, and if neither has it,
 -- by its title without what follows in brackets.
-lrclibLyrics :: LrclibGet -> Song -> IO LyricsResult
+lrclibLyrics :: Get -> Song -> IO LyricsResult
 lrclibLyrics get song = case (firstTag Artist song, firstTag Title song) of
   (Just artist, Just title) -> do
     found <- lookupTitle artist title

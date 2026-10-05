@@ -151,7 +151,9 @@ test_lyrics = do
   assertEqual "the default directory" Nothing defaultConfig.lyrics.directory
   config <- expectRight $ decode "lyrics:\n  directory: ~/.lyrics\n"
   assertEqual "the directory" (Just "~/.lyrics") config.lyrics.directory
-  assertEqual "LRCLIB by default" [Lrclib] defaultConfig.lyrics.fetchers
+  assertEqual "LRCLIB, then tekstowo.pl" [Lrclib, Tekstowo] defaultConfig.lyrics.fetchers
+  tekstowo <- expectRight $ decode "lyrics:\n  fetchers: [tekstowo]\n"
+  assertEqual "tekstowo.pl" [Tekstowo] tekstowo.lyrics.fetchers
   stored <- expectRight $ decode "lyrics:\n  fetchers: []\n"
   assertEqual "only the stored lyrics" [] stored.lyrics.fetchers
   assertEqual "no editor by default" Nothing defaultConfig.editor.command

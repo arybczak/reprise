@@ -295,11 +295,14 @@ newtype EditorConfig = EditorConfig
 data LyricsFetcher
   = -- | lrclib.net.
     Lrclib
+  | -- | tekstowo.pl.
+    Tekstowo
   deriving stock (Eq, Show, Enum, Bounded)
 
 lyricsFetcherName :: LyricsFetcher -> T.Text
 lyricsFetcherName = \case
   Lrclib -> "lrclib"
+  Tekstowo -> "tekstowo"
 
 data Visualization
   = -- | The levels of the frequencies, as bars.
@@ -499,7 +502,7 @@ defaultLyrics :: LyricsConfig
 defaultLyrics =
   LyricsConfig
     { directory = Nothing
-    , fetchers = [Lrclib]
+    , fetchers = [Lrclib, Tekstowo]
     , fetchInBackground = False
     , followPlaying = False
     }

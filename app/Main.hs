@@ -32,7 +32,9 @@ import Reprise.App
 import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.Mpd
+import Reprise.Lyrics.Http
 import Reprise.Lyrics.Lrclib
+import Reprise.Lyrics.Tekstowo
 import Reprise.Lyrics.Worker
 import Reprise.Mpd.Address
 import Reprise.Mpd.Worker
@@ -131,7 +133,8 @@ main = do
   manager <- newTlsManager
   let userAgent = "reprise/" <> T.pack (showVersion Paths.version) <> " (" <> repository <> ")"
       fetcher = \case
-        Lrclib -> lrclibLyrics (lrclibGet manager userAgent)
+        Lrclib -> lrclibLyrics (httpsGet manager userAgent "LRCLIB" "lrclib.net")
+        Tekstowo -> tekstowoLyrics (httpsGet manager userAgent "tekstowo.pl" "www.tekstowo.pl")
   void . restarted . lyricsWorker $
     LyricsSource
       { directory = lyricsDirectory

@@ -388,7 +388,7 @@ ncmpcpp.
     anew, e.g. over wrong ones.
   - **A file is written whole:** to a temporary file, then renamed over the
     old one, with the permissions of a new file.
-- **The fetcher is lrclib.net.** It has a public JSON API, and plain and
+- **The first fetcher is lrclib.net.** It has a public JSON API, and plain and
   timed lyrics. ncmpcpp's fetchers scrape pages that Google finds, and
   Google itself shows the lyrics at the top of a search, but it serves
   search only to clients with JavaScript since 2025: a fetch of "lyrics
@@ -414,6 +414,28 @@ ncmpcpp.
     that hangs holds up the next.
   - **The tests replay LRCLIB's answers** with other lyrics in them, through
     a fake of the HTTP request.
+- **The second fetcher is tekstowo.pl,** a site of lyrics that has some
+  that LRCLIB doesn't, e.g. Polish songs. ncmpcpp found its pages through
+  Google's "I'm Feeling Lucky", which no longer redirects, so all of
+  ncmpcpp's fetchers of sites find nothing now. reprise uses the site's own
+  search.
+  - **It has no API,** so the fetcher reads its pages with tagsoup, which
+    parses real pages leniently and decodes their entities. It breaks when
+    the site changes its pages.
+  - **The search, `/szukaj?search-query=`,** for the artist and the title
+    without what follows it in brackets. The songs that it found are the
+    links of their section, up to the next heading; the page links other
+    songs elsewhere, e.g. the popular ones.
+  - **Only the same artist and title is taken,** without case, with or
+    without what follows the title in brackets. Another song's lyrics would
+    be stored as the song's, so a close result is worse than none.
+  - **The lyrics are the first text of the song's page;** the second is the
+    translation. `<br />` ends a line.
+  - **A search that finds nothing redirects** to the advanced search, which
+    the site's robots.txt asks bots not to read. Redirects aren't followed
+    by any fetcher, and this one is "not found".
+  - **The tests read trimmed copies** of a search, a song's page and the
+    redirect, saved once, with other lyrics in them.
 - **Timed lyrics show the line being sung** while their song plays, in
   `lists.playing_style`, as the song that plays shows in a list. The screen
   keeps that line in its middle, until the user scrolls, and follows again
@@ -639,7 +661,9 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Visualizer.Spectrum` | The spectrum of the samples, with pocketfft's FFT in `cbits` |
 | `Reprise.Lyrics` | Where the lyrics of a song are stored, as ncmpcpp stores them |
 | `Reprise.Lyrics.Worker` | The thread that loads the lyrics that the lyrics screen asks for: the stored ones, else fetched ones, which it stores |
+| `Reprise.Lyrics.Http` | The HTTP requests of the fetchers, over HTTPS, without redirects |
 | `Reprise.Lyrics.Lrclib` | The lyrics of a song from lrclib.net |
+| `Reprise.Lyrics.Tekstowo` | The lyrics of a song from the pages of tekstowo.pl |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
@@ -689,6 +713,7 @@ Libraries:
 | CLI | `optparse-applicative` |
 | Regex, diacritics folding, collation | `text-icu` (see [Find and filter](#find-and-filter)) |
 | HTTP (lyrics, later artist info) | `http-client` and `http-client-tls` |
+| HTML (lyrics from tekstowo.pl) | `tagsoup` |
 | Effects | `effectful` (see [Effects](#effects)) |
 | FFT | pocketfft, in `cbits` (see [Visualizer](#core)) |
 | Record updates | `optics-core` (see [Code](#code)) |
@@ -1377,7 +1402,7 @@ visualizer:
 
 lyrics:
   directory: ~                   # $XDG_DATA_HOME/reprise/lyrics; ncmpcpp's is ~/.lyrics
-  fetchers: [lrclib]             # in order; [] shows only the stored lyrics
+  fetchers: [lrclib, tekstowo]   # in order; [] shows only the stored lyrics
   fetch_in_background: false     # fetch the lyrics of each song that plays
   follow_playing: false          # show the lyrics of each song that plays
 
@@ -1655,7 +1680,7 @@ Many single-character keys collide with YAML syntax:
 | `color1`, `color2`, `window_border_color` | `styles.label`, `styles.value`, `styles.popup_border` |
 | `visualizer_data_source`, `visualizer_in_stereo`, `visualizer_type`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.in_stereo`, `visualizer.visualization`, `visualizer.fps`, `visualizer.colors` |
 | `lyrics_directory` | `lyrics.directory`, `$XDG_DATA_HOME/reprise/lyrics` without it |
-| `lyrics_fetchers` | `lyrics.fetchers`, of `lrclib`, which replaces ncmpcpp's fetchers (see [Core](#core)) |
+| `lyrics_fetchers` | `lyrics.fetchers`, of `lrclib` and `tekstowo` (see [Core](#core)) |
 | `fetch_lyrics_for_current_song_in_background` | `lyrics.fetch_in_background` |
 | `follow_now_playing_lyrics` | `lyrics.follow_playing` |
 | `external_editor` | `editor.command`, `$VISUAL` or `$EDITOR` without it. The author sets `mcedit` in their own config. `use_console_editor` is gone: the editor always gets the terminal |

@@ -25,6 +25,7 @@ extra-source-files:
   tests/mpd-protocol/replies/*.txt
   tests/reprise/golden/*.txt
   tests/reprise/lrclib/*.json
+  tests/reprise/tekstowo/*.html
 
 tested-with: GHC ^>= { 9.6, 9.8, 9.10, 9.12, 9.14 }
 
@@ -103,6 +104,7 @@ library
                     , process              >= 1.6.17
                     , reprise:mpd-protocol
                     , stm                  >= 2.5.1
+                    , tagsoup              >= 0.14.8
                     , text                 >= 2.0.2
                     , text-icu             >= 0.8
                     , time                 >= 1.12
@@ -130,7 +132,9 @@ library
                      Reprise.Keys
                      Reprise.LineEdit
                      Reprise.Lyrics
+                     Reprise.Lyrics.Http
                      Reprise.Lyrics.Lrclib
+                     Reprise.Lyrics.Tekstowo
                      Reprise.Lyrics.Worker
                      Reprise.Mpd.Address
                      Reprise.Mpd.Mirror
@@ -289,6 +293,7 @@ test-suite reprise-tests
                     MirrorTests
                     QueueTests
                     StyleTests
+                    TekstowoTests
                     VisualizerTests
                     WidthTests
                     WorkerTests
