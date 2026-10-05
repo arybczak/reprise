@@ -14,7 +14,6 @@ import Reprise.Event
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
-import Reprise.Screen.Browser
 import Reprise.Selection
 import Reprise.State
 import Utils
@@ -366,13 +365,14 @@ test_longPath = do
       let listed = runEvents 10 [replyTo [] p] entered.state
           redraws = [d | After d (Tick _) <- listed.commands]
       assertEqual "a redraw in a second" [1] redraws
+      let title = shownTitle testAppEnv
       assertBool
-        ("the start: " <> T.unpack (browserTitle listed.state))
-        ("Browse: /a-very-long" `T.isPrefixOf` browserTitle listed.state)
+        ("the start: " <> T.unpack (title listed.state))
+        ("Browse: /a-very-long" `T.isPrefixOf` title listed.state)
       let later = listed.state & #now .~ 13
       assertBool
-        ("three seconds later: " <> T.unpack (browserTitle later))
-        ("Browse: very-long" `T.isPrefixOf` browserTitle later)
+        ("three seconds later: " <> T.unpack (title later))
+        ("Browse: very-long" `T.isPrefixOf` title later)
     [] -> assertFailure "no listing"
 
 ----------------------------------------

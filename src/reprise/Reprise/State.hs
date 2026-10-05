@@ -45,11 +45,17 @@ module Reprise.State
     -- * Queries
   , cursorVisible
   , cursorHideDelay
+  , screenTitle
+  , titleSubject
+  , shownTitle
+  , titleSince
+  , titleScrolls
   , headerRight
   , displayedElapsed
   ) where
 
 import Data.Map.Strict qualified as M
+import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import GHC.Generics
@@ -67,6 +73,7 @@ import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
 import Reprise.Selection
 import Reprise.Style
+import Reprise.Width
 
 -- | What doesn't change while reprise runs. The handlers read it through
 -- the 'Effectful.Input.Static.Input' effect, so none of them can change it.
@@ -108,6 +115,9 @@ data AppState = AppState
   -- ^ The token and the time of the scheduled redraw of the elapsed time.
   , windowTitle :: Maybe T.Text
   -- ^ The title that reprise set last.
+  , titleShown :: Maybe ((ScreenName, Maybe Location), Double)
+  -- ^ What the header's title shows and since when, from which a title that
+  -- doesn't fit scrolls. Nothing before the first event.
   , jumpedToPlaying :: Bool
   -- ^ Whether the cursor moved to the playing song after the start.
   }
@@ -206,9 +216,6 @@ data BrowserState = BrowserState
   -- ^ Of the items of what the browser lists.
   , listing :: Maybe Listing
   -- ^ The listing that was requested last, until its reply comes.
-  , shownAt :: Double
-  -- ^ When the browser began to list what it lists, from which a title
-  -- that doesn't fit scrolls.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -314,7 +321,7 @@ initialState config =
     { connection = Connecting
     , mirror = emptyMirror
     , queueState = QueueState noSelection Nothing
-    , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing 0
+    , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
@@ -339,6 +346,7 @@ initialState config =
     , nextToken = 0
     , tick = Nothing
     , windowTitle = Nothing
+    , titleShown = Nothing
     , jumpedToPlaying = False
     }
   where
@@ -397,6 +405,77 @@ cursorVisible s = s.now - s.lastInput < cursorHideDelay
 -- default @playlist_disable_highlight_delay@.
 cursorHideDelay :: Double
 cursorHideDelay = 5
+
+-- | The title of a screen in the header: a part that stays, and a part that
+-- scrolls if it doesn't fit, as in ncmpcpp.
+screenTitle :: AppEnv -> AppState -> ScreenName -> (T.Text, T.Text)
+screenTitle env s = \case
+  QueueScreen ->
+    let q = s.mirror.queue
+        total = s.mirror.totalLength
+        remaining = case currentPosition s.mirror of
+          Just _ -> s.mirror.lengthFromCurrent - fromMaybe 0 (displayedElapsed s)
+          Nothing -> total
+        count = T.pack (show (Seq.length q)) <> if Seq.length q == 1 then " song" else " songs"
+        times =
+          [formatTotal total | total > 0]
+            <> [formatTotal remaining <> " left" | env.config.queue.showRemainingTime, remaining > 0]
+    in ("Queue ", "(" <> T.intercalate ", " (count : times) <> ")")
+  BrowserScreen ->
+    ( "Browse: "
+    , "/" <> case s.browser.location of
+        Just (InDirectory path) -> path
+        Just (InPlaylist path) -> path
+        Nothing -> ""
+    )
+  other -> (T.toTitle (T.replace "_" " " (screenName other)), "")
+  where
+    -- A short total, e.g. @1h 23m@.
+    formatTotal :: Seconds -> T.Text
+    formatTotal secs =
+      let total = floor @Seconds @Int secs
+          (d, r1) = total `divMod` 86400
+          (h, r2) = r1 `divMod` 3600
+          (m, sec) = r2 `divMod` 60
+          parts = [(d, "d"), (h, "h"), (m, "m"), (sec, "s")]
+          significant = take 2 $ dropWhile ((== 0) . fst) parts
+      in case significant of
+           [] -> "0s"
+           _ -> T.unwords [T.pack (show n) <> unit | (n, unit) <- significant, n > 0]
+
+-- | What the title shows: the focused screen, and what the browser lists.
+-- The scrolling starts again when it changes.
+titleSubject :: AppState -> (ScreenName, Maybe Location)
+titleSubject s = case (focusedView s).screen of
+  BrowserScreen -> (BrowserScreen, s.browser.location)
+  screen -> (screen, Nothing)
+
+-- | The focused screen's title as the header shows it. The part that doesn't
+-- fit next to the volume scrolls by a character for each second since the
+-- title began to show its subject.
+shownTitle :: AppEnv -> AppState -> T.Text
+shownTitle env s =
+  let (stays, rest) = screenTitle env s (focusedView s).screen
+      room = titleRoom s stays
+  in if textWidth rest <= room
+       then stays <> rest
+       else stays <> scrollText room (floor (s.now - titleSince s)) rest
+
+-- | When the title began to show its subject.
+titleSince :: AppState -> Double
+titleSince s = maybe s.now snd s.titleShown
+
+-- | Whether the focused screen's title scrolls, for which the header is drawn
+-- again each second.
+titleScrolls :: AppEnv -> AppState -> Bool
+titleScrolls env s =
+  let (stays, rest) = screenTitle env s (focusedView s).screen
+  in textWidth rest > titleRoom s stays
+
+-- | The columns of a title's part that scrolls, with a space before the
+-- volume.
+titleRoom :: AppState -> T.Text -> Int
+titleRoom s stays = max 0 (fst s.terminalSize - textWidth stays - textWidth (headerRight s) - 1)
 
 -- | The right of the header's first line: the volume, or the state of the
 -- connection.

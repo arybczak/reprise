@@ -2,12 +2,10 @@
 -- status bar, with the which-key panel over the bottom of the main view.
 module Reprise.UI.Layout
   ( renderScreen
-  , formatTotal
   , promptCursor
   ) where
 
 import Data.Maybe
-import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Word
@@ -52,39 +50,10 @@ headerTitle :: AppEnv -> AppState -> V.Image
 headerTitle env s = line env s env.config.header.style left right
   where
     left :: [Span Style]
-    left = [Span (Just env.config.header.titleStyle) (screenTitle env s (focusedView s).screen)]
+    left = [Span (Just env.config.header.titleStyle) (shownTitle env s)]
 
     right :: [Span Style]
     right = [Span (Just env.config.header.volumeStyle) (headerRight s)]
-
-screenTitle :: AppEnv -> AppState -> ScreenName -> T.Text
-screenTitle env s = \case
-  QueueScreen ->
-    let q = s.mirror.queue
-        total = s.mirror.totalLength
-        remaining = case currentPosition s.mirror of
-          Just _ -> s.mirror.lengthFromCurrent - fromMaybe 0 (displayedElapsed s)
-          Nothing -> total
-        count = T.pack (show (Seq.length q)) <> if Seq.length q == 1 then " song" else " songs"
-        times =
-          [formatTotal total | total > 0]
-            <> [formatTotal remaining <> " left" | env.config.queue.showRemainingTime, remaining > 0]
-    in "Queue (" <> T.intercalate ", " (count : times) <> ")"
-  BrowserScreen -> browserTitle s
-  other -> T.toTitle (T.replace "_" " " (screenName other))
-
--- | A short total, e.g. @1h 23m@.
-formatTotal :: Seconds -> T.Text
-formatTotal secs =
-  let total = floor secs :: Int
-      (d, r1) = total `divMod` 86400
-      (h, r2) = r1 `divMod` 3600
-      (m, sec) = r2 `divMod` 60
-      parts = [(d, "d"), (h, "h"), (m, "m"), (sec, "s")]
-      significant = take 2 $ dropWhile ((== 0) . fst) parts
-  in case significant of
-       [] -> "0s"
-       _ -> T.unwords [T.pack (show n) <> unit | (n, unit) <- significant, n > 0]
 
 headerLine :: AppEnv -> AppState -> V.Image
 headerLine env s =

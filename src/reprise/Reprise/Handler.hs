@@ -156,8 +156,17 @@ handleEvent = \case
 -- update the window title.
 afterEvent :: App es => Eff es ()
 afterEvent = do
+  restartTitle
   scheduleTick
   updateWindowTitle
+
+-- | Scroll the header's title from its start when it shows another subject.
+restartTitle :: App es => Eff es ()
+restartTitle = do
+  s <- getS
+  when (fmap fst s.titleShown /= Just (titleSubject s))
+    $ modifyS
+    $ #titleShown ?~ (titleSubject s, s.now)
 
 fetchQueue :: App es => Eff es ()
 fetchQueue = request ((,) <$> status <*> playlistInfo) QueueFetched
@@ -623,28 +632,29 @@ currentDuration s = s.mirror.status >>= (.duration)
 
 -- | Schedule a redraw for the next change of the screen with time: of the
 -- elapsed time, the next whole second or the next cell of the progress bar,
--- or of the browser's title while it scrolls.
+-- or of the header's title while it scrolls.
 scheduleTick :: App es => Eff es ()
 scheduleTick = do
+  env <- getAppEnv
   s <- getS
-  forM_ (nextRedraw s) $ \t -> case s.tick of
+  forM_ (nextRedraw env s) $ \t -> case s.tick of
     Just (_, scheduled) | scheduled <= t -> pure ()
     _ -> do
       token <- newToken
       modifyS $ #tick ?~ (token, t)
       after (t - s.now) (Tick token)
 
-nextRedraw :: AppState -> Maybe Double
-nextRedraw s = case catMaybes [elapsedRedraw s, titleRedraw] of
+nextRedraw :: AppEnv -> AppState -> Maybe Double
+nextRedraw env s = case catMaybes [elapsedRedraw s, titleRedraw] of
   [] -> Nothing
   ts -> Just (minimum ts)
   where
-    -- The next whole second since the browser began to list what it lists.
+    -- The next whole second since the title began to show its subject.
     titleRedraw :: Maybe Double
     titleRedraw = do
-      guard $ (focusedView s).screen == BrowserScreen && browserTitleScrolls s
-      let shown = s.now - s.browser.shownAt
-      pure $ s.browser.shownAt + fromIntegral (floor @Double @Int shown + 1)
+      guard $ titleScrolls env s
+      let since = titleSince s
+      pure $ since + fromIntegral (floor @Double @Int (s.now - since) + 1)
 
 elapsedRedraw :: AppState -> Maybe Double
 elapsedRedraw s = do

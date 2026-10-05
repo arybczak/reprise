@@ -13,6 +13,7 @@ import Test.Tasty.Golden
 import Test.Tasty.HUnit
 
 import Reprise.Config
+import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Types
@@ -42,6 +43,7 @@ layoutTests =
     , snapshot "help-scrolled" $ press ["f1", "page_down"] (playing (80, 24))
     , testCase "flags end a column before the edge" test_flags
     , testCase "the title has its own style" test_titleStyle
+    , testCase "the queue's title scrolls" test_queueTitleScrolls
     , testCase "the marker of a missing tag in columns" test_markerInColumns
     , testCase "the marker of a missing tag in the classic display" test_markerInClassic
     , testCase "a selected song has the selected style" test_selected
@@ -172,6 +174,31 @@ test_titleStyle = do
   let red = testAppEnv & #config % #header % #titleStyle .~ Style (Just (Color 1)) Nothing mempty
       redAttrs = [a | (a, t) <- imageSpans (renderScreen red s), "Queue (" `T.isPrefixOf` t]
   assertEqual "configured" [V.SetTo (V.ISOColor 1)] (map V.attrForeColor redAttrs)
+
+-- | The part after "Queue " scrolls, also while nothing plays. It starts at
+-- its start, at whatever time reprise starts.
+test_queueTitleScrolls :: Assertion
+test_queueTitleScrolls = do
+  let started = 1000
+      r =
+        runEvents
+          started
+          [ Resized 30 12
+          , MpdConnected (Version 0 24 0)
+          , QueueFetched (statusOf Stopped Nothing 6, queue)
+          ]
+          (initialState defaultConfig)
+      titleLine s = case imageLines (renderScreen testAppEnv s) of
+        l : _ -> l
+        [] -> ""
+  assertEqual "a redraw in a second" [1] [d | After d (Tick _) <- r.commands]
+  assertBool
+    ("the start: " <> T.unpack (titleLine r.state))
+    ("Queue (6 songs" `T.isPrefixOf` titleLine r.state)
+  let later = r.state & #now .~ started + 2
+  assertBool
+    ("two seconds later: " <> T.unpack (titleLine later))
+    ("Queue  songs" `T.isPrefixOf` titleLine later)
 
 -- | As in ncmpcpp.
 test_flags :: Assertion

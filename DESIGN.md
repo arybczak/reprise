@@ -409,7 +409,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Action` | The action registry: actions as data, with their names, argument parsers, descriptions, and whether they are destructive |
 | `Reprise.Handler` | The handlers of events, keys, prompts and the actions of every screen, e.g. playback and toggles. It passes the actions of a screen on to the screen's module |
 | `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
-| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors and the order of text. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
+| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors and the order of text. Queries of the state that both the handlers and the layout need, such as whether the cursor shows, or the header's title and whether it scrolls |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
@@ -569,7 +569,7 @@ The elapsed time is redrawn by a timer, not by polling. After each event, the
 handler computes when the screen next changes, the next whole second or the
 next cell of the progress bar, and sets a timer for then. A stream without a
 length has no progress bar, so only the seconds count. The same timer
-scrolls the browser's title, also while nothing plays.
+scrolls the header's title, also while nothing plays.
 
 The worker threads use `mpd-protocol` through a small `Mpd` effect. Actions
 never use it directly; they go through `MpdRequest`.
@@ -734,9 +734,11 @@ Python.
 From top to bottom, as in ncmpcpp's classic design:
 - **Header, line 1:** the screen's title on the left (for the queue, with the
   song count and the total and remaining time), the volume on the right. A
-  path in the browser's title that doesn't fit scrolls by a character each
-  second, from its start whenever the browser lists another directory or
-  playlist, as in ncmpcpp.
+  title has a part that stays, e.g. `Queue ` or `Browse: `, and a part that
+  scrolls by a character each second if it doesn't fit, e.g. the queue's
+  song count and times or the browser's path, as in ncmpcpp. It scrolls from
+  its start whenever the title shows another screen, or the browser lists
+  another directory or playlist.
 - **Header, line 2:** a horizontal line with the mode flags on the right:
   repeat, random, single, consume, crossfade, and "updating the database".
 - **The main view.**
