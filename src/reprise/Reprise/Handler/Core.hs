@@ -34,6 +34,7 @@ module Reprise.Handler.Core
   , restoreView
   , screenLength
   , scrollLines
+  , showSongScreen
   , songUnderCursor
 
     -- * Selection
@@ -265,7 +266,7 @@ modifyView f env s =
 
 -- | The screens of text without items, which a move scrolls.
 textScreens :: [ScreenName]
-textScreens = [LyricsScreen, HelpScreen]
+textScreens = [LyricsScreen, SongInfoScreen, HelpScreen]
 
 -- | Scroll the focused screen of text.
 scrollLines :: App es => MoveTarget -> Eff es ()
@@ -292,8 +293,27 @@ screenLength env s = \case
   QueueScreen -> Seq.length s.mirror.queue
   BrowserScreen -> Seq.length s.browser.items
   LyricsScreen -> length (lyricsRows (fst s.terminalSize) s.lyrics)
+  SongInfoScreen -> length (songInfoRows env s (fst s.terminalSize))
   HelpScreen -> length (helpLines env.keymaps)
   _ -> 0
+
+-- | Show a screen of a song, e.g. its lyrics, for the song under the cursor,
+-- from the top, after an action that opens it for the song and the screen
+-- that it is shown from. On that screen, go back to the screen that it was
+-- shown from, of the screens that it was given.
+showSongScreen
+  :: App es => ScreenName -> ScreenName -> (Song -> ScreenName -> Eff es ()) -> Eff es ()
+showSongScreen target shownFrom open = do
+  s <- getS
+  let screen = (focusedView s).screen
+  if
+    | screen == target -> modifyWithEnv . modifyView $ switchScreen shownFrom
+    | Nothing <- screenDisplay s screen ->
+        showMessage $ "The " <> screenText screen <> " has no songs"
+    | Just song <- songUnderCursor s -> do
+        open song screen
+        modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen target
+    | otherwise -> showMessage "There is no song under the cursor"
 
 -- | The song under the cursor of the focused list.
 songUnderCursor :: AppState -> Maybe Song

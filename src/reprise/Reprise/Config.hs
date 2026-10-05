@@ -339,6 +339,7 @@ data KeysConfig = KeysConfig
   , outputs :: KeymapOverride
   , visualizer :: KeymapOverride
   , lyrics :: KeymapOverride
+  , songInfo :: KeymapOverride
   , help :: KeymapOverride
   }
   deriving stock (Eq, Show, Generic)
@@ -527,6 +528,7 @@ defaultKeys =
     , outputs = noOverride
     , visualizer = noOverride
     , lyrics = noOverride
+    , songInfo = noOverride
     , help = noOverride
     }
   where
@@ -744,6 +746,7 @@ keymapsOf user =
       , (OutputsScreen, (.outputs))
       , (VisualizerScreen, (.visualizer))
       , (LyricsScreen, (.lyrics))
+      , (SongInfoScreen, (.songInfo))
       , (HelpScreen, (.help))
       ]
 
@@ -795,6 +798,7 @@ defaultKeymaps =
           , char '7' ~> Show OutputsScreen
           , char '8' ~> Show VisualizerScreen
           , char 'l' ~> Show LyricsScreen
+          , char 'i' ~> Show SongInfoScreen
           , plain Tab ~> NextScreen [BrowserScreen, VisualizerScreen, MediaLibraryScreen]
           , shift Tab ~> PreviousScreen [BrowserScreen, VisualizerScreen, MediaLibraryScreen]
           , plain (Function 1) ~> Show HelpScreen

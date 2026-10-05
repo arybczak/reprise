@@ -42,6 +42,7 @@ connectionTests =
         , ("directories and playlists", test_directoriesAndPlaylists)
         , ("stats", test_stats)
         , ("outputs", test_outputs)
+        , ("readcomments", test_readComments)
         , ("idle", test_idle)
         , ("noidle", test_noidle)
         ]
@@ -377,3 +378,10 @@ assertQueue conn msg files = do
 
 assertState :: Connection -> String -> PlayerState -> Assertion
 assertState conn msg st = run conn status >>= \s -> assertEqual msg st s.state
+
+-- | The comments as the file has them, also the second value of a name.
+test_readComments :: TestServer -> Assertion
+test_readComments server = withConn server $ \conn -> do
+  comments <- run conn $ readComments "a/one.flac"
+  assertEqual "the artists" ["Foo", "Bar"] [v | (k, v) <- comments, k == "ARTIST"]
+  assertEqual "the title" (Just "Zażółć") (lookup "TITLE" comments)

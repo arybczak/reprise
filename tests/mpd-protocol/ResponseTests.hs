@@ -32,6 +32,7 @@ responseTests =
         , golden "listplaylistinfo" $ listPlaylistInfo "Album/album.cue"
         , golden "stats" stats
         , golden "outputs" outputs
+        , golden "readcomments" $ readComments "Album/01.flac"
         , golden "command-list" $ (,) <$> status <*> currentSong
         , golden "ack" $ play (Just 5)
         , golden "command-list-ack" $ setRepeat True *> play (Just 5) *> setRandom True

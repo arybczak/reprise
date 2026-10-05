@@ -57,17 +57,8 @@ scrollLyrics t = do
 -- lyrics screen, go back to the screen that showed them.
 showLyrics :: App es => Eff es ()
 showLyrics = do
-  s <- getS
-  let screen = (focusedView s).screen
-  if
-    | screen == LyricsScreen ->
-        modifyWithEnv . modifyView $ switchScreen s.lyrics.returnTo
-    | Nothing <- screenDisplay s screen ->
-        showMessage $ "The " <> screenText screen <> " has no songs"
-    | Just song <- songUnderCursor s -> do
-        request song False screen
-        modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen LyricsScreen
-    | otherwise -> showMessage "There is no song under the cursor"
+  returnTo <- getsS (.lyrics.returnTo)
+  showSongScreen LyricsScreen returnTo $ \song screen -> request song False screen
 
 -- | Fetch the lyrics of the song on the screen again, and store them anew.
 refetchLyrics :: App es => Eff es ()

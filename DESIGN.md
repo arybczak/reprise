@@ -354,6 +354,32 @@ ncmpcpp.
   pocketfft.
 - ncmpcpp's sound wave and its mono ellipse come later, if ever.
 
+**Song info**
+- **`i` shows the info of the song under the cursor** of a list, and on the
+  song info screen goes back, as `l` does the lyrics. It is text that
+  scrolls, with labels in `styles.label` and values in `styles.value`, in
+  ncmpcpp's order:
+  - **the file:** its name and directory, and the part of it, e.g. of a cue
+    sheet;
+  - **the audio:** the length, the sample rate, the sample format and the
+    channels from MPD's format of the song, e.g. `44100:16:2`, and the
+    last change of the file. ncmpcpp reads these with TagLib, which needs
+    the music directory; MPD has them. Another format, e.g. of DSD, shows
+    as MPD has it. The bitrate shows only for the song that plays, as MPD
+    has it of no other;
+  - **ReplayGain,** from the comments of the file, `readcomments`: the
+    reference loudness, and the gain and the peak of the track and of the
+    album. MPD reads them of some formats only, e.g. FLAC and Ogg, not
+    MP3, so they show when it has them;
+  - **the tags:** ncmpcpp's, also when the song is without them, with
+    `lists.missing_tag`, then the others that the song has, e.g. the
+    MusicBrainz ids, by MPD's names. A tag's values join with
+    `lists.tag_separator`.
+- **The labels are a column,** as wide as the widest, and a long value wraps
+  below its first line.
+- **A stream isn't asked for comments,** as MPD would open its URL.
+- MPD 0.24's `Added` of a song isn't shown.
+
 **Lyrics**
 - **`l` shows the lyrics of the song under the cursor** of a list, and on
   the lyrics screen goes back to the screen that showed them, as ncmpcpp's
@@ -535,8 +561,6 @@ tag editor, which needs the same two things.
   needs a redesign too.
 
 **Smaller screens and actions**
-- Song info screen, using MPD tags only. Bitrate, sample rate and ReplayGain
-  read directly from the file need TagLib, which comes with the tag editor.
 - Server info popup.
 - Selected items adder popup. MPD 0.23 relative positions (`addid uri +0`)
   make "after current song" trivial.
@@ -684,6 +708,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Visualizer.Samples` | The format of the samples that the worker reads and the visualizer draws |
 | `Reprise.Visualizer.Spectrum` | The spectrum of the samples, with pocketfft's FFT in `cbits` |
 | `Reprise.Lyrics` | Where the lyrics of a song are stored, as ncmpcpp stores them |
+| `Reprise.SongInfo` | What the song info screen shows of a song: the lines of its file, its audio, its ReplayGain and its tags, and their rows at a width |
 | `Reprise.Lyrics.Worker` | The thread that loads the lyrics that the lyrics screen asks for: the stored ones, else fetched ones, which it stores |
 | `Reprise.Lyrics.Http` | The HTTP requests of the fetchers, over HTTPS, without redirects |
 | `Reprise.Lyrics.Lrclib` | The lyrics of a song from lrclib.net |
@@ -698,7 +723,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Width` | The width of text in terminal columns, cutting and wrapping text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
 | `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
-| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser`, `Visualizer`, `Lyrics` and `Help`. Later: `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `SongInfo`, `ServerInfo`, ... |
+| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser`, `Visualizer`, `Lyrics`, `SongInfo` and `Help`. Later: `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `SongInfo`, `ServerInfo`, ... |
 
 The modules form layers, and an import only goes down:
 
@@ -1542,6 +1567,7 @@ keys:
     7: show outputs
     8: show visualizer
     l: show lyrics               # of the song under the cursor; on the lyrics, back
+    i: show song_info            # of the song under the cursor; on the info, back
     tab: next_screen [browser, visualizer, media_library]
     shift-tab: previous_screen [browser, visualizer, media_library]
     f1: show help

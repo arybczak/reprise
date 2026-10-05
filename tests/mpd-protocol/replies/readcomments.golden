@@ -1,0 +1,78 @@
+Right
+    [
+        ( "ALBUM"
+        , "Born To Die"
+        )
+    ,
+        ( "ALBUMARTIST"
+        , "Lana Del Rey"
+        )
+    ,
+        ( "ARTIST"
+        , "Lana Del Rey"
+        )
+    ,
+        ( "DATE"
+        , "2012"
+        )
+    ,
+        ( "DISCTOTAL"
+        , "1"
+        )
+    ,
+        ( "ENCODER"
+        , "X Lossless Decoder 20120120"
+        )
+    ,
+        ( "GENRE"
+        , "Pop"
+        )
+    ,
+        ( "ISRC"
+        , "GBUM71111530"
+        )
+    ,
+        ( "MCN"
+        , "0602527931081"
+        )
+    ,
+        ( "REPLAYGAIN_ALBUM_GAIN"
+        , "-9.54 dB"
+        )
+    ,
+        ( "REPLAYGAIN_ALBUM_PEAK"
+        , "0.99887085"
+        )
+    ,
+        ( "REPLAYGAIN_REFERENCE_LOUDNESS"
+        , "89.0 dB"
+        )
+    ,
+        ( "REPLAYGAIN_TRACK_GAIN"
+        , "-8.84 dB"
+        )
+    ,
+        ( "REPLAYGAIN_TRACK_PEAK"
+        , "0.99887085"
+        )
+    ,
+        ( "TITLE"
+        , "Off To The Races"
+        )
+    ,
+        ( "TOTALDISCS"
+        , "1"
+        )
+    ,
+        ( "TOTALTRACKS"
+        , "15"
+        )
+    ,
+        ( "TRACKNUMBER"
+        , "02/15"
+        )
+    ,
+        ( "TRACKTOTAL"
+        , "15"
+        )
+    ]

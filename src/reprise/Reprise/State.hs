@@ -25,6 +25,7 @@ module Reprise.State
   , VisualizerState (..)
   , LyricsState (..)
   , LyricsStatus (..)
+  , SongInfoState (..)
   , Location (..)
   , BrowserItem (..)
   , Listing (..)
@@ -56,6 +57,7 @@ module Reprise.State
   , headerRight
   , displayedElapsed
   , lyricsRows
+  , songInfoRows
   , sungLine
   , lyricsOffset
   , nextLyricsLine
@@ -84,6 +86,7 @@ import Reprise.Lyrics
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
 import Reprise.Selection
+import Reprise.SongInfo
 import Reprise.Style
 import Reprise.Width
 
@@ -110,6 +113,7 @@ data AppState = AppState
   , browser :: BrowserState
   , visualizer :: VisualizerState
   , lyrics :: LyricsState
+  , songInfo :: SongInfoState
   , toggles :: Toggles
   , views :: M.Map ViewId View
   , layout :: Layout
@@ -315,6 +319,20 @@ data LyricsState = LyricsState
   }
   deriving stock (Eq, Show, Generic)
 
+-- | What the song info screen shows.
+data SongInfoState = SongInfoState
+  { song :: Maybe Song
+  , token :: Int
+  -- ^ Of the request of the comments of the song's file. A reply with another
+  -- token is of a song that the screen showed before.
+  , comments :: [(T.Text, T.Text)]
+  -- ^ Of the song's file, for its ReplayGain. None until they come.
+  , returnTo :: ScreenName
+  -- ^ The screen that the song was shown from, which showing it again goes
+  -- back to.
+  }
+  deriving stock (Eq, Show, Generic)
+
 data LyricsStatus
   = -- | Until the worker reads the stored lyrics, which takes no time to
     -- see, so the screen shows nothing.
@@ -387,6 +405,7 @@ initialState config =
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , visualizer = VisualizerState Nothing Seq.empty []
     , lyrics = LyricsState Nothing 0 ReadingLyrics True QueueScreen Nothing Nothing
+    , songInfo = SongInfoState Nothing 0 [] QueueScreen
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
@@ -496,6 +515,7 @@ screenTitle env s = \case
         Nothing -> ""
     )
   LyricsScreen -> ("Lyrics: ", maybe "" lyricsName s.lyrics.song)
+  SongInfoScreen -> ("Song info: ", maybe "" lyricsName s.songInfo.song)
   other -> (T.toTitle (T.replace "_" " " (screenName other)), "")
   where
     -- A short total, e.g. @1h 23m@.
@@ -638,3 +658,19 @@ playingTimedLyrics s = do
   timed <- lyrics.timed
   elapsed <- displayedElapsed s
   pure (timed, elapsed)
+
+-- | The rows of the song info screen at a width: a label and a value, which
+-- the song can be without.
+songInfoRows :: AppEnv -> AppState -> Int -> [(T.Text, Maybe T.Text)]
+songInfoRows env s width = case s.songInfo.song of
+  Nothing -> []
+  Just song ->
+    infoRows width $
+      songInfoLines env.config.lists.tagSeparator (bitrateOf song) s.songInfo.comments song
+  where
+    -- MPD has the bitrate of the song that plays only.
+    bitrateOf :: Song -> Maybe Int
+    bitrateOf song = do
+      playing <- currentSong s.mirror
+      guard $ sameSong playing song
+      s.mirror.status >>= (.bitrate)

@@ -24,6 +24,7 @@ import Reprise.Screen.Browser
 import Reprise.Screen.Help
 import Reprise.Screen.Lyrics
 import Reprise.Screen.Queue
+import Reprise.Screen.SongInfo
 import Reprise.Screen.Visualizer
 import Reprise.State
 import Reprise.Style
@@ -109,6 +110,7 @@ mainView env s =
        BrowserScreen -> browserView env s v
        VisualizerScreen -> visualizerView env s v
        LyricsScreen -> lyricsView env s v
+       SongInfoScreen -> songInfoView env s v
        HelpScreen -> helpView env v
        _ -> V.emptyImage
 

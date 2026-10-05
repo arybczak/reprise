@@ -144,8 +144,10 @@ library
                      Reprise.Screen.Lyrics
                      Reprise.Screen.Queue
                      Reprise.Screen.Queue.Edits
+                     Reprise.Screen.SongInfo
                      Reprise.Screen.Visualizer
                      Reprise.Selection
+                     Reprise.SongInfo
                      Reprise.State
                      Reprise.Style
                      Reprise.UI.Layout
@@ -264,6 +266,7 @@ test-suite reprise-tests
                     , tasty-quickcheck
                     , temporary
                     , text
+                    , time
                     , unix
                     , vector
                     , vty
@@ -292,6 +295,7 @@ test-suite reprise-tests
                     LyricsTests
                     MirrorTests
                     QueueTests
+                    SongInfoTests
                     StyleTests
                     TekstowoTests
                     VisualizerTests

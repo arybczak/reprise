@@ -21,6 +21,7 @@ import LyricsTests
 import MirrorTests
 import QueueTests
 import Reprise.Width
+import SongInfoTests
 import StyleTests
 import TekstowoTests
 import VisualizerTests
@@ -52,6 +53,7 @@ main = do
       , lyricsTests
       , mirrorTests
       , queueTests
+      , songInfoTests
       , styleTests
       , tekstowoTests
       , visualizerTests

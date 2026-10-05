@@ -28,6 +28,7 @@ module Reprise.Mpd.Protocol.Response
   , parseEntries
   , parseStatus
   , parseStats
+  , parseComments
   , parseOutputs
   , parseSubsystems
   , parseSingleMode
@@ -439,6 +440,10 @@ parseStats = parseSingle $ \fields -> do
       , dbPlaytime = dbPlaytime
       , dbUpdate = posixSecondsToUTCTime . fromIntegral <$> dbUpdate
       }
+
+-- | The comments of a file, in the order of the reply.
+parseComments :: [Field] -> Either T.Text [(T.Text, T.Text)]
+parseComments = parseAll (\f -> Right (decode f.key, decode f.value))
 
 parseOutputs :: [Field] -> Either T.Text [Output]
 parseOutputs fields = parseAll parseOutput =<< splitOn (== "outputid") fields

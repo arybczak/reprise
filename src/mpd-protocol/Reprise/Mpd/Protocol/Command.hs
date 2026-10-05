@@ -67,6 +67,7 @@ module Reprise.Mpd.Protocol.Command
     -- * Database
   , update
   , lsInfo
+  , readComments
 
     -- * Playlists
   , listPlaylistInfo
@@ -332,6 +333,12 @@ update uri = command "update" (maybe [] pure uri) $ \fields ->
 -- playlists at the root, which it has deprecated.
 lsInfo :: T.Text -> Command [Entry]
 lsInfo path = command "lsinfo" [path | not (T.null path)] parseEntries
+
+-- | The comments of a song's file, as the file has them, e.g. ReplayGain's.
+-- MPD reads them for some formats only, e.g. FLAC and Ogg, not MP3. It
+-- leaves out the values of more than one line.
+readComments :: T.Text -> Command [(T.Text, T.Text)]
+readComments uri = command "readcomments" [uri] parseComments
 
 ----------------------------------------
 -- Playlists

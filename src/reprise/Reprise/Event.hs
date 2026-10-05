@@ -61,6 +61,9 @@ data AppEvent
     LyricsFetching Int T.Text
   | -- | The lyrics of the request with the token.
     LyricsLoaded Int LyricsResult
+  | -- | The comments of the file of the song info screen's request with the
+    -- token.
+    SongCommentsFetched Int [(T.Text, T.Text)]
   | -- | The editor of a file exited, with why it failed.
     Edited FilePath (Maybe T.Text)
   | -- | The user confirmed a destructive action.

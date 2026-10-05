@@ -37,6 +37,7 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
 import Reprise.Screen.Lyrics
 import Reprise.Screen.Queue
+import Reprise.Screen.SongInfo
 import Reprise.Screen.Visualizer
 import Reprise.Selection
 import Reprise.State
@@ -155,6 +156,7 @@ handleEvent = \case
   LyricsFetching token fetcher -> lyricsFetching token fetcher
   LyricsLoaded token result -> lyricsLoaded token result
   Edited file failure -> lyricsEdited file failure
+  SongCommentsFetched token comments -> songCommentsFetched token comments
   Confirmed action -> runConfirmed action
   where
     statusSubsystems :: [Subsystem]
@@ -330,6 +332,7 @@ runAction = \case
     QueueScreen -> Just $ modifyWithEnv (moveQueueCursor t)
     BrowserScreen -> Just $ modifyWithEnv (moveBrowserCursor t)
     LyricsScreen -> Just $ scrollLyrics t
+    SongInfoScreen -> Just $ scrollLines t
     HelpScreen -> Just $ scrollLines t
     _ -> Nothing
   JumpToPlaying -> do
@@ -410,6 +413,7 @@ runAction = \case
       VolumeTo n -> setVolume n
   Toggle t -> toggle t
   Show LyricsScreen -> showLyrics
+  Show SongInfoScreen -> showSongInfo
   Show screen
     | screen `elem` [QueueScreen, BrowserScreen, VisualizerScreen, HelpScreen] -> do
         modifyWithEnv . modifyView $ switchScreen screen
