@@ -9,12 +9,14 @@ module Utils
   , testState
   , runEvents
   , Result (..)
+  , replyTo
 
     -- * Images
   , imageLines
   , imageSpans
   ) where
 
+import Data.ByteString qualified as BS
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
@@ -28,7 +30,9 @@ import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Handler
+import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Request
+import Reprise.Mpd.Protocol.Response
 import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
@@ -115,6 +119,12 @@ runEvents now events s0 = L.foldl' step (Result s0 [] [] []) events
     step r e =
       let (s, ps, cs) = runEvent testAppEnv now e r.state
       in Result s (r.requests <> map pendingRequestLines ps) (r.pending <> ps) (r.commands <> cs)
+
+-- | The event of a request's continuation, for a reply of the given lines
+-- before its @OK@.
+replyTo :: [BS.ByteString] -> PendingRequest -> AppEvent
+replyTo ls (PendingRequest cmd k) =
+  either (error . show) k $ parseCommandReply cmd =<< parseReply (ls <> ["OK"])
 
 ----------------------------------------
 -- Images

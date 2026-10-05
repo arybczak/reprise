@@ -22,6 +22,7 @@ import Reprise.Keys
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
+import Reprise.Screen.Browser
 import Reprise.Screen.Help
 import Reprise.Screen.Queue
 import Reprise.State
@@ -77,6 +78,7 @@ screenTitle env s = \case
           [formatTotal total | total > 0]
             <> [formatTotal remaining <> " left" | env.config.queue.showRemainingTime, remaining > 0]
     in "Queue (" <> T.intercalate ", " (count : times) <> ")"
+  BrowserScreen -> browserTitle s
   other -> T.toTitle (T.replace "_" " " (screenName other))
 
 -- | A short total, e.g. @1h 23m@.
@@ -141,6 +143,7 @@ mainView env s =
       h = mainHeight s.terminalSize
   in V.resize w h $ case v.screen of
        QueueScreen -> queueView env s v
+       BrowserScreen -> browserView env s v
        HelpScreen -> helpView env v
        _ -> V.emptyImage
 

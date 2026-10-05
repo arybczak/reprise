@@ -21,6 +21,10 @@ module Reprise.State
   , SeekState (..)
   , QueueState (..)
   , FindRows (..)
+  , BrowserState (..)
+  , Location (..)
+  , BrowserItem (..)
+  , Listing (..)
   , Toggles (..)
 
     -- * Views
@@ -73,6 +77,7 @@ data AppState = AppState
   { connection :: ConnectionState
   , mirror :: Mirror
   , queueState :: QueueState
+  , browser :: BrowserState
   , toggles :: Toggles
   , views :: M.Map ViewId View
   , layout :: Layout
@@ -182,6 +187,41 @@ data FindRows = FindRows
   }
   deriving stock (Eq, Show, Generic)
 
+-- | The content of the browser: the listing of a directory or a playlist.
+data BrowserState = BrowserState
+  { location :: Maybe Location
+  -- ^ What the items list, before the first listing nothing.
+  , items :: Seq.Seq BrowserItem
+  , listing :: Maybe Listing
+  -- ^ The listing that was requested last, until its reply comes.
+  }
+  deriving stock (Eq, Show, Generic)
+
+-- | What the browser lists.
+data Location
+  = -- | A directory of the database, @""@ for the root.
+    InDirectory T.Text
+  | -- | The songs of a playlist.
+    InPlaylist T.Text
+  deriving stock (Eq, Show)
+
+data BrowserItem
+  = -- | The way up, @..@.
+    ParentItem
+  | EntryItem Entry
+  deriving stock (Eq, Show)
+
+-- | A listing on its way. A reply with another token is of a listing that
+-- a newer one replaced.
+data Listing = Listing
+  { token :: Int
+  , location :: Location
+  , cursorOn :: Maybe Location
+  -- ^ The directory or the playlist to put the cursor on, e.g. the one that
+  -- the user went up from.
+  }
+  deriving stock (Eq, Show, Generic)
+
 -- | Settings that the user can toggle while reprise runs. They start from
 -- the config.
 data Toggles = Toggles
@@ -238,6 +278,7 @@ initialState config =
     { connection = Connecting
     , mirror = emptyMirror
     , queueState = QueueState S.empty [] Nothing Nothing
+    , browser = BrowserState Nothing Seq.empty Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display

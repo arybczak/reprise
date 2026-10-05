@@ -28,6 +28,7 @@ module Reprise.Handler.Core
   , modifyView
   , setCursor
   , jumpTo
+  , moveListCursor
   , restoreView
   , screenLength
   ) where
@@ -44,9 +45,11 @@ import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Groups
 import Reprise.Keymap
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
+import Reprise.Mpd.Protocol.Types
 import Reprise.State
 
 -- | The effects of the handlers.
@@ -127,6 +130,25 @@ jumpTo p env s =
   in -- modifyView brings the offset back into the list.
      modifyView ((#cursor .~ p) . (#offset .~ p - h `div` 2)) env s
 
+-- | Move the cursor of the focused list. The songs of its items tell albums
+-- and artists apart.
+moveListCursor
+  :: (a -> Maybe Song) -> Seq.Seq a -> MoveTarget -> AppEnv -> AppState -> AppState
+moveListCursor songOf items t env s =
+  let h = max 1 (listHeight env s (focusedView s))
+      c = (focusedView s).cursor
+  in case t of
+       MoveUp -> setCursor (c - 1) env s
+       MoveDown -> setCursor (c + 1) env s
+       MovePageUp -> setCursor (c - h) env s
+       MovePageDown -> setCursor (c + h) env s
+       MoveFirst -> setCursor 0 env s
+       MoveLast -> setCursor (Seq.length items - 1) env s
+       MovePreviousAlbum -> jumpTo (previousGroup (fmap albumKey . songOf) items c) env s
+       MoveNextAlbum -> jumpTo (nextGroup (fmap albumKey . songOf) items c) env s
+       MovePreviousArtist -> jumpTo (previousGroup (fmap artistKey . songOf) items c) env s
+       MoveNextArtist -> jumpTo (nextGroup (fmap artistKey . songOf) items c) env s
+
 -- | Bring back a cursor and an offset, e.g. after a cancelled find.
 restoreView :: (Int, Int) -> AppEnv -> AppState -> AppState
 restoreView (c, o) = modifyView $ (#cursor .~ c) . (#offset .~ o)
@@ -154,5 +176,6 @@ modifyView f env s =
 screenLength :: AppEnv -> AppState -> ScreenName -> Int
 screenLength env s = \case
   QueueScreen -> Seq.length s.mirror.queue
+  BrowserScreen -> Seq.length s.browser.items
   HelpScreen -> length (helpLines env.keymaps)
   _ -> 0

@@ -1,9 +1,11 @@
--- | Rows of songs, in the classic display or in columns.
+-- | Rows of songs, in the classic display or in columns, and rows of other
+-- items of a list, e.g. directories.
 module Reprise.UI.SongList
   ( -- * Rows
     RowContext (..)
   , RowFlags (..)
   , renderRow
+  , renderOtherRow
   , renderTitles
   , rowText
 
@@ -78,15 +80,28 @@ renderRow ctx flags song = case ctx.display of
     styles :: (Style, Style)
     styles = (ctx.lists.style, overlay)
 
-    -- The styles that the row's state lays over its own.
     overlay :: Style
-    overlay =
-      mconcat
-        [ if flags.playing then ctx.lists.playingStyle else mempty
-        , if flags.selected then ctx.lists.selectedStyle else mempty
-        , if flags.found then ctx.lists.foundStyle else mempty
-        , if flags.cursor then ctx.lists.cursorStyle else mempty
-        ]
+    overlay = overlayStyle ctx.lists flags
+
+-- | A row of an item that isn't a song, e.g. a directory.
+renderOtherRow :: RowContext -> RowFlags -> [Span Style] -> V.Image
+renderOtherRow ctx flags =
+  padded
+    (toAttr ctx.colorMode)
+    (ctx.lists.style, overlayStyle ctx.lists flags)
+    AlignLeft
+    ctx.width
+    . fitSpans ctx.width
+
+-- | The styles that a row's state lays over its own.
+overlayStyle :: ListsConfig -> RowFlags -> Style
+overlayStyle lists flags =
+  mconcat
+    [ if flags.playing then lists.playingStyle else mempty
+    , if flags.selected then lists.selectedStyle else mempty
+    , if flags.found then lists.foundStyle else mempty
+    , if flags.cursor then lists.cursorStyle else mempty
+    ]
 
 -- | The text of a song's row without styles, which find matches. A missing
 -- tag is empty rather than its marker.

@@ -96,21 +96,7 @@ queueView env s v =
 -- Moving
 
 moveQueueCursor :: MoveTarget -> AppEnv -> AppState -> AppState
-moveQueueCursor t env s =
-  let h = max 1 (listHeight env s (focusedView s))
-      q = s.mirror.queue
-      c = (focusedView s).cursor
-  in case t of
-       MoveUp -> setCursor (c - 1) env s
-       MoveDown -> setCursor (c + 1) env s
-       MovePageUp -> setCursor (c - h) env s
-       MovePageDown -> setCursor (c + h) env s
-       MoveFirst -> setCursor 0 env s
-       MoveLast -> setCursor (Seq.length q - 1) env s
-       MovePreviousAlbum -> jumpTo (previousGroup albumKey q c) env s
-       MoveNextAlbum -> jumpTo (nextGroup albumKey q c) env s
-       MovePreviousArtist -> jumpTo (previousGroup artistKey q c) env s
-       MoveNextArtist -> jumpTo (nextGroup artistKey q c) env s
+moveQueueCursor t env s = moveListCursor Just s.mirror.queue t env s
 
 -- | Move the queue's cursor to the playing song in the middle of the list,
 -- also while the view shows another screen.

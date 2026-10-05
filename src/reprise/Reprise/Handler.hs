@@ -32,6 +32,7 @@ import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
+import Reprise.Screen.Browser
 import Reprise.Screen.Help
 import Reprise.Screen.Queue
 import Reprise.Screen.Queue.Edits
@@ -80,6 +81,7 @@ handleEvent = \case
   MpdConnected v -> do
     modifyS $ #connection .~ Connected v
     fetchQueue
+    relistBrowser
   -- The player's status would be stale, but the queue stays to look at
   -- until the connection is back.
   MpdDisconnected reason ->
@@ -104,6 +106,7 @@ handleEvent = \case
   StatusFetched st -> do
     now <- getsS (.now)
     updateMirror $ setStatus now st
+  BrowserListed token entries -> browserListed token entries
   ReplayGainFetched mode -> do
     let nextMode = case mode of
           ReplayGainOff -> ReplayGainTrack
@@ -299,6 +302,7 @@ runAction :: App es => Action -> Eff es ()
 runAction = \case
   action@(Move t) -> verb action $ \case
     QueueScreen -> Just $ modifyWithEnv (moveQueueCursor t)
+    BrowserScreen -> Just $ modifyWithEnv (moveBrowserCursor t)
     HelpScreen -> Just $ scrollHelp t
     _ -> Nothing
   JumpToPlaying -> do
@@ -306,6 +310,10 @@ runAction = \case
     modifyWithEnv jumpToPlaying
   action@Activate -> verb action $ \case
     QueueScreen -> Just activate
+    BrowserScreen -> Just activateItem
+    _ -> Nothing
+  action@Parent -> verb action $ \case
+    BrowserScreen -> Just leave
     _ -> Nothing
   action@(Select t) -> verb action $ \case
     QueueScreen -> Just $ select t
@@ -349,8 +357,9 @@ runAction = \case
       VolumeTo n -> setVolume n
   Toggle t -> toggle t
   Show screen
-    | screen `elem` [QueueScreen, HelpScreen] ->
+    | screen `elem` [QueueScreen, BrowserScreen, HelpScreen] -> do
         modifyWithEnv . modifyView $ switchScreen screen
+        when (screen == BrowserScreen) openBrowser
     | otherwise -> notAvailable $ "The " <> screenText screen
   Quit -> halt
   Clear -> do

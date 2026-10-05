@@ -28,6 +28,8 @@ data AppEvent
     -- in the mirror.
     QueueChangesFetched (Status, [Song])
   | StatusFetched Status
+  | -- | The entries of the browser's listing with the token.
+    BrowserListed Int [Entry]
   | ReplayGainFetched ReplayGainMode
   | -- | The reply to a command that changes MPD's state. The new state comes
     -- through idle.

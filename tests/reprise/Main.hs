@@ -4,6 +4,7 @@ import Test.Tasty
 
 import ActionTests
 import AddressTests
+import BrowserTests
 import ConfigTests
 import FindTests
 import FormatTests
@@ -30,6 +31,7 @@ main = do
       "reprise"
       [ actionTests
       , addressTests
+      , browserTests
       , configTests
       , findTests
       , formatTests

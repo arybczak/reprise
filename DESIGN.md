@@ -402,9 +402,9 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
 | `Reprise.Width` | The width of text in terminal columns, cutting text to a width, and the table of character widths that reprise installs for vty |
-| `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs |
+| `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
 | `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
-| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs) and `Help`. Later: `Browser`, `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `Lyrics`, `SongInfo`, `ServerInfo`, ... |
+| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser` and `Help`. Later: `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `Lyrics`, `SongInfo`, `ServerInfo`, ... |
 
 The modules form layers, and an import only goes down:
 

@@ -1,6 +1,8 @@
 module LayoutTests (layoutTests) where
 
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
+import Data.List qualified as L
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Graphics.Vty qualified as V
@@ -32,6 +34,24 @@ layoutTests =
     , snapshot "empty" $ testState (80, 6) (statusOf Stopped Nothing 0) []
     , snapshot "disconnected" . (.state) $
         runEvents 0 [MpdDisconnected "gone"] (playing (80, 12))
+    , snapshot "browser" $ browsing [(["2"], rootReply)]
+    , snapshot "browser-directory" $
+        browsing
+          [ (["2"], rootReply)
+          ,
+            ( ["enter"]
+            ,
+              [ "directory: Albums/Live"
+              , "file: Albums/01.flac"
+              , "Artist: Some Artist"
+              , "Title: First Song"
+              , "duration: 61.000"
+              , "file: Albums/02.flac"
+              , "duration: 185.000"
+              , "playlist: Albums/album.m3u"
+              ]
+            )
+          ]
     , snapshot "help" $ press ["f1"] (playing (80, 24))
     , snapshot "help-scrolled" $ press ["f1", "page_down"] (playing (80, 24))
     , testCase "flags end a column before the edge" test_flags
@@ -173,9 +193,24 @@ playing size = testState size (statusOf Playing (Just 1) (length queue)) queue
 
 press :: [T.Text] -> AppState -> AppState
 press ks s = (runEvents 0 (map (KeyPressed . key) ks) s).state
+
+-- | The browser after keys, each followed by the reply to the listing they
+-- requested.
+browsing :: [([T.Text], [BS.ByteString])] -> AppState
+browsing = L.foldl' step (playing (80, 12))
   where
-    key :: T.Text -> KeySpec
-    key = either (error . T.unpack) id . parseKeySpec
+    step :: AppState -> ([T.Text], [BS.ByteString]) -> AppState
+    step s (ks, reply) =
+      let r = runEvents 0 (map (KeyPressed . key) ks) s
+      in case reverse r.pending of
+           p : _ -> (runEvents 0 [replyTo reply p] r.state).state
+           [] -> r.state
+
+rootReply :: [BS.ByteString]
+rootReply = ["directory: Albums", "directory: Singles", "playlist: Favourites"]
+
+key :: T.Text -> KeySpec
+key = either (error . T.unpack) id . parseKeySpec
 
 queue :: [Song]
 queue =
