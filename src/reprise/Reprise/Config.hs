@@ -276,6 +276,8 @@ data LyricsConfig = LyricsConfig
   , fetchInBackground :: Bool
   -- ^ Fetch the lyrics of each song that plays, so that they are stored
   -- when the lyrics screen shows them.
+  , followPlaying :: Bool
+  -- ^ Show the lyrics of the next song that plays on the lyrics screen.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml LyricsConfig
@@ -481,7 +483,12 @@ defaultVisualizer =
 
 defaultLyrics :: LyricsConfig
 defaultLyrics =
-  LyricsConfig {directory = Nothing, fetchers = [Lrclib], fetchInBackground = False}
+  LyricsConfig
+    { directory = Nothing
+    , fetchers = [Lrclib]
+    , fetchInBackground = False
+    , followPlaying = False
+    }
 
 defaultStyles :: StylesConfig
 defaultStyles =
@@ -856,7 +863,13 @@ defaultKeymaps =
           , -- As in ncmpcpp.
             (VisualizerScreen, keymap [plain Space ~> Toggle ToggleVisualization])
           , -- As in ncmpcpp.
-            (LyricsScreen, keymap [char '`' ~> RefetchLyrics])
+
+            ( LyricsScreen
+            , keymap
+                [ char '`' ~> RefetchLyrics
+                , plain Space ~> Toggle ToggleFollowPlaying
+                ]
+            )
           ]
     }
   where

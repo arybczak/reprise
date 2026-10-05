@@ -305,6 +305,9 @@ data LyricsState = LyricsState
   -- goes back to.
   , inBackground :: Maybe Song
   -- ^ The song whose lyrics were fetched in the background last.
+  , playing :: Maybe Song
+  -- ^ The song that played after the last event, from which the screen
+  -- follows the next one.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -322,6 +325,7 @@ data Toggles = Toggles
   { queueDisplay :: Display
   , albumSeparators :: Bool
   , followPlaying :: Bool
+  , lyricsFollowPlaying :: Bool
   , showBitrate :: Bool
   , browserDisplay :: Display
   , browserSort :: SortBy
@@ -377,12 +381,13 @@ initialState config =
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , visualizer = VisualizerState Nothing Seq.empty []
-    , lyrics = LyricsState Nothing 0 ReadingLyrics True QueueScreen Nothing
+    , lyrics = LyricsState Nothing 0 ReadingLyrics True QueueScreen Nothing Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
           , albumSeparators = config.queue.albumSeparators
           , followPlaying = config.queue.followPlaying
+          , lyricsFollowPlaying = config.lyrics.followPlaying
           , showBitrate = config.statusBar.showBitrate
           , browserDisplay = config.browser.display
           , browserSort = config.browser.sort.by

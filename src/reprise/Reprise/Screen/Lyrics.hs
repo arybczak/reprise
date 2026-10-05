@@ -8,6 +8,7 @@ module Reprise.Screen.Lyrics
   , lyricsFetching
   , lyricsLoaded
   , updateLyrics
+  , toggleLyricsFollowing
   ) where
 
 import Control.Monad
@@ -92,17 +93,48 @@ request song refetch returnTo = do
       . (#returnTo .~ returnTo)
   fetchLyrics token (LyricsRequest song refetch)
 
+-- | Turn following the song that plays on or off. On, the screen shows the
+-- lyrics of the song that plays at once.
+toggleLyricsFollowing :: App es => Eff es ()
+toggleLyricsFollowing = do
+  modifyS $ #toggles % #lyricsFollowPlaying %~ not
+  s <- getS
+  showMessage $
+    "Lyrics follow playing: " <> if s.toggles.lyricsFollowPlaying then "on" else "off"
+  forM_ (currentSong s.mirror) $ \playing ->
+    when (s.toggles.lyricsFollowPlaying && not (maybe False (sameSong playing) s.lyrics.song)) $
+      request playing False s.lyrics.returnTo
+
 -- | Fetch the lyrics of each new song that plays in the background, if the
--- config says so. It runs after every event.
+-- config says so, and show them on the lyrics screen while it follows the
+-- song that plays. It runs after every event.
 updateLyrics :: App es => Eff es ()
 updateLyrics = do
   env <- getAppEnv
   s <- getS
+  let playing = currentSong s.mirror
+      changed = not (sameAs playing s.lyrics.playing)
   when (env.config.lyrics.fetchInBackground && not (null env.config.lyrics.fetchers)) $
-    forM_ (currentSong s.mirror) $ \playing ->
-      unless (maybe False (sameSong playing) s.lyrics.inBackground) $ do
-        modifyS $ #lyrics % #inBackground ?~ playing
-        fetchLyricsInBackground playing
+    forM_ playing $ \p ->
+      unless (sameAs (Just p) s.lyrics.inBackground) $ do
+        modifyS $ #lyrics % #inBackground ?~ p
+        fetchLyricsInBackground p
+  when changed $ do
+    modifyS $ #lyrics % #playing .~ playing
+    -- Only a new song moves the screen, so that it can show another.
+    forM_ playing $ \p ->
+      when
+        ( s.toggles.lyricsFollowPlaying
+            && (focusedView s).screen == LyricsScreen
+            && not (sameAs (Just p) s.lyrics.song)
+        )
+        $ request p False s.lyrics.returnTo
+  where
+    sameAs :: Maybe Song -> Maybe Song -> Bool
+    sameAs a b = case (a, b) of
+      (Just x, Just y) -> sameSong x y
+      (Nothing, Nothing) -> True
+      _ -> False
 
 -- | The lyrics of the request with the token aren't stored, so they are
 -- being fetched.

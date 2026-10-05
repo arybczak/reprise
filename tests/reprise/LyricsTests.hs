@@ -52,6 +52,8 @@ lyricsTests =
     , testCase "a redraw when the next line is sung" test_nextLine
     , testCase "the worker fetches in the background" test_workerInBackground
     , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
+    , testCase "the lyrics follow the song that plays" test_followPlaying
+    , testCase "space turns following the song on and off" test_toggleFollowing
     ]
 
 -- | The first is the name of a file in the author's lyrics from ncmpcpp.
@@ -359,6 +361,47 @@ test_workerInBackground = withSystemTempDirectory "lyrics" $ \dir -> do
   where
     untilJust :: IO (Maybe b) -> IO b
     untilJust act = act >>= maybe (untilJust act) pure
+
+-- | While One plays, the lyrics of Two show, until Three plays.
+test_followPlaying :: Assertion
+test_followPlaying = do
+  s <- testState (40, 10) (statusOf Playing (Just 0) 3) threeSongs
+  let following = s & #toggles % #lyricsFollowPlaying .~ True
+  assertBool
+    "from the config"
+    (initialState (defaultConfig & #lyrics % #followPlaying .~ True)).toggles.lyricsFollowPlaying
+  two <- runEvents 0 [key "down", key "l"] following
+  assertEqual "the song under the cursor" ["A - Two"] (askedFor two)
+  three <- runEvents 0 [StatusFetched (statusOf Playing (Just 2) 3)] two.state
+  assertEqual "the next song" ["A - Three"] (askedFor three)
+  assertEqual "the same screen to go back to" QueueScreen three.state.lyrics.returnTo
+  notFollowing <-
+    runEvents 0 [key "down", key "l", StatusFetched (statusOf Playing (Just 2) 3)] s
+  assertEqual "not unless it follows" ["A - Two"] (askedFor notFollowing)
+  elsewhere <-
+    runEvents 0 [key "l", key "l", StatusFetched (statusOf Playing (Just 2) 3)] following
+  assertEqual "not on another screen" ["A - One"] (askedFor elsewhere)
+
+test_toggleFollowing :: Assertion
+test_toggleFollowing = do
+  s <- testState (40, 10) (statusOf Playing (Just 0) 3) threeSongs
+  on <- runEvents 0 [key "down", key "l", key "space"] s
+  assertEqual "on" (Just "Lyrics follow playing: on") ((.text) <$> on.state.message)
+  assertEqual "the song that plays at once" ["A - Two", "A - One"] (askedFor on)
+  assertBool "not the queue's" (not on.state.toggles.followPlaying)
+  off <- runEvents 0 [key "space"] on.state
+  assertEqual "off" (Just "Lyrics follow playing: off") ((.text) <$> off.state.message)
+
+threeSongs :: [Song]
+threeSongs =
+  [ song 0 [(Artist, ["A"]), (Title, ["One"])] 60
+  , song 1 [(Artist, ["A"]), (Title, ["Two"])] 60
+  , song 2 [(Artist, ["A"]), (Title, ["Three"])] 60
+  ]
+
+-- | The songs whose lyrics the screen asked for.
+askedFor :: Result -> [T.Text]
+askedFor r = [lyricsName q.song | FetchLyrics _ q <- r.commands]
 
 test_fetchInBackground :: Assertion
 test_fetchInBackground = do

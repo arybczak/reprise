@@ -433,7 +433,14 @@ ncmpcpp.
   does, so that they are stored when the screen shows them. The worker
   takes a request of the screen first, so the screen doesn't wait for the
   background. A failure in the background goes to the log.
-- **Later:** following the playing song; editing in `$EDITOR`.
+- **`lyrics.follow_playing` shows the lyrics of each song that plays** while
+  the lyrics screen shows, as ncmpcpp's `follow_now_playing_lyrics` does.
+  Only a new song moves the screen, so `l` still shows the lyrics of
+  another song until then. Space on the lyrics screen toggles it, as in
+  ncmpcpp, with `toggle follow_playing`, which toggles the queue's on the
+  other screens, as `toggle display` does the browser's in the browser.
+  Turned on, it shows the lyrics of the song that plays at once.
+- **Later:** editing in `$EDITOR`.
 
 ### Later
 
@@ -1363,6 +1370,7 @@ lyrics:
   directory: ~                   # $XDG_DATA_HOME/reprise/lyrics; ncmpcpp's is ~/.lyrics
   fetchers: [lrclib]             # in order; [] shows only the stored lyrics
   fetch_in_background: false     # fetch the lyrics of each song that plays
+  follow_playing: false          # show the lyrics of each song that plays
 
 styles:                          # used across screens
   label: white                   # field names, e.g. in the search engine
@@ -1542,6 +1550,7 @@ keys:
 
   lyrics:
     "`": refetch_lyrics          # as in ncmpcpp
+    space: toggle follow_playing # of the lyrics here, as in ncmpcpp
 ```
 
 Later features add to it: the queue's `ctrl-q o` (sort dialog), the media
@@ -1635,6 +1644,7 @@ Many single-character keys collide with YAML syntax:
 | `lyrics_directory` | `lyrics.directory`, `$XDG_DATA_HOME/reprise/lyrics` without it |
 | `lyrics_fetchers` | `lyrics.fetchers`, of `lrclib`, which replaces ncmpcpp's fetchers (see [Core](#core)) |
 | `fetch_lyrics_for_current_song_in_background` | `lyrics.fetch_in_background` |
+| `follow_now_playing_lyrics` | `lyrics.follow_playing` |
 
 How the author's ncmpcpp settings were translated:
 - **Prefixes and suffixes became styles.** `current_item_prefix`/`suffix`
@@ -1719,9 +1729,9 @@ options, `allow_for_physical_item_deletion`,
 - **`external_editor = mcedit` with `use_console_editor = yes`.** Only lyrics
   editing uses it, which comes later. Proposed default: `$VISUAL`, then
   `$EDITOR`. The author sets mcedit in their own config.
-- **The options of other later features:** `follow_now_playing_lyrics`,
-  `lines_scrolled`, `mouse_list_scroll_whole_page`, `mpd_music_dir` and the
-  tag editor's options.
+- **The options of other later features:** `lines_scrolled`,
+  `mouse_list_scroll_whole_page`, `mpd_music_dir` and the tag editor's
+  options.
 
 ## Testing
 
