@@ -35,23 +35,9 @@ layoutTests =
     , snapshot "disconnected" . (.state) $
         runEvents 0 [MpdDisconnected "gone"] (playing (80, 12))
     , snapshot "browser" $ browsing [(["2"], rootReply)]
-    , snapshot "browser-directory" $
-        browsing
-          [ (["2"], rootReply)
-          ,
-            ( ["enter"]
-            ,
-              [ "directory: Albums/Live"
-              , "file: Albums/01.flac"
-              , "Artist: Some Artist"
-              , "Title: First Song"
-              , "duration: 61.000"
-              , "file: Albums/02.flac"
-              , "duration: 185.000"
-              , "playlist: Albums/album.m3u"
-              ]
-            )
-          ]
+    , snapshot "browser-directory" albums
+    , snapshot "browser-columns" $ press ["ctrl-t", "d"] albums
+    , testCase "the titles of the columns in the browser" test_browserTitles
     , snapshot "help" $ press ["f1"] (playing (80, 24))
     , snapshot "help-scrolled" $ press ["f1", "page_down"] (playing (80, 24))
     , testCase "flags end a column before the edge" test_flags
@@ -223,6 +209,39 @@ browsing = L.foldl' step (playing (80, 12))
 
 rootReply :: [BS.ByteString]
 rootReply = ["directory: Albums", "directory: Singles", "playlist: Favourites"]
+
+-- | The browser in a directory with an entry of every kind.
+albums :: AppState
+albums =
+  browsing
+    [ (["2"], rootReply)
+    ,
+      ( ["enter"]
+      ,
+        [ "directory: Albums/Live"
+        , "file: Albums/01.flac"
+        , "Artist: Some Artist"
+        , "Title: First Song"
+        , "duration: 61.000"
+        , "file: Albums/02.flac"
+        , "duration: 185.000"
+        , "playlist: Albums/album.m3u"
+        ]
+      )
+    ]
+
+test_browserTitles :: Assertion
+test_browserTitles = do
+  let env = testAppEnv & #config % #songs % #columns % #showTitles .~ True
+      columns = press ["ctrl-t", "d"] albums
+  case imageLines (renderScreen env columns) of
+    _ : _ : titles : parent : _ -> do
+      assertBool ("titles: " <> T.unpack titles) ("Title" `T.isInfixOf` titles)
+      assertEqual "the first item" ".." parent
+    ls -> assertFailure $ "too few lines: " <> show ls
+  case imageLines (renderScreen env albums) of
+    _ : _ : first : _ -> assertEqual "no titles in the classic display" ".." first
+    ls -> assertFailure $ "too few lines: " <> show ls
 
 key :: T.Text -> KeySpec
 key = either (error . T.unpack) id . parseKeySpec

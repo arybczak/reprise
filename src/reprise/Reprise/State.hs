@@ -40,6 +40,7 @@ module Reprise.State
   , layoutViews
   , mainHeight
   , listHeight
+  , screenDisplay
 
     -- * Queries
   , cursorVisible
@@ -258,6 +259,7 @@ data Toggles = Toggles
   , albumSeparators :: Bool
   , followPlaying :: Bool
   , showBitrate :: Bool
+  , browserDisplay :: Display
   , browserSort :: SortBy
   }
   deriving stock (Eq, Show, Generic)
@@ -315,6 +317,7 @@ initialState config =
           , albumSeparators = config.queue.albumSeparators
           , followPlaying = config.queue.followPlaying
           , showBitrate = config.statusBar.showBitrate
+          , browserDisplay = config.browser.display
           , browserSort = config.browser.sort.by
           }
     , views = M.singleton mainView (newView config.startupScreen)
@@ -367,11 +370,16 @@ layoutViews s = case s.layout of
 -- take one.
 listHeight :: AppEnv -> AppState -> View -> Int
 listHeight env s v
-  | v.screen == QueueScreen
-  , s.toggles.queueDisplay == Columns
-  , env.config.songs.columns.showTitles =
+  | env.config.songs.columns.showTitles && screenDisplay s v.screen == Just Columns =
       max 0 (v.height - 1)
   | otherwise = v.height
+
+-- | How a screen shows songs, if it lists them.
+screenDisplay :: AppState -> ScreenName -> Maybe Display
+screenDisplay s = \case
+  QueueScreen -> Just s.toggles.queueDisplay
+  BrowserScreen -> Just s.toggles.browserDisplay
+  _ -> Nothing
 
 ----------------------------------------
 -- Queries

@@ -119,6 +119,10 @@ ncmpcpp.
 
 **Browser (MPD database)**
 - `lsinfo` navigation, with a `..` entry. The header shows the path.
+- Songs show in the classic display or in columns, as `browser.display`
+  says, and `toggle display` switches the browser's display for the session,
+  as it switches the queue's in the queue. Directories and playlists span
+  the columns.
 - `activate` enters a directory, opens a playlist and plays a song. A song
   that is already in the queue plays there instead of being added again.
 - Going up puts the cursor on the directory or the playlist that was left.

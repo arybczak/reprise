@@ -4,6 +4,7 @@ module Reprise.Screen.Browser
   ( -- * Drawing
     browserView
   , browserTitle
+  , toggleBrowserDisplay
 
     -- * Moving
   , moveBrowserCursor
@@ -75,9 +76,10 @@ browserView env s v =
           { colorMode = env.colorMode
           , lists = env.config.lists
           , songs = env.config.songs
-          , display = env.config.browser.display
+          , display = s.toggles.browserDisplay
           , width = v.width
           }
+      titles = [renderTitles ctx | listHeight env s v < v.height]
       h = listHeight env s v
       visible = Seq.take h (Seq.drop v.offset s.browser.items)
       -- The matches of a find show while the user types it.
@@ -98,9 +100,10 @@ browserView env s v =
         in case rowContent env item of
              SongRow song -> renderRow ctx flags song
              OtherRow spans -> renderOtherRow ctx flags spans
-  in V.vertCat $ zipWith row (zip [v.offset ..] found) (toList visible)
+  in V.vertCat $ titles <> zipWith row (zip [v.offset ..] found) (toList visible)
 
--- | What the row of an item shows.
+-- | What the row of an item shows. A row of another item than a song spans
+-- the columns.
 data RowContent = SongRow Song | OtherRow [Span Style]
 
 rowContent :: AppEnv -> BrowserItem -> RowContent
@@ -128,11 +131,27 @@ rowContent env = \case
           }
         env.config.browser.playlistPrefix
 
--- | The text of each item as finds match it.
-itemRows :: AppEnv -> Seq.Seq BrowserItem -> Seq.Seq Folded
-itemRows env = fmap $ \item -> foldText $ case rowContent env item of
-  SongRow song -> rowText env.config.lists env.config.songs env.config.browser.display song
+-- | The text of each item as finds match it, in a display.
+itemRows :: AppEnv -> Display -> Seq.Seq BrowserItem -> Seq.Seq Folded
+itemRows env display = fmap $ \item -> foldText $ case rowContent env item of
+  SongRow song -> rowText env.config.lists env.config.songs display song
   OtherRow spans -> spansText spans
+
+-- | Show the songs in the other display.
+toggleBrowserDisplay :: App es => Eff es ()
+toggleBrowserDisplay = do
+  modifyS $
+    #toggles % #browserDisplay %~ \case
+      Classic -> Columns
+      Columns -> Classic
+  env <- getAppEnv
+  s <- getS
+  modifyS $ #browser % #rows .~ itemRows env s.toggles.browserDisplay s.browser.items
+  modifyWithEnv (modifyView id)
+  showMessage $
+    "Display: " <> case s.toggles.browserDisplay of
+      Classic -> "classic"
+      Columns -> "columns"
 
 -- | The title in the header: what the browser lists.
 browserTitle :: AppState -> T.Text
@@ -254,7 +273,13 @@ browserListed token entries =
             | otherwise = noSelection
       modifyS $
         #browser
-          .~ BrowserState (Just l.location) entries items (itemRows env items) selection Nothing
+          .~ BrowserState
+            (Just l.location)
+            entries
+            items
+            (itemRows env s.toggles.browserDisplay items)
+            selection
+            Nothing
       modifyWithEnv $ placeCursor l.cursor
     _ -> keepScreen
 
@@ -430,7 +455,9 @@ nextSortMode = do
   forM_ s.browser.location $ \location -> do
     let current = Seq.lookup (fst (browserPosition s)) s.browser.items
         items = arrange env s.toggles.browserSort location s.browser.entries
-    modifyS $ (#browser % #items .~ items) . (#browser % #rows .~ itemRows env items)
+    modifyS $
+      (#browser % #items .~ items)
+        . (#browser % #rows .~ itemRows env s.toggles.browserDisplay items)
     modifyWithEnv . placeCursor $ maybe AtTop (StayOn . itemKey) current
   showMessage $ "Sort: " <> sortByName s.toggles.browserSort
 
