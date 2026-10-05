@@ -3,10 +3,13 @@ module LyricsTests (lyricsTests) where
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
+import Control.Monad
 import Data.ByteString qualified as BS
 import Data.IORef
+import Data.List qualified as L
 import Data.Maybe
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Graphics.Vty qualified as V
 import Optics.Core
 import System.Directory
@@ -34,6 +37,8 @@ lyricsTests =
   testGroup
     "Lyrics"
     [ testCase "the file names are ncmpcpp's" test_fileNames
+    , testCase "a name too long for a file is cut" test_longFileNames
+    , testCase "the name of a long title stays" test_longName
     , testCase "l shows the lyrics of the song under the cursor" test_show
     , testCase "fetched lyrics and the other outcomes" test_outcomes
     , testCase "l on the lyrics goes back" test_back
@@ -82,6 +87,44 @@ test_fileNames = do
     "the times, with a point in the title"
     "A - Mr. Blue.lrc"
     (timedLyricsFileName (song 3 [(Artist, ["A"]), (Title, ["Mr. Blue"])] 60))
+
+-- | The longest name in the author's library, of 285 bytes, and names of
+-- characters of two bytes and of four.
+test_longFileNames :: Assertion
+test_longFileNames = do
+  let handel =
+        "14. Recitative (Soprano) There were shepherds abiding in the field, keeping "
+          <> "watch over their flock by night. And lo, the angel of the Lord came upon "
+          <> "them, and the glory of the Lord shone round about them, and they were sore "
+          <> "afraid (Messiah, HWV 56)"
+      named title = lyricsFileName (song 3 [(Artist, ["George Frideric Handel"]), (Title, [title])] 60)
+      bytes = BS.length . T.encodeUtf8 . T.pack
+      long = named handel
+  assertBool ("cut: " <> show (bytes long)) (bytes long <= 255)
+  assertBool
+    "the start"
+    ("George Frideric Handel - 14. Recitative (Soprano)" `L.isPrefixOf` long)
+  assertEqual
+    "the same for the times"
+    (dropExtension long)
+    ( dropExtension
+        (timedLyricsFileName (song 3 [(Artist, ["George Frideric Handel"]), (Title, [handel])] 60))
+    )
+  assertBool "apart from a name that begins alike" (named (handel <> " 2") /= long)
+  forM_ [T.replicate 200 "ż", T.replicate 100 "🎵"] $ \title -> do
+    let name = named title
+    assertBool
+      ("cut: " <> show (bytes name))
+      (bytes name <= 255 && ".txt" `L.isSuffixOf` name)
+
+-- | The name of a long title is the same in every version, as stored
+-- lyrics are found by it.
+test_longName :: Assertion
+test_longName =
+  assertEqual
+    "the name"
+    ("A - " <> replicate 230 'a' <> " 76ff80d8f3718ac6.txt")
+    (lyricsFileName (song 3 [(Artist, ["A"]), (Title, [T.replicate 300 "a"])] 60))
 
 test_show :: Assertion
 test_show = do

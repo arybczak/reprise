@@ -399,6 +399,15 @@ ncmpcpp.
   the author's 394 lyrics from ncmpcpp show as they are, and ncmpcpp reads
   the ones that reprise stores. A file that isn't UTF-8 shows, with
   replacement characters for its bytes that aren't.
+  - **A name too long for a file is cut** to 255 bytes of UTF-8 with its
+    extension, at a character, and ends in a BLAKE2b hash of 64 bits of the
+    whole name, from crypton, so that two long names that begin alike stay
+    apart. ncmpcpp can't store such lyrics at all; in the author's library
+    one name is 285 bytes, of Handel's Messiah. 255 bytes is the limit of
+    ext4, XFS, Btrfs and ZFS, and such a name fits NTFS's and exFAT's 255
+    units of UTF-16 and APFS's 255 characters. It is fixed, not the limit
+    of the directory's file system, so that the names stay the same when
+    the lyrics move to another one.
 - **A worker thread reads them,** as the handlers can't do IO. It takes only
   the newest request, so the songs that the screen passed by aren't read,
   and a token drops the lyrics of a song that the screen left.

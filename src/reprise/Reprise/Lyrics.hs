@@ -21,12 +21,14 @@ module Reprise.Lyrics
   ) where
 
 import Control.Monad
+import Crypto.Hash
 import Data.Char
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Ratio
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import System.FilePath
 import Text.Read
 
@@ -151,18 +153,64 @@ lyricsName song = case (firstTag Artist song, firstTag Title song) of
 -- without the characters that Windows forbids in a file name, as ncmpcpp
 -- with its default @generate_win32_compatible_filenames@ removes them.
 lyricsFileName :: Song -> FilePath
-lyricsFileName song = lyricsBaseName song <> ".txt"
+lyricsFileName song = lyricsBaseName song <> textExtension
 
 -- | The file of a song's timed lyrics, next to the file of its lyrics.
 -- ncmpcpp doesn't read it.
 timedLyricsFileName :: Song -> FilePath
-timedLyricsFileName song = lyricsBaseName song <> ".lrc"
+timedLyricsFileName song = lyricsBaseName song <> timedExtension
 
+textExtension :: FilePath
+textExtension = ".txt"
+
+timedExtension :: FilePath
+timedExtension = ".lrc"
+
+-- | The name of a song's files without their extension. A name too long
+-- for a file is cut, at a character, and ends in a hash of the whole name,
+-- so that two long names that begin alike stay apart. ncmpcpp can't store
+-- the lyrics of such a song at all.
 lyricsBaseName :: Song -> FilePath
-lyricsBaseName song = T.unpack $ T.filter (`notElem` forbidden) (lyricsName song)
+lyricsBaseName song
+  | utf8Length name <= room = T.unpack name
+  | otherwise = T.unpack $ cut (room - utf8Length suffix) name <> suffix
   where
+    name :: T.Text
+    name = T.filter (`notElem` forbidden) (lyricsName song)
+
     forbidden :: String
     forbidden = "\"*/:<>?\\|"
+
+    room :: Int
+    room = nameLimit - maximum (map length [textExtension, timedExtension])
+
+    -- BLAKE2b is the same on every machine and in every version, as a
+    -- file's name must be. 64 bits keep two long names that begin alike
+    -- apart, and leave most of the room to the name.
+    suffix :: T.Text
+    suffix = " " <> T.pack (show (hash @_ @(Blake2b 64) (T.encodeUtf8 name)))
+
+    -- The longest start of text that is at most a number of bytes.
+    cut :: Int -> T.Text -> T.Text
+    cut n t = T.take (length (takeWhile (<= n) (scanl1 (+) (map charLength (T.unpack t))))) t
+
+    utf8Length :: T.Text -> Int
+    utf8Length = T.foldl' (\n c -> n + charLength c) 0
+
+    charLength :: Char -> Int
+    charLength c
+      | ord c < 0x80 = 1
+      | ord c < 0x800 = 2
+      | ord c < 0x10000 = 3
+      | otherwise = 4
+
+-- | The longest name of a file, in bytes of UTF-8: Linux's @NAME_MAX@, of
+-- ext4, XFS, Btrfs and ZFS. Such a name also fits the 255 units of UTF-16
+-- of NTFS and exFAT, and the 255 characters of APFS. A fixed limit, not the
+-- one of the directory's file system, keeps the names the same when the
+-- lyrics move to another one.
+nameLimit :: Int
+nameLimit = 255
 
 -- | The first value of a tag of a song, unless it is empty.
 firstTag :: Tag -> Song -> Maybe T.Text
