@@ -16,20 +16,28 @@ module Reprise.Screen.Browser
   , browserFailed
   , activateItem
   , leave
+
+    -- * Sorting
+  , nextSortMode
   ) where
 
 import Control.Exception
 import Control.Monad
 import Data.Foldable
+import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
+import Data.Ord
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
+import Data.Time
+import Data.Void
 import Effectful
 import Graphics.Vty qualified as V
 import Optics.Core
 
 import Reprise.Action
+import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
@@ -206,12 +214,82 @@ browserListed :: App es => Int -> [Entry] -> Eff es ()
 browserListed token entries =
   getsS (.browser.listing) >>= \case
     Just l | l.token == token -> do
-      let items =
-            Seq.fromList $
-              [ParentItem | l.location /= InDirectory ""] <> map EntryItem entries
-      modifyS $ #browser .~ BrowserState (Just l.location) items Nothing
+      env <- getAppEnv
+      by <- getsS (.toggles.browserSort)
+      modifyS $
+        #browser
+          .~ BrowserState (Just l.location) entries (arrange env by l.location entries) Nothing
       modifyWithEnv $ placeCursor l.cursor
     _ -> keepScreen
+
+-- | Sort the entries by the next sort mode, with the cursor on the same item.
+nextSortMode :: App es => Eff es ()
+nextSortMode = do
+  modifyS $ #toggles % #browserSort %~ \by -> if by == maxBound then minBound else succ by
+  env <- getAppEnv
+  s <- getS
+  forM_ s.browser.location $ \location -> do
+    let current = Seq.lookup (fst (browserPosition s)) s.browser.items
+    modifyS $
+      #browser % #items .~ arrange env s.toggles.browserSort location s.browser.entries
+    modifyWithEnv . placeCursor $ maybe AtTop (StayOn . itemKey) current
+  showMessage $ "Sort: " <> sortByName s.toggles.browserSort
+
+-- | The items of a listing: @..@ unless at the root, then the entries. The
+-- songs of a playlist stay in its order.
+arrange :: AppEnv -> SortBy -> Location -> [Entry] -> Seq.Seq BrowserItem
+arrange env by location entries =
+  Seq.fromList $ [ParentItem | location /= InDirectory ""] <> map EntryItem sorted
+  where
+    sorted :: [Entry]
+    sorted = case location of
+      InPlaylist _ -> entries
+      InDirectory _ -> sortEntries env by entries
+
+-- | Entries in the order of a sort mode, as in ncmpcpp. Except without a
+-- sort, directories come first, then songs, then playlists.
+sortEntries :: AppEnv -> SortBy -> [Entry] -> [Entry]
+sortEntries env by entries = case by of
+  SortByNone -> entries
+  _ -> L.sortOn (\e -> (kind e, key e)) entries
+  where
+    kind :: Entry -> Int
+    kind = \case
+      DirectoryEntry _ -> 0
+      SongEntry _ -> 1
+      PlaylistEntry _ -> 2
+
+    key :: Entry -> SortKey
+    key e = case by of
+      SortByName -> ByText (collated (name e))
+      SortByMtime -> ByTime . Down $ case e of
+        DirectoryEntry d -> d.lastModified
+        SongEntry song -> song.lastModified
+        PlaylistEntry p -> p.lastModified
+      SortByFormat -> ByText . collated $ case e of
+        SongEntry song -> renderPlain plainContext song env.config.browser.sort.format
+        _ -> name e
+      _ -> NoKey
+
+    name :: Entry -> T.Text
+    name =
+      baseName . \case
+        DirectoryEntry d -> d.path
+        SongEntry song -> song.file
+        PlaylistEntry p -> p.path
+
+    collated :: T.Text -> CollationKey
+    collated = collationKey env.collator env.config.lists.ignoreLeadingThe
+
+    plainContext :: RenderContext Void
+    plainContext = RenderContext env.config.lists.tagSeparator []
+
+-- | What entries of one kind sort by. 'L.sortOn' computes it once for each.
+data SortKey
+  = NoKey
+  | ByText CollationKey
+  | ByTime (Down (Maybe UTCTime))
+  deriving stock (Eq, Ord)
 
 -- | Put the browser's cursor where a listing says, also while the view shows
 -- another screen.

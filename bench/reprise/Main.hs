@@ -15,6 +15,7 @@ import Graphics.Vty.Platform.Unix.Settings qualified as V
 import System.Posix.IO
 import Test.Tasty.Bench
 
+import Reprise.Collation
 import Reprise.Config
 import Reprise.Event
 import Reprise.Handler
@@ -39,6 +40,9 @@ main =
             whnf (settled . handle (key "x")) (keys ["/"] loaded)
         , bench "a later key of a find that matches nothing" $
             whnf (settled . handle (key "x")) (keys ["/", "z", "q"] loaded)
+        , -- Sorting by name computes a collation key for each entry.
+          bench "the listing of a directory as long as the queue, sorted by name" $
+            whnf (settled . listed) (keys ["2", "ctrl-t", "o"] loaded)
         ]
     , bgroup
         "screen"
@@ -58,6 +62,7 @@ defaultEnv =
     { config = defaultConfig
     , keymaps = keymapsOf defaultConfig.keys
     , colorMode = WithColors
+    , collator = userCollator
     }
 
 -- | The state after the queue arrived from MPD.
@@ -83,6 +88,13 @@ deletedInTheMiddle =
     ( statusOf 2 (queueLength - 1)
     , [song (i - 1) i | i <- [queueLength `div` 2 + 1 .. queueLength - 1]]
     )
+
+-- | The reply to the browser's listing on its way: a directory with a song
+-- for each one of the queue.
+listed :: AppState -> AppState
+listed s = case s.browser.listing of
+  Just l -> handle (BrowserListed l.token [SongEntry (song p p) | p <- [0 .. queueLength - 1]]) s
+  Nothing -> error "no listing on its way"
 
 -- | vty's output to a terminal, which writes to @/dev/null@, and a frame
 -- to write.
@@ -121,11 +133,12 @@ keys :: [T.Text] -> AppState -> AppState
 keys ks s = L.foldl' (flip handle) s (map key ks)
 
 -- | A number that depends on what the events change: the queue, the
--- selection, the view and the prompt.
+-- selection, the browser's items, the view and the prompt.
 settled :: AppState -> Int
 settled s =
   Seq.length s.mirror.queue
     + S.size s.queueState.selection
+    + Seq.length s.browser.items
     + (focusedView s).cursor
     + (focusedView s).offset
     + maybe 0 (T.length . (.question)) s.prompt

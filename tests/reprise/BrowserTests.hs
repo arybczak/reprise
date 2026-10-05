@@ -32,6 +32,9 @@ browserTests =
     , testCase "the cursor stays where its song was" test_songGone
     , testCase "stored playlists show at the root" test_storedPlaylistsChanged
     , testCase "a listing again while another screen shows" test_changedElsewhere
+    , testCase "the sort modes" test_sortModes
+    , testCase "a sort keeps the cursor on its item" test_sortKeepsCursor
+    , testCase "a playlist keeps its order" test_playlistOrder
     ]
 
 test_showLists :: Assertion
@@ -142,8 +145,71 @@ test_changedElsewhere = do
   assertEqual "no listing" [] shown.requests
   assertEqual "the cursor is on y" 3 (focusedView shown.state).cursor
 
+test_sortModes :: Assertion
+test_sortModes = do
+  let sorted n = items (iterate nextSort mixed !! n)
+  assertEqual
+    "type"
+    ["directory b", "directory a", "song s.flac", "song r.flac", "playlist p"]
+    (sorted 0)
+  assertEqual
+    "name"
+    ["directory a", "directory b", "song r.flac", "song s.flac", "playlist p"]
+    (sorted 1)
+  assertEqual
+    "mtime"
+    ["directory b", "directory a", "song r.flac", "song s.flac", "playlist p"]
+    (sorted 2)
+  assertEqual
+    "format"
+    ["directory a", "directory b", "song s.flac", "song r.flac", "playlist p"]
+    (sorted 3)
+  assertEqual
+    "none"
+    ["playlist p", "song s.flac", "song r.flac", "directory b", "directory a"]
+    (sorted 4)
+  assertEqual "type again" (sorted 0) (sorted 5)
+  assertEqual "the message" (Just "Sort: name") ((.text) <$> (nextSort mixed).message)
+
+test_sortKeepsCursor :: Assertion
+test_sortKeepsCursor = do
+  let onS = (press ["down", "down"] mixed).state
+  assertEqual "the cursor is on s" 3 (focusedView (nextSort onS)).cursor
+
+test_playlistOrder :: Assertion
+test_playlistOrder = do
+  let opened = press ["end", "enter"] (nextSort mixed)
+  assertEqual
+    "items"
+    ["..", "song z.flac", "song a.flac"]
+    (items (answer ["file: z.flac", "file: a.flac"] opened))
+
 ----------------------------------------
 -- Helpers
+
+-- | The root with entries of every kind, in no order of any sort mode.
+mixed :: AppState
+mixed =
+  answer
+    [ "playlist: p"
+    , "Last-Modified: 2026-01-03T00:00:00Z"
+    , "file: s.flac"
+    , "Last-Modified: 2026-01-01T00:00:00Z"
+    , "Artist: Abe"
+    , "Title: A"
+    , "file: r.flac"
+    , "Last-Modified: 2026-01-04T00:00:00Z"
+    , "Artist: Zed"
+    , "Title: B"
+    , "directory: b"
+    , "Last-Modified: 2026-01-05T00:00:00Z"
+    , "directory: a"
+    , "Last-Modified: 2026-01-02T00:00:00Z"
+    ]
+    (press ["2"] queueShown)
+
+nextSort :: AppState -> AppState
+nextSort s = (press ["ctrl-t", "o"] s).state
 
 -- | The browser in b, with the cursor on its second song.
 onY :: AppState

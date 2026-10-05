@@ -26,6 +26,7 @@ import Graphics.Text.Width qualified as W
 import Graphics.Vty qualified as V
 import Graphics.Vty.Image.Internal qualified as VI
 
+import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
@@ -85,13 +86,15 @@ statusOf st current queueLen =
 ----------------------------------------
 -- State
 
--- | The default config and keymaps, with colors.
+-- | The default config and keymaps, with colors, and an order of text that
+-- doesn't depend on the locale.
 testAppEnv :: AppEnv
 testAppEnv =
   AppEnv
     { config = defaultConfig
     , keymaps = keymapsOf defaultConfig.keys
     , colorMode = WithColors
+    , collator = rootCollator
     }
 
 -- | The state with a terminal of the given size and a queue that MPD sent.

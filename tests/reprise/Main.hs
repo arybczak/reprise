@@ -5,6 +5,7 @@ import Test.Tasty
 import ActionTests
 import AddressTests
 import BrowserTests
+import CollationTests
 import ConfigTests
 import FindTests
 import FormatTests
@@ -32,6 +33,7 @@ main = do
       [ actionTests
       , addressTests
       , browserTests
+      , collationTests
       , configTests
       , findTests
       , formatTests

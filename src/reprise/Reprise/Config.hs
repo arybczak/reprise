@@ -18,6 +18,7 @@ module Reprise.Config
   , BrowserConfig (..)
   , BrowserSort (..)
   , SortBy (..)
+  , sortByName
   , SearchEngineConfig (..)
   , HeaderConfig (..)
   , StatusBarConfig (..)
@@ -178,8 +179,18 @@ data BrowserSort = BrowserSort
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml BrowserSort
 
+-- | In the order that @next_sort_mode@ goes through, as in ncmpcpp.
 data SortBy = SortByType | SortByName | SortByMtime | SortByFormat | SortByNone
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Enum, Bounded)
+
+-- | The name of a sort mode in the config.
+sortByName :: SortBy -> T.Text
+sortByName = \case
+  SortByType -> "type"
+  SortByName -> "name"
+  SortByMtime -> "mtime"
+  SortByFormat -> "format"
+  SortByNone -> "none"
 
 newtype SearchEngineConfig = SearchEngineConfig
   { display :: Display
@@ -528,14 +539,7 @@ instance FromYaml Display where
   parseYaml = oneOf [("classic", Classic), ("columns", Columns)]
 
 instance FromYaml SortBy where
-  parseYaml =
-    oneOf
-      [ ("type", SortByType)
-      , ("name", SortByName)
-      , ("mtime", SortByMtime)
-      , ("format", SortByFormat)
-      , ("none", SortByNone)
-      ]
+  parseYaml = oneOf [(sortByName by, by) | by <- [minBound .. maxBound]]
 
 instance FromYaml ProgressChars where
   parseYaml n = withText chars n

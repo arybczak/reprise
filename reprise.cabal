@@ -107,6 +107,7 @@ library
 
     exposed-modules: Reprise.Action
                      Reprise.App
+                     Reprise.Collation
                      Reprise.Config
                      Reprise.Effect.Mpd
                      Reprise.Effect.MpdRequest
@@ -243,6 +244,7 @@ test-suite reprise-tests
     other-modules:  ActionTests
                     AddressTests
                     BrowserTests
+                    CollationTests
                     ConfigTests
                     FindTests
                     FormatTests

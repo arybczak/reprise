@@ -55,6 +55,7 @@ import GHC.Generics
 import Optics.Core
 
 import Reprise.Action
+import Reprise.Collation
 import Reprise.Config
 import Reprise.Event
 import Reprise.Find
@@ -72,6 +73,8 @@ data AppEnv = AppEnv
   , keymaps :: Keymaps
   -- ^ The keymaps of the config, with the user's overrides.
   , colorMode :: ColorMode
+  , collator :: Collator
+  -- ^ How lists sort text.
   }
   deriving stock (Show, Generic)
 
@@ -193,7 +196,10 @@ data FindRows = FindRows
 data BrowserState = BrowserState
   { location :: Maybe Location
   -- ^ What the items list, before the first listing nothing.
+  , entries :: [Entry]
+  -- ^ In MPD's order, for another sort.
   , items :: Seq.Seq BrowserItem
+  -- ^ The entries in the order of the sort, after @..@.
   , listing :: Maybe Listing
   -- ^ The listing that was requested last, until its reply comes.
   }
@@ -250,6 +256,7 @@ data Toggles = Toggles
   , albumSeparators :: Bool
   , followPlaying :: Bool
   , showBitrate :: Bool
+  , browserSort :: SortBy
   }
   deriving stock (Eq, Show, Generic)
 
@@ -299,13 +306,14 @@ initialState config =
     { connection = Connecting
     , mirror = emptyMirror
     , queueState = QueueState S.empty [] Nothing Nothing
-    , browser = BrowserState Nothing Seq.empty Nothing
+    , browser = BrowserState Nothing [] Seq.empty Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
           , albumSeparators = config.queue.albumSeparators
           , followPlaying = config.queue.followPlaying
           , showBitrate = config.statusBar.showBitrate
+          , browserSort = config.browser.sort.by
           }
     , views = M.singleton mainView (newView config.startupScreen)
     , layout = Single mainView

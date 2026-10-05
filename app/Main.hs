@@ -26,6 +26,7 @@ import System.IO
 
 import Paths_reprise qualified as Paths
 import Reprise.App
+import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.Mpd
 import Reprise.Mpd.Address
@@ -104,7 +105,12 @@ main = do
       buildVty
       (Just events)
       ( app
-          AppEnv {config = config, keymaps = keymapsOf config.keys, colorMode = colorMode}
+          AppEnv
+            { config = config
+            , keymaps = keymapsOf config.keys
+            , colorMode = colorMode
+            , collator = userCollator
+            }
           Channels {requests = requests, events = events}
       )
       (initialState config)

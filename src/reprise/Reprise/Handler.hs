@@ -319,6 +319,9 @@ runAction = \case
   action@Parent -> verb action $ \case
     BrowserScreen -> Just leave
     _ -> Nothing
+  action@NextSortMode -> verb action $ \case
+    BrowserScreen -> Just nextSortMode
+    _ -> Nothing
   action@(Select t) -> verb action $ \case
     QueueScreen -> Just $ select t
     _ -> Nothing

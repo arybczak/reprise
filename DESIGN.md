@@ -136,7 +136,15 @@ ncmpcpp.
     `add`. The tracks of a cue sheet are ranges of one file, and adding the
     file would add all of it.
   - **The browser deletes no playlists.** Only the playlist editor will.
-- Sort by type, name, mtime, a custom format, or not at all.
+- Sort by type, name, mtime, a custom format, or not at all, and
+  `next_sort_mode` goes through the modes for the session, as in ncmpcpp:
+  - Every mode but none puts the directories first, then the songs, then
+    the playlists. By type, each kind stays in MPD's order, which isn't
+    alphabetical.
+  - Names and formats sort by the rules of the user's locale, as ncmpcpp
+    does, and `lists.ignore_leading_the` applies to them. Without a locale,
+    ICU sorts capitals first.
+  - The songs of a playlist keep its order.
 - Add, add and play, add or remove. A directory is added with its
   subdirectories, and a playlist is loaded.
 - Update the database for the current directory.
@@ -394,12 +402,13 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Action` | The action registry: actions as data, with their names, argument parsers, descriptions, and whether they are destructive |
 | `Reprise.Handler` | The handlers of events, keys, prompts and the actions of every screen, e.g. playback and toggles. It passes the actions of a screen on to the screen's module |
 | `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
-| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps and the colors. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
+| `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors and the order of text. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
-| `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded. Later "ignore leading the" collation |
+| `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
+| `Reprise.Collation` | The order of text by the rules of a locale, with a leading "the" ignored if the config says so. The tests use ICU's root rules, so that they don't depend on the locale |
 | `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
 | `Reprise.Width` | The width of text in terminal columns, cutting text to a width, and the table of character widths that reprise installs for vty |
@@ -501,7 +510,8 @@ used in two places:
 1. **Actions are `Eff` code with a small, mostly pure stack,** for example
    `(State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()`.
    - `AppState` is what changes while reprise runs. `AppEnv` is what doesn't:
-     the config, the keymaps and the colors of the terminal. The handlers
+     the config, the keymaps, the colors of the terminal and the collator of
+     the locale. The handlers
      read it through `Input`, which, unlike `Reader`, has no `local`, so no
      handler can change it, not even for a part of its work.
    - Logic that only changes the state is a pure function, e.g.
@@ -1509,8 +1519,9 @@ songs and a terminal of 160×45:
   song after the deleted one.
 - **`reprise-bench`** handles a key, the change of the queue after such a
   delete, and the keys of a find that matches nothing, which goes through the
-  whole queue. It also makes a frame of the queue, and vty writes a frame for
-  xterm-256color, which covers the pin of vty-unix.
+  whole queue. It handles the listing of a directory as long as the queue,
+  sorted by name. It also makes a frame of the queue, and vty writes a frame
+  for xterm-256color, which covers the pin of vty-unix.
 
 CI builds the suites but doesn't run them, because timings on shared
 machines are too noisy to fail a build on. To check a change, save the
