@@ -726,6 +726,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Lyrics.Tekstowo` | The lyrics of a song from the pages of tekstowo.pl |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The brick custom event type, which every continuation produces |
+| `Reprise.Exception` | Catching the exceptions that an action throws, but not asynchronous ones |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
 | `Reprise.Collation` | The order of text by the rules of a locale, with a leading "the" ignored if the config says so. The tests use ICU's root rules, so that they don't depend on the locale |
 | `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list, and runs of consecutive positions |
@@ -873,7 +874,9 @@ used in two places:
      This is the main payoff.
 2. **Worker threads are ordinary `Eff` programs** with IO-backed effects (the
    MPD connection, and later HTTP, processes and logging). Each thread runs
-   its own `runEff`.
+   its own `runEff`. The workers are cancelled when brick exits, so their
+   cleanups run, e.g. the MPD connections close. A worker that fails is
+   logged and starts again a second later.
 
 Actions are data, in `Reprise.Action`, and their handlers are in
 `Reprise.Handler` and the modules of the screens. The config holds actions in
@@ -2050,6 +2053,9 @@ Settings that effectful doesn't have:
   value and no thunks pile up in them. Code in `Eff` uses effectful's strict
   wrappers instead. A variable of another library stays as it is, e.g.
   vty's `assumedStateRef`.
+- **Exceptions.** Code that handles any exception uses `catchSync`, so that
+  an asynchronous one, e.g. the cancellation of a thread, isn't taken for a
+  failure.
 - **Effects.** Each effect lives in its own module, laid out like
   `Effectful.Reader.Static`:
   - export sections `-- * Effect`, `-- ** Handlers`, `-- ** Operations`;

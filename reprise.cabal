@@ -126,6 +126,7 @@ library
                      Reprise.Effect.MpdRequest
                      Reprise.Effect.UiRequest
                      Reprise.Event
+                     Reprise.Exception
                      Reprise.Find
                      Reprise.Format
                      Reprise.Groups
@@ -177,6 +178,7 @@ executable reprise
     ghc-options:    -threaded "-with-rtsopts=-I0"
 
     build-depends:    base
+                    , async
                     , brick
                     , directory
                     , effectful-core

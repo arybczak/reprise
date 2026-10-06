@@ -14,7 +14,6 @@ import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Functor
 import Data.Text qualified as T
 import GHC.Clock
 import Graphics.Vty qualified as V
@@ -27,6 +26,7 @@ import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Exception
 import Reprise.Handler
 import Reprise.Keys
 import Reprise.Lyrics
@@ -109,11 +109,14 @@ dispatch env channels event = do
 -- code. Returns why it failed.
 runEditor :: T.Text -> FilePath -> IO (Maybe T.Text)
 runEditor command file =
-  try @SomeException run <&> \case
-    Right ExitSuccess -> Nothing
-    Right (ExitFailure code) -> Just $ "The editor exited with " <> T.pack (show code)
-    Left err -> Just $ "The editor can't run: " <> T.pack (displayException err)
+  (failure <$> run) `catchSync` \err ->
+    pure . Just $ "The editor can't run: " <> T.pack (displayException err)
   where
+    failure :: ExitCode -> Maybe T.Text
+    failure = \case
+      ExitSuccess -> Nothing
+      ExitFailure code -> Just $ "The editor exited with " <> T.pack (show code)
+
     run :: IO ExitCode
     run = do
       createDirectoryIfMissing True (takeDirectory file)

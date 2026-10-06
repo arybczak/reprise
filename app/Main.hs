@@ -7,10 +7,12 @@ import Brick qualified as B
 import Brick.BChan qualified as B
 import Control.Applicative
 import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Concurrent.MVar.Strict qualified as S
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
+import Data.Foldable
 import Data.Functor
 import Data.List qualified as L
 import Data.Text qualified as T
@@ -33,6 +35,7 @@ import Reprise.App
 import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.Mpd
+import Reprise.Exception
 import Reprise.Lyrics.Http
 import Reprise.Lyrics.Lrclib
 import Reprise.Lyrics.Tekstowo
@@ -101,16 +104,11 @@ main = do
   events <- B.newBChan eventChannelSize
   visualizing <- newTVarIO Nothing
   let workers = Workers {emit = B.writeBChan events, logLine = logLine, requests = requests}
-      restarted worker = forkIO . forever $ do
-        r <- try @SomeException worker
-        either (logLine . ("A worker failed: " <>) . T.pack . displayException) pure r
-        threadDelay retryInterval
-  forM_ [idleWorker, commandWorker] $ \worker ->
-    restarted . runEff . runMpd settings $ worker workers
-  forM_ config.visualizer.dataSource $ \source -> do
+      mpdWorkers = [runEff . runMpd settings $ worker workers | worker <- [idleWorker, commandWorker]]
+  visualizer <- forM config.visualizer.dataSource $ \source -> do
     path <- expandHome source
     let FrameRate fps = config.visualizer.fps
-    restarted . visualizerWorker $
+    pure . visualizerWorker $
       VisualizerSource
         { path = path
         , fps = fps
@@ -135,41 +133,49 @@ main = do
       fetcher = \case
         Lrclib -> lrclib (httpsGet manager userAgent "LRCLIB" "lrclib.net")
         Tekstowo -> tekstowo (httpsGet manager userAgent "tekstowo.pl" "www.tekstowo.pl")
-  void . restarted . lyricsWorker $
-    LyricsSource
-      { directory = lyricsDirectory
-      , fetchers = map fetcher config.lyrics.fetchers
-      , requested = lyrics
-      , background = lyricsInBackground
-      , emit = B.writeBChan events
-      , logLine = logLine
-      }
+      lyricsFetcher =
+        lyricsWorker
+          LyricsSource
+            { directory = lyricsDirectory
+            , fetchers = map fetcher config.lyrics.fetchers
+            , requested = lyrics
+            , background = lyricsInBackground
+            , emit = B.writeBChan events
+            , logLine = logLine
+            }
+      restarted :: IO () -> IO ()
+      restarted worker = forever $ do
+        worker `catchSync` \e -> logLine $ "A worker failed: " <> T.pack (displayException e)
+        threadDelay retryInterval
   installWidthTable
   let buildVty = V.mkVty V.defaultConfig
   vty <- buildVty
-  void $
-    B.customMain
-      vty
-      buildVty
-      (Just events)
-      ( app
-          AppEnv
-            { config = config
-            , keymaps = keymapsOf config.keys
-            , colorMode = colorMode
-            , collator = userCollator
-            , lyricsDirectory = lyricsDirectory
-            , editor = editor
-            }
-          Channels
-            { requests = requests
-            , events = events
-            , visualizing = visualizing
-            , lyrics = lyrics
-            , lyricsInBackground = lyricsInBackground
-            }
-      )
-      (initialState config)
+  withAsync
+    (mapConcurrently_ restarted (mpdWorkers <> toList visualizer <> [lyricsFetcher]))
+    $ \_ ->
+      void $
+        B.customMain
+          vty
+          buildVty
+          (Just events)
+          ( app
+              AppEnv
+                { config = config
+                , keymaps = keymapsOf config.keys
+                , colorMode = colorMode
+                , collator = userCollator
+                , lyricsDirectory = lyricsDirectory
+                , editor = editor
+                }
+              Channels
+                { requests = requests
+                , events = events
+                , visualizing = visualizing
+                , lyrics = lyrics
+                , lyricsInBackground = lyricsInBackground
+                }
+          )
+          (initialState config)
 
 sources :: Options -> IO Sources
 sources opts = do
