@@ -3,6 +3,7 @@
 -- compare them and run them.
 module Reprise.Event
   ( AppEvent (..)
+  , FrameStats (..)
   ) where
 
 import Data.ByteString qualified as BS
@@ -56,6 +57,9 @@ data AppEvent
     VisualizerSpectrum (VS.Vector Double) (VS.Vector Double)
   | -- | The visualizer's data source can't be read, with the reason.
     VisualizerFailed T.Text
+  | -- | What happened to the visualizer's frames in the last second, with
+    -- @visualizer.debug@.
+    VisualizerStats FrameStats
   | -- | The lyrics of the request with the token aren't stored, so a fetcher
     -- with the name is asked for them.
     LyricsFetching Int T.Text
@@ -68,4 +72,20 @@ data AppEvent
     Edited FilePath (Maybe T.Text)
   | -- | The user confirmed a destructive action.
     Confirmed Action
+  deriving stock (Eq, Show)
+
+-- | What happened to the visualizer worker's frames in a second.
+data FrameStats = FrameStats
+  { frames :: Int
+  -- ^ The frames that the worker woke up for.
+  , late :: Int
+  -- ^ The frames that it skipped, as it woke up after their time.
+  , empty :: Int
+  -- ^ The frames without samples while MPD writes them, as the buffer ran
+  -- out.
+  , dropped :: Int
+  -- ^ The frames that the UI had no room for.
+  , bytes :: Int
+  -- ^ What it read from the fifo, 176400 bytes a second at 44100:16:2.
+  }
   deriving stock (Eq, Show)

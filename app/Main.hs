@@ -113,7 +113,8 @@ main = do
         { path = path
         , fps = fps
         , reading = visualizing
-        , emit = void . B.writeBChanNonBlocking events
+        , emit = B.writeBChanNonBlocking events
+        , debug = config.visualizer.debug
         }
   lyrics <- newTVarIO Nothing
   lyricsInBackground <- newTVarIO Nothing

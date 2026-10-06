@@ -295,6 +295,11 @@ data VisualizerState = VisualizerState
   -- first.
   , spectrum :: Maybe (VS.Vector Double, VS.Vector Double)
   -- ^ The magnitudes of the left channel's spectrum and of the right one's.
+  , drawn :: Seq.Seq Double
+  -- ^ When the frames of the last second were drawn, with
+  -- @visualizer.debug@.
+  , stats :: Maybe FrameStats
+  -- ^ What the worker last sent, with @visualizer.debug@.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -402,7 +407,7 @@ initialState config =
     , mirror = emptyMirror
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
-    , visualizer = VisualizerState Nothing Seq.empty Nothing
+    , visualizer = VisualizerState Nothing Seq.empty Nothing Seq.empty Nothing
     , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing
     , songInfo = SongInfoState Nothing 0 []
     , toggles =

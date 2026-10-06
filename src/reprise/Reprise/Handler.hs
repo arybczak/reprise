@@ -153,6 +153,7 @@ handleEvent = \case
   VisualizerSamples samples -> visualizerSamples samples
   VisualizerSpectrum left right -> visualizerSpectrum left right
   VisualizerFailed reason -> showError reason
+  VisualizerStats frameStats -> visualizerStats frameStats
   LyricsFetching token fetcher -> lyricsFetching token fetcher
   LyricsLoaded token result -> lyricsLoaded token result
   Edited file failure -> lyricsEdited file failure

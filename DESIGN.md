@@ -1467,6 +1467,7 @@ visualizer:
   fps: 60
   trail: 150ms                   # how long the samples of the ellipse stay
   colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # quiet to loud
+  debug: false                   # show the frame rate and the worker's frames at the top
 
 lyrics:
   directory: ~                   # $XDG_DATA_HOME/reprise/lyrics; ncmpcpp's is ~/.lyrics

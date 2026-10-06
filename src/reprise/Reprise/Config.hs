@@ -263,6 +263,9 @@ data VisualizerConfig = VisualizerConfig
   , colors :: NE.NonEmpty Style
   -- ^ From quiet to loud: from the center of the ellipse to its edges, and
   -- from the foot of a bar of the spectrum to its top.
+  , debug :: Bool
+  -- ^ Show at the top how many frames a second the screen draws, and what
+  -- happened to the frames of the worker that reads the samples.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml VisualizerConfig
@@ -492,6 +495,7 @@ defaultVisualizer =
     , colors =
         style "46"
           NE.:| map style ["82", "118", "154", "190", "226", "220", "214", "208", "202", "196", "160"]
+    , debug = False
     }
 
 defaultEditor :: EditorConfig

@@ -16,6 +16,7 @@ import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
+import Data.IORef.Strict qualified as S
 import Data.Maybe
 import Data.Text qualified as T
 import GHC.Clock
@@ -31,9 +32,11 @@ data VisualizerSource = VisualizerSource
   , fps :: Int
   , reading :: TVar (Maybe Visualization)
   -- ^ What the visualizer wants the samples for.
-  , emit :: AppEvent -> IO ()
+  , emit :: AppEvent -> IO Bool
   -- ^ Doesn't wait for the UI, so that a frame that it can't draw in time
-  -- is dropped.
+  -- is dropped. Returns whether the UI took the event.
+  , debug :: Bool
+  -- ^ Whether to send what happened to the frames each second.
   }
 
 -- | Wait until the visualizer wants the samples, and send what each frame
@@ -47,19 +50,29 @@ visualizerWorker src = do
     -- A fifo opens at once without a writer, as GHC opens it non-blocking.
     try @IOException (openBinaryFile src.path ReadMode) >>= \case
       Left err -> do
-        src.emit . VisualizerFailed $
+        void . src.emit . VisualizerFailed $
           "The visualizer can't read its data source: " <> T.pack (displayException err)
         atomically $ readTVar src.reading >>= check . isNothing
       Right h -> (`finally` hClose h) $ do
         void (readAvailable h)
         start <- getMonotonicTime
         window <- newSampleWindow
-        frames transform window h start 1 0 (newPlayout start) 0
+        second <- S.newIORef (Second start noFrames)
+        frames transform window h second start 1 0 (newPlayout start) 0
   where
     -- The frames of silence since the last samples.
     frames
-      :: Transform -> SampleWindow -> Handle -> Double -> Int -> Int -> Playout -> Int -> IO ()
-    frames transform window h start n previous p quiet = do
+      :: Transform
+      -> SampleWindow
+      -> Handle
+      -> S.IORef Second
+      -> Double
+      -> Int
+      -> Int
+      -> Playout
+      -> Int
+      -> IO ()
+    frames transform window h second start n previous p quiet = do
       sleepUntil $ start + fromIntegral n / fromIntegral src.fps
       visualization <- readTVarIO src.reading
       forM_ visualization $ \v -> do
@@ -68,9 +81,16 @@ visualizerWorker src = do
         let shown = frameBytes * (samplesUntil n - samplesUntil previous)
             (frame, stopped, p') = playout shown arrival new p
             continue = frames' arrival p'
+        count arrival $ \st ->
+          st
+            { frames = st.frames + 1
+            , late = st.late + n - previous - 1
+            , empty = st.empty + fromEnum (BS.null frame && isJust p'.write && not stopped)
+            , bytes = st.bytes + BS.length new
+            }
         case v of
           Ellipse -> do
-            src.emit $ VisualizerSamples frame
+            send $ VisualizerSamples frame
             continue 0
           Spectrum
             | not (BS.null frame) -> do
@@ -92,6 +112,7 @@ visualizerWorker src = do
             transform
             window
             h
+            second
             start
             (max (n + 1) (ceiling ((sent - start) * fromIntegral src.fps)))
             n
@@ -101,7 +122,23 @@ visualizerWorker src = do
           -- The left channel is the first of a frame's, the right one the second.
           left <- spectrumOf transform window 0
           right <- spectrumOf transform window 1
-          src.emit $ VisualizerSpectrum left right
+          send $ VisualizerSpectrum left right
+
+        send :: AppEvent -> IO ()
+        send e = do
+          taken <- src.emit e
+          unless taken . S.modifyIORef second $ \(Second since st) ->
+            Second since st {dropped = st.dropped + 1}
+
+        -- Count a frame, and send the frames of a second once it passed.
+        count :: Double -> (FrameStats -> FrameStats) -> IO ()
+        count now f = do
+          Second since st <- S.readIORef second
+          if now - since >= 1
+            then do
+              when src.debug . void . src.emit $ VisualizerStats (f st)
+              S.writeIORef second (Second now noFrames)
+            else S.writeIORef second (Second since (f st))
 
     sleepUntil :: Double -> IO ()
     sleepUntil t = do
@@ -115,6 +152,12 @@ visualizerWorker src = do
     -- The frames of silence that fill the window.
     silentFrames :: Int
     silentFrames = (windowSamples * src.fps + sampleRate - 1) `div` sampleRate
+
+    noFrames :: FrameStats
+    noFrames = FrameStats {frames = 0, late = 0, empty = 0, dropped = 0, bytes = 0}
+
+-- | What happened to the frames since a time.
+data Second = Second Double FrameStats
 
 -- | The samples between MPD's writes and the frames. MPD writes at the
 -- speed of the sound, but in writes that can be longer than a frame, so the

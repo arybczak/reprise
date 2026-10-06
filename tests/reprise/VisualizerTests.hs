@@ -68,6 +68,8 @@ visualizerTests =
     , testCase "the worker sends the samples of the fifo" test_worker
     , testCase "the worker sends the spectrum" test_workerSpectrum
     , testCase "the worker reports a data source that it can't read" test_workerFails
+    , testCase "the debug line shows what happened to the frames" test_debugLine
+    , testCase "the worker sends what happened to its frames" test_workerStats
     ]
 
 test_reading :: Assertion
@@ -458,6 +460,60 @@ test_workerFails = withSystemTempDirectory "visualizer" $ \dir -> do
       VisualizerFailed _ -> pure ()
       e -> assertFailure $ "event: " <> show e
 
+-- | The line takes the top row, and the picture the rest.
+test_debugLine :: Assertion
+test_debugLine = do
+  let env = visualizing & #config % #visualizer % #debug .~ True
+      stats = FrameStats {frames = 60, late = 1, empty = 2, dropped = 3, bytes = 176400}
+  s <- testState (80, 12) (statusOf Stopped Nothing 0) []
+  r <-
+    runEventsWith
+      env
+      0
+      [ key "8"
+      , key "space"
+      , VisualizerSamples circle
+      , VisualizerSamples circle
+      , VisualizerStats stats
+      ]
+      s
+  let ls = imageLines (renderScreen env r.state)
+  assertEqual "the lines" 12 (length ls)
+  case drop 2 ls of
+    first : _ ->
+      assertEqual
+        "the line"
+        "2 fps drawn; worker: 60 frames, 1 late, 2 empty, 3 dropped, 176400 B read"
+        first
+    [] -> assertFailure "no main area"
+
+test_workerStats :: Assertion
+test_workerStats = withSystemTempDirectory "visualizer" $ \dir -> do
+  let path = dir </> "fifo"
+  createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
+  events <- newTQueueIO
+  reading <- newTVarIO (Just Ellipse)
+  let src =
+        VisualizerSource
+          { path = path
+          , fps = 60
+          , reading = reading
+          , emit = \e -> True <$ atomically (writeTQueue events e)
+          , debug = True
+          }
+  bracket (forkIO (visualizerWorker src)) killThread $ \_ -> do
+    st <-
+      withWriting path (samples (replicate 100 (1000, -1000))) . expectWithin $
+        firstStats events
+    assertBool ("frames: " <> show st) (st.frames > 0)
+    assertBool ("bytes: " <> show st) (st.bytes > 0)
+  where
+    firstStats :: TQueue AppEvent -> IO FrameStats
+    firstStats events =
+      atomically (readTQueue events) >>= \case
+        VisualizerStats st -> pure st
+        _ -> firstStats events
+
 ----------------------------------------
 -- Helpers
 
@@ -522,7 +578,8 @@ source path reading events =
     { path = path
     , fps = 60
     , reading = reading
-    , emit = atomically . writeTQueue events
+    , emit = \e -> True <$ atomically (writeTQueue events e)
+    , debug = False
     }
 
 -- | Wait for what comes soon.
