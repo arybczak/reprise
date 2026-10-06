@@ -33,7 +33,7 @@ renderHelpLine colorMode styles keyWidth width = \case
     let keys' = indent depth <> keys
     in cell
          [ Span (Just styles.value) (keys' <> T.replicate (keyWidth + gap - textWidth keys') " ")
-         , Span Nothing description
+         , Span (Just styles.text) description
          ]
   Blank -> cell []
   where

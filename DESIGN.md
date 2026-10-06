@@ -489,7 +489,7 @@ ncmpcpp.
     by any fetcher, and this one is "not found".
   - **The tests read trimmed copies** of a search, a song's page and the
     redirect, saved once, with other lyrics in them.
-- **Timed lyrics show the line being sung** while their song plays, in
+- **Timed lyrics show the line being sung** while their song plays, also in
   `lists.playing_style`, as the song that plays shows in a list. The screen
   keeps that line in its middle, until the user scrolls, and follows again
   for the next lyrics that it shows.
@@ -1490,6 +1490,7 @@ styles:                          # used across screens
   label: white                   # field names, e.g. in the search engine
   value: green                   # field values
   popup_border: green
+  text: yellow                   # the lyrics and the descriptions of the help
 ```
 
 A column's width is relative if it ends in `%` and fixed otherwise.
@@ -1736,7 +1737,7 @@ Many single-character keys collide with YAML syntax:
 | `song_list_format` | `songs.classic` (`left`, `right`) |
 | `song_columns_list_format` | `songs.columns.list` |
 | `titles_visibility` | `songs.columns.show_titles` |
-| `main_window_color` | `lists.style` |
+| `main_window_color` | `lists.style`, `styles.text` |
 | `current_item_prefix`/`suffix` | `lists.cursor_style` |
 | `current_item_inactive_column_prefix`/`suffix` | `lists.inactive_cursor_style` |
 | `selected_item_prefix`/`suffix` | `lists.selected_style` |

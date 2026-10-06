@@ -408,6 +408,15 @@ test_sung = do
   assertEqual "the line" (Just 10) (sungLine shown)
   assertEqual "in the middle" ["line 7", "line 12"] (firstAndLast (mainLines shown))
   assertEqual "the style" ["line 10"] (boldTexts shown)
+  assertEqual
+    "the text's style"
+    [V.SetTo (V.ISOColor 3)]
+    ( L.nub
+        [ V.attrForeColor a
+        | (a, t) <- imageSpans (renderScreen testAppEnv shown)
+        , "line" `T.isPrefixOf` t
+        ]
+    )
   other <- runEvents 0 [key "1", key "down", key "l"] shown
   token <- requestToken other
   loaded <- runEvents 0 [LyricsLoaded token (LyricsFound Stored timedTwenty)] other.state

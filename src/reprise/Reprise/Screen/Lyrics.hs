@@ -31,7 +31,7 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
 
--- | The line being sung has the style of the song that plays in a list.
+-- | The line being sung also has the style of the song that plays in a list.
 lyricsView :: AppEnv -> AppState -> View -> V.Image
 lyricsView env s v =
   V.vertCat . map row . take v.height . drop (lyricsOffset s v) $
@@ -39,8 +39,8 @@ lyricsView env s v =
   where
     row :: (Maybe Int, T.Text) -> V.Image
     row (line, text) =
-      let style = if isJust line && line == sung then env.config.lists.playingStyle else mempty
-      in V.text' (toAttr env.colorMode style) text
+      let playing = if isJust line && line == sung then env.config.lists.playingStyle else mempty
+      in V.text' (toAttr env.colorMode (env.config.styles.text <> playing)) text
 
     sung :: Maybe Int
     sung = sungLine s

@@ -327,6 +327,9 @@ data StylesConfig = StylesConfig
   { label :: Style
   , value :: Style
   , popupBorder :: Style
+  , text :: Style
+  -- ^ The text of the screens of text: the lyrics and the descriptions of
+  -- the help.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml StylesConfig
@@ -517,6 +520,8 @@ defaultStyles =
     { label = style "white"
     , value = style "green"
     , popupBorder = style "green"
+    , -- As ncmpcpp's main_window_color.
+      text = style "yellow"
     }
 
 defaultKeys :: KeysConfig

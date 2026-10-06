@@ -42,6 +42,7 @@ layoutTests =
     , testCase "the titles of the columns in the browser" test_browserTitles
     , snapshot "help" $ press ["f1"] =<< playing (80, 24)
     , snapshot "help-scrolled" $ press ["f1", "page_down"] =<< playing (80, 24)
+    , testCase "the help's styles" test_helpStyles
     , testCase "flags end a column before the edge" test_flags
     , testCase "the title has its own style" test_titleStyle
     , testCase "the queue's title scrolls" test_queueTitleScrolls
@@ -152,6 +153,15 @@ test_selected = do
   -- joins the columns of the selected row into one span.
   assertEqual "selected" [V.SetTo (V.Color240 8)] (background "first")
   assertEqual "not selected" [V.Default] (background "second")
+
+-- | The key is a value, and its description is text.
+test_helpStyles :: Assertion
+test_helpStyles = do
+  s <- press ["f1"] =<< playing (80, 24)
+  let colorOf t =
+        [V.attrForeColor a | (a, t') <- imageSpans (renderScreen testAppEnv s), T.strip t' == t]
+  assertEqual "the key" [V.SetTo (V.ISOColor 2)] (colorOf "/")
+  assertEqual "the description" [V.SetTo (V.ISOColor 3)] (colorOf "find forward")
 
 -- | The marker takes the style of its column, not the marker's style.
 test_markerInColumns :: Assertion
