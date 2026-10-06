@@ -510,7 +510,17 @@ test_cursorMovement = do
   let cursorAfter ks = cursor <$> keys ks s
   assertEqual "down" 1 =<< cursorAfter ["down"]
   assertEqual "up stops at the top" 0 =<< cursorAfter ["up"]
-  assertEqual "page down" 20 =<< cursorAfter ["page_down"]
+  assertEqual "page down" (20, 20) . position =<< keys ["page_down"] s
+  let fifthRow = replicate 5 "down"
+  assertEqual "the row stays" (25, 20) . position =<< keys (fifthRow <> ["page_down"]) s
+  assertEqual "page up" (5, 0) . position =<< keys (fifthRow <> ["page_down", "page_up"]) s
+  assertEqual "the start stops it" (0, 0) . position =<< keys (fifthRow <> ["page_up"]) s
+  assertEqual
+    "the end stops the scrolling"
+    (45, 30)
+    . position
+    =<< keys (fifthRow <> ["page_down", "page_down"]) s
+  assertEqual "the last item" (49, 30) . position =<< keys (replicate 3 "page_down") s
   assertEqual "end" 49 =<< cursorAfter ["end"]
   assertEqual "down stops at the bottom" 49 =<< cursorAfter ["end", "down"]
   assertEqual "scrolled" 30 . snd . position =<< keys ["end"] s

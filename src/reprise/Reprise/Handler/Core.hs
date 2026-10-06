@@ -163,14 +163,19 @@ moveListCursor songOf items t env s =
   in case t of
        MoveUp -> setCursor (c - 1) env s
        MoveDown -> setCursor (c + 1) env s
-       MovePageUp -> setCursor (c - h) env s
-       MovePageDown -> setCursor (c + h) env s
+       MovePageUp -> modifyView (paged (-h)) env s
+       MovePageDown -> modifyView (paged h) env s
        MoveFirst -> setCursor 0 env s
        MoveLast -> setCursor (Seq.length items - 1) env s
        MovePreviousAlbum -> jumpTo (previousGroup (fmap albumKey . songOf) items c) env s
        MoveNextAlbum -> jumpTo (nextGroup (fmap albumKey . songOf) items c) env s
        MovePreviousArtist -> jumpTo (previousGroup (fmap artistKey . songOf) items c) env s
        MoveNextArtist -> jumpTo (nextGroup (fmap artistKey . songOf) items c) env s
+  where
+    -- The cursor stays on its row, as in ncmpcpp, unless the start or the
+    -- end of the list stops the scrolling.
+    paged :: Int -> View -> View
+    paged delta = (#cursor %~ (+ delta)) . (#offset %~ (+ delta))
 
 ----------------------------------------
 -- Selection

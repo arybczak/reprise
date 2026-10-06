@@ -170,7 +170,9 @@ ncmpcpp.
 - A jump to an item puts it in the middle of the list, so that its
   neighbours show on both sides: jumping to the playing song or following
   it, moving to the previous or next album or artist, and later finding.
-  Moving by a line or a page scrolls only as far as the cursor needs.
+  Moving by a line scrolls only as far as the cursor needs. Moving by a
+  page scrolls the list by a page and keeps the cursor on its row, as in
+  ncmpcpp, unless the start or the end of the list stops the scrolling.
 - Selection: item, range, reverse, clear, album, artist, found items.
   - An action applies to the selected items, or to the item under the cursor
     without a selection.
