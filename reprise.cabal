@@ -166,7 +166,6 @@ library
     -- noise. Cabal doesn't build the C sources again when this changes.
     cc-options:      -O3
     c-sources:       cbits/pocketfft/pocketfft.c
-                     cbits/clock.c
                      cbits/spectrum.c
                      cbits/width.c
 

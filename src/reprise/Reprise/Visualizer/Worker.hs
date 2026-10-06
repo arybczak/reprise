@@ -1,5 +1,3 @@
-{-# LANGUAGE InterruptibleFFI #-}
-
 -- | The thread that reads the samples of MPD's fifo output for the
 -- visualizer, while the visualizer shows, and sends what each frame shows:
 -- the samples of the ellipse, or the spectrum.
@@ -13,13 +11,13 @@ module Reprise.Visualizer.Worker
   , playout
   ) where
 
+import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
 import Data.Maybe
 import Data.Text qualified as T
-import Foreign.C.Types
 import GHC.Clock
 import System.IO
 
@@ -105,6 +103,11 @@ visualizerWorker src = do
           right <- spectrumOf transform window 1
           src.emit $ VisualizerSpectrum left right
 
+    sleepUntil :: Double -> IO ()
+    sleepUntil t = do
+      now <- getMonotonicTime
+      threadDelay (ceiling ((t - now) * 1000000))
+
     -- The samples from the start until a frame.
     samplesUntil :: Int -> Int
     samplesUntil n = n * sampleRate `div` src.fps
@@ -169,21 +172,6 @@ playout shown arrival new p =
 -- second.
 writesAhead :: Int
 writesAhead = 2
-
--- | Sleep until a time of the monotonic clock. GHC's timers wake up to a
--- millisecond late, which shows next to a frame of 8 ms. Like 'threadDelay',
--- it lets an exception in, also in a thread that masks them, e.g. one that
--- 'bracket' forked.
-sleepUntil :: Double -> IO ()
-sleepUntil t = do
-  now <- getMonotonicTime
-  when (now < t) $ do
-    c_sleepUntil (realToFrac t)
-    allowInterrupt
-    sleepUntil t
-
-foreign import ccall interruptible "reprise_sleep_until"
-  c_sleepUntil :: CDouble -> IO ()
 
 -- | Read what the fifo holds, without waiting for more.
 readAvailable :: Handle -> IO BS.ByteString

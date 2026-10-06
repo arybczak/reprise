@@ -297,11 +297,10 @@ ncmpcpp.
 - **A frame shows the samples of its own time,** `44100 / fps` of them on
   average, e.g. 367 or 368 at 120 frames a second. The worker waits for
   each frame on the clock, so a late frame doesn't make the next ones late.
-  - **The wait is `clock_nanosleep`,** in C. GHC's timers wake up to a
-    millisecond late, and at 120 frames a second the frames came 7.3 ms to
-    10 ms apart instead of 8.3 ms. With it, they come 7.5 ms to 9.2 ms
-    apart: the rest is the wait for the one capability of the RTS, which
-    the UI may be drawing on.
+  - **The wait is `threadDelay`.** GHC's timers wake up to a millisecond
+    late, and at 120 frames a second the frames came 7.3 ms to 10 ms apart
+    instead of 8.3 ms. `clock_nanosleep` made that 7.5 ms to 9.2 ms, but at
+    160 frames a second in Alacritty the frames looked the same either way.
   - **MPD writes in writes longer than a frame:** 503 samples every 11.4 ms
     on the author's MPD for an mp3, and 924 every 21 ms for a MIDI file. A
     frame that took what had come showed 0 samples in one frame of three
@@ -1969,7 +1968,7 @@ reprise/                          repository root
 ├── bench/
 │   ├── mpd-protocol/Main.hs
 │   └── reprise/Main.hs
-├── cbits/                        width.c, clock.c, spectrum.c, pocketfft/ (vendored)
+├── cbits/                        width.c, spectrum.c, pocketfft/ (vendored)
 ├── src/
 │   ├── mpd-protocol/             README.md, Reprise/Mpd/Protocol/...
 │   └── reprise/Reprise/...
