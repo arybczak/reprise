@@ -487,10 +487,12 @@ test_workerInBackground = withSystemTempDirectory "lyrics" $ \dir -> do
       one = song 0 [(Artist, ["A"]), (Title, ["One"])] 60
   bracket (forkIO (lyricsWorker source)) killThread $ \_ -> do
     atomically . writeTVar background $ Just one
-    -- The file is empty for a moment after the worker creates it.
+    -- The file is empty for a moment after the worker creates it, and while
+    -- the worker writes it, GHC's lock of the file in this process fails a
+    -- read.
     ahead <- timeout (5 * 1000000) . untilJust $ do
-      exists <- doesFileExist (dir </> "A - One.txt")
-      text <- if exists then BS.readFile (dir </> "A - One.txt") else pure BS.empty
+      text <-
+        either (const BS.empty) id <$> try @IOException (BS.readFile (dir </> "A - One.txt"))
       if BS.null text
         then Nothing <$ threadDelay 1000
         else pure (Just text)
