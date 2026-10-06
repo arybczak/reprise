@@ -457,11 +457,13 @@ test_workerInBackground = withSystemTempDirectory "lyrics" $ \dir -> do
       one = song 0 [(Artist, ["A"]), (Title, ["One"])] 60
   bracket (forkIO (lyricsWorker source)) killThread $ \_ -> do
     atomically . writeTVar background $ Just one
+    -- The file is empty for a moment after the worker creates it.
     ahead <- timeout (5 * 1000000) . untilJust $ do
       exists <- doesFileExist (dir </> "A - One.txt")
-      if exists
-        then Just <$> BS.readFile (dir </> "A - One.txt")
-        else Nothing <$ threadDelay 1000
+      text <- if exists then BS.readFile (dir </> "A - One.txt") else pure BS.empty
+      if BS.null text
+        then Nothing <$ threadDelay 1000
+        else pure (Just text)
     assertEqual "stored" (Just "Ahead\n") ahead
     atomically . writeTVar requested $ Just (1, LyricsRequest one False)
     loaded <- timeout (5 * 1000000) . atomically $ readTQueue events
