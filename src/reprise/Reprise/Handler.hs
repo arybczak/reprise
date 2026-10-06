@@ -351,12 +351,7 @@ runAction = \case
     LyricsScreen -> Just jumpToPlayingLyrics
     _ -> Nothing
   Back -> goBack
-  JumpToBrowser ->
-    getsS songUnderCursor >>= \case
-      Nothing -> showMessage "There is no song under the cursor"
-      Just song -> do
-        modifyWithEnv . modifyView $ switchScreen BrowserScreen
-        locateSong song
+  JumpToBrowser -> showSongScreen BrowserScreen locateSong
   action@Activate -> verb action $ \case
     QueueScreen -> Just activate
     BrowserScreen -> Just activateItem

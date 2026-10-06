@@ -341,6 +341,11 @@ test_jumpToBrowser = do
   assertEqual "no song" (Just "There is no song under the cursor") . message . (.state)
     =<< press ["g", "b"]
     =<< queueShown
+  assertEqual "a screen without songs" (Just "The help screen has no songs")
+    . message
+    . (.state)
+    =<< press ["f1", "g", "b"]
+    =<< queued
 
 test_jumpToPlaying :: Assertion
 test_jumpToPlaying = do
