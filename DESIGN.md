@@ -2054,12 +2054,23 @@ Settings that effectful doesn't have:
   is rare, because every config field has a real default.
 - `ghc-options: -threaded` for the `reprise` executable and both test suites.
   The MPD worker threads and the real-server tests need it.
-- `-with-rtsopts=-I0` for the `reprise` executable, which turns off the idle
-  garbage collection of the threaded runtime. While a song plays, reprise
-  wakes about once a second to show the time, and each wake was followed by a
-  collection of the whole heap. In 30 seconds of playback with a queue of
-  4254 songs, this took reprise from 101 ms of CPU to 39 ms. Memory freed in
-  a burst of work is collected by the next regular collection instead.
+- `-with-rtsopts=-Iw10 --disable-delayed-os-memory-return` for the `reprise`
+  executable.
+  - **An idle collection runs at most every 10 seconds.** While a song plays,
+    reprise wakes about once a second to show the time, and by default each
+    wake was followed by a collection of the whole heap: in 30 seconds of
+    playback with a queue of 4254 songs, reprise took 101 ms of CPU, and 39
+    ms without idle collections. Without them, though, the memory that the
+    visualizer or a burst of work left stayed until a regular collection,
+    which doesn't come while reprise only shows the time. With one every 10
+    seconds at most, a minute of playback with 4255 songs took 110–140 ms of
+    CPU, against 60–70 ms without, and after the spectrum, reprise went from
+    77–83 MB back to 60 MB within 18 seconds, where without it stayed at
+    80–84 MB. The visualizer is never idle long enough for one.
+  - **Freed memory goes back to Linux at once.** By default the runtime
+    leaves it to Linux to take when it needs it, and until then it counts in
+    the resident size: after the visualizer and a find, about 103 MB against
+    73 MB.
 
 ### Code
 

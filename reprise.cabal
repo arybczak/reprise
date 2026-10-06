@@ -172,9 +172,10 @@ library
 executable reprise
     import:         language
 
-    -- While a song plays, reprise wakes about once a second to show the
-    -- time, and the idle collection then copied the whole heap each time.
-    ghc-options:    -threaded "-with-rtsopts=-I0"
+    -- An idle collection runs at most every 10 seconds, as reprise wakes once
+    -- a second while a song plays, and freed memory goes back to Linux at
+    -- once. DESIGN.md has the measurements.
+    ghc-options:    -threaded "-with-rtsopts=-Iw10 --disable-delayed-os-memory-return"
 
     build-depends:    base
                     , async
