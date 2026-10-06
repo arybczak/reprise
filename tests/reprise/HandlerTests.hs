@@ -48,7 +48,7 @@ handlerTests =
     , testCase "the help screen scrolls" test_helpScrolls
     , testCase "a verb that the help screen lacks" test_helpLacksVerb
     , testCase "follow playing while the help screen shows" test_followBehindHelp
-    , testCase "jump to playing from the help screen" test_jumpFromHelp
+    , testCase "the help screen doesn't jump to playing" test_noJumpFromHelp
     , testCase "select songs one by one" test_selectItem
     , testCase "select a range" test_selectRange
     , testCase "invert and clear the selection" test_selectInvertNone
@@ -385,12 +385,11 @@ test_followBehindHelp = do
   assertEqual "help doesn't move" 0 (focusedView r.state).offset
   assertEqual "the queue follows" 3 . cursor =<< keys ["1"] r.state
 
-test_jumpFromHelp :: Assertion
-test_jumpFromHelp = do
+test_noJumpFromHelp :: Assertion
+test_noJumpFromHelp = do
   s <- keys ["f1"] =<< testState (80, 24) (statusOf Playing (Just 4) 5) (songs 5)
-  r <- keys ["up", "o"] s.state
-  assertEqual "queue" QueueScreen (focusedView r.state).screen
-  assertEqual "cursor" 4 (cursor r)
+  r <- keys ["o"] s.state
+  assertEqual "help" HelpScreen (focusedView r.state).screen
 
 test_jumpAtStart :: Assertion
 test_jumpAtStart = do

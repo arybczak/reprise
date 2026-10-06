@@ -55,6 +55,7 @@ browserTests =
     , testCase "the pattern of a find is shared by the screens" test_sharedPattern
     , testCase "selecting what was found" test_selectFound
     , testCase "jump to the browser" test_jumpToBrowser
+    , testCase "jump to the playing song" test_jumpToPlaying
     , testCase "a stream isn't in the browser" test_jumpWithStream
     , testCase "a long path scrolls" test_longPath
     ]
@@ -340,6 +341,17 @@ test_jumpToBrowser = do
   assertEqual "no song" (Just "There is no song under the cursor") . message . (.state)
     =<< press ["G"]
     =<< queueShown
+
+test_jumpToPlaying :: Assertion
+test_jumpToPlaying = do
+  playing <- testState (80, 12) (statusOf Playing (Just 0) 1) [song 0 [] 60]
+  r <- press ["o"] =<< answer rootReply =<< press ["2"] playing
+  assertEqual "the listing of dir" [[Request "lsinfo" ["dir"]]] r.requests
+  s <- answer ["file: dir/9.flac", "file: dir/0.flac"] r
+  assertEqual "the cursor is on the song" 2 (focusedView s).cursor
+  assertEqual "nothing plays" (Just "No song is playing") . message . (.state)
+    =<< press ["o"]
+    =<< root
 
 test_jumpWithStream :: Assertion
 test_jumpWithStream = do

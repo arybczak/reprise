@@ -1554,7 +1554,6 @@ keys:
     "]": move next_album
     "{": move previous_artist
     "}": move next_artist
-    o: jump_to_playing
     G: jump_to_browser           # the song under the cursor
 
     # selecting
@@ -1647,6 +1646,7 @@ keys:
   queue:
     space: select down           # as in the author's ncmpcpp bindings
     backspace: replay
+    o: jump_to_playing
     m: move_selection up
     n: move_selection down
     c:                           # merged with the global c group
@@ -1656,6 +1656,7 @@ keys:
 
   browser:
     backspace: parent
+    o: jump_to_playing           # lists its directory, as G does
     t:
       o: next_sort_mode
 

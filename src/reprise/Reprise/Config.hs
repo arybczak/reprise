@@ -768,7 +768,6 @@ defaultKeymaps =
           , char ']' ~> Move MoveNextAlbum
           , char '{' ~> Move MovePreviousArtist
           , char '}' ~> Move MoveNextArtist
-          , char 'o' ~> JumpToPlaying
           , char 'G' ~> JumpToBrowser
           , shift ArrowUp ~> Select (SelectItem (Just MoveUp))
           , shift ArrowDown ~> Select (SelectItem (Just MoveDown))
@@ -869,6 +868,7 @@ defaultKeymaps =
                 [ -- As in the author's ncmpcpp bindings.
                   plain Space ~> Select (SelectItem (Just MoveDown))
                 , plain Backspace ~> Replay
+                , char 'o' ~> JumpToPlaying
                 , char 'm' ~> MoveSelection MoveSelectionUp
                 , char 'n' ~> MoveSelection MoveSelectionDown
                 , group
@@ -884,6 +884,7 @@ defaultKeymaps =
             ( BrowserScreen
             , keymap
                 [ plain Backspace ~> Parent
+                , char 'o' ~> JumpToPlaying
                 , group (char 't') "toggle" [char 'o' ~> NextSortMode]
                 ]
             )

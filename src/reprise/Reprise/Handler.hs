@@ -336,9 +336,14 @@ runAction = \case
     SongInfoScreen -> Just $ scrollLines t
     HelpScreen -> Just $ scrollLines t
     _ -> Nothing
-  JumpToPlaying -> do
-    modifyWithEnv . modifyView $ switchScreen QueueScreen
-    modifyWithEnv jumpToPlaying
+  action@JumpToPlaying -> verb action $ \case
+    QueueScreen -> Just $ modifyWithEnv jumpToPlaying
+    BrowserScreen ->
+      Just $
+        getsS (currentSong . (.mirror)) >>= \case
+          Nothing -> showMessage "No song is playing"
+          Just song -> locateSong song
+    _ -> Nothing
   Back -> goBack
   JumpToBrowser ->
     getsS songUnderCursor >>= \case
