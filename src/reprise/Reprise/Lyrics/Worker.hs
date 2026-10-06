@@ -14,7 +14,6 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import System.Directory
 import System.FilePath
-import System.IO
 import System.IO.Error
 
 import Reprise.Event
@@ -94,9 +93,9 @@ lyricsWorker src = go Nothing Nothing
     store song lyrics = do
       stored <- try @IOException $ do
         createDirectoryIfMissing True src.directory
-        writeWhole (lyricsFileName song) lyrics.plain
+        writeLyrics (lyricsFileName song) lyrics.plain
         case lyrics.timed of
-          Just timed -> writeWhole (timedLyricsFileName song) timed.lrc
+          Just timed -> writeLyrics (timedLyricsFileName song) timed.lrc
           -- The times stored before are of other lyrics.
           Nothing ->
             removeFile (src.directory </> timedLyricsFileName song) `catch` \err ->
@@ -106,12 +105,9 @@ lyricsWorker src = go Nothing Nothing
         pure
         stored
 
-    -- Through a temporary file, so that a file is never half written.
-    writeWhole :: FilePath -> T.Text -> IO ()
-    writeWhole file text = do
-      (temporary, h) <- openBinaryTempFileWithDefaultPermissions src.directory (file <.> "part")
-      BS.hPut h (T.encodeUtf8 (T.stripEnd text <> "\n")) `finally` hClose h
-      renameFile temporary (src.directory </> file)
+    writeLyrics :: FilePath -> T.Text -> IO ()
+    writeLyrics file text =
+      BS.writeFile (src.directory </> file) (T.encodeUtf8 (T.stripEnd text <> "\n"))
 
 -- | The stored lyrics of a song in the directory: timed if the times are
 -- stored, else plain. A file that isn't UTF-8 shows, with its bytes that

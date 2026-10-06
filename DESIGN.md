@@ -437,8 +437,9 @@ ncmpcpp.
     answers 503 at times. The next fetcher is asked meanwhile.
   - **`` ` `` fetches the lyrics again,** as in ncmpcpp, and stores them
     anew, e.g. over wrong ones.
-  - **A file is written whole:** to a temporary file, then renamed over the
-    old one, with the permissions of a new file.
+  - **A file is written in place.** A write cut short leaves part of the
+    lyrics, which `` ` `` replaces. They are a few KiB, so the time for that
+    is short, and they can be fetched again.
 - **The first fetcher is lrclib.net.** It has a public JSON API, and plain and
   timed lyrics. ncmpcpp's fetchers scrape pages that Google finds, and
   Google itself shows the lyrics at the top of a search, but it serves
