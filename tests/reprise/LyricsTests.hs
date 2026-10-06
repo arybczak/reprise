@@ -7,6 +7,7 @@ import Control.Monad
 import Data.ByteString qualified as BS
 import Data.IORef.Strict qualified as S
 import Data.List qualified as L
+import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -58,6 +59,7 @@ lyricsTests =
     , testCase "the worker stores and reads the times" test_workerTimes
     , testCase "the line being sung" test_sung
     , testCase "scrolling stops following the song" test_stopFollowing
+    , testCase "o on another song's lyrics" test_jumpToPlayingLyrics
     , testCase "a redraw when the next line is sung" test_nextLine
     , testCase "the worker fetches in the background" test_workerInBackground
     , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
@@ -440,6 +442,25 @@ test_stopFollowing = do
   assertBool "not following" (not scrolled.state.lyrics.following)
   again <- runEvents 0 [key "l", key "l"] scrolled.state
   assertBool "following the next time" again.state.lyrics.following
+  jumped <- runEvents 0 [key "o"] scrolled.state
+  assertBool "following after o" jumped.state.lyrics.following
+  assertEqual
+    "the line being sung in the middle"
+    ["line 7"]
+    (take 1 (mainLines jumped.state))
+
+-- | On another song's lyrics, o asks for those of the song that plays.
+test_jumpToPlayingLyrics :: Assertion
+test_jumpToPlayingLyrics = do
+  shown <- timedShown Paused
+  other <- runEvents 0 [key "1", key "down", key "l"] shown
+  token <- requestToken other
+  loaded <- runEvents 0 [LyricsLoaded token (stored "Other words")] other.state
+  jumped <- runEvents 0 [key "o"] loaded.state
+  assertEqual
+    "the song that plays"
+    [Just ["One"]]
+    [M.lookup Title r.song.tags | FetchLyrics _ r <- jumped.commands]
 
 -- | Playing, 0.25 s after the status of 10 s: the next line at 11 s.
 test_nextLine :: Assertion

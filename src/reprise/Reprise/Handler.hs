@@ -343,6 +343,7 @@ runAction = \case
         getsS (currentSong . (.mirror)) >>= \case
           Nothing -> showMessage "No song is playing"
           Just song -> locateSong song
+    LyricsScreen -> Just jumpToPlayingLyrics
     _ -> Nothing
   Back -> goBack
   JumpToBrowser ->

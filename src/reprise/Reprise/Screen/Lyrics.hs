@@ -10,6 +10,7 @@ module Reprise.Screen.Lyrics
   , lyricsFetching
   , lyricsLoaded
   , updateLyrics
+  , jumpToPlayingLyrics
   , toggleLyricsFollowing
   ) where
 
@@ -112,6 +113,17 @@ request song refetch = do
       . (#status .~ ReadingLyrics)
       . (#following .~ True)
   fetchLyrics token (LyricsRequest song refetch)
+
+-- | Follow the line being sung again, or show the lyrics of the song that
+-- plays if the screen shows another song's.
+jumpToPlayingLyrics :: App es => Eff es ()
+jumpToPlayingLyrics = do
+  s <- getS
+  case currentSong s.mirror of
+    Nothing -> showMessage "No song is playing"
+    Just playing
+      | maybe False (sameSong playing) s.lyrics.song -> modifyS $ #lyrics % #following .~ True
+      | otherwise -> request playing False
 
 -- | Turn following the song that plays on or off. On, the screen shows the
 -- lyrics of the song that plays at once.

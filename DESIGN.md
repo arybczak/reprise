@@ -492,7 +492,9 @@ ncmpcpp.
 - **Timed lyrics show the line being sung** while their song plays, also in
   `lists.playing_style`, as the song that plays shows in a list. The screen
   keeps that line in its middle, until the user scrolls, and follows again
-  for the next lyrics that it shows.
+  for the next lyrics that it shows, or after `o`, as `jump_to_playing`
+  does in the lists. On another song's lyrics, `o` shows the lyrics of the
+  song that plays.
   - **The times are stored in LRC,** in `<artist> - <title>.lrc` next to the
     `.txt`, as LRCLIB sends them. The `.txt` stays for ncmpcpp, which
     doesn't read LRC. Lyrics stored anew without times remove the `.lrc`,
@@ -1674,6 +1676,7 @@ keys:
     "`": refetch_lyrics          # as in ncmpcpp
     e: edit_lyrics               # in editor.command, $VISUAL or $EDITOR
     space: toggle follow_playing # of the lyrics here, as in ncmpcpp
+    o: jump_to_playing           # follow the line being sung again
     l: back                      # as the key that showed them, as in ncmpcpp
 
   song_info:
