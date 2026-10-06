@@ -53,15 +53,15 @@ test_defaultKeymaps = do
   assertEqual
     "a sequence"
     (Bound (Toggle ToggleRepeat))
-    (lookupKeys global (keys ["ctrl-t", "r"]))
+    (lookupKeys global (keys ["t", "r"]))
   assertEqual
     "the queue's own group"
     (Bound (CommandPrompt "priority"))
-    (lookupKeys global (keys ["ctrl-q", "p"]))
+    (lookupKeys global (keys ["c", "p"]))
   assertEqual
     "the global group in the queue"
     (Bound Clear)
-    (lookupKeys global (keys ["ctrl-q", "c"]))
+    (lookupKeys global (keys ["c", "c"]))
   assertEqual
     "the queue's space"
     (Bound (Select (SelectItem (Just MoveDown))))
@@ -90,9 +90,9 @@ test_keymapMerge = do
         , "  global:"
         , "    p: next"
         , "    s: ~"
-        , "    ctrl-t:"
+        , "    t:"
         , "      y: toggle single"
-        , "    ctrl-d: ~"
+        , "    d: ~"
         ]
   let layers = startLayers QueueScreen (keymapsOf config.keys)
   assertEqual "replaced" (Bound Next) (lookupKey layers (key "p"))
@@ -100,12 +100,12 @@ test_keymapMerge = do
   assertEqual
     "added to a group"
     (Bound (Toggle ToggleSingle))
-    (lookupKeys layers (keys ["ctrl-t", "y"]))
+    (lookupKeys layers (keys ["t", "y"]))
   assertEqual
     "kept in a group"
     (Bound (Toggle ToggleRepeat))
-    (lookupKeys layers (keys ["ctrl-t", "r"]))
-  assertEqual "group removed" Unbound (lookupKey layers (key "ctrl-d"))
+    (lookupKeys layers (keys ["t", "r"]))
+  assertEqual "group removed" Unbound (lookupKey layers (key "d"))
 
 test_columns :: Assertion
 test_columns = do

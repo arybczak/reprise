@@ -212,7 +212,7 @@ data HelpLine
 
 -- | A section for the global keymap and for each screen's keymap that binds
 -- a key. A section lists the keys of its keymap, then each group of a
--- prefix key with the whole key sequences, e.g. @ctrl-t r@.
+-- prefix key with the whole key sequences, e.g. @t r@.
 helpLines :: Keymaps -> [HelpLine]
 helpLines keymaps =
   drop 1 . concat $

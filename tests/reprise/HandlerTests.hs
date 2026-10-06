@@ -80,9 +80,9 @@ test_selectRange :: Assertion
 test_selectRange = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   assertEqual "filled" (ids [2 .. 5]) . selected
-    =<< keys ["down", "insert", "down", "down", "down", "insert", "ctrl-s", "r"] s
+    =<< keys ["down", "insert", "down", "down", "down", "insert", "v", "r"] s
   assertEqual "selected while moving" (ids [2 .. 4]) . selected
-    =<< keys ["down", "space", "down", "space", "ctrl-s", "r"] s
+    =<< keys ["down", "space", "down", "space", "v", "r"] s
   ten <- testState (80, 24) (statusOf Stopped Nothing 10) (songs 10)
   assertEqual "away from an earlier selection" (ids [1, 2, 6, 7, 8]) . selected
     =<< keys
@@ -95,25 +95,25 @@ test_selectRange = do
       , "down"
       , "down"
       , "insert"
-      , "ctrl-s"
+      , "v"
       , "r"
       ]
       ten
   assertEqual "between the first and the last without two ends" (ids [1, 2, 3]) . selected
     =<< keys
-      ["insert", "down", "down", "insert", "down", "down", "insert", "insert", "ctrl-s", "r"]
+      ["insert", "down", "down", "insert", "down", "down", "insert", "insert", "v", "r"]
       ten
   assertEqual
     "without a selection"
     (Just "Select the first and the last item of the range first")
     . message
-    =<< keys ["ctrl-s", "r"] s
+    =<< keys ["v", "r"] s
 
 test_selectInvertNone :: Assertion
 test_selectInvertNone = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
-  assertEqual "inverted" (ids [2 .. 5]) . selected =<< keys ["insert", "ctrl-s", "i"] s
-  assertEqual "cleared" (ids []) . selected =<< keys ["space", "space", "ctrl-s", "c"] s
+  assertEqual "inverted" (ids [2 .. 5]) . selected =<< keys ["insert", "v", "i"] s
+  assertEqual "cleared" (ids []) . selected =<< keys ["space", "space", "v", "c"] s
 
 test_selectAlbum :: Assertion
 test_selectAlbum = do
@@ -121,27 +121,27 @@ test_selectAlbum = do
       q = [album "x" 0, album "x" 1, album "y" 2, album "y" 3, album "x" 4]
   s <- testState (80, 24) (statusOf Stopped Nothing 5) q
   assertEqual "album" (ids [3, 4]) . selected
-    =<< keys ["down", "down", "down", "ctrl-s", "a"] s
+    =<< keys ["down", "down", "down", "v", "a"] s
 
 test_promptAnswers :: Assertion
 test_promptAnswers = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
   let answer ks text = keys (ks <> typed text <> ["enter"]) s
       requested ks text = (.requests) <$> answer ks text
-  assertEqual "set volume" [[Request "setvol" ["40"]]] =<< requested ["ctrl-p", "v"] "40"
-  assertEqual "seek to" [[Request "seekcur" ["90"]]] =<< requested ["ctrl-p", "s"] "1:30"
+  assertEqual "set volume" [[Request "setvol" ["40"]]] =<< requested ["r", "v"] "40"
+  assertEqual "seek to" [[Request "seekcur" ["90"]]] =<< requested ["r", "s"] "1:30"
   assertEqual "set crossfade" [[Request "crossfade" ["5"]]]
-    =<< requested ["ctrl-p", "x"] "5"
-  assertEqual "priority" [[Request "prioid" ["7", "1"]]] =<< requested ["ctrl-q", "p"] "7"
+    =<< requested ["r", "x"] "5"
+  assertEqual "priority" [[Request "prioid" ["7", "1"]]] =<< requested ["c", "p"] "7"
   assertEqual "add a path" [[Request "add" ["a/b.flac"]]]
-    =<< requested ["ctrl-a", "/"] "a/b.flac"
+    =<< requested ["a", "/"] "a/b.flac"
   assertEqual "run a command" [[Request "setvol" ["30"]]] =<< requested [":"] "volume 30"
   assertEqual
     "the start of the line"
     (Just (Prompt ":" (Line (LineEdit "volume " "") ForCommand)))
     . (.state.prompt)
-    =<< keys ["ctrl-p", "v"] s
-  invalid <- answer ["ctrl-p", "v"] "140"
+    =<< keys ["r", "v"] s
+  invalid <- answer ["r", "v"] "140"
   assertEqual "invalid" [] invalid.requests
   assertEqual
     "error"
@@ -223,12 +223,12 @@ test_findRowsChange = do
   assertEqual "a song added since" 5 . cursor =<< keys ["."] changed.state
   -- Only the classic display joins the artist and the title with " - ".
   assertEqual "another display" 3 . cursor
-    =<< keys ("/" : typed "A - alpha" <> ["enter", "ctrl-t", "d", "."]) s
+    =<< keys ("/" : typed "A - alpha" <> ["enter", "t", "d", "."]) s
 
 test_selectFound :: Assertion
 test_selectFound = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) titled
-  r <- keys ("/" : typed "al" <> ["enter", "ctrl-s", "f"]) s
+  r <- keys ("/" : typed "al" <> ["enter", "v", "f"]) s
   assertEqual "selected" (ids [1, 4]) (selected r)
   assertEqual "message" (Just "2 songs found and selected") (message r)
 
@@ -248,14 +248,14 @@ test_selectArtist = do
   let by a pos = song pos [(Artist, [a]), (Album, [T.pack (show pos)])] 60
       q = [by "x" 0, by "y" 1, by "y" 2, by "y" 3, by "x" 4]
   s <- testState (80, 24) (statusOf Stopped Nothing 5) q
-  r <- keys ["down", "down", "ctrl-s", "A"] s
+  r <- keys ["down", "down", "v", "A"] s
   assertEqual "artist" (ids [2, 3, 4]) (selected r)
   assertEqual "message" (Just "Artist around the cursor selected") (message r)
   let various a pos = song pos [(AlbumArtist, ["Various"]), (Artist, [a])] 60
       compilation = [by "x" 0, various "y" 1, various "z" 2, various "w" 3, by "x" 4]
   c <- testState (80, 24) (statusOf Stopped Nothing 5) compilation
   assertEqual "a compilation" (ids [2, 3, 4]) . selected
-    =<< keys ["down", "down", "ctrl-s", "A"] c
+    =<< keys ["down", "down", "v", "A"] c
   assertEqual "the next artist after a compilation" 4 . cursor =<< keys ["down", "}"] c
 
 test_selectOnHelp :: Assertion
@@ -304,22 +304,22 @@ test_moveSelectionTo :: Assertion
 test_moveSelectionTo = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   assertEqual "above the cursor" [[Request "move" ["0:1", "3"]]] . (.requests)
-    =<< keys ["insert", "end", "ctrl-q", "m"] s
+    =<< keys ["insert", "end", "c", "m"] s
   assertEqual "among the selected songs" (Just "The cursor is among the selected songs")
     . message
-    =<< keys ["insert", "down", "down", "insert", "up", "ctrl-q", "m"] s
+    =<< keys ["insert", "down", "down", "insert", "up", "c", "m"] s
   assertEqual "without a selection" (Just "Select the songs to move first") . message
-    =<< keys ["ctrl-q", "m"] s
+    =<< keys ["c", "m"] s
   assertEqual "end" [[Request "move" ["0:1", "4"]]] . (.requests)
-    =<< keys ["insert", "ctrl-q", "e"] s
+    =<< keys ["insert", "c", "e"] s
 
 test_shuffleSelection :: Assertion
 test_shuffleSelection = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
-  r <- keys ["space", "space", "ctrl-q", "s"] s
+  r <- keys ["space", "space", "c", "s"] s
   assertEqual "next to each other" [[Request "shuffle" ["0:2"]]] r.requests
   assertEqual "message" (Just "Shuffled 2 songs") (message r)
-  apart <- keys ["space", "down", "space", "ctrl-q", "s"] s
+  apart <- keys ["space", "down", "space", "c", "s"] s
   assertEqual "apart" [] apart.requests
   assertEqual "error" (Just True) (isError apart)
 
@@ -343,7 +343,7 @@ test_jumpCenters = do
   assertEqual "after moving away" (30, 20) =<< positionAfter ["home", "o"] 30
   assertEqual "near the top" (3, 0) =<< positionAfter ["end", "o"] 3
   assertEqual "near the bottom" (48, 30) =<< positionAfter ["home", "o"] 48
-  helpShown <- keys ["ctrl-t", "f", "f1"] =<< playingAt 30
+  helpShown <- keys ["t", "f", "f1"] =<< playingAt 30
   behindHelp <- runEvents 0 [StatusFetched (statusOf Playing (Just 40) 50)] helpShown.state
   assertEqual "behind the help screen" (40, 30) . position =<< keys ["1"] behindHelp.state
 
@@ -379,7 +379,7 @@ test_helpLacksVerb = do
 test_followBehindHelp :: Assertion
 test_followBehindHelp = do
   s <-
-    keys ["ctrl-t", "f", "f1"] =<< testState (80, 24) (statusOf Playing (Just 0) 5) (songs 5)
+    keys ["t", "f", "f1"] =<< testState (80, 24) (statusOf Playing (Just 0) 5) (songs 5)
   r <- runEvents 0 [StatusFetched (statusOf Playing (Just 3) 5)] s.state
   assertEqual "help stays" HelpScreen (focusedView r.state).screen
   assertEqual "help doesn't move" 0 (focusedView r.state).offset
@@ -409,29 +409,29 @@ test_pause = do
 test_keySequence :: Assertion
 test_keySequence = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
-  pending <- keys ["ctrl-t"] s
-  assertEqual "pending" (Just [key "ctrl-t"]) ((.keys) <$> pending.state.pendingKeys)
+  pending <- keys ["t"] s
+  assertEqual "pending" (Just [key "t"]) ((.keys) <$> pending.state.pendingKeys)
   assertEqual "nothing yet" [] pending.requests
-  done <- keys ["ctrl-t", "r"] s
+  done <- keys ["t", "r"] s
   assertEqual "toggle repeat" [[Request "repeat" ["1"]]] done.requests
   assertEqual "no longer pending" Nothing ((.keys) <$> done.state.pendingKeys)
 
 test_cancelSequence :: Assertion
 test_cancelSequence = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
-  r <- keys ["ctrl-t", "escape", "r"] s
+  r <- keys ["t", "escape", "z"] s
   assertEqual "nothing ran" [] r.requests
   assertEqual "no longer pending" Nothing ((.keys) <$> r.state.pendingKeys)
 
 test_unboundNextKey :: Assertion
 test_unboundNextKey = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
-  assertEqual "message" (Just "ctrl-t j is not bound") . message =<< keys ["ctrl-t", "j"] s
+  assertEqual "message" (Just "t j is not bound") . message =<< keys ["t", "j"] s
 
 test_clearConfirm :: Assertion
 test_clearConfirm = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
-  asked <- keys ["ctrl-q", "c"] s
+  asked <- keys ["c", "c"] s
   assertEqual
     "question"
     (Just "Clear 3 songs from the queue?")
@@ -495,7 +495,7 @@ test_cursorTimer = do
 test_staleTimers :: Assertion
 test_staleTimers = do
   s <- testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
-  r <- keys ["ctrl-t", "f", "ctrl-t", "f"] s
+  r <- keys ["t", "f", "t", "f"] s
   case [e | After _ e@(MessageExpired _) <- r.commands] of
     first : second : _ -> do
       assertEqual "stale" [KeepScreen] . (.commands) =<< runEvents 5 [first] r.state
@@ -563,7 +563,7 @@ test_queueChanges = do
 
 test_followPlaying :: Assertion
 test_followPlaying = do
-  s <- keys ["ctrl-t", "f"] =<< testState (80, 24) (statusOf Playing (Just 0) 5) (songs 5)
+  s <- keys ["t", "f"] =<< testState (80, 24) (statusOf Playing (Just 0) 5) (songs 5)
   assertEqual "cursor" 3 . cursor
     =<< runEvents 0 [StatusFetched (statusOf Playing (Just 3) 5)] s.state
 

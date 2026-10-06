@@ -807,7 +807,7 @@ defaultKeymaps =
           , char ':' ~> CommandPrompt ""
           , char 'q' ~> Quit
           , group
-              (ctrl 'a')
+              (char 'a')
               "add"
               [ char 'e' ~> Add AddEnd
               , char 'n' ~> Add AddNext
@@ -816,14 +816,14 @@ defaultKeymaps =
               , char '/' ~> CommandPrompt "add_path"
               ]
           , group
-              (ctrl 'q')
+              (char 'c')
               "queue"
               [ char 'c' ~> Clear
               , char 's' ~> Shuffle
               , char 'w' ~> Save
               ]
           , group
-              (ctrl 's')
+              (char 'v')
               "selection"
               [ char 'r' ~> Select SelectRange
               , char 'i' ~> Select SelectInvert
@@ -833,7 +833,7 @@ defaultKeymaps =
               , char 'f' ~> Select SelectFound
               ]
           , group
-              (ctrl 't')
+              (char 't')
               "toggle"
               [ char 'r' ~> Toggle ToggleRepeat
               , char 'z' ~> Toggle ToggleRandom
@@ -847,7 +847,7 @@ defaultKeymaps =
               , char 'b' ~> Toggle ToggleBitrate
               ]
           , group
-              (ctrl 'p')
+              (char 'r')
               "playback"
               [ char 'r' ~> Replay
               , char 's' ~> CommandPrompt "seek"
@@ -855,7 +855,7 @@ defaultKeymaps =
               , char 'x' ~> CommandPrompt "crossfade"
               ]
           , group
-              (ctrl 'd')
+              (char 'd')
               "database"
               [ char 'u' ~> Update UpdateCurrent
               , char 'U' ~> Update UpdateAll
@@ -872,7 +872,7 @@ defaultKeymaps =
                 , char 'm' ~> MoveSelection MoveSelectionUp
                 , char 'n' ~> MoveSelection MoveSelectionDown
                 , group
-                    (ctrl 'q')
+                    (char 'c')
                     "queue"
                     [ char 'm' ~> MoveSelection MoveSelectionToCursor
                     , char 'e' ~> MoveSelection MoveSelectionToEnd
@@ -884,7 +884,7 @@ defaultKeymaps =
             ( BrowserScreen
             , keymap
                 [ plain Backspace ~> Parent
-                , group (ctrl 't') "toggle" [char 'o' ~> NextSortMode]
+                , group (char 't') "toggle" [char 'o' ~> NextSortMode]
                 ]
             )
           , -- As in ncmpcpp.

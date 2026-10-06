@@ -28,16 +28,16 @@ layoutTests =
     "Layout"
     [ snapshot "queue-columns" $ playing (80, 12)
     , snapshot "queue-narrow" $ playing (40, 12)
-    , snapshot "queue-classic" $ press ["ctrl-t", "d"] =<< playing (80, 12)
-    , snapshot "which-key" $ press ["ctrl-t"] =<< playing (80, 12)
-    , snapshot "confirm" $ press ["ctrl-q", "c"] =<< playing (80, 12)
+    , snapshot "queue-classic" $ press ["t", "d"] =<< playing (80, 12)
+    , snapshot "which-key" $ press ["t"] =<< playing (80, 12)
+    , snapshot "confirm" $ press ["c", "c"] =<< playing (80, 12)
     , snapshot "stopped" $ testState (80, 8) (statusOf Stopped Nothing 2) (take 2 queue)
     , snapshot "empty" $ testState (80, 6) (statusOf Stopped Nothing 0) []
     , snapshot "disconnected" $
         (.state) <$> (runEvents 0 [MpdDisconnected "gone"] =<< playing (80, 12))
     , snapshot "browser" $ browsing [(["2"], rootReply)]
     , snapshot "browser-directory" albums
-    , snapshot "browser-columns" $ press ["ctrl-t", "d"] =<< albums
+    , snapshot "browser-columns" $ press ["t", "d"] =<< albums
     , testCase "the titles of the columns in the browser" test_browserTitles
     , snapshot "help" $ press ["f1"] =<< playing (80, 24)
     , snapshot "help-scrolled" $ press ["f1", "page_down"] =<< playing (80, 24)
@@ -55,7 +55,7 @@ layoutTests =
 
 test_promptLine :: Assertion
 test_promptLine = do
-  s <- press ["ctrl-p", "v", "4", "0", "left"] =<< playing (40, 12)
+  s <- press ["r", "v", "4", "0", "left"] =<< playing (40, 12)
   assertEqual
     "the line and the hint"
     (Just (True, True))
@@ -63,7 +63,7 @@ test_promptLine = do
         <$> lastLine s
     )
   assertEqual "the cursor" (Just (9, 11)) (promptCursor s)
-  narrow <- press ["ctrl-p", "v", "4", "0"] =<< playing (20, 12)
+  narrow <- press ["r", "v", "4", "0"] =<< playing (20, 12)
   assertEqual
     "the hint gives way to the line"
     (Just (True, True))
@@ -164,7 +164,7 @@ test_markerInClassic = do
   let noLength = song 0 [(Title, ["t"])] 60 & #duration .~ Nothing
   -- The marker's style is cyan.
   assertMarkerColor "length" (V.ISOColor 6)
-    =<< press ["ctrl-t", "d"]
+    =<< press ["t", "d"]
     =<< testState (80, 6) (statusOf Stopped Nothing 1) [noLength]
 
 -- | The color of the marker, with the cursor hidden, so that its style
@@ -277,7 +277,7 @@ test_browserTitles :: Assertion
 test_browserTitles = do
   let env = testAppEnv & #config % #songs % #columns % #showTitles .~ True
   inAlbums <- albums
-  columns <- press ["ctrl-t", "d"] inAlbums
+  columns <- press ["t", "d"] inAlbums
   case imageLines (renderScreen env columns) of
     _ : _ : titles : parent : _ -> do
       assertBool ("titles: " <> T.unpack titles) ("Title" `T.isInfixOf` titles)

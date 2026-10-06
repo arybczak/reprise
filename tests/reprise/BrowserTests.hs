@@ -219,18 +219,18 @@ test_addPositions :: Assertion
 test_addPositions = do
   s <- root
   let added ks = (.requests) <$> press ks s
-  assertEqual "end" [[Request "add" ["a"]]] =<< added ["ctrl-a", "e"]
-  assertEqual "next" [[Request "add" ["a", "+0"]]] =<< added ["ctrl-a", "n"]
-  assertEqual "beginning" [[Request "add" ["a", "0"]]] =<< added ["ctrl-a", "b"]
-  assertEqual "a playlist" [[Request "load" ["p"]]] =<< added ["end", "ctrl-a", "e"]
+  assertEqual "end" [[Request "add" ["a"]]] =<< added ["a", "e"]
+  assertEqual "next" [[Request "add" ["a", "+0"]]] =<< added ["a", "n"]
+  assertEqual "beginning" [[Request "add" ["a", "0"]]] =<< added ["a", "b"]
+  assertEqual "a playlist" [[Request "load" ["p"]]] =<< added ["end", "a", "e"]
   assertEqual "the message" (Just "Added /a") . message . (.state)
-    =<< press ["ctrl-a", "e"] s
+    =<< press ["a", "e"] s
 
 test_addAndPlay :: Assertion
 test_addAndPlay =
   assertEqual "requests" [[Request "load" ["p", "0:", "1"], Request "play" ["1"]]]
     . (.requests)
-    =<< press ["end", "ctrl-a", "p"]
+    =<< press ["end", "a", "p"]
     =<< answer rootReply
     =<< press ["2"]
     =<< queued
@@ -248,15 +248,15 @@ test_addFromPlaylist :: Assertion
 test_addFromPlaylist = do
   inP <- answer ["file: a/x.flac", "file: b/y.flac"] =<< press ["end", "enter"] =<< root
   assertEqual "the second song" [[Request "load" ["p", "1:2"]]] . (.requests)
-    =<< press ["end", "ctrl-a", "e"] inP
+    =<< press ["end", "a", "e"] inP
 
 test_updateCurrent :: Assertion
 test_updateCurrent = do
   assertEqual "here" [[Request "update" ["b"]]] . (.requests)
-    =<< press ["ctrl-d", "u"]
+    =<< press ["d", "u"]
     =<< onY
   assertEqual "at the root" [[Request "update" []]] . (.requests)
-    =<< press ["ctrl-d", "u"]
+    =<< press ["d", "u"]
     =<< root
 
 -- | In their order at the end. At a position, each goes before the ones
@@ -266,11 +266,11 @@ test_addSelected = do
   selected <- (.state) <$> (press ["insert", "end", "insert"] =<< root)
   let added ks = (.requests) <$> press ks selected
   assertEqual "at the end" [[Request "add" ["a"], Request "load" ["p"]]]
-    =<< added ["ctrl-a", "e"]
+    =<< added ["a", "e"]
   assertEqual "next" [[Request "load" ["p", "0:", "+0"], Request "add" ["a", "+0"]]]
-    =<< added ["ctrl-a", "n"]
+    =<< added ["a", "n"]
   assertEqual "the message" (Just "Added 2 items") . message . (.state)
-    =<< press ["ctrl-a", "e"] selected
+    =<< press ["a", "e"] selected
 
 test_addSelectedFromPlaylist :: Assertion
 test_addSelectedFromPlaylist = do
@@ -278,7 +278,7 @@ test_addSelectedFromPlaylist = do
     answer ["file: a.flac", "file: b.flac", "file: c.flac", "file: d.flac"]
       =<< press ["end", "enter"]
       =<< root
-  r <- press ["down", "shift-down", "shift-down", "down", "insert", "ctrl-a", "e"] inP
+  r <- press ["down", "shift-down", "shift-down", "down", "insert", "a", "e"] inP
   assertEqual
     "runs"
     [[Request "load" ["p", "0:2"], Request "load" ["p", "3:4"]]]
@@ -286,7 +286,7 @@ test_addSelectedFromPlaylist = do
 
 test_selectRange :: Assertion
 test_selectRange = do
-  r <- press ["insert", "end", "insert", "ctrl-s", "r", "ctrl-a", "e"] =<< root
+  r <- press ["insert", "end", "insert", "v", "r", "a", "e"] =<< root
   assertEqual
     "requests"
     [[Request "add" ["a"], Request "add" ["b"], Request "load" ["p"]]]
@@ -326,7 +326,7 @@ test_sharedPattern =
 
 test_selectFound :: Assertion
 test_selectFound = do
-  r <- press ["/", "b", "enter", "ctrl-s", "f"] =<< root
+  r <- press ["/", "b", "enter", "v", "f"] =<< root
   assertEqual "selected" [DirectoryKey "b"] (toList r.state.browser.selection.keys)
   assertEqual "the message" (Just "1 item found and selected") (message r.state)
 
@@ -408,7 +408,7 @@ mixed =
     =<< queueShown
 
 nextSort :: AppState -> IO AppState
-nextSort s = (.state) <$> press ["ctrl-t", "o"] s
+nextSort s = (.state) <$> press ["t", "o"] s
 
 -- | The browser in b, with the cursor on its second song.
 onY :: IO AppState

@@ -9,4 +9,4 @@ c  toggle consume           s  toggle single
 d  toggle display           x  toggle crossfade 5
 f  toggle follow playing    z  toggle random
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
-ctrl-t -
+t -

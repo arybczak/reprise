@@ -55,7 +55,7 @@ main =
             bench "a later key of a find that matches nothing" . whnfIO $
               settled <$> handle (key "x") s
         , -- Sorting by name computes a collation key for each entry.
-          afterKeys ["2", "ctrl-t", "o"] $ \s ->
+          afterKeys ["2", "t", "o"] $ \s ->
             bench "the listing of a directory as long as the queue, sorted by name" . whnfIO $
               settled <$> listed s
         ]

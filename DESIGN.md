@@ -225,7 +225,7 @@ ncmpcpp.
 - Outputs screen (enable/disable). It is small and used often.
 - Help screen, generated from the keymaps. It has a section for the global
   keymap and for each screen's keymap, and each group of a prefix key gets
-  its own heading with the whole key sequences, e.g. `ctrl-t r`. It is text
+  its own heading with the whole key sequences, e.g. `t r`. It is text
   without a cursor, so the movement actions scroll it.
 
 **Visualizer**
@@ -1006,22 +1006,22 @@ screen.
   `4: toggle_columns_mode` in the `media_library` keymap.
 - The help screen lists exactly what each screen's keymap does.
 
-Key sequences (Emacs-style `ctrl-p a`) are supported from the start:
+Key sequences, e.g. `t r`, are supported from the start:
 - A keymap is a tree. A binding is either an action or a prefix with its own
   keymap, and in YAML a prefix is simply a nested mapping. YAML already makes
   "both an action and a prefix" impossible.
 - The pending prefix lives in `AppState`. It is not a blocking read, so MPD
   events keep updating the screen in the middle of a sequence.
-- The status bar shows the prefix (`ctrl-p -`), and the
+- The status bar shows the prefix (`t -`), and the
   [which-key panel](#which-key-panel) lists the possible next keys.
 - `escape` or `ctrl-g` cancels. An unbound next key cancels with a message.
   There is no timeout.
 - Layering works one key at a time. The screen's and the global keymaps are
   walked in parallel:
   - if both bind the key to a prefix, the walk continues into both groups, so
-    the queue's `ctrl-q` group adds keys to the global one;
-  - otherwise the screen's binding wins. If the screen binds `ctrl-p` to an
-    action, it shadows the global `ctrl-p` prefix.
+    the queue's `c` group adds keys to the global one;
+  - otherwise the screen's binding wins. If the screen binds `t` to an
+    action, it shadows the global `t` prefix.
 - Some keys look the same to a terminal: `ctrl-i` is `tab`, `ctrl-m` is
   `enter`, `ctrl-[` is `escape`, and `ctrl-h` is often `backspace`. The key
   parser rejects these names with a hint ("`ctrl-i` is the same key as `tab`
@@ -1049,8 +1049,8 @@ to volume. That one is a quirk, and `+`/`-` already change the volume.
 - Single keys for actions used many times per session: play/pause,
   next/previous, volume, seek, navigation, selection, `activate`, screen
   switching, find.
-- Prefix groups by topic for everything else, e.g. `ctrl-t` for toggles and
-  `ctrl-q` for queue operations.
+- Prefix groups by topic for everything else, e.g. `t` for toggles and `c`
+  for queue operations.
 - The full layout is in [Keymaps](#keymaps).
 
 The author once considered making ncmpcpp's bindings file a Python script.
@@ -1114,7 +1114,7 @@ The editor is reprise's own pure code, not brick's editor. brick's editor
 handles events in brick's monad, outside the handlers that the tests run.
 
 The `:` prompt runs an action. It is also how a key asks for a value: the
-`command` action takes the start of the line, so `ctrl-p s: command seek`
+`command` action takes the start of the line, so `r s: command seek`
 opens `:seek ` and the user types the time. One prompt and the registry's
 parsers serve every action with arguments, instead of a prompt action for
 each, such as ncmpcpp's `set_volume`. Any action with arguments can become
@@ -1518,15 +1518,20 @@ ncmpcpp's separate bindings file (and its `-b` flag) is gone.
 A user's keymap is merged with the default one key by key:
 - a key in the user's keymap replaces the default binding of that key;
 - a prefix group in the user's keymap merges with the default group, so
-  `ctrl-t: {y: toggle single}` adds one key to the toggles;
+  `t: {y: toggle single}` adds one key to the toggles;
 - `null` (written `~`) removes a default binding, e.g. `p: ~`, or a whole
-  group, e.g. `ctrl-d: ~`.
+  group, e.g. `d: ~`.
 
 The default keymap follows the [default keymap rule](#key-bindings):
 - **Everyday actions keep ncmpcpp's single keys.**
-- **Everything else is in prefix groups.** Each group is a Ctrl key whose
-  letter names its topic, so a sequence reads like a short phrase: `ctrl-a n`
-  is "add next", `ctrl-t r` is "toggle repeat".
+- **Everything else is in prefix groups.** Each group is a plain letter that
+  names its topic, so a sequence reads like a short phrase: `a n` is "add
+  next", `t r` is "toggle repeat". Ctrl keys were harder to type for every
+  group.
+  - **Three topics' letters are everyday keys:** `s` stops, `q` quits and
+    `p` pauses. So selection is `v`, as Vim's visual mode, the queue is `c`,
+    so that `c c` clears it as ncmpcpp's `c` does, and playback is `r`, so
+    that `r r` replays.
 
 Action names and arguments are a first draft; they settle when the actions
 are written.
@@ -1596,19 +1601,19 @@ keys:
     ":": command
     q: quit
 
-    ctrl-a:
+    a:
       name: add
       e: add end
       n: add next                # after the playing song
       b: add beginning
       p: add_and_play
       /: command add_path        # asks for the path in the : prompt
-    ctrl-q:
+    c:
       name: queue
       c: clear
       s: shuffle
       w: save                    # as a stored playlist
-    ctrl-s:
+    v:
       name: selection
       r: select range
       i: select invert
@@ -1616,7 +1621,7 @@ keys:
       a: select album
       A: select artist           # as { and } are the shifted [ and ]
       f: select found
-    ctrl-t:
+    t:
       name: toggle
       r: toggle repeat
       z: toggle random
@@ -1628,13 +1633,13 @@ keys:
       a: toggle album_separators
       f: toggle follow_playing
       b: toggle bitrate
-    ctrl-p:
+    r:
       name: playback
       r: replay
       s: command seek            # asks for m:ss, N% or ±Ns
       v: command volume
       x: command crossfade
-    ctrl-d:
+    d:
       name: database
       u: update current
       U: update all
@@ -1644,14 +1649,14 @@ keys:
     backspace: replay
     m: move_selection up
     n: move_selection down
-    ctrl-q:                      # merged with the global ctrl-q group
+    c:                           # merged with the global c group
       m: move_selection cursor
       e: move_selection end
       p: command priority        # asks for 0–255
 
   browser:
     backspace: parent
-    ctrl-t:
+    t:
       o: next_sort_mode
 
   visualizer:
@@ -1667,31 +1672,24 @@ keys:
     i: back
 ```
 
-Later features add to it: the queue's `ctrl-q o` (sort dialog), the media
-library's `4` and left/right between columns, `ctrl-d r` (add random songs).
+Later features add to it: the queue's `c o` (sort dialog), the media
+library's `4` and left/right between columns, `d r` (add random songs).
 `ctrl-w` is reserved for the window framework, as in Vim, and stays unbound
 until then. `ctrl-g` and `escape` cancel a pending prefix.
 
 Compared to ncmpcpp:
 - **Toggles left the single keys:** `r` `z` `y` `R` `x` `Y` `#` `P` `!` `U`
-  are under `ctrl-t`.
+  are under `t`.
 - **Queue operations left the single keys:** `c` `Z` `M` `S` `ctrl-p` are
-  under `ctrl-q`. `C` (crop) and `ctrl-r` (reverse) are gone.
+  under `c`. `C` (crop) and `ctrl-r` (reverse) are gone.
 - **Selection left the single keys:** `v` `V` `B` `ctrl-v` `ctrl-_` are under
-  `ctrl-s`.
+  `v`.
 - **`shift-up`/`shift-down`** toggle the selection and move, without the
   binding chains ncmpcpp needs for it.
-- **`g`, `u`, `A`, `a`, `w` and `e` are free** for later features.
+- **`g`, `u`, `A`, `w` and `e` are free** for later features.
 - **`escape` is not bound to pause.** That was the author's own binding, and
   pausing by accident is a surprising result of trying to back out of
   something.
-
-Two things to check early in milestone 2:
-- **`ctrl-q` and `ctrl-s`** are flow control (XON/XOFF) in a terminal's default
-  mode. vty switches the terminal to raw mode, so they should reach the app,
-  the way `ctrl-s` already works in ncmpcpp.
-- **`ctrl-a`** is GNU screen's prefix key, so screen users have to press it
-  twice. tmux's default prefix is `ctrl-b`.
 
 Many single-character keys collide with YAML syntax:
 - An unquoted `~` is null and a digit is a number. The key decoder accepts
