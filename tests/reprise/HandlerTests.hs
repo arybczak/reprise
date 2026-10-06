@@ -46,6 +46,7 @@ handlerTests =
     , testCase "a lost connection clears the player status" test_disconnectClears
     , testCase "jump to playing centers the cursor" test_jumpCenters
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
+    , testCase "back from the screens about a song or the keys" test_backKeys
     , testCase "the help screen scrolls" test_helpScrolls
     , testCase "a verb that the help screen lacks" test_helpLacksVerb
     , testCase "follow playing while the help screen shows" test_followBehindHelp
@@ -346,6 +347,13 @@ test_jumpCenters = do
   helpShown <- keys ["t", "f", "f1"] =<< playingAt 30
   behindHelp <- runEvents 0 [StatusFetched (statusOf Playing (Just 40) 50)] helpShown.state
   assertEqual "behind the help screen" (40, 30) . position =<< keys ["1"] behindHelp.state
+
+test_backKeys :: Assertion
+test_backKeys = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
+  forM_ [["f1", "f1"], ["f1", "escape"], ["l", "escape"], ["i", "escape"]] $ \ks -> do
+    r <- keys ks s
+    assertEqual (T.unpack (T.unwords ks)) QueueScreen (focusedView r.state).screen
 
 test_helpKeepsPosition :: Assertion
 test_helpKeepsPosition = do

@@ -1682,9 +1682,15 @@ keys:
     space: toggle follow_playing # of the lyrics here, as in ncmpcpp
     o: jump_to_playing           # follow the line being sung again
     l: back                      # as the key that showed them, as in ncmpcpp
+    escape: back
 
   song_info:
     i: back
+    escape: back
+
+  help:
+    f1: back
+    escape: back
 ```
 
 Later features add to it: the queue's `c o` (sort dialog), the media
@@ -1708,7 +1714,9 @@ Compared to ncmpcpp:
 - **`r`, `u`, `A`, `w` and `e` are free** for later features.
 - **`escape` is not bound to pause.** That was the author's own binding, and
   pausing by accident is a surprising result of trying to back out of
-  something.
+  something. On the screens that show something about a song or the keys,
+  the lyrics, the song info and the help, `escape` goes back instead, as
+  does the key that showed them.
 
 Many single-character keys collide with YAML syntax:
 - An unquoted `~` is null and a digit is a number. The key decoder accepts

@@ -907,9 +907,11 @@ defaultKeymaps =
                 , char 'o' ~> JumpToPlaying
                 , -- As the key that showed them, as in ncmpcpp.
                   char 'l' ~> Back
+                , plain Escape ~> Back
                 ]
             )
-          , (SongInfoScreen, keymap [char 'i' ~> Back])
+          , (SongInfoScreen, keymap [char 'i' ~> Back, plain Escape ~> Back])
+          , (HelpScreen, keymap [plain (Function 1) ~> Back, plain Escape ~> Back])
           ]
     }
   where
