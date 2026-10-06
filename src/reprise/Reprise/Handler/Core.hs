@@ -301,6 +301,7 @@ screenLength env s = \case
   LyricsScreen -> length (lyricsRows (fst s.terminalSize) s.lyrics)
   SongInfoScreen -> length (songInfoRows env s (fst s.terminalSize))
   HelpScreen -> length (helpLines env.keymaps)
+  OutputsScreen -> maybe 0 Seq.length s.outputs
   _ -> 0
 
 -- | Show a screen of a song, e.g. its lyrics, for the song under the cursor,

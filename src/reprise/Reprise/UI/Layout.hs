@@ -23,6 +23,7 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
 import Reprise.Screen.Help
 import Reprise.Screen.Lyrics
+import Reprise.Screen.Outputs
 import Reprise.Screen.Queue
 import Reprise.Screen.SongInfo
 import Reprise.Screen.Visualizer
@@ -112,6 +113,7 @@ mainView env s =
        LyricsScreen -> lyricsView env s v
        SongInfoScreen -> songInfoView env s v
        HelpScreen -> helpView env v
+       OutputsScreen -> outputsView env s v
        _ -> V.emptyImage
 
 -- | The which-key panel over the bottom rows of the main view, while a key

@@ -146,6 +146,7 @@ library
                      Reprise.Screen.Browser
                      Reprise.Screen.Help
                      Reprise.Screen.Lyrics
+                     Reprise.Screen.Outputs
                      Reprise.Screen.Queue
                      Reprise.Screen.Queue.Edits
                      Reprise.Screen.SongInfo
@@ -303,6 +304,7 @@ test-suite reprise-tests
                     LrclibTests
                     LyricsTests
                     MirrorTests
+                    OutputsTests
                     QueueTests
                     SongInfoTests
                     StyleTests

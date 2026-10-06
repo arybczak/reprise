@@ -36,6 +36,7 @@ import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
 import Reprise.Screen.Lyrics
+import Reprise.Screen.Outputs
 import Reprise.Screen.Queue
 import Reprise.Screen.SongInfo
 import Reprise.Screen.Visualizer
@@ -87,6 +88,7 @@ handleEvent = \case
     modifyS $ #connection .~ Connected v
     fetchQueue
     relistBrowser
+    refreshOutputs
   -- The player's status would be stale, but the queue stays to look at
   -- until the connection is back.
   MpdDisconnected reason ->
@@ -101,6 +103,7 @@ handleEvent = \case
       | any (`elem` statusSubsystems) subsystems -> request status StatusFetched
       | otherwise -> pure ()
     browserChanged subsystems
+    when (OutputSubsystem `elem` subsystems) refreshOutputs
   QueueFetched (st, songs) -> do
     now <- getsS (.now)
     updateMirror $ setQueue now st songs
@@ -158,6 +161,7 @@ handleEvent = \case
   LyricsLoaded token result -> lyricsLoaded token result
   Edited file failure -> lyricsEdited file failure
   SongCommentsFetched token comments -> songCommentsFetched token comments
+  OutputsFetched fetched -> outputsFetched fetched
   Confirmed action -> runConfirmed action
   where
     statusSubsystems :: [Subsystem]
@@ -332,6 +336,7 @@ runAction = \case
   action@(Move t) -> verb action $ \case
     QueueScreen -> Just $ modifyWithEnv (moveQueueCursor t)
     BrowserScreen -> Just $ modifyWithEnv (moveBrowserCursor t)
+    OutputsScreen -> Just $ modifyWithEnv (moveOutputsCursor t)
     LyricsScreen -> Just $ scrollLyrics t
     SongInfoScreen -> Just $ scrollLines t
     HelpScreen -> Just $ scrollLines t
@@ -355,6 +360,7 @@ runAction = \case
   action@Activate -> verb action $ \case
     QueueScreen -> Just activate
     BrowserScreen -> Just activateItem
+    OutputsScreen -> Just toggleOutput
     _ -> Nothing
   action@Parent -> verb action $ \case
     BrowserScreen -> Just leave
@@ -422,6 +428,7 @@ runAction = \case
   Toggle t -> toggle t
   Show LyricsScreen -> showLyrics
   Show SongInfoScreen -> showSongInfo
+  Show OutputsScreen -> showOutputs
   Show screen
     | screen `elem` [QueueScreen, BrowserScreen, VisualizerScreen, HelpScreen] -> do
         modifyWithEnv . modifyView $ switchScreen screen

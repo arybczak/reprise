@@ -68,6 +68,7 @@ data AppEvent
   | -- | The comments of the file of the song info screen's request with the
     -- token.
     SongCommentsFetched Int [(T.Text, T.Text)]
+  | OutputsFetched [Output]
   | -- | The editor of a file exited, with why it failed.
     Edited FilePath (Maybe T.Text)
   | -- | The user confirmed a destructive action.

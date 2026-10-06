@@ -114,6 +114,9 @@ data AppState = AppState
   , visualizer :: VisualizerState
   , lyrics :: LyricsState
   , songInfo :: SongInfoState
+  , outputs :: Maybe (Seq.Seq Output)
+  -- ^ MPD's audio outputs, from when the outputs screen first showed. Their
+  -- changes keep them current after that.
   , toggles :: Toggles
   , views :: M.Map ViewId View
   , layout :: Layout
@@ -410,6 +413,7 @@ initialState config =
     , visualizer = VisualizerState Nothing Seq.empty Nothing Seq.empty Nothing
     , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing
     , songInfo = SongInfoState Nothing 0 []
+    , outputs = Nothing
     , toggles =
         Toggles
           { queueDisplay = config.queue.display

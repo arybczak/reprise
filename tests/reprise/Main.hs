@@ -19,6 +19,7 @@ import LineEditTests
 import LrclibTests
 import LyricsTests
 import MirrorTests
+import OutputsTests
 import QueueTests
 import Reprise.Width
 import SongInfoTests
@@ -52,6 +53,7 @@ main = do
       , lrclibTests
       , lyricsTests
       , mirrorTests
+      , outputsTests
       , queueTests
       , songInfoTests
       , styleTests

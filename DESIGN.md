@@ -222,7 +222,14 @@ ncmpcpp.
 - The `:` prompt runs any action with the same syntax as the keymaps.
 
 **Other screens**
-- Outputs screen (enable/disable). It is small and used often.
+- Outputs screen. It is small and used often.
+  - **`activate` enables the output under the cursor, or disables it,** and
+    the status bar says which. The new state comes back through idle.
+  - **An enabled output has `lists.playing_style`,** bold by default, as
+    ncmpcpp shows it bold.
+  - **The outputs are fetched when the screen first shows.** After that, an
+    idle `output` event and a new connection fetch them again, so that the
+    screen is current whenever it shows, also when `back` returns to it.
 - Help screen, generated from the keymaps. It has a section for the global
   keymap and for each screen's keymap, and each group of a prefix key gets
   its own heading with the whole key sequences, e.g. `t r`. It is text
@@ -739,7 +746,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Width` | The width of text in terminal columns, cutting and wrapping text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
 | `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
-| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser`, `Visualizer`, `Lyrics`, `SongInfo` and `Help`. Later: `SearchEngine`, `Outputs`, `MediaLibrary`, `PlaylistEditor`, `SongInfo`, `ServerInfo`, ... |
+| `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser`, `Visualizer`, `Lyrics`, `SongInfo`, `Outputs` and `Help`. Later: `SearchEngine`, `MediaLibrary`, `PlaylistEditor`, `ServerInfo`, ... |
 
 The modules form layers, and an import only goes down:
 
@@ -2175,7 +2182,7 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
 4. **Feature parity for the core.**
    - Search engine, columns display in the other screens.
    - Outputs, the `:` prompt with completion. The help screen came with
-     milestone 2.
+     milestone 2, and the outputs screen before the search engine.
 5. **Later features**, in the order the author misses them.
 
 ## Postponed decisions
