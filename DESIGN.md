@@ -1310,8 +1310,13 @@ Rendering returns either "missing" or a list of styled text spans.
 - `[...]` tries its alternatives in order. It renders the first one that is not
   missing, or nothing.
 - A missing tag outside any `[...]` renders as `lists.missing_tag`, with
-  `lists.missing_tag_style`. In the columns display, the marker takes the
-  column's style instead, so that it looks like the rest of the column.
+  `lists.missing_tag_style` if it is set. In the columns display, the marker
+  takes the column's style instead, so that it looks like the rest of the
+  column.
+  - **The marker is an em dash** by default, the usual mark of no value in a
+    table. ncmpcpp's `<empty>` in cyan stood out more than the tags around
+    it, and didn't fit a narrow column. An ASCII hyphen would look like a
+    tag whose value is one.
 
 That is the whole algebra: one pass and no dry runs. Styles are ranges in the
 syntax tree, so they can't be unbalanced.
@@ -1422,8 +1427,9 @@ lists:                           # every list screen
   queued_style: bold             # songs in the queue, in the other screens
   keep_cursor_centered: false
   ignore_leading_the: false
-  missing_tag: '<empty>'
-  missing_tag_style: cyan        # also empty fields of the search engine and song info;
+  missing_tag: —
+  missing_tag_style: ~           # e.g. cyan; without it, the style around the marker.
+                                 # Also empty fields of the search engine and song info;
                                  # not in columns, which use their own style
   tag_separator: ' | '
 

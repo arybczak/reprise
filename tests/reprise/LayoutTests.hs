@@ -158,23 +158,22 @@ test_markerInColumns :: Assertion
 test_markerInColumns = do
   let untagged = song 0 [] 60
   -- The artist column has the style 221, which vty numbers from 16.
-  assertMarkerColor testAppEnv "artist column" (V.Color240 205)
+  assertMarkerColor (marked (Just cyan)) "artist column" (V.Color240 205)
     =<< testState (80, 6) (statusOf Stopped Nothing 1) [untagged]
 
 test_markerInClassic :: Assertion
 test_markerInClassic = do
   let noLength = song 0 [(Title, ["t"])] 60 & #duration .~ Nothing
-      env =
-        testAppEnv
+      withLength env =
+        env
           & #config
             % #songs
             % #classic
             % #right
             .~ either (error . show) id (parseStyledFormat "<green>%{length}</>")
-  -- The marker's style is cyan.
-  assertMarkerColor env "length" (V.ISOColor 6)
-    =<< press ["t", "d"]
-    =<< testState (80, 6) (statusOf Stopped Nothing 1) [noLength]
+  s <- press ["t", "d"] =<< testState (80, 6) (statusOf Stopped Nothing 1) [noLength]
+  assertMarkerColor (withLength (marked (Just cyan))) "its own style" (V.ISOColor 6) s
+  assertMarkerColor (withLength (marked Nothing)) "the style around it" (V.ISOColor 2) s
 
 test_noLength :: Assertion
 test_noLength = do
@@ -185,6 +184,16 @@ test_noLength = do
     case drop 2 (imageLines (renderScreen testAppEnv s)) of
       row : _ -> assertBool (name <> ": " <> T.unpack row) ("-:--" `T.isSuffixOf` row)
       [] -> assertFailure $ name <> ": no rows"
+
+-- | The marker that 'assertMarkerColor' finds, with a style.
+marked :: Maybe Style -> AppEnv
+marked markerStyle =
+  testAppEnv
+    & #config % #lists % #missingTag .~ "<empty>"
+    & #config % #lists % #missingTagStyle .~ markerStyle
+
+cyan :: Style
+cyan = Style (Just (Color 6)) Nothing mempty
 
 -- | The color of the marker, with the cursor hidden, so that its style
 -- doesn't cover the row's.

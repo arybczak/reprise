@@ -157,10 +157,11 @@ data ListsConfig = ListsConfig
   , keepCursorCentered :: Bool
   , ignoreLeadingThe :: Bool
   , missingTag :: T.Text
-  , missingTagStyle :: Style
-  -- ^ Not in the columns display, where the marker has the column's style.
-  -- The search engine's form and the song info screen will show their empty
-  -- fields with it, as ncmpcpp does.
+  , missingTagStyle :: Maybe Style
+  -- ^ Without it, the marker has the style around it. Not in the columns
+  -- display, where the marker has the column's style. The song info screen
+  -- shows its empty fields with it, and the search engine's form will, as
+  -- ncmpcpp does.
   , tagSeparator :: T.Text
   }
   deriving stock (Eq, Show, Generic)
@@ -428,8 +429,8 @@ defaultLists =
     , queuedStyle = style "bold"
     , keepCursorCentered = False
     , ignoreLeadingThe = False
-    , missingTag = "<empty>"
-    , missingTagStyle = style "cyan"
+    , missingTag = "—"
+    , missingTagStyle = Nothing
     , tagSeparator = " | "
     }
 

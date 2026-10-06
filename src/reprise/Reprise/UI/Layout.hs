@@ -279,7 +279,7 @@ playerStatus env s = case (s.mirror.status, currentSong s.mirror) of
     ctx =
       RenderContext
         env.config.lists.tagSeparator
-        [Span (Just env.config.lists.missingTagStyle) env.config.lists.missingTag]
+        [Span env.config.lists.missingTagStyle env.config.lists.missingTag]
 
 ----------------------------------------
 -- Helpers

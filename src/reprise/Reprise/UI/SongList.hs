@@ -131,7 +131,7 @@ renderTitles ctx =
         fitSpans w [Span Nothing c.title]
 
 renderContext :: ListsConfig -> RenderContext Style
-renderContext lists = RenderContext lists.tagSeparator [Span (Just lists.missingTagStyle) lists.missingTag]
+renderContext lists = RenderContext lists.tagSeparator [Span lists.missingTagStyle lists.missingTag]
 
 -- | Spans in a cell of exactly the given width, aligned and padded with
 -- spaces. Each span's style is the base, its own style, then the overlay.

@@ -6,6 +6,7 @@ module Reprise.Screen.SongInfo
   , songCommentsFetched
   ) where
 
+import Data.Maybe
 import Data.Text qualified as T
 import Effectful
 import Graphics.Vty qualified as V
@@ -36,7 +37,9 @@ songInfoView env s v =
             Just text -> V.text' (toAttr env.colorMode env.config.styles.value) text
             Nothing ->
               V.text'
-                (toAttr env.colorMode env.config.lists.missingTagStyle)
+                ( toAttr env.colorMode $
+                    fromMaybe env.config.styles.value env.config.lists.missingTagStyle
+                )
                 env.config.lists.missingTag
         ]
 
