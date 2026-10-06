@@ -9,6 +9,7 @@ s           stop
 }           move next artist
 space       add or remove
 enter       activate
+backspace   replay song
 tab         next screen
 up          move up
 down        move down
@@ -19,6 +20,5 @@ end         move last
 page_up     move page up
 page_down   move page down
 insert      toggle selection
-delete      delete
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

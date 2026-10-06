@@ -1571,6 +1571,7 @@ keys:
     s: stop
     "<": previous
     ">": next
+    backspace: replay            # the browser's goes to the parent, as in ncmpcpp
     f: seek +1s                  # hold to go further
     b: seek -1s
     "+": volume +2
@@ -1645,7 +1646,6 @@ keys:
 
   queue:
     space: select down           # as in the author's ncmpcpp bindings
-    backspace: replay
     o: jump_to_playing
     m: move_selection up
     n: move_selection down

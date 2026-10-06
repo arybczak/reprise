@@ -25,6 +25,7 @@ handlerTests =
     "Handler"
     [ testCase "the cursor starts at the playing song" test_jumpAtStart
     , testCase "pause and resume" test_pause
+    , testCase "replay" test_replay
     , testCase "a key sequence" test_keySequence
     , testCase "cancel a key sequence" test_cancelSequence
     , testCase "an unbound next key" test_unboundNextKey
@@ -404,6 +405,17 @@ test_pause = do
   assertEqual "pause" [[Request "pause" ["1"]]] . (.requests) =<< keys ["p"] playing
   assertEqual "resume" [[Request "pause" ["0"]]] . (.requests) =<< keys ["p"] paused
   assertEqual "play" [[Request "play" []]] . (.requests) =<< keys ["p"] stopped
+
+test_replay :: Assertion
+test_replay = do
+  playing <- testState (80, 24) (statusOf Playing (Just 1) 3) (songs 3)
+  stopped <- testState (80, 24) (statusOf Stopped (Just 1) 3) (songs 3)
+  let replayed = [[Request "seekcur" ["0"]]]
+  assertEqual "the queue" replayed . (.requests) =<< keys ["backspace"] playing
+  assertEqual "another screen" replayed . (.requests) =<< keys ["f1", "backspace"] playing
+  assertEqual "the sequence" replayed . (.requests) =<< keys ["r", "r"] playing
+  assertEqual "stopped" [[Request "play" ["1"]]] . (.requests)
+    =<< keys ["backspace"] stopped
 
 test_keySequence :: Assertion
 test_keySequence = do

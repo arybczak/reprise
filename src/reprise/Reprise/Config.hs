@@ -780,6 +780,9 @@ defaultKeymaps =
           , char 's' ~> Stop
           , char '<' ~> Previous
           , char '>' ~> Next
+          , -- The browser's goes to the parent directory instead, as in
+            -- ncmpcpp.
+            plain Backspace ~> Replay
           , char 'f' ~> Seek (SeekBy 1)
           , char 'b' ~> Seek (SeekBy (-1))
           , char '+' ~> Volume (VolumeBy 2)
@@ -867,7 +870,6 @@ defaultKeymaps =
             , keymap
                 [ -- As in the author's ncmpcpp bindings.
                   plain Space ~> Select (SelectItem (Just MoveDown))
-                , plain Backspace ~> Replay
                 , char 'o' ~> JumpToPlaying
                 , char 'm' ~> MoveSelection MoveSelectionUp
                 , char 'n' ~> MoveSelection MoveSelectionDown
