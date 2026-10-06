@@ -59,15 +59,13 @@ newTransform = do
 -- | The last 'windowSamples' samples of every channel, as MPD writes them,
 -- after silence. New samples push out the oldest in place, which a frame
 -- would otherwise copy.
-data SampleWindow = SampleWindow
-  { channels :: Int
-  , bytes :: VSM.IOVector Word8
+newtype SampleWindow = SampleWindow
+  { bytes :: VSM.IOVector Word8
   }
 
 -- | A window of silence.
-newSampleWindow :: Int -> IO SampleWindow
-newSampleWindow channels =
-  SampleWindow channels <$> VSM.replicate (windowSamples * bytesPerSample * channels) 0
+newSampleWindow :: IO SampleWindow
+newSampleWindow = SampleWindow <$> VSM.replicate (windowSamples * frameBytes) 0
 
 -- | Push the samples of every channel into the window.
 pushSamples :: SampleWindow -> BS.ByteString -> IO ()
@@ -107,7 +105,7 @@ spectrumOf transform samples channel = do
                 (castPtr src)
                 (castPtr win)
                 (fromIntegral windowSamples)
-                (fromIntegral samples.channels)
+                (fromIntegral channels)
                 (fromIntegral channel)
                 (castPtr w)
                 (castPtr o)

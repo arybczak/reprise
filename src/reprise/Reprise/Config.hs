@@ -253,9 +253,8 @@ data ProgressChars = ProgressChars
 
 data VisualizerConfig = VisualizerConfig
   { dataSource :: Maybe FilePath
-  -- ^ The fifo of MPD's fifo output, in the format @44100:16:2@, or
-  -- @44100:16:1@ without 'inStereo'. A leading @~/@ is the home directory.
-  , inStereo :: Bool
+  -- ^ The fifo of MPD's fifo output, which must be in the format
+  -- @44100:16:2@. A leading @~/@ is the home directory.
   , visualization :: Visualization
   -- ^ The one that the visualizer shows first.
   , fps :: FrameRate
@@ -487,7 +486,6 @@ defaultVisualizer :: VisualizerConfig
 defaultVisualizer =
   VisualizerConfig
     { dataSource = Nothing
-    , inStereo = True
     , visualization = Spectrum
     , fps = FrameRate 60
     , trail = 0.15

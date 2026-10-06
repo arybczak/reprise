@@ -1,9 +1,11 @@
 -- | The samples that MPD's fifo output writes for the visualizer, in the
--- format that ncmpcpp reads: 44100 samples a second of 16 bits, of one
--- channel or two.
+-- format @44100:16:2@: 44100 samples a second of 16 bits, of the left
+-- channel and the right one in turn.
 module Reprise.Visualizer.Samples
   ( sampleRate
   , bytesPerSample
+  , channels
+  , frameBytes
   , sampleAt
   ) where
 
@@ -19,6 +21,13 @@ sampleRate = 44100
 
 bytesPerSample :: Int
 bytesPerSample = 2
+
+channels :: Int
+channels = 2
+
+-- | The bytes of a sample of every channel.
+frameBytes :: Int
+frameBytes = bytesPerSample * channels
 
 -- | The sample at an index, from -1 to 1. MPD writes them in the byte order
 -- of the machine. The index must be in the samples.

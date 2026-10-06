@@ -1,12 +1,12 @@
 -- | The visualizer, of the samples that MPD's fifo output writes:
 --
 -- * The spectrum, as bars of the levels of the frequencies, which the
---   worker computes. In stereo, the left channel rises from the middle and
---   the right one hangs from it.
+--   worker computes. The left channel rises from the middle and the right
+--   one hangs from it.
 -- * The ellipse: the left channel across and the right one up, as in
---   ncmpcpp's stereo ellipse. Mono is a diagonal, and stereo widens it. The
---   samples are braille dots, eight in a cell, and those of the last frames
---   stay for a moment.
+--   ncmpcpp's stereo ellipse. Music in mono is a diagonal, and stereo widens
+--   it. The samples are braille dots, eight in a cell, and those of the last
+--   frames stay for a moment.
 --
 -- The colors go from quiet to loud.
 module Reprise.Screen.Visualizer
@@ -49,7 +49,7 @@ visualizerView :: AppEnv -> AppState -> View -> V.Image
 visualizerView env s v = case env.config.visualizer.dataSource of
   Nothing ->
     V.text' (toAttr env.colorMode mempty) . truncateToWidth v.width $
-      "Set visualizer.data_source in the config to the fifo of MPD's fifo output"
+      "Set visualizer.data_source in the config to the fifo of an MPD fifo output of format 44100:16:2"
   Just _ -> case s.toggles.visualization of
     Spectrum -> bars env.colorMode env.config.visualizer v.width v.height s.visualizer.spectrum
     Ellipse -> ellipse env.colorMode env.config.visualizer v.width v.height s.visualizer.frames
@@ -65,7 +65,7 @@ updateVisualizer = do
           isJust env.config.visualizer.dataSource && (focusedView s).screen == VisualizerScreen
         pure s.toggles.visualization
   when (wanted /= s.visualizer.reading) $ do
-    modifyS $ #visualizer .~ VisualizerState wanted Seq.empty []
+    modifyS $ #visualizer .~ VisualizerState wanted Seq.empty Nothing
     visualize wanted
 
 nextVisualization :: App es => Eff es ()
@@ -90,12 +90,12 @@ visualizerSamples samples = do
 
 -- | Show the spectrum of a frame. A spectrum that comes after the spectrum
 -- stopped reading is dropped.
-visualizerSpectrum :: App es => [VS.Vector Double] -> Eff es ()
-visualizerSpectrum spectra = do
+visualizerSpectrum :: App es => VS.Vector Double -> VS.Vector Double -> Eff es ()
+visualizerSpectrum left right = do
   v <- getsS (.visualizer)
   if v.reading /= Just Spectrum
     then keepScreen
-    else modifyS $ #visualizer % #spectrum .~ spectra
+    else modifyS $ #visualizer % #spectrum ?~ (left, right)
 
 -- | The number of frames whose samples are on the screen.
 trailFrames :: VisualizerConfig -> Int
@@ -110,12 +110,18 @@ trailFrames cfg =
 -- | Which way the bars of a channel go.
 data Growth = Rising | Hanging
 
--- | The bars of the spectra of the channels in a grid of the given size.
-bars :: ColorMode -> VisualizerConfig -> Int -> Int -> [VS.Vector Double] -> V.Image
+-- | The bars of the spectra of the channels in a grid of the given size: the
+-- left channel rising from the middle, and the right one hanging from it.
+bars
+  :: ColorMode
+  -> VisualizerConfig
+  -> Int
+  -> Int
+  -> Maybe (VS.Vector Double, VS.Vector Double)
+  -> V.Image
 bars colorMode cfg w h = \case
-  [] -> V.emptyImage
-  [mono] -> channel Rising h mono
-  left : right : _ ->
+  Nothing -> V.emptyImage
+  Just (left, right) ->
     let top = h `div` 2
     in channel Rising top left V.<-> channel Hanging (h - top) right
   where
@@ -240,18 +246,15 @@ ellipse colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
       0 -> Nothing
       d -> Just (colors VU.! i, chr (brailleBlank + fromIntegral d))
 
-    channels :: Int
-    channels = if cfg.inStereo then 2 else 1
-
     -- The dots of a frame's samples, with their colors: the left channel
     -- across and the right one up, each at full scale at the edges of the
     -- grid.
     points :: BS.ByteString -> [(Int, Int, Int)]
     points pcm =
       [ (round (centerX + left * centerX), round (centerY - right * centerY), colorOf left right)
-      | i <- [0 .. BS.length pcm `div` (bytesPerSample * channels) - 1]
+      | i <- [0 .. BS.length pcm `div` frameBytes - 1]
       , let left = sampleAt pcm (i * channels)
-            right = if cfg.inStereo then sampleAt pcm (i * channels + 1) else left
+            right = sampleAt pcm (i * channels + 1)
       ]
 
     -- By the distance from the center, as the root mean square of the

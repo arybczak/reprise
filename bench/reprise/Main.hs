@@ -151,17 +151,17 @@ spectrumShown :: IO AppState
 spectrumShown = do
   s <- loaded
   transform <- newTransform
-  spectra <- spectraOf transform =<< noiseWindow
-  foldM (flip (handleIn visualizerEnv)) s [key "8", VisualizerSpectrum spectra]
+  (left, right) <- spectraOf transform =<< noiseWindow
+  foldM (flip (handleIn visualizerEnv)) s [key "8", VisualizerSpectrum left right]
 
 -- | The spectra of the channels, as the worker computes them for a frame.
-spectraOf :: Transform -> SampleWindow -> IO [VS.Vector Double]
-spectraOf transform window = forM [0, 1] $ spectrumOf transform window
+spectraOf :: Transform -> SampleWindow -> IO (VS.Vector Double, VS.Vector Double)
+spectraOf transform window = (,) <$> spectrumOf transform window 0 <*> spectrumOf transform window 1
 
 -- | A spectrum's window of noise.
 noiseWindow :: IO SampleWindow
 noiseWindow = do
-  window <- newSampleWindow 2
+  window <- newSampleWindow
   pushSamples window (BS.concat noise)
   pure window
 
@@ -261,7 +261,7 @@ settled s =
     + S.size s.queueState.selection.keys
     + Seq.length s.browser.items
     + Seq.length s.visualizer.frames
-    + sum (map VS.length s.visualizer.spectrum)
+    + maybe 0 (\(l, r) -> VS.length l + VS.length r) s.visualizer.spectrum
     + (focusedView s).cursor
     + (focusedView s).offset
     + maybe 0 (T.length . (.question)) s.prompt

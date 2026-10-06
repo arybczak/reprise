@@ -30,7 +30,6 @@ import Reprise.Visualizer.Spectrum
 
 data VisualizerSource = VisualizerSource
   { path :: FilePath
-  , channels :: Int
   , fps :: Int
   , reading :: TVar (Maybe Visualization)
   -- ^ What the visualizer wants the samples for.
@@ -56,7 +55,7 @@ visualizerWorker src = do
       Right h -> (`finally` hClose h) $ do
         void (readAvailable h)
         start <- getMonotonicTime
-        window <- newSampleWindow src.channels
+        window <- newSampleWindow
         frames transform window h start 1 0 (newPlayout start) 0
   where
     -- The frames of silence since the last samples.
@@ -68,8 +67,8 @@ visualizerWorker src = do
       forM_ visualization $ \v -> do
         new <- readAvailable h
         arrival <- getMonotonicTime
-        let shown = sampleBytes * (samplesUntil n - samplesUntil previous)
-            (frame, stopped, p') = playout sampleBytes shown arrival new p
+        let shown = frameBytes * (samplesUntil n - samplesUntil previous)
+            (frame, stopped, p') = playout shown arrival new p
             continue = frames' arrival p'
         case v of
           Ellipse -> do
@@ -101,16 +100,14 @@ visualizerWorker src = do
 
         spectrum :: IO ()
         spectrum = do
-          spectra <- forM [0 .. src.channels - 1] $ spectrumOf transform window
-          src.emit $ VisualizerSpectrum spectra
+          -- The left channel is the first of a frame's, the right one the second.
+          left <- spectrumOf transform window 0
+          right <- spectrumOf transform window 1
+          src.emit $ VisualizerSpectrum left right
 
     -- The samples from the start until a frame.
     samplesUntil :: Int -> Int
     samplesUntil n = n * sampleRate `div` src.fps
-
-    -- The bytes of a sample of every channel.
-    sampleBytes :: Int
-    sampleBytes = bytesPerSample * src.channels
 
     -- The frames of silence that fill the window.
     silentFrames :: Int
@@ -138,12 +135,12 @@ data Playout = Playout
 newPlayout :: Double -> Playout
 newPlayout = Playout BS.empty False Nothing
 
--- | What a frame shows: the samples that its time takes, of the bytes of a
--- sample of every channel and a number of bytes, at the time that the new
--- samples came. Also whether MPD stopped writing, e.g. paused.
+-- | What a frame shows: the samples that its time takes, of a number of
+-- bytes, at the time that the new samples came. Also whether MPD stopped
+-- writing, e.g. paused.
 playout
-  :: Int -> Int -> Double -> BS.ByteString -> Playout -> (BS.ByteString, Bool, Playout)
-playout sampleBytes shown arrival new p =
+  :: Int -> Double -> BS.ByteString -> Playout -> (BS.ByteString, Bool, Playout)
+playout shown arrival new p =
   let arrived = not (BS.null new)
       write = if arrived then Just (maybe (BS.length new) (min (BS.length new)) p.write) else p.write
       lastWrite = if arrived then arrival else p.lastWrite
@@ -158,12 +155,12 @@ playout sampleBytes shown arrival new p =
       -- Without a write for two, MPD stopped writing.
       stopped =
         isJust write
-          && arrival - lastWrite > 2 * fromIntegral margin / fromIntegral (sampleBytes * sampleRate)
+          && arrival - lastWrite > 2 * fromIntegral margin / fromIntegral (frameBytes * sampleRate)
   in (frame, stopped, Playout buffered flowing write lastWrite)
   where
     -- To whole samples of every channel.
     roundUp :: Int -> Int
-    roundUp n = (n + sampleBytes - 1) `div` sampleBytes * sampleBytes
+    roundUp n = (n + frameBytes - 1) `div` frameBytes * frameBytes
 
 -- | The writes that the buffer holds ahead of the frames, so that a write
 -- that comes late by up to a write's time doesn't run it out. On the

@@ -227,11 +227,10 @@ ncmpcpp.
   without a cursor, so the movement actions scroll it.
 
 **Visualizer**
-- It reads MPD's fifo output, as ncmpcpp does, in the format `44100:16:2`,
-  or `44100:16:1` with `visualizer.in_stereo` off. `visualizer.data_source`
-  is the path of the fifo, and the visualizer says how to set it when it is
-  missing. A worker thread opens the fifo while the visualizer shows, and
-  only then.
+- It reads MPD's fifo output, as ncmpcpp does, in the format `44100:16:2`
+  only. `visualizer.data_source` is the path of the fifo, and the
+  visualizer says how to set it when it is missing. A worker thread opens
+  the fifo while the visualizer shows, and only then.
 - It has two visualizations, the spectrum and the ellipse. It starts with
   `visualizer.visualization`, the spectrum as in ncmpcpp, and `toggle
   visualization` switches, on space in the visualizer as in ncmpcpp.
@@ -263,7 +262,7 @@ ncmpcpp.
     -10 dB for a full one: ncmpcpp's with the author's
     `visualizer_spectrum_gain` of 10.
   - **The bars** are the block characters `▁▂▃▄▅▆▇█`, so they have eight
-    steps in a cell. In stereo, the left channel rises from the middle and
+    steps in a cell. The left channel rises from the middle and
     the right one hangs from it. The colors go from the foot of a bar to
     its top.
   - **A hanging bar ends in upper blocks,** `▔🮂🮃▀🮄🮅🮆`, most of them from
@@ -1460,8 +1459,7 @@ progress_bar:
   elapsed_style: 28
 
 visualizer:
-  data_source: ~                 # the fifo of MPD's fifo output; ~/ is the home directory
-  in_stereo: true                # the fifo's format is 44100:16:2, or 44100:16:1
+  data_source: ~                 # the fifo of an MPD fifo output of 44100:16:2; ~/ is home
   visualization: spectrum        # or ellipse, which toggle visualization switches to
   fps: 60
   trail: 150ms                   # how long the samples of the ellipse stay
@@ -1750,7 +1748,7 @@ Many single-character keys collide with YAML syntax:
 | `display_remaining_time`, `display_bitrate` | `status_bar.show_remaining_time`, `status_bar.show_bitrate` |
 | `progressbar_look`, `progressbar_color`, `progressbar_elapsed_color` | `progress_bar.chars`, `progress_bar.style`, `progress_bar.elapsed_style` |
 | `color1`, `color2`, `window_border_color` | `styles.label`, `styles.value`, `styles.popup_border` |
-| `visualizer_data_source`, `visualizer_in_stereo`, `visualizer_type`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.in_stereo`, `visualizer.visualization`, `visualizer.fps`, `visualizer.colors` |
+| `visualizer_data_source`, `visualizer_type`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.visualization`, `visualizer.fps`, `visualizer.colors` |
 | `lyrics_directory` | `lyrics.directory`, `$XDG_DATA_HOME/reprise/lyrics` without it |
 | `lyrics_fetchers` | `lyrics.fetchers`, of `lrclib` and `tekstowo` (see [Core](#core)) |
 | `fetch_lyrics_for_current_song_in_background` | `lyrics.fetch_in_background` |
@@ -1784,6 +1782,10 @@ options, `allow_for_physical_item_deletion`,
   `visualizer_spectrum_smooth_look_legacy_chars`: the spectrum is always on
   log scales, of eighth blocks, with the upper blocks of Symbols for Legacy
   Computing, as the author has it.
+- `visualizer_in_stereo`: the fifo is in stereo, `44100:16:2`. Both
+  visualizations show the two channels, and music in mono is the same in
+  both, so a feed in mono has no use. A fifo in another format shows
+  wrongly, which the visualizer doesn't check.
 - `visualizer_look`: the dots of the ellipse are braille, and the bars of
   the spectrum are blocks.
 - `visualizer_output_name` and `visualizer_sync_interval`: the worker drops

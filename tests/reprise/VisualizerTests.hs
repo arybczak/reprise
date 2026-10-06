@@ -34,6 +34,7 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
 import Reprise.UI.Layout
+import Reprise.Visualizer.Samples
 import Reprise.Visualizer.Spectrum
 import Reprise.Visualizer.Worker
 import Reprise.Width
@@ -100,18 +101,14 @@ test_bars = do
       full = VS.generate bins $ \k ->
         if binFrequency k >= edge 22 && binFrequency k < edge 23 then 1 else 0
   s <- testState (40, 12) (statusOf Stopped Nothing 0) []
-  mono <- (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum [full]] s
-  let cells = filled (mainLinesOf mono)
-  assertEqual "a column" [22] (L.nub (map snd cells))
-  assertEqual "full" 8 (length cells)
   stereo <-
-    (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum [full, silent]] s
+    (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum full silent] s
   assertEqual
     "rising in the top half"
     [(r, 22) | r <- [0 .. 3]]
     (filled (mainLinesOf stereo))
   hanging <-
-    (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum [silent, full]] s
+    (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum silent full] s
   assertEqual
     "hanging in the bottom half"
     [(r, 22) | r <- [4 .. 7]]
@@ -119,7 +116,7 @@ test_bars = do
   -- -46 dB is 0.6 of the way from -100 dB to -10 dB, so 2.4 of the 4 rows.
   let partly = VS.map (* (10 ** (-46 / 20))) full
   ending <-
-    (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum [silent, partly]] s
+    (.state) <$> runEventsWith visualizing 0 [key "8", VisualizerSpectrum silent partly] s
   assertEqual
     "the end of a hanging bar"
     ["█", "█", "🮃"]
@@ -153,7 +150,7 @@ test_runs = do
         if binFrequency k >= edge 22 && binFrequency k < edge 23 then 1 else 0
       spansIn env = do
         s <- testState (40, 12) (statusOf Stopped Nothing 0) []
-        r <- runEventsWith env 0 [key "8", VisualizerSpectrum [bar]] s
+        r <- runEventsWith env 0 [key "8", VisualizerSpectrum bar bar] s
         pure . length $ imageSpans (renderScreen env r.state)
       withBackground =
         visualizing & #config % #visualizer % #colors .~ (style "red on blue" NE.:| [])
@@ -250,7 +247,7 @@ test_sineSpectrum = do
           | i <- [0 .. windowSamples - 1]
           , let t = fromIntegral i / 44100
           ]
-  window <- newSampleWindow 2
+  window <- newSampleWindow
   pushSamples window sine
   left <- spectrumOf transform window 0
   right <- spectrumOf transform window 1
@@ -278,11 +275,11 @@ test_window = do
       half = windowSamples `div` 2
       spectra w = forM [0, 1] $ spectrumOf transform w
       windowOf pcm = do
-        w <- newSampleWindow 2
+        w <- newSampleWindow
         pushSamples w pcm
         pure w
   whole <- spectra =<< windowOf (BS.takeEnd (bytesOf windowSamples) noise)
-  pieces <- newSampleWindow 2
+  pieces <- newSampleWindow
   let (first, rest) = BS.splitAt (bytesOf 1000) noise
       (middle, end) = BS.splitAt (BS.length rest - bytesOf 3) rest
   mapM_ (pushSamples pieces) [first, middle, end]
@@ -334,7 +331,7 @@ test_playoutLag = do
   assertEqual
     "the lag"
     []
-    [f | f <- frames, f.buffered > f.shown + 3 * writeBytes + sampleBytes]
+    [f | f <- frames, f.buffered > f.shown + 3 * writeBytes + frameBytes]
 
 data Simulated = Simulated
   { time :: Double
@@ -356,8 +353,8 @@ simulate speed stop = go (newPlayout 0) 1
       | otherwise =
           let t = frameTime n
               new = BS.replicate (writeBytes * length (writesBetween (frameTime (n - 1)) t)) 1
-              shown = sampleBytes * (samplesUntil n - samplesUntil (n - 1))
-              (frame, stopped, p') = playout sampleBytes shown t new p
+              shown = frameBytes * (samplesUntil n - samplesUntil (n - 1))
+              (frame, stopped, p') = playout shown t new p
           in Simulated t shown (BS.length frame) stopped (BS.length p'.buffered)
                : go p' (n + 1)
 
@@ -378,9 +375,8 @@ simulate speed stop = go (newPlayout 0) 1
     fps :: Int
     fps = 120
 
-writeBytes, sampleBytes :: Int
-writeBytes = 503 * sampleBytes
-sampleBytes = 4
+writeBytes :: Int
+writeBytes = 503 * frameBytes
 
 writeSeconds :: Double
 writeSeconds = 503 / 44100
@@ -391,8 +387,7 @@ test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
   createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
   events <- newTQueueIO
   reading <- newTVarIO (Just Ellipse)
-  let frameBytes = 4
-      pattern = samples (replicate 100 (1000, -1000))
+  let pattern = samples (replicate 100 (1000, -1000))
   bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ -> do
     frame <- withWriting path pattern . expectWithin $ firstSamples events
     assertBool
@@ -424,10 +419,12 @@ test_workerSpectrum = withSystemTempDirectory "visualizer" $ \dir -> do
   bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ ->
     withWriting path (samples (replicate 100 (1000, -1000))) $
       expectWithin (atomically (readTQueue events)) >>= \case
-        VisualizerSpectrum spectra -> do
-          assertEqual "the channels" 2 (length spectra)
-          assertEqual "the bins" [32768 `div` 2 + 1, 32768 `div` 2 + 1] (map VS.length spectra)
-          assertBool "the samples" (all ((> 0) . VS.maximum) spectra)
+        VisualizerSpectrum left right -> do
+          assertEqual
+            "the bins"
+            [32768 `div` 2 + 1, 32768 `div` 2 + 1]
+            (map VS.length [left, right])
+          assertBool "the samples" (all ((> 0) . VS.maximum) [left, right])
         e -> assertFailure $ "event: " <> show e
 
 -- | Write the samples to the fifo again and again while an action runs. The
@@ -523,7 +520,6 @@ source :: FilePath -> TVar (Maybe Visualization) -> TQueue AppEvent -> Visualize
 source path reading events =
   VisualizerSource
     { path = path
-    , channels = 2
     , fps = 60
     , reading = reading
     , emit = atomically . writeTQueue events

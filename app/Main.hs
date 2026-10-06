@@ -112,7 +112,6 @@ main = do
     restarted . visualizerWorker $
       VisualizerSource
         { path = path
-        , channels = if config.visualizer.inStereo then 2 else 1
         , fps = fps
         , reading = visualizing
         , emit = void . B.writeBChanNonBlocking events

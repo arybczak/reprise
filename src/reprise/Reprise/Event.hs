@@ -51,9 +51,9 @@ data AppEvent
   | -- | The samples of the visualizer's next frame, as MPD's fifo output
     -- wrote them. Empty while nothing plays.
     VisualizerSamples BS.ByteString
-  | -- | The magnitudes of each channel's spectrum for the visualizer's next
-    -- frame.
-    VisualizerSpectrum [VS.Vector Double]
+  | -- | The magnitudes of the spectra of the left channel and of the right
+    -- one for the visualizer's next frame.
+    VisualizerSpectrum (VS.Vector Double) (VS.Vector Double)
   | -- | The visualizer's data source can't be read, with the reason.
     VisualizerFailed T.Text
   | -- | The lyrics of the request with the token aren't stored, so a fetcher

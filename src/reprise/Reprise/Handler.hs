@@ -151,7 +151,7 @@ handleEvent = \case
         keepScreen
       else modifyS $ #cursorTimer .~ False
   VisualizerSamples samples -> visualizerSamples samples
-  VisualizerSpectrum spectra -> visualizerSpectrum spectra
+  VisualizerSpectrum left right -> visualizerSpectrum left right
   VisualizerFailed reason -> showError reason
   LyricsFetching token fetcher -> lyricsFetching token fetcher
   LyricsLoaded token result -> lyricsLoaded token result

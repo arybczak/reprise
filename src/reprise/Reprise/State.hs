@@ -293,8 +293,8 @@ data VisualizerState = VisualizerState
   , frames :: Seq.Seq BS.ByteString
   -- ^ The samples of the frames of the ellipse on the screen, the newest
   -- first.
-  , spectrum :: [VS.Vector Double]
-  -- ^ The magnitudes of each channel's spectrum.
+  , spectrum :: Maybe (VS.Vector Double, VS.Vector Double)
+  -- ^ The magnitudes of the left channel's spectrum and of the right one's.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -402,7 +402,7 @@ initialState config =
     , mirror = emptyMirror
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
-    , visualizer = VisualizerState Nothing Seq.empty []
+    , visualizer = VisualizerState Nothing Seq.empty Nothing
     , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing
     , songInfo = SongInfoState Nothing 0 []
     , toggles =
