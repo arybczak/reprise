@@ -401,7 +401,7 @@ defaultColumns =
         [ column (RelativeWidth 20) "221" "%{artist}" "" AlignLeft
         , column (FixedWidth 6) "77" "[%{track_raw}]" "" AlignLeft
         , column (RelativeWidth 50) "white" "[%{title}|%{filename}]" "Title" AlignLeft
-        , column (RelativeWidth 20) "cyan" "%{album}" "" AlignLeft
+        , column (RelativeWidth 20) "75" "%{album}" "" AlignLeft
         , column (FixedWidth 5) "203" "[%{length}|-:--]" "" AlignRight
         ]
     }

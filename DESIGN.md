@@ -1416,7 +1416,7 @@ songs:                           # how a song looks in a list
     - {width: 20%, style: 221, format: '%{artist}'}
     - {width: 6, style: 77, format: '[%{track_raw}]'}
     - {width: 50%, style: white, format: '[%{title}|%{filename}]', title: Title}
-    - {width: 20%, style: cyan, format: '%{album}'}
+    - {width: 20%, style: 75, format: '%{album}'}
     - {width: 5, style: 203, format: '[%{length}|-:--]', align: right}
 
 lists:                           # every list screen
