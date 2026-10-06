@@ -1,6 +1,7 @@
 module ConnectionTests (connectionTests) where
 
 import Control.Concurrent
+import Control.Concurrent.MVar.Strict qualified as S
 import Control.Exception
 import Data.Foldable
 import Data.List qualified as L
@@ -321,21 +322,21 @@ test_outputs server = withConn server $ \conn -> do
 
 test_idle :: TestServer -> Assertion
 test_idle server = withConn server $ \idleConn -> do
-  result <- newEmptyMVar
-  _ <- forkIO $ idle idleConn [OptionsSubsystem] >>= putMVar result
+  result <- S.newEmptyMVar
+  _ <- forkIO $ idle idleConn [OptionsSubsystem] >>= S.putMVar result
   withConn server $ \conn -> run conn $ setRepeat True
-  r <- takeMVar result
+  r <- S.takeMVar result
   assertEqual "changed" [OptionsSubsystem] r
 
 test_noidle :: TestServer -> Assertion
 test_noidle server = withConn server $ \conn -> do
-  result <- newEmptyMVar
-  _ <- forkIO $ idle conn [] >>= putMVar result
+  result <- S.newEmptyMVar
+  _ <- forkIO $ idle conn [] >>= S.putMVar result
   -- MPD ignores a noidle that arrives before the idle, so retry until the
   -- idle returns.
   let loop = do
         noidle conn
-        tryTakeMVar result >>= \case
+        S.tryTakeMVar result >>= \case
           Just r -> pure r
           Nothing -> yield >> loop
   r <- loop

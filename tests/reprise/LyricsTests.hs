@@ -5,7 +5,7 @@ import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
-import Data.IORef
+import Data.IORef.Strict qualified as S
 import Data.List qualified as L
 import Data.Maybe
 import Data.Text qualified as T
@@ -301,7 +301,7 @@ test_workerFetches = withSystemTempDirectory "lyrics" $ \dir -> do
     assertEqual "stored" "Fetched\n" =<< BS.readFile (dir </> "new" </> "A - Two.txt")
     assertEqual "read the second time" [LyricsLoaded 2 (stored "Fetched")]
       =<< ask 2 "Two" False
-  assertEqual "one fetch" 1 =<< readIORef calls
+  assertEqual "one fetch" 1 =<< S.readIORef calls
 
 test_workerAsksAgain :: Assertion
 test_workerAsksAgain = withSystemTempDirectory "lyrics" $ \dir -> do
@@ -310,7 +310,7 @@ test_workerAsksAgain = withSystemTempDirectory "lyrics" $ \dir -> do
     let notFound n = [LyricsFetching n "A", LyricsLoaded n (LyricsMissing [("A", Nothing)])]
     assertEqual "missing" (notFound 1) =<< ask 1 "One" False
     assertEqual "asked again" (notFound 2) =<< ask 2 "One" False
-  assertEqual "two fetches" 2 =<< readIORef calls
+  assertEqual "two fetches" 2 =<< S.readIORef calls
 
 test_workerFetchers :: Assertion
 test_workerFetchers = withSystemTempDirectory "lyrics" $ \dir -> do
@@ -349,7 +349,7 @@ test_workerRefetches = withSystemTempDirectory "lyrics" $ \dir -> do
     assertEqual "fetched" [LyricsFetching 1 "LRCLIB", LyricsLoaded 1 fetched]
       =<< ask 1 "One" True
     assertEqual "stored anew" "New\n" =<< BS.readFile (dir </> "A - One.txt")
-  assertEqual "one fetch" 1 =<< readIORef calls
+  assertEqual "one fetch" 1 =<< S.readIORef calls
 
 test_workerWithoutFetchers :: Assertion
 test_workerWithoutFetchers = withSystemTempDirectory "lyrics" $ \dir ->
@@ -466,7 +466,7 @@ test_workerInBackground = withSystemTempDirectory "lyrics" $ \dir -> do
     atomically . writeTVar requested $ Just (1, LyricsRequest one False)
     loaded <- timeout (5 * 1000000) . atomically $ readTQueue events
     assertEqual "read, not fetched" (Just (LyricsLoaded 1 (stored "Ahead"))) loaded
-  assertEqual "one fetch" 1 =<< readIORef calls
+  assertEqual "one fetch" 1 =<< S.readIORef calls
   where
     untilJust :: IO (Maybe b) -> IO b
     untilJust act = act >>= maybe (untilJust act) pure
@@ -639,10 +639,10 @@ withWorker dir fetchers k = do
     expectWithin act = timeout (5 * 1000000) act >>= maybe (assertFailure "nothing came") pure
 
 -- | A fetcher with a name that counts its calls.
-counted :: T.Text -> IO FetchResult -> IO (IORef Int, Fetcher)
+counted :: T.Text -> IO FetchResult -> IO (S.IORef Int, Fetcher)
 counted name result = do
-  calls <- newIORef 0
-  pure (calls, Fetcher name (\_ -> modifyIORef' calls (+ 1) >> result))
+  calls <- S.newIORef 0
+  pure (calls, Fetcher name (\_ -> S.modifyIORef calls (+ 1) >> result))
 
 -- | The token of the one request of lyrics.
 requestToken :: Result -> IO Int

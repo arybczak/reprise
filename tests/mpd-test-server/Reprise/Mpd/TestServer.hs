@@ -17,6 +17,7 @@ module Reprise.Mpd.TestServer
   ) where
 
 import Control.Concurrent
+import Control.Concurrent.MVar.Strict qualified as S
 import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
@@ -145,13 +146,13 @@ rawCommand server line = withRawConnection server $ \conn -> rawExchange conn li
 ----------------------------------------
 -- Helpers
 
-data RawConnection = RawConnection N.Socket (MVar BS.ByteString)
+data RawConnection = RawConnection N.Socket (S.MVar BS.ByteString)
 
 withRawConnection :: TestServer -> (RawConnection -> IO a) -> IO a
 withRawConnection server action =
   bracket (N.socket N.AF_UNIX N.Stream N.defaultProtocol) N.close $ \sock -> do
     N.connect sock (N.SockAddrUnix server.socketPath)
-    conn <- RawConnection sock <$> newMVar BS.empty
+    conn <- RawConnection sock <$> S.newMVar BS.empty
     greeting <- readLine conn
     unless ("OK MPD " `BS.isPrefixOf` greeting)
       $ throwIO . userError
@@ -170,7 +171,7 @@ rawExchange conn@(RawConnection sock _) line = do
   loop []
 
 readLine :: RawConnection -> IO BS.ByteString
-readLine (RawConnection sock buffer) = modifyMVar buffer go
+readLine (RawConnection sock buffer) = S.modifyMVar buffer go
   where
     go :: BS.ByteString -> IO (BS.ByteString, BS.ByteString)
     go buf = case BS8.elemIndex '\n' buf of

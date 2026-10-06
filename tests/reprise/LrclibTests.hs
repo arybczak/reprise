@@ -1,7 +1,7 @@
 module LrclibTests (lrclibTests) where
 
 import Data.ByteString qualified as BS
-import Data.IORef
+import Data.IORef.Strict qualified as S
 import Data.Maybe
 import Data.Text qualified as T
 import System.FilePath
@@ -104,17 +104,17 @@ test_cleaned :: Assertion
 test_cleaned = do
   missing <- answer "missing.json"
   got <- answer "get.json"
-  calls <- newIORef []
+  calls <- S.newIORef []
   let s = alexTheme "Alex Theme (Bonus Track)" 295
       get apiPath params = do
-        modifyIORef' calls (<> [(apiPath, params)])
+        S.modifyIORef calls (<> [(apiPath, params)])
         pure $ case (apiPath, lookup "track_name" params) of
           ("/api/get", Just "Alex Theme") -> Right (200, got)
           ("/api/get", _) -> Right (404, missing)
           _ -> Right (200, "[]")
   result <- lrclibLyrics get s
   assertEqual "the lyrics" answered result
-  asked <- readIORef calls
+  asked <- S.readIORef calls
   assertEqual
     "the titles"
     [ ("/api/get", "Alex Theme (Bonus Track)")
@@ -159,12 +159,12 @@ lookedUp
   -> [(BS.ByteString, Either T.Text (Int, BS.ByteString))]
   -> IO ([(BS.ByteString, [(T.Text, T.Text)])], FetchResult)
 lookedUp s answers = do
-  calls <- newIORef []
+  calls <- S.newIORef []
   let get apiPath params = do
-        modifyIORef' calls (<> [(apiPath, params)])
+        S.modifyIORef calls (<> [(apiPath, params)])
         pure . fromMaybe (Left "no answer") $ lookup apiPath answers
   result <- lrclibLyrics get s
-  (,result) <$> readIORef calls
+  (,result) <$> S.readIORef calls
 
 karmaPolice :: Song
 karmaPolice =

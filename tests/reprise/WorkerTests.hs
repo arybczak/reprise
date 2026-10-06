@@ -4,7 +4,7 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception qualified as E
 import Control.Monad
-import Data.IORef
+import Data.IORef.Strict qualified as S
 import Data.Text qualified as T
 import Effectful
 import Effectful.Dispatch.Dynamic
@@ -56,8 +56,8 @@ test_broken = do
 -- the outcomes in turn. Returns the events and the calls of the effect.
 runWorker :: [Either MpdError ()] -> [Command ()] -> IO ([AppEvent], [String])
 runWorker outcomes commands = do
-  outcomesRef <- newIORef outcomes
-  callsRef <- newIORef []
+  outcomesRef <- S.newIORef outcomes
+  callsRef <- S.newIORef []
   requests <- newTQueueIO
   events <- newTQueueIO
   let workers =
@@ -73,22 +73,22 @@ runWorker outcomes commands = do
   let worker = forkIO . runEff . runScripted outcomesRef callsRef $ commandWorker workers
       collect = do
         received <- mapM (const . atomically $ readTQueue events) commands
-        calls <- readIORef callsRef
+        calls <- S.readIORef callsRef
         pure (received, reverse calls)
   E.bracket worker killThread (const collect)
 
 -- | An MPD that replies to each command with the next outcome.
 runScripted
   :: IOE :> es
-  => IORef [Either MpdError ()]
-  -> IORef [String]
+  => S.IORef [Either MpdError ()]
+  -> S.IORef [String]
   -> Eff (Mpd : es) a
   -> Eff es a
 runScripted outcomesRef callsRef = interpret_ $ \case
   Connect -> pure (Version 0 24 0)
   RunCommand cmd -> do
     call . unwords $ "run" : [T.unpack r.command | r <- commandRequests cmd]
-    outcome <- liftIO . atomicModifyIORef' outcomesRef $ \case
+    outcome <- liftIO . S.atomicModifyIORef outcomesRef $ \case
       o : os -> (os, o)
       [] -> ([], Right ())
     case outcome of
@@ -98,4 +98,4 @@ runScripted outcomesRef callsRef = interpret_ $ \case
   Disconnect -> call "disconnect"
   where
     call :: IOE :> es => String -> Eff es ()
-    call c = liftIO $ modifyIORef' callsRef (c :)
+    call c = liftIO $ S.modifyIORef callsRef (c :)

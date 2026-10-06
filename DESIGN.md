@@ -2044,6 +2044,12 @@ Settings that effectful doesn't have:
   warnings. The record types derive `Generic`, and `optics-core` 0.4 or newer
   turns that into `#field` labels without Template Haskell. The labels need
   `OverloadedLabels`.
+- **Mutable variables.** `IORef`, `MVar` and `Chan` come from
+  `strict-mutable-base`, imported qualified as `S`, e.g.
+  `import Data.IORef.Strict qualified as S`, so that a write evaluates the
+  value and no thunks pile up in them. Code in `Eff` uses effectful's strict
+  wrappers instead. A variable of another library stays as it is, e.g.
+  vty's `assumedStateRef`.
 - **Effects.** Each effect lives in its own module, laid out like
   `Effectful.Reader.Static`:
   - export sections `-- * Effect`, `-- ** Handlers`, `-- ** Operations`;

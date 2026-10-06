@@ -7,6 +7,7 @@ import Brick qualified as B
 import Brick.BChan qualified as B
 import Control.Applicative
 import Control.Concurrent
+import Control.Concurrent.MVar.Strict qualified as S
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
@@ -200,8 +201,8 @@ openLog = do
   createDirectoryIfMissing True dir
   h <- openFile (dir </> "reprise.log") AppendMode
   hSetBuffering h LineBuffering
-  lock <- newMVar ()
-  pure $ \msg -> withMVar lock $ \() -> do
+  lock <- S.newMVar ()
+  pure $ \msg -> S.withMVar lock $ \() -> do
     time <- getZonedTime
     T.hPutStrLn h $ T.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S %z " time) <> msg
 

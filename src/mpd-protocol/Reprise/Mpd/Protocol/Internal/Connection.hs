@@ -21,7 +21,7 @@ import Control.Exception
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Char8 qualified as BS8
-import Data.IORef
+import Data.IORef.Strict qualified as S
 import Data.Text qualified as T
 import Data.Word
 import Network.Socket qualified as N
@@ -38,7 +38,7 @@ import Reprise.Mpd.Protocol.Types
 -- time, except for 'Reprise.Mpd.Protocol.Idle.noidle'.
 data Connection = Connection
   { socket :: N.Socket
-  , buffer :: IORef BS.ByteString
+  , buffer :: S.IORef BS.ByteString
   -- ^ Bytes that arrived after the last line that was read.
   , chunkSize :: Int
   , timeout :: Maybe Seconds
@@ -65,7 +65,7 @@ data Settings = Settings
 connect :: Settings -> IO Connection
 connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
   bracketOnError open N.close $ \sock -> do
-    buffer <- newIORef BS.empty
+    buffer <- S.newIORef BS.empty
     -- A receive never returns more than the socket's buffer holds.
     chunkSize <- N.getSocketOption sock N.RecvBuffer
     greeting <- readLine sock chunkSize buffer
@@ -164,19 +164,19 @@ withTimeout = \case
     microsecondsPerSecond = 1000000
 
 -- | Read a line without its newline. 'Nothing' if the connection closed.
-readLine :: N.Socket -> Int -> IORef BS.ByteString -> IO (Maybe BS.ByteString)
+readLine :: N.Socket -> Int -> S.IORef BS.ByteString -> IO (Maybe BS.ByteString)
 readLine sock chunkSize buffer = do
-  buf <- readIORef buffer
+  buf <- S.readIORef buffer
   case BS.elemIndex newline buf of
     Just i -> do
-      writeIORef buffer $! BS.drop (i + 1) buf
+      S.writeIORef buffer (BS.drop (i + 1) buf)
       pure . Just $ BS.take i buf
     Nothing -> do
       chunk <- N.recv sock chunkSize
       if BS.null chunk
         then pure Nothing
         else do
-          writeIORef buffer $! buf <> chunk
+          S.writeIORef buffer (buf <> chunk)
           readLine sock chunkSize buffer
   where
     newline :: Word8

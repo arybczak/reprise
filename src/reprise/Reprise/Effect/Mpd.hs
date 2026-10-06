@@ -14,7 +14,7 @@ module Reprise.Effect.Mpd
   , disconnectMpd
   ) where
 
-import Data.IORef
+import Data.IORef.Strict qualified as S
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Exception
@@ -36,14 +36,14 @@ type instance DispatchOf Mpd = Dynamic
 -- connection opens one first.
 runMpd :: IOE :> es => Settings -> Eff (Mpd : es) a -> Eff es a
 runMpd settings action = do
-  ref <- liftIO $ newIORef Nothing
-  let disconnect = readIORef ref >>= mapM_ close >> writeIORef ref Nothing
+  ref <- liftIO $ S.newIORef Nothing
+  let disconnect = S.readIORef ref >>= mapM_ close >> S.writeIORef ref Nothing
       connected = do
         conn <- connect settings
-        writeIORef ref (Just conn)
+        S.writeIORef ref (Just conn)
         pure conn
       withConnection' :: (Connection -> IO a) -> IO a
-      withConnection' f = readIORef ref >>= maybe connected pure >>= f
+      withConnection' f = S.readIORef ref >>= maybe connected pure >>= f
   let handled = interpretWith_ action $ \case
         Connect -> liftIO $ do
           disconnect

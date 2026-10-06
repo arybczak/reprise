@@ -83,6 +83,7 @@ main =
     -- Without the last frame, vty writes every row.
     output :: Terminal -> IO ()
     output ~(Terminal out dc frame) = do
+      -- vty's own variable, of base's lazy IORef.
       writeIORef (V.assumedStateRef out) V.initialAssumedState
       V.outputPicture dc (V.picForImage frame)
 

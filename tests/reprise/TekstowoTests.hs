@@ -1,7 +1,7 @@
 module TekstowoTests (tekstowoTests) where
 
 import Data.ByteString qualified as BS
-import Data.IORef
+import Data.IORef.Strict qualified as S
 import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -92,9 +92,9 @@ test_failures :: Assertion
 test_failures = do
   (_, busy) <- lookedUp (kult "Arahja") [("/szukaj", 503, "nothing.html")]
   assertEqual "a status" (FetchFailed "tekstowo.pl answered with the status 503") busy
-  calls <- newIORef []
+  calls <- S.newIORef []
   let unreachable p params = do
-        modifyIORef' calls (<> [(p, params)])
+        S.modifyIORef calls (<> [(p, params)])
         pure (Left "tekstowo.pl can't be reached: x")
   result <- tekstowoLyrics unreachable (kult "Arahja")
   assertEqual "unreachable" (FetchFailed "tekstowo.pl can't be reached: x") result
@@ -110,14 +110,14 @@ lookedUp
   -> [(BS.ByteString, Int, FilePath)]
   -> IO ([(BS.ByteString, [(T.Text, T.Text)])], FetchResult)
 lookedUp s answers = do
-  calls <- newIORef []
+  calls <- S.newIORef []
   let get p params = do
-        modifyIORef' calls (<> [(p, params)])
+        S.modifyIORef calls (<> [(p, params)])
         case [(status, file) | (p', status, file) <- answers, p' == p] of
           (status, file) : _ -> Right . (status,) <$> BS.readFile (dir </> file)
           [] -> pure (Left "no answer")
   result <- tekstowoLyrics get s
-  (,result) <$> readIORef calls
+  (,result) <$> S.readIORef calls
 
 kult :: T.Text -> Song
 kult title = song 0 [(Artist, ["Kult"]), (Title, [title])] 200
