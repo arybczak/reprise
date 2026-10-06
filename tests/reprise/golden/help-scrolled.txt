@@ -1,24 +1,24 @@
 Help                                                                 Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
-i           show the info of the song under the cursor
-l           show the lyrics of the song under the cursor
-p           pause or resume
-q           quit
-s           stop
-{           move previous artist
-}           move next artist
-space       add or remove
-enter       activate
-backspace   replay song
-tab         next screen
-up          move up
-down        move down
-left        change volume by -2
-right       change volume by +2
-home        move first
-end         move last
-page_up     move page up
-page_down   move page down
-insert      toggle selection
+  i           show the info of the song under the cursor
+  l           show the lyrics of the song under the cursor
+  p           pause or resume
+  q           quit
+  s           stop
+  {           move previous artist
+  }           move next artist
+  space       add or remove
+  enter       activate
+  backspace   replay song
+  tab         next screen
+  up          move up
+  down        move down
+  left        change volume by -2
+  right       change volume by +2
+  home        move first
+  end         move last
+  page_up     move page up
+  page_down   move page down
+  insert      toggle selection
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

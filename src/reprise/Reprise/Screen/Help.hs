@@ -24,16 +24,17 @@ helpView env v =
       render = renderHelpLine env.colorMode env.config.styles (keyColumnWidth ls) v.width
   in V.vertCat . map render . take v.height $ drop v.offset ls
 
--- | A line of the given width. The keys of all entries share a column as
--- wide as the longest key sequence.
+-- | A line of the given width. The keys of all entries, after their
+-- indentation, share a column as wide as the widest.
 renderHelpLine :: ColorMode -> StylesConfig -> Int -> Int -> HelpLine -> V.Image
 renderHelpLine colorMode styles keyWidth width = \case
-  Heading t -> cell [Span (Just (styles.label <> boldStyle)) t]
-  Entry keys description ->
-    cell
-      [ Span (Just styles.value) (keys <> T.replicate (keyWidth + gap - textWidth keys) " ")
-      , Span Nothing description
-      ]
+  Heading depth t -> cell [Span Nothing (indent depth), Span (Just (styles.label <> boldStyle)) t]
+  Entry depth keys description ->
+    let keys' = indent depth <> keys
+    in cell
+         [ Span (Just styles.value) (keys' <> T.replicate (keyWidth + gap - textWidth keys') " ")
+         , Span Nothing description
+         ]
   Blank -> cell []
   where
     cell :: [Span Style] -> V.Image
@@ -45,6 +46,10 @@ renderHelpLine colorMode styles keyWidth width = \case
     boldStyle :: Style
     boldStyle = mempty & #attributes .~ S.singleton Bold
 
--- | The width of the key column: the longest key sequence.
+-- | The width of the key column: the widest key sequence with its
+-- indentation.
 keyColumnWidth :: [HelpLine] -> Int
-keyColumnWidth ls = maximum (0 : [textWidth keys | Entry keys _ <- ls])
+keyColumnWidth ls = maximum (0 : [textWidth (indent depth <> keys) | Entry depth keys _ <- ls])
+
+indent :: Int -> T.Text
+indent depth = T.replicate (2 * depth) " "

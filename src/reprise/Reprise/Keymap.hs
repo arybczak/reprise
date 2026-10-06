@@ -202,11 +202,13 @@ whichKeyEntries layers = M.elems $ M.union (entries True layers.screen) (entries
 ----------------------------------------
 -- Help
 
--- | A line of the help screen.
+-- | A line of the help screen. A heading and an entry have a depth: 0 for
+-- the heading of a section, 1 for what the section lists, and one more for
+-- what each group of a prefix key lists.
 data HelpLine
-  = Heading T.Text
+  = Heading Int T.Text
   | -- | A key sequence and what it does.
-    Entry T.Text T.Text
+    Entry Int T.Text T.Text
   | Blank
   deriving stock (Eq, Show)
 
@@ -216,7 +218,7 @@ data HelpLine
 helpLines :: Keymaps -> [HelpLine]
 helpLines keymaps =
   drop 1 . concat $
-    [ Blank : Heading title : keymapLines [] keymap
+    [ Blank : Heading 0 title : keymapLines 1 [] keymap
     | (title, keymap) <- ("Global", keymaps.global) : screens
     , not (M.null keymap.bindings)
     ]
@@ -227,13 +229,15 @@ helpLines keymaps =
       | s <- screenNames
       ]
 
-    keymapLines :: [KeySpec] -> Keymap -> [HelpLine]
-    keymapLines prefix keymap =
-      [ Entry (keysText (prefix <> [k])) (describeAction a)
+    keymapLines :: Int -> [KeySpec] -> Keymap -> [HelpLine]
+    keymapLines depth prefix keymap =
+      [ Entry depth (keysText (prefix <> [k])) (describeAction a)
       | (k, BindAction a) <- M.toList keymap.bindings
       ]
         <> concat
-          [ Blank : Heading (keysText keys <> maybe "" (": " <>) group.name) : keymapLines keys group
+          [ Blank
+              : Heading depth (keysText keys <> maybe "" (": " <>) group.name)
+              : keymapLines (depth + 1) keys group
           | (k, BindPrefix group) <- M.toList keymap.bindings
           , let keys = prefix <> [k]
           ]

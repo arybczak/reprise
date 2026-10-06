@@ -22,17 +22,17 @@ test_sections :: Assertion
 test_sections =
   assertEqual
     "lines"
-    [ Heading "Global"
-    , Entry "p" "pause or resume"
+    [ Heading 0 "Global"
+    , Entry 1 "p" "pause or resume"
     , Blank
-    , Heading "ctrl-t: toggle"
-    , Entry "ctrl-t r" "toggle repeat"
+    , Heading 1 "ctrl-t: toggle"
+    , Entry 2 "ctrl-t r" "toggle repeat"
     , Blank
-    , Heading "ctrl-t ctrl-x"
-    , Entry "ctrl-t ctrl-x x" "toggle crossfade 5"
+    , Heading 2 "ctrl-t ctrl-x"
+    , Entry 3 "ctrl-t ctrl-x x" "toggle crossfade 5"
     , Blank
-    , Heading "Queue"
-    , Entry "space" "toggle selection, move down"
+    , Heading 0 "Queue"
+    , Entry 1 "space" "toggle selection, move down"
     ]
     (helpLines keymaps)
   where
@@ -63,12 +63,15 @@ test_sections =
               ]
         }
 
+-- | The widest key sequence with its indentation, which isn't the longest.
 test_keyColumn :: Assertion
 test_keyColumn =
   assertEqual
     "width"
-    8
-    (keyColumnWidth [Heading "a long heading", Entry "ctrl-t r" "x", Entry "p" "y"])
+    10
+    ( keyColumnWidth
+        [Heading 0 "a long heading", Entry 1 "ctrl-t r" "x", Entry 3 "t x" "y", Entry 1 "p" "z"]
+    )
 
 ----------------------------------------
 -- Helpers
