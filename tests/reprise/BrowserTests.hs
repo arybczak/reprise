@@ -333,13 +333,13 @@ test_selectFound = do
 
 test_jumpToBrowser :: Assertion
 test_jumpToBrowser = do
-  r <- press ["G"] =<< queued
+  r <- press ["g", "b"] =<< queued
   assertEqual "the screen" BrowserScreen (focusedView r.state).screen
   assertEqual "the listing of dir" [[Request "lsinfo" ["dir"]]] r.requests
   s <- answer ["file: dir/9.flac", "file: dir/0.flac"] r
   assertEqual "the cursor is on the song" 2 (focusedView s).cursor
   assertEqual "no song" (Just "There is no song under the cursor") . message . (.state)
-    =<< press ["G"]
+    =<< press ["g", "b"]
     =<< queueShown
 
 test_jumpToPlaying :: Assertion
@@ -356,7 +356,7 @@ test_jumpToPlaying = do
 test_jumpWithStream :: Assertion
 test_jumpWithStream = do
   let stream = song 0 [] 60 & #file .~ "http://example.com/stream"
-  r <- press ["G"] =<< testState (80, 12) (statusOf Stopped Nothing 1) [stream]
+  r <- press ["g", "b"] =<< testState (80, 12) (statusOf Stopped Nothing 1) [stream]
   assertEqual "no listing" [] r.requests
   assertEqual "the error" (Just True) ((.isError) <$> r.state.message)
 

@@ -2,11 +2,11 @@ Queue (6 songs, 1h 10m)                                              Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
 Some Artist    1      First Song                           Great Album      1:01
 Some Artist    2      Second Song                          Great Album      3:05
-Some Artist    3      A third song with a title that does… Great Album      4:00
-a  toggle album separators  g  toggle replay gain
-b  toggle bitrate           r  toggle repeat
-c  toggle consume           s  toggle single
-d  toggle display           x  toggle crossfade 5
-f  toggle follow playing    z  toggle random
+X  :crossfade …             g  toggle replay gain
+a  toggle album separators  r  toggle repeat
+b  toggle bitrate           s  toggle single
+c  toggle consume           x  toggle crossfade 5
+d  toggle display           z  toggle random
+f  toggle follow playing
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 t -

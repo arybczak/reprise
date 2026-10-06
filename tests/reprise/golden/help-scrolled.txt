@@ -1,6 +1,5 @@
 Help                                                                 Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
-  i           show the info of the song under the cursor
   l           show the lyrics of the song under the cursor
   p           pause or resume
   q           quit
@@ -20,5 +19,6 @@ Help                                                                 Volume: 50%
   page_up     move page up
   page_down   move page down
   insert      toggle selection
+  delete      delete
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

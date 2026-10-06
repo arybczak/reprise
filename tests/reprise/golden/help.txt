@@ -15,10 +15,10 @@ Global
   <           previous song
   >           next song
   ?           find backward
-  G           show the song under the cursor in the browser
   [           move previous album
   ]           move next album
   b           seek -1s
   f           seek +1s
+  i           show the info of the song under the cursor
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

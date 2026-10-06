@@ -58,7 +58,8 @@ layoutTests =
 
 test_promptLine :: Assertion
 test_promptLine = do
-  s <- press ["r", "v", "4", "0", "left"] =<< playing (40, 12)
+  s <-
+    press [":", "v", "o", "l", "u", "m", "e", "space", "4", "0", "left"] =<< playing (40, 12)
   assertEqual
     "the line and the hint"
     (Just (True, True))
@@ -66,7 +67,8 @@ test_promptLine = do
         <$> lastLine s
     )
   assertEqual "the cursor" (Just (9, 11)) (promptCursor s)
-  narrow <- press ["r", "v", "4", "0"] =<< playing (20, 12)
+  narrow <-
+    press [":", "v", "o", "l", "u", "m", "e", "space", "4", "0"] =<< playing (20, 12)
   assertEqual
     "the hint gives way to the line"
     (Just (True, True))

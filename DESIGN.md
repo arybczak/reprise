@@ -1116,7 +1116,7 @@ The editor is reprise's own pure code, not brick's editor. brick's editor
 handles events in brick's monad, outside the handlers that the tests run.
 
 The `:` prompt runs an action. It is also how a key asks for a value: the
-`command` action takes the start of the line, so `r s: command seek`
+`command` action takes the start of the line, so `g s: command seek`
 opens `:seek ` and the user types the time. One prompt and the registry's
 parsers serve every action with arguments, instead of a prompt action for
 each, such as ncmpcpp's `set_volume`. Any action with arguments can become
@@ -1537,10 +1537,16 @@ The default keymap follows the [default keymap rule](#key-bindings):
   names its topic, so a sequence reads like a short phrase: `a n` is "add
   next", `t r` is "toggle repeat". Ctrl keys were harder to type for every
   group.
-  - **Three topics' letters are everyday keys:** `s` stops, `q` quits and
-    `p` pauses. So selection is `v`, as Vim's visual mode, the queue is `c`,
-    so that `c c` clears it as ncmpcpp's `c` does, and playback is `r`, so
-    that `r r` replays.
+  - **Two topics' letters are everyday keys:** `s` stops and `q` quits. So
+    selection is `v`, as Vim's visual mode, and the queue is `c`, so that
+    `c c` clears it as ncmpcpp's `c` does.
+  - **`g` goes somewhere:** to the song under the cursor in another screen,
+    e.g. `g b` in the browser, and to a position in the song, `g s`, which
+    is what ncmpcpp's `g` does. The media library and the tag editor will
+    add theirs.
+  - **A value for an action has no key of its own** when its everyday keys
+    cover it: `:volume 40` sets the volume, which `+` and `-` change. The
+    crossfade's `t X` is next to its toggle.
 
 Action names and arguments are a first draft; they settle when the actions
 are written.
@@ -1563,7 +1569,6 @@ keys:
     "]": move next_album
     "{": move previous_artist
     "}": move next_artist
-    G: jump_to_browser           # the song under the cursor
 
     # selecting
     shift-up: select up          # toggle the selection, then move
@@ -1637,17 +1642,16 @@ keys:
       s: toggle single
       c: toggle consume
       x: toggle crossfade 5         # 0 or 5 seconds
+      X: command crossfade       # asks for the seconds
       g: toggle replay_gain
       d: toggle display
       a: toggle album_separators
       f: toggle follow_playing
       b: toggle bitrate
-    r:
-      name: playback
-      r: replay
-      s: command seek            # asks for m:ss, N% or ±Ns
-      v: command volume
-      x: command crossfade
+    g:
+      name: go
+      b: jump_to_browser         # the song under the cursor
+      s: command seek            # asks for m:ss, N% or ±Ns, as ncmpcpp's g
     d:
       name: database
       u: update current
@@ -1684,7 +1688,9 @@ keys:
 ```
 
 Later features add to it: the queue's `c o` (sort dialog), the media
-library's `4` and left/right between columns, `d r` (add random songs).
+library's `4` and left/right between columns, `d r` (add random songs),
+`g m` and `g e` (the song under the cursor in the media library and the tag
+editor).
 `ctrl-w` is reserved for the window framework, as in Vim, and stays unbound
 until then. `ctrl-g` and `escape` cancel a pending prefix.
 
@@ -1697,7 +1703,9 @@ Compared to ncmpcpp:
   `v`.
 - **`shift-up`/`shift-down`** toggle the selection and move, without the
   binding chains ncmpcpp needs for it.
-- **`g`, `u`, `A`, `w` and `e` are free** for later features.
+- **`G` (jump to the browser) is `g b`,** in the group of `g`, ncmpcpp's
+  jump to a position, which is `g s`.
+- **`r`, `u`, `A`, `w` and `e` are free** for later features.
 - **`escape` is not bound to pause.** That was the author's own binding, and
   pausing by accident is a surprising result of trying to back out of
   something.

@@ -774,7 +774,6 @@ defaultKeymaps =
           , char ']' ~> Move MoveNextAlbum
           , char '{' ~> Move MovePreviousArtist
           , char '}' ~> Move MoveNextArtist
-          , char 'G' ~> JumpToBrowser
           , shift ArrowUp ~> Select (SelectItem (Just MoveUp))
           , shift ArrowDown ~> Select (SelectItem (Just MoveDown))
           , plain InsertKey ~> Select (SelectItem Nothing)
@@ -848,6 +847,7 @@ defaultKeymaps =
               , char 's' ~> Toggle ToggleSingle
               , char 'c' ~> Toggle ToggleConsume
               , char 'x' ~> Toggle (ToggleCrossfade 5)
+              , char 'X' ~> CommandPrompt "crossfade"
               , char 'g' ~> Toggle ToggleReplayGain
               , char 'd' ~> Toggle ToggleDisplay
               , char 'a' ~> Toggle ToggleAlbumSeparators
@@ -855,12 +855,11 @@ defaultKeymaps =
               , char 'b' ~> Toggle ToggleBitrate
               ]
           , group
-              (char 'r')
-              "playback"
-              [ char 'r' ~> Replay
-              , char 's' ~> CommandPrompt "seek"
-              , char 'v' ~> CommandPrompt "volume"
-              , char 'x' ~> CommandPrompt "crossfade"
+              (char 'g')
+              "go"
+              [ char 'b' ~> JumpToBrowser
+              , -- ncmpcpp's g.
+                char 's' ~> CommandPrompt "seek"
               ]
           , group
               (char 'd')

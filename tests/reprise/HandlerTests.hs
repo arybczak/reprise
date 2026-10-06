@@ -129,20 +129,19 @@ test_promptAnswers = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
   let answer ks text = keys (ks <> typed text <> ["enter"]) s
       requested ks text = (.requests) <$> answer ks text
-  assertEqual "set volume" [[Request "setvol" ["40"]]] =<< requested ["r", "v"] "40"
-  assertEqual "seek to" [[Request "seekcur" ["90"]]] =<< requested ["r", "s"] "1:30"
+  assertEqual "seek to" [[Request "seekcur" ["90"]]] =<< requested ["g", "s"] "1:30"
   assertEqual "set crossfade" [[Request "crossfade" ["5"]]]
-    =<< requested ["r", "x"] "5"
+    =<< requested ["t", "X"] "5"
   assertEqual "priority" [[Request "prioid" ["7", "1"]]] =<< requested ["c", "p"] "7"
   assertEqual "add a path" [[Request "add" ["a/b.flac"]]]
     =<< requested ["a", "/"] "a/b.flac"
   assertEqual "run a command" [[Request "setvol" ["30"]]] =<< requested [":"] "volume 30"
   assertEqual
     "the start of the line"
-    (Just (Prompt ":" (Line (LineEdit "volume " "") ForCommand)))
+    (Just (Prompt ":" (Line (LineEdit "seek " "") ForCommand)))
     . (.state.prompt)
-    =<< keys ["r", "v"] s
-  invalid <- answer ["r", "v"] "140"
+    =<< keys ["g", "s"] s
+  invalid <- answer [":"] "volume 140"
   assertEqual "invalid" [] invalid.requests
   assertEqual
     "error"
@@ -413,7 +412,6 @@ test_replay = do
   let replayed = [[Request "seekcur" ["0"]]]
   assertEqual "the queue" replayed . (.requests) =<< keys ["backspace"] playing
   assertEqual "another screen" replayed . (.requests) =<< keys ["f1", "backspace"] playing
-  assertEqual "the sequence" replayed . (.requests) =<< keys ["r", "r"] playing
   assertEqual "stopped" [[Request "play" ["1"]]] . (.requests)
     =<< keys ["backspace"] stopped
 
