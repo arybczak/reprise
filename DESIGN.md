@@ -1402,7 +1402,7 @@ window_title: '[%{artist} - ][%{title}|%{filename}]'   # remove to disable
 songs:                           # how a song looks in a list
   classic:
     left: '[%{artist} - ][%{title}|<white>%{filename}</>]'
-    right: '<green>%{length}</>'
+    right: '<green>[%{length}|-:--]</>'
   columns:
     show_titles: false
     list:
@@ -1410,7 +1410,7 @@ songs:                           # how a song looks in a list
     - {width: 6, style: 77, format: '[%{track_raw}]'}
     - {width: 50%, style: white, format: '[%{title}|%{filename}]', title: Title}
     - {width: 20%, style: cyan, format: '%{album}'}
-    - {width: 5, style: 203, format: '%{length}', align: right}
+    - {width: 5, style: 203, format: '[%{length}|-:--]', align: right}
 
 lists:                           # every list screen
   style: yellow

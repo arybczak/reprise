@@ -15,6 +15,7 @@ import Test.Tasty.HUnit
 import Reprise.Config
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Format
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Types
 import Reprise.State
@@ -46,6 +47,7 @@ layoutTests =
     , testCase "the queue's title scrolls" test_queueTitleScrolls
     , testCase "the marker of a missing tag in columns" test_markerInColumns
     , testCase "the marker of a missing tag in the classic display" test_markerInClassic
+    , testCase "a song without a length" test_noLength
     , testCase "a selected song has the selected style" test_selected
     , testCase "a line prompt" test_promptLine
     , testCase "the matches of a find" test_foundStyle
@@ -156,25 +158,42 @@ test_markerInColumns :: Assertion
 test_markerInColumns = do
   let untagged = song 0 [] 60
   -- The artist column has the style 221, which vty numbers from 16.
-  assertMarkerColor "artist column" (V.Color240 205)
+  assertMarkerColor testAppEnv "artist column" (V.Color240 205)
     =<< testState (80, 6) (statusOf Stopped Nothing 1) [untagged]
 
 test_markerInClassic :: Assertion
 test_markerInClassic = do
   let noLength = song 0 [(Title, ["t"])] 60 & #duration .~ Nothing
+      env =
+        testAppEnv
+          & #config
+            % #songs
+            % #classic
+            % #right
+            .~ either (error . show) id (parseStyledFormat "<green>%{length}</>")
   -- The marker's style is cyan.
-  assertMarkerColor "length" (V.ISOColor 6)
+  assertMarkerColor env "length" (V.ISOColor 6)
     =<< press ["t", "d"]
     =<< testState (80, 6) (statusOf Stopped Nothing 1) [noLength]
 
+test_noLength :: Assertion
+test_noLength = do
+  let noLength = song 0 [(Title, ["t"])] 60 & #duration .~ Nothing
+  columns <- testState (80, 6) (statusOf Stopped Nothing 1) [noLength]
+  classic <- press ["t", "d"] columns
+  forM_ [("columns", columns), ("classic", classic)] $ \(name, s) ->
+    case drop 2 (imageLines (renderScreen testAppEnv s)) of
+      row : _ -> assertBool (name <> ": " <> T.unpack row) ("-:--" `T.isSuffixOf` row)
+      [] -> assertFailure $ name <> ": no rows"
+
 -- | The color of the marker, with the cursor hidden, so that its style
 -- doesn't cover the row's.
-assertMarkerColor :: String -> V.Color -> AppState -> Assertion
-assertMarkerColor msg color s0 =
+assertMarkerColor :: AppEnv -> String -> V.Color -> AppState -> Assertion
+assertMarkerColor env msg color s0 =
   let s = s0 & #lastInput .~ s0.now - cursorHideDelay
   in -- vty joins the marker with the padding after it when their styles match.
      case [ a
-          | (a, t) <- imageSpans (renderScreen testAppEnv s)
+          | (a, t) <- imageSpans (renderScreen env s)
           , "<empty>" `T.isPrefixOf` T.stripStart t
           ] of
        a : _ -> assertEqual msg (V.SetTo color) (V.attrForeColor a)
