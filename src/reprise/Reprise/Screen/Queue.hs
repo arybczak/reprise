@@ -63,7 +63,10 @@ queueView env s v =
         | s.toggles.queueDisplay == Columns && env.config.songs.columns.showTitles =
             [renderTitles ctx]
         | otherwise = []
-      playingId = s.mirror.status >>= (.currentId)
+      playingId = do
+        st <- s.mirror.status
+        guard $ st.state /= Stopped
+        st.currentId
       visible = Seq.take (listHeight env s v) (Seq.drop v.offset s.mirror.queue)
       -- The matches of a find show while the user types it.
       found = case s.prompt of
