@@ -1,0 +1,264 @@
+# The options of reprise, with their default values.
+#
+# reprise reads $XDG_CONFIG_HOME/reprise/config.yaml, usually
+# ~/.config/reprise/config.yaml, or the file that --config names. Without the
+# file, it uses these defaults.
+#
+# Copy only what you want to change. An option that your file leaves out keeps
+# its default, also when a later version of reprise changes it.
+#
+# Styles are a color, attributes and a background, e.g. "yellow on 24", "bold"
+# or "#ff8700 underline". A color is a name (black, red, green, yellow, blue,
+# magenta, cyan, white), a number of the 256-color chart, or "#rrggbb", which
+# must be quoted, as YAML reads # after a space as a comment. "default" is the
+# terminal's own color.
+#
+# Formats show songs: %{artist}, %{title}, %{album}, %{length} and the other
+# tags, <color>...</> for a style, [...] for a part that shows only if its tags
+# have values, and [a|b] for the first of a and b that does.
+
+mpd:
+  # A host is a host name, a socket path, or @name for an abstract socket, and
+  # password@host gives the password too.
+  host: ~
+  port: ~                        # 6600 without it
+  password: ~
+  timeout: 5s
+  # --host and --port come before these. Without a host in either, reprise tries
+  # $MPD_HOST and $MPD_PORT, then the sockets $XDG_RUNTIME_DIR/mpd/socket and
+  # /run/mpd/socket, then localhost:6600.
+
+startup_screen: queue
+
+# The title of the terminal's window; ~ leaves it alone.
+window_title: '[%{artist} - ][%{title}|%{filename}]'
+
+songs:                           # how a song looks in a list
+  classic:
+    left: '[%{artist} - ][%{title}|<white>%{filename}</>]'
+    right: '<green>[%{length}|-:--]</>'
+  columns:                       # a width with % is a share of the screen
+    show_titles: false
+    list:
+    - {width: 20%, style: 221, format: '%{artist}'}
+    - {width: 6, style: 77, format: '[%{track_raw}]'}
+    - {width: 50%, style: white, format: '[%{title}|%{filename}]', title: Title}
+    - {width: 20%, style: 75, format: '%{album}'}
+    - {width: 5, style: 203, format: '[%{length}|-:--]', align: right}
+
+lists:                           # every list
+  style: yellow
+  cursor_style: yellow reverse
+  selected_style: yellow on 24
+  found_style: underline         # what a find matches
+  playing_style: bold            # the song that plays, and the enabled outputs
+  queued_style: bold             # songs that are in the queue, in the browser
+  keep_cursor_centered: false
+  ignore_leading_the: false      # sort "The Beatles" under B
+  missing_tag: —                 # what a tag without a value shows
+  missing_tag_style: ~           # e.g. cyan; without it, the style around it
+  tag_separator: ' | '           # between the values of a tag
+
+queue:
+  display: columns               # or classic; t d switches it
+  follow_playing: false          # move the cursor to each song that plays
+  show_remaining_time: false     # in the title, next to the length of the queue
+
+browser:
+  display: classic               # or columns
+  sort:                          # t o goes through the modes
+    by: type                     # type, name, mtime, format or none
+    format: '%{artist} - %{title}'   # for format
+  playlist_prefix: '<red>playlist</> '
+
+header:
+  style: default
+  title_style: bold
+  volume_style: default
+  # The flags: r repeat, z random, s single, c consume, x crossfade, U updating
+  # the database.
+  flags_style: bold
+  line_style: default
+
+status_bar:
+  song: '[[%{artist}[ "%{album}"[ (%{year})]] - ]%{title}|%{filename}]'
+  style: default
+  state_style: bold
+  time_style: bold
+  show_remaining_time: false
+  show_bitrate: false
+
+progress_bar:
+  chars: ▅▅▅                     # elapsed, the current position, remaining
+  style: 236
+  elapsed_style: 28
+
+visualizer:
+  data_source: ~                 # the fifo of an MPD output; see the README
+  visualization: spectrum        # or ellipse or wave; space switches them
+  fps: 60
+  trail: 150ms                   # how long the dots of the ellipse stay
+  # From quiet to loud; the colors between them blend.
+  colors: [46 bold, 82 bold, 118 bold, 154 bold, 190 bold, 226 bold, 220 bold,
+           214 bold, 208 bold, 202 bold, 196 bold, 160 bold]
+  debug: false                   # show the frame rate at the top
+
+lyrics:
+  directory: ~                   # $XDG_DATA_HOME/reprise/lyrics without it
+  fetchers: [lrclib, tekstowo]   # asked in order; [] shows only stored lyrics
+  fetch_in_background: false     # store the lyrics of each song that plays
+  follow_playing: false          # show the lyrics of each song that plays
+
+editor:
+  command: ~                     # for lyrics; $VISUAL, else $EDITOR without it
+
+styles:
+  label: white                   # names of fields, e.g. in the song info
+  value: green                   # values of fields
+  text: yellow                   # the lyrics and the descriptions of the help
+
+# The keys, as a key sequence: a key binds an action, or opens a group of more
+# keys, which the which-key panel shows. A screen's keys come first, and its
+# groups add keys to the global groups of the same key. In your file, a key
+# replaces the default binding, a group adds to the default group, and ~ removes
+# a binding or a whole group, e.g. "p: ~". ctrl-q always quits, and no keymap
+# can bind it. f1 shows the keys of every screen.
+keys:
+  global:
+    # moving around
+    up: move up
+    down: move down
+    page_up: move page_up
+    page_down: move page_down
+    home: move first
+    end: move last
+    "[": move previous_album
+    "]": move next_album
+    "{": move previous_artist
+    "}": move next_artist
+
+    # selecting
+    shift-up: select up          # toggle the selection, then move
+    shift-down: select down
+    insert: select
+
+    # each screen does these its own way
+    enter: activate              # play, enter a directory, switch an output
+    space: add_or_remove         # add to the queue, or remove what is there
+    delete: delete
+
+    # playback
+    p: pause
+    s: stop
+    "<": previous
+    ">": next
+    backspace: replay
+    f: seek +1s                  # hold it to go further
+    b: seek -1s
+    "+": volume +2
+    "-": volume -2
+    right: volume +2
+    left: volume -2
+
+    # finding
+    /: find forward
+    "?": find backward
+    .: find next
+    ",": find previous
+
+    # screens
+    1: show queue
+    2: show browser
+    7: show outputs
+    8: show visualizer
+    l: show lyrics               # of the song under the cursor
+    i: show song_info            # of the song under the cursor
+    tab: next_screen             # the screens with numbers, in their order
+    shift-tab: previous_screen
+    f1: show help
+    ":": command                 # type an action, e.g. "volume 50"
+    q: quit
+
+    a:
+      name: add
+      e: add end
+      n: add next                # after the playing song
+      b: add beginning
+      p: add_and_play
+      /: command add_path        # asks for the path
+    e:
+      name: edit
+      c: clear                   # the queue, after asking
+      s: shuffle
+      w: save                    # as a stored playlist
+    v:
+      name: selection
+      r: select range
+      i: select invert
+      c: select none
+      a: select album
+      A: select artist
+      f: select found
+    t:
+      name: toggle
+      r: toggle repeat
+      z: toggle random
+      s: toggle single
+      c: toggle consume
+      x: toggle crossfade 5      # 0 or 5 seconds
+      X: command crossfade       # asks for the seconds
+      g: toggle replay_gain
+      d: toggle display          # columns or classic
+      b: toggle bitrate
+    g:
+      name: go
+      b: jump_to_browser         # the directory of the song under the cursor
+      s: command seek            # asks for m:ss, N% or ±Ns
+    d:
+      name: database
+      u: update current
+      U: update all
+
+  queue:
+    space: select down
+    o: jump_to_playing
+    m: move_selection up
+    n: move_selection down
+    e:
+      m:
+        name: move selection
+        c: move_selection cursor # above the cursor
+        e: move_selection end
+        b: move_selection beginning
+        n: move_selection next   # after the playing song
+      p: command priority        # asks for 0–255
+    t:
+      f: toggle follow_playing   # move the cursor to each song that plays
+
+  browser:
+    backspace: parent
+    o: jump_to_playing           # the directory of the playing song
+    t:
+      o: next_sort_mode
+
+  visualizer:
+    space: toggle visualization
+
+  lyrics:
+    "`": refetch_lyrics
+    e:
+      e: edit_lyrics
+    t:
+      f: toggle follow_playing   # of the lyrics
+    space: toggle follow_playing
+    o: jump_to_playing           # the lyrics of the playing song
+    l: back
+    escape: back
+
+  song_info:
+    i: back
+    escape: back
+
+  help:
+    f1: back
+    escape: back

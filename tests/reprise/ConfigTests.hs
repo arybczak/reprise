@@ -6,6 +6,8 @@ import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Optics.Core
+import System.FilePath
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -26,6 +28,7 @@ configTests =
     , testCase "keymap changes merge with the defaults" test_keymapMerge
     , testCase "columns" test_columns
     , testCase "durations" test_durations
+    , testCase "the documented defaults" test_documentedDefaults
     , testCase "the visualizer" test_visualizer
     , testCase "the lyrics" test_lyrics
     , testCase "window title can be disabled" test_noWindowTitle
@@ -136,6 +139,15 @@ test_durations = do
   config <- expectRight $ decode "mpd:\n  timeout: 500ms\n"
   assertEqual "milliseconds" 0.5 config.mpd.timeout
   assertEqual "default" 5 defaultConfig.mpd.timeout
+
+-- | The config of the documentation shows the defaults: its keys make the
+-- default keymaps, and the other options that it lists have their default
+-- values.
+test_documentedDefaults :: Assertion
+test_documentedDefaults = do
+  config <- either (assertFailure . unlines) pure =<< loadConfig ("doc" </> "config.yaml")
+  assertEqual "the keymaps" (keymapsOf defaultConfig.keys) (keymapsOf config.keys)
+  assertEqual "the other options" defaultConfig (config & #keys .~ defaultConfig.keys)
 
 test_visualizer :: Assertion
 test_visualizer = do

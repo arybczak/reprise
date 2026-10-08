@@ -1540,6 +1540,10 @@ The built-in defaults are the author's ncmpcpp setup: the author's ncmpcpp
 config, plus ncmpcpp's defaults for every option it doesn't set. So an empty
 config file gives the client the author uses today.
 
+`doc/config.yaml` shows the defaults to users, with what each option does,
+and leaves out the options and the keys of features that aren't built yet.
+A test decodes it and checks that what it lists has its default value.
+
 Only the options for features in the core are listed. Options of later
 features get their defaults when the feature arrives, again from the author's
 ncmpcpp config where it sets them.

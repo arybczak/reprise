@@ -15,6 +15,7 @@ description:
 
 extra-doc-files:
   CHANGELOG.md
+  doc/config.yaml
   README.md
 
 extra-source-files:
