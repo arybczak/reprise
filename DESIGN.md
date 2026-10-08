@@ -1609,9 +1609,12 @@ The default keymap follows the [default keymap rule](#key-bindings):
     sort dialog will be `e o`, as it orders the queue; the browser's
     `t o` only changes how the browser shows its listing.
   - **A place in the queue has the same letter in every group:** `e` the
-    end, `b` the beginning, `n` next, after the playing song, and `c` the
-    cursor. So `a n` adds songs where `e m n` moves them, and a later
-    group that puts songs somewhere uses the same letters.
+    end, `b` the beginning and `n` next, after the playing song. So `a n`
+    adds songs where `e m n` moves them, and a later group that puts songs
+    somewhere uses the same letters.
+  - **`M` moves the selection above the cursor,** as in ncmpcpp. It is in
+    daily use, and unlike the moves of `e m` it needs a selection, as the
+    song under the cursor can't move above itself.
   - **A toggle of what one screen shows is in that screen's `t` group,**
     not in the global one: `t d` (the display) in the queue and the
     browser, `t f` (following the playing song) in the queue and the

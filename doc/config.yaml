@@ -223,10 +223,10 @@ keys:
     o: jump_to_playing
     m: move_songs up
     n: move_songs down
+    M: move_songs cursor         # the selection, above the cursor
     e:
       m:
         name: move
-        c: move_songs cursor     # the selection, above the cursor
         e: move_songs end
         b: move_songs beginning
         n: move_songs next       # after the playing song

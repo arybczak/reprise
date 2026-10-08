@@ -883,14 +883,14 @@ defaultKeymaps =
                 , char 'o' ~> JumpToPlaying
                 , char 'm' ~> MoveSongs MoveSongsUp
                 , char 'n' ~> MoveSongs MoveSongsDown
+                , char 'M' ~> MoveSongs MoveSongsToCursor
                 , group
                     (char 'e')
                     "edit"
                     [ group
                         (char 'm')
                         "move"
-                        [ char 'c' ~> MoveSongs MoveSongsToCursor
-                        , char 'e' ~> MoveSongs MoveSongsToEnd
+                        [ char 'e' ~> MoveSongs MoveSongsToEnd
                         , char 'b' ~> MoveSongs MoveSongsToBeginning
                         , char 'n' ~> MoveSongs MoveSongsToNext
                         ]
