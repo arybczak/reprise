@@ -249,7 +249,12 @@ test_promptHistory = do
       =<< (.state)
         <$> runEvents 0 [PasswordNeeded (AckError (Ack AckPermission 0 "pause" ""))] used.state
   assertEqual "no password in the history" used.state.history password.state.history
+  assertEqual "no password in the file" [] [l | SaveToHistory l <- password.commands]
   assertEqual "no history in the password" [Just "secret"] (passwordAnswers password)
+  assertEqual
+    "the lines go to the file"
+    ["volume 30", "seek 1:30", "song"]
+    [l | SaveToHistory l <- used.commands]
 
 test_promptKeys :: Assertion
 test_promptKeys = do

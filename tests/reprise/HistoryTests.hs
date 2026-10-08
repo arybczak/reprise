@@ -1,6 +1,8 @@
 module HistoryTests (historyTests) where
 
 import Data.Text qualified as T
+import System.FilePath
+import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -14,7 +16,22 @@ historyTests =
     [ testCase "remember a line" test_remember
     , testCase "recall older and newer lines" test_recall
     , testCase "recall the lines that start with what was typed" test_recallPrefix
+    , testCase "the history file" test_historyFile
     ]
+
+test_historyFile :: Assertion
+test_historyFile = withSystemTempDirectory "history" $ \dir -> do
+  let path = dir </> "reprise" </> "history"
+  assertEqual "no file" [] =<< readHistoryFile path
+  saveToHistoryFile path "volume 30"
+  saveToHistoryFile path "seek 1:30"
+  assertEqual "the oldest first" "volume 30\nseek 1:30\n" =<< readFile path
+  assertEqual "newest first" ["seek 1:30", "volume 30"] =<< readHistoryFile path
+  -- As another reprise would, which read the file before the two lines.
+  saveToHistoryFile path "volume 30"
+  assertEqual "a line once" ["volume 30", "seek 1:30"] =<< readHistoryFile path
+  writeFile path "a\nb\na\n\n"
+  assertEqual "a file with repeated and blank lines" ["a", "b"] =<< readHistoryFile path
 
 test_remember :: Assertion
 test_remember = do

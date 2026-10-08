@@ -34,6 +34,7 @@ import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.Mpd
 import Reprise.Exception
+import Reprise.History
 import Reprise.Lyrics.Http
 import Reprise.Lyrics.Lrclib
 import Reprise.Lyrics.Tekstowo
@@ -99,6 +100,11 @@ main = do
       _ -> WithColors
   settings <- resolveSettings config.mpd <$> sources opts
   logLine <- openLog
+  historyFile <- getXdgDirectory XdgState ("reprise" </> "history")
+  savedHistory <-
+    readHistoryFile historyFile `catchSync` \e -> do
+      logLine $ "The history of the prompts can't be read: " <> T.pack (displayException e)
+      pure []
   requests <- newTQueueIO
   password <- newTVarIO settings.password
   events <- newTBQueueIO eventQueueSize
@@ -180,9 +186,12 @@ main = do
           , visualizing = visualizing
           , lyrics = lyrics
           , lyricsInBackground = lyricsInBackground
+          , saveToHistoryFile = \line ->
+              saveToHistoryFile historyFile line `catchSync` \e ->
+                logLine $ "The history of the prompts can't be saved: " <> T.pack (displayException e)
           }
         (V.mkVty V.defaultConfig)
-        (initialState config)
+        (initialState config) {history = savedHistory}
 
 sources :: Options -> IO Sources
 sources opts = do

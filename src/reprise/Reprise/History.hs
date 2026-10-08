@@ -6,9 +6,19 @@ module Reprise.History
   , recallOlder
   , recallOldest
   , recallNewer
+
+    -- * File
+  , readHistoryFile
+  , saveToHistoryFile
   ) where
 
+import Control.Monad
+import Data.ByteString qualified as BS
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
+import System.Directory
+import System.FilePath
+import System.IO
 
 import Reprise.LineEdit
 
@@ -23,10 +33,10 @@ data Recall = Recall
   deriving stock (Eq, Show)
 
 -- | How many lines the history keeps. Every distinct line would make it
--- grow without end over a long session. The author chose the number, as
--- enough for the lines a user types again.
+-- and its file grow without end. The author chose the number, as enough
+-- for the lines a user types again.
 historySize :: Int
-historySize = 100
+historySize = 1000
 
 -- | Add a line to a history, newest first. A line that is in it already
 -- moves to the front, so each is in it once, and the oldest line goes when
@@ -76,3 +86,31 @@ matches typed line = prefix `T.isPrefixOf` line && line /= prefix
   where
     prefix :: T.Text
     prefix = lineEditText typed
+
+----------------------------------------
+-- File
+
+-- | Read a history from a file of a line each, the oldest first, as shells
+-- keep theirs. A missing file is an empty history.
+readHistoryFile :: FilePath -> IO [T.Text]
+readHistoryFile path = do
+  exists <- doesFileExist path
+  if exists
+    then foldl' (flip remember) [] . T.lines . T.decodeUtf8Lenient <$> BS.readFile path
+    else pure []
+
+-- | Add a line to a history file. Another reprise may have added its own
+-- lines since this one read the file, so the line goes into the file as it
+-- is now, and both keep theirs. The file is replaced whole, so that a
+-- reader never sees half of it.
+saveToHistoryFile :: FilePath -> T.Text -> IO ()
+saveToHistoryFile path line = do
+  history <- readHistoryFile path
+  let history' = remember line history
+  when (history' /= history) $ do
+    let dir = takeDirectory path
+    createDirectoryIfMissing True dir
+    (temp, h) <- openTempFile dir (takeFileName path)
+    BS.hPut h . T.encodeUtf8 . T.unlines $ reverse history'
+    hClose h
+    renameFile temp path

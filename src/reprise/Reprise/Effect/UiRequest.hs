@@ -1,6 +1,6 @@
 -- | What only the UI loop can do: halt, set the terminal's title, send an
--- event later, skip a redraw, start the samples of the visualizer, and ask
--- for lyrics.
+-- event later, skip a redraw, start the samples of the visualizer, ask for
+-- lyrics, edit a file and save the history of the prompts.
 module Reprise.Effect.UiRequest
   ( -- * Effect
     UiRequest (..)
@@ -18,6 +18,7 @@ module Reprise.Effect.UiRequest
   , fetchLyrics
   , fetchLyricsInBackground
   , editFile
+  , saveToHistory
   ) where
 
 import Data.Text qualified as T
@@ -53,6 +54,8 @@ data UiCommand
   | -- | Edit a file with an editor command, which has the terminal until it
     -- exits.
     Edit T.Text FilePath
+  | -- | Add a line of a prompt to the history file.
+    SaveToHistory T.Text
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -90,3 +93,7 @@ fetchLyricsInBackground = send . UiRequest . FetchLyricsInBackground
 -- exits.
 editFile :: UiRequest :> es => T.Text -> FilePath -> Eff es ()
 editFile command = send . UiRequest . Edit command
+
+-- | Add a line of a prompt to the history file.
+saveToHistory :: UiRequest :> es => T.Text -> Eff es ()
+saveToHistory = send . UiRequest . SaveToHistory

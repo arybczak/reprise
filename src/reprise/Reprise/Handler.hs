@@ -322,7 +322,9 @@ handlePromptKey p k = case p.input of
     | k == KeySpec mempty Enter -> do
         close
         let text = lineEditText edit
-        when (purpose /= ForPassword) . modifyS $ #history %~ remember text
+        when (purpose /= ForPassword) $ do
+          modifyS $ #history %~ remember text
+          saveToHistory text
         answer purpose text
     | isCancel k -> do
         close

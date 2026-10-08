@@ -46,6 +46,8 @@ data Channels = Channels
   -- ^ The newest request of lyrics for their worker, with its token.
   , lyricsInBackground :: TVar (Maybe Song)
   -- ^ The song whose lyrics their worker fetches in the background.
+  , saveToHistoryFile :: T.Text -> IO ()
+  -- ^ Add a line of a prompt to the history file.
   }
 
 -- | The size of the queue of events from the workers and the timers. A full
@@ -119,6 +121,9 @@ runApp env channels buildVty initial = do
           pure next
         FetchLyricsInBackground song -> do
           atomically $ writeTVar channels.lyricsInBackground (Just song)
+          pure next
+        SaveToHistory line -> do
+          channels.saveToHistoryFile line
           pure next
         Edit cmd file -> do
           V.shutdown =<< S.readIORef current

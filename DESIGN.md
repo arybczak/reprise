@@ -872,7 +872,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Selection` | The selection of a list by the keys of its items, with the ends of the next range. `Reprise.Handler.Core` applies the select actions to any list with it |
 | `Reprise.Save` | What a save as a stored playlist saves, from the queue or the browser. `Reprise.Handler` asks for the name and saves |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
-| `Reprise.History` | The history that the line prompts share, and recalling its lines |
+| `Reprise.History` | The history that the line prompts share, recalling its lines, and its file |
 | `Reprise.Width` | The width of text in terminal columns, cutting and wrapping text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
 | `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
@@ -1285,11 +1285,23 @@ each hold few lines, and more prompts are coming, e.g. the search engine's.
 - **`page_up` goes to the oldest matching line, and `page_down` back to the
   typed one,** as bash's `beginning-of-history` and `end-of-history`.
 - **Each line is kept once,** and using it again makes it the newest.
-- **The history keeps the last 100 lines.** The number is the author's
-  choice.
+- **The history keeps the last 1000 lines.** The number is the author's
+  choice. It isn't an option: the recall filters the lines by what the user
+  typed, so a longer history costs nothing that shows, and the file stays
+  small.
 - **The password prompt has no history,** in either direction.
 - **A recalled find pattern finds** as a typed one does.
-- **It lasts for the session.**
+- **It is kept in `$XDG_STATE_HOME/reprise/history`,** next to the log,
+  a line each with the oldest first, as shells keep theirs. reprise reads
+  it at the start.
+  - Each line that a prompt adds reads the file again and adds itself to
+    the file's lines, so two reprises that run at once both keep their
+    lines. The session's own history doesn't take the other's new lines
+    until the next start, as in bash.
+  - The file is written to a temporary file and renamed over the old one,
+    so that a reader never sees half of it.
+  - A file that can't be read or written goes to the log, and the prompts
+    work without it.
 
 The editor is reprise's own pure code, so that the tests run it with the
 handlers.
