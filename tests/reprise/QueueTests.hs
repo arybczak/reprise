@@ -24,6 +24,7 @@ queueTests =
     , testCase "move runs up and down" test_moveUpDown
     , testCase "move before a position" test_moveBefore
     , testCase "move to the start" test_moveToStart
+    , testCase "move after a song" test_moveAfter
     , withResource (startTestServer testSongs) stopTestServer $ \getServer ->
         testProperty "MPD gives the queue of the model" (prop_model getServer)
     ]
@@ -78,6 +79,15 @@ test_moveToStart = do
     [Request "move" ["3:4", "1"]]
     (commandRequests $ moveToStart [0, 3])
 
+-- | Songs on both sides of the current song at 2: the one below moves up
+-- first, and then the one above moves down.
+test_moveAfter :: Assertion
+test_moveAfter =
+  assertEqual
+    "below, then above"
+    [Request "move" ["4:5", "3"], Request "move" ["0:1", "2"]]
+    (commandRequests $ moveAfter 2 [0, 4])
+
 ----------------------------------------
 -- Model
 
@@ -86,6 +96,7 @@ data Operation
   | MoveDown
   | MoveBefore Int
   | MoveToStart
+  | MoveAfter Int
   | Delete
   deriving stock (Show)
 
@@ -101,8 +112,16 @@ genCase = do
   n <- chooseInt (1, 2 * length testSongs)
   queue <- vectorOf n $ (,) <$> chooseInt (0, length testSongs - 1) <*> arbitrary
   operation <-
-    oneof [elements [MoveUp, MoveDown, MoveToStart, Delete], MoveBefore <$> chooseInt (0, n)]
-  pure Case {queue = queue, operation = operation}
+    oneof
+      [ elements [MoveUp, MoveDown, MoveToStart, Delete]
+      , MoveBefore <$> chooseInt (0, n)
+      , MoveAfter <$> chooseInt (0, n - 1)
+      ]
+  -- The song that the others move after isn't one of them.
+  let unselected = case operation of
+        MoveAfter current -> [(i, selected && p /= current) | (p, (i, selected)) <- zip [0 ..] queue]
+        _ -> queue
+  pure Case {queue = unselected, operation = operation}
 
 -- | The queue after the operation, by the plain definition of the
 -- operation.
@@ -117,6 +136,10 @@ model c = map fst $ case c.operation of
           <> filter snd c.queue
           <> [s | (p, s@(_, False)) <- indexed, p >= target]
   MoveToStart -> filter snd c.queue <> filter (not . snd) c.queue
+  MoveAfter current ->
+    [s | (p, s@(_, False)) <- indexed, p <= current]
+      <> filter snd c.queue
+      <> [s | (p, s@(_, False)) <- indexed, p > current]
   Delete -> filter (not . snd) c.queue
   where
     indexed :: [(Int, (Int, Bool))]
@@ -148,6 +171,7 @@ prop_model getServer = forAll genCase $ \c -> ioProperty $ do
       MoveDown -> moveDown (length c.queue) positions
       MoveBefore target -> sequenceA_ (moveBefore positions target)
       MoveToStart -> moveToStart positions
+      MoveAfter current -> moveAfter current positions
       Delete -> deletePositions positions
     map (.file) <$> run conn playlistInfo
   pure $ actual === map file (model c)

@@ -196,6 +196,11 @@ moveSelection t = do
         Nothing -> showMessage "The cursor is among the selected songs"
     MoveSelectionToEnd -> forM_ (moveBefore ps n) mutate
     MoveSelectionToBeginning -> mutate (moveToStart ps)
+    MoveSelectionToNext -> case currentPosition s.mirror of
+      Nothing -> showMessage "No song is playing"
+      Just current
+        | current `elem` ps -> showMessage "The playing song is among the songs to move"
+        | otherwise -> mutate (moveAfter current ps)
 
 ----------------------------------------
 -- Finding

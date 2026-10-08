@@ -1798,6 +1798,7 @@ keys:
         c: move_selection cursor # above the cursor
         e: move_selection end
         b: move_selection beginning
+        n: move_selection next   # after the playing song, as a n adds
       p: command priority        # asks for 0–255
 
   browser:

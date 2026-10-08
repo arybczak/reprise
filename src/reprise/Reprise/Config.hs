@@ -894,6 +894,7 @@ defaultKeymaps =
                         [ char 'c' ~> MoveSelection MoveSelectionToCursor
                         , char 'e' ~> MoveSelection MoveSelectionToEnd
                         , char 'b' ~> MoveSelection MoveSelectionToBeginning
+                        , char 'n' ~> MoveSelection MoveSelectionToNext
                         ]
                     , char 'p' ~> CommandPrompt "priority"
                     ]

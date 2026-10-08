@@ -68,7 +68,7 @@ handlerTests =
     , testCase "songs that leave the queue leave the selection" test_selectionPruned
     , testCase "delete the marked songs" test_delete
     , testCase "move the marked songs up and down" test_moveSelection
-    , testCase "move the selection to the cursor and the end" test_moveSelectionTo
+    , testCase "move the selection to a place" test_moveSelectionTo
     , testCase "shuffle the selection" test_shuffleSelection
     ]
 
@@ -317,6 +317,17 @@ test_moveSelectionTo = do
     =<< keys ["insert", "e", "m", "e"] s
   assertEqual "beginning" [[Request "move" ["2:3", "0"]]] . (.requests)
     =<< keys ["down", "down", "insert", "e", "m", "b"] s
+  assertEqual "next, without a song playing" (Just "No song is playing") . message
+    =<< keys ["end", "e", "m", "n"] s
+  playing <- testState (80, 24) (statusOf Playing (Just 1) 5) (songs 5)
+  assertEqual "next, the song under the cursor" [[Request "move" ["4:5", "2"]]]
+    . (.requests)
+    =<< keys ["end", "e", "m", "n"] playing
+  assertEqual
+    "the playing song among them"
+    (Just "The playing song is among the songs to move")
+    . message
+    =<< keys ["home", "down", "insert", "e", "m", "n"] playing
 
 test_shuffleSelection :: Assertion
 test_shuffleSelection = do

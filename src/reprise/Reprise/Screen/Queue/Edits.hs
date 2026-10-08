@@ -6,6 +6,7 @@ module Reprise.Screen.Queue.Edits
   , moveDown
   , moveBefore
   , moveToStart
+  , moveAfter
   ) where
 
 import Control.Monad
@@ -57,6 +58,15 @@ moveBefore ps target = do
 -- there already, and the others join them.
 moveToStart :: [Int] -> Command ()
 moveToStart = moveUpTo 0
+
+-- | Move the songs at the positions, in their order, to just after the song
+-- at a position, which isn't one of them. The songs below it move up first,
+-- which leaves the positions above it as they were, and then the songs
+-- above it move down.
+moveAfter :: Int -> [Int] -> Command ()
+moveAfter c ps =
+  let (above, below) = span (< c) ps
+  in moveUpTo (c + 1) below *> sequenceA_ (moveBefore above (c + 1))
 
 -- | Move the songs at the positions, in their order, up to a position
 -- before them.
