@@ -7,8 +7,10 @@ source-repository-package
   tag: 7065c7a71a2f178a6f3028d6be9abf95c81b7845
 
 -- vty-unix with a faster evaluation of escape sequences, which makes
--- scrolling a list much cheaper. Until a release of vty-unix has it.
+-- scrolling a list much cheaper, and window titles sent as UTF-8, which
+-- keeps titles outside ASCII readable. Until a release of vty-unix has
+-- both.
 source-repository-package
   type: git
   location: https://github.com/arybczak/vty-unix.git
-  tag: 97759555f67cf2f33c559aaa86b2373002073ed2
+  tag: 1692caee5c087b4b0c7c148558fbd93ceb79e91c
