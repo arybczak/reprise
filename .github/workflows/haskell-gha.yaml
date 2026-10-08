@@ -54,6 +54,7 @@ jobs:
         - '9.10'
         - '9.12'
         - '9.14'
+        - '10.0'
     steps:
     - uses: actions/checkout@v7
       with:
@@ -114,7 +115,7 @@ jobs:
         EOF
 
     - name: Enable the GHC job semaphore or parallel module builds
-      if: contains(fromJSON('["9.8","9.10","9.12","9.14"]'), matrix.ghc)
+      if: contains(fromJSON('["9.8","9.10","9.12","9.14","10.0"]'), matrix.ghc)
       working-directory: ${{ runner.temp }}/haskell-gha
       run: |
         if ghc --info | grep -F '("Semaphore version","2")' > /dev/null; then

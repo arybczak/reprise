@@ -204,9 +204,7 @@ test_passwordPrompt = do
     ((.question) <$> wrong.state.prompt)
   where
     lastMaybe :: [a] -> Maybe a
-    lastMaybe = \case
-      [] -> Nothing
-      xs -> Just (last xs)
+    lastMaybe = fmap snd . unsnoc
 
 test_promptHistory :: Assertion
 test_promptHistory = do

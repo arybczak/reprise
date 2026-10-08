@@ -36,6 +36,7 @@ module Reprise.Action
 import Control.Monad
 import Data.Char
 import Data.List qualified as L
+import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
 import Yamlet
 
@@ -659,11 +660,10 @@ natural w = case reads (T.unpack w) of
 
 -- | The edit distance, for suggestions.
 distance :: T.Text -> T.Text -> Int
-distance a b = last . foldl step [0 .. T.length a] $ T.unpack b
+distance a b = NE.last . foldl step (0 NE.:| [1 .. T.length a]) $ T.unpack b
   where
-    step :: [Int] -> Char -> [Int]
-    step prev@(p : ps) c = scanl compute (p + 1) (zip3 (T.unpack a) prev ps)
+    step :: NE.NonEmpty Int -> Char -> NE.NonEmpty Int
+    step (p NE.:| ps) c = NE.scanl compute (p + 1) (zip3 (T.unpack a) (p : ps) ps)
       where
         compute :: Int -> (Char, Int, Int) -> Int
         compute left (ca, diag, up) = minimum [left + 1, up + 1, diag + if ca == c then 0 else 1]
-    step [] _ = []
