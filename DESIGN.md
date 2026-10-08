@@ -7,6 +7,15 @@ about 15 years ago in C++.
 This document records the decisions made so far and why. Keep it updated when
 a decision changes.
 
+It explains why, for the people who work on reprise. What users read is
+elsewhere, and this document doesn't repeat it:
+- [README.md](README.md) says what reprise does and how to use it.
+- [doc/config.yaml](doc/config.yaml) lists every option and every default
+  key. A test checks that it holds the defaults, so it is the one copy of
+  them.
+- [doc/ncmpcpp.md](doc/ncmpcpp.md) maps ncmpcpp's keys and options to
+  reprise's.
+
 ## Contents
 
 1. [Background](#background)
@@ -19,7 +28,7 @@ a decision changes.
 8. [Configuration](#configuration)
 9. [Testing](#testing)
 10. [Project structure and conventions](#project-structure-and-conventions)
-11. [Milestones](#milestones)
+11. [Next](#next)
 12. [Postponed decisions](#postponed-decisions)
 
 ## Background
@@ -442,13 +451,6 @@ ncmpcpp.
     which needs its name in the config.
 - A frame that the UI can't take in time is dropped: the worker doesn't
   wait for brick's channel of events.
-- Measured at 160×45 at 60 fps, 60 frames a second without a drop, before
-  the colors blended:
-  - **The ellipse,** on a private MPD that played generated pink noise:
-    about 7% of a core, and about 140 KiB a second to the terminal.
-  - **The spectrum,** on the author's MPD with music: about 9.5% of a core,
-    and about 780 KiB a second to the terminal, as most of its cells change
-    in every frame.
 - **A frame** (see [Benchmarks](#benchmarks)), at 160×45 with 24-bit
   colors: the worker computes the spectra of the two channels in 160 µs,
   the layout draws the spectrum in 174 µs, the ellipse in 231 µs and the
@@ -1205,7 +1207,8 @@ From top to bottom, as in ncmpcpp's classic design:
   scrolls by a character each second if it doesn't fit, e.g. the queue's
   song count and times or the browser's path, as in ncmpcpp. It scrolls from
   its start whenever the title shows another screen, or the browser lists
-  another directory or playlist.
+  another directory or playlist. ncmpcpp always bolds the title, and
+  `header.title_style` makes that a style.
 - **Header, line 2:** a horizontal line with the mode flags on the right:
   repeat, random, single, consume, crossfade, and "updating the database".
 - **The main view.**
@@ -1540,114 +1543,15 @@ The built-in defaults are the author's ncmpcpp setup: the author's ncmpcpp
 config, plus ncmpcpp's defaults for every option it doesn't set. So an empty
 config file gives the client the author uses today.
 
-`doc/config.yaml` shows the defaults to users, with what each option does,
-and leaves out the options and the keys of features that aren't built yet.
-A test decodes it and checks that what it lists has its default value.
+[doc/config.yaml](doc/config.yaml) lists the defaults, with what each
+option does, and leaves out the options and the keys of features that
+aren't built yet. A test decodes it and checks that what it lists has its
+default value.
 
-Only the options for features in the core are listed. Options of later
-features get their defaults when the feature arrives, again from the author's
-ncmpcpp config where it sets them.
-
-```yaml
-mpd: {}   # host, port, password, timeout (5s); see "MPD connection defaults"
-
-startup_screen: queue
-window_title: '[%{artist} - ][%{title}|%{filename}]'   # remove to disable
-
-songs:                           # how a song looks in a list
-  classic:
-    left: '[%{artist} - ][%{title}|<white>%{filename}</>]'
-    right: '<green>[%{length}|-:--]</>'
-  columns:
-    show_titles: false
-    list:
-    - {width: 20%, style: 221, format: '%{artist}'}
-    - {width: 6, style: 77, format: '[%{track_raw}]'}
-    - {width: 50%, style: white, format: '[%{title}|%{filename}]', title: Title}
-    - {width: 20%, style: 75, format: '%{album}'}
-    - {width: 5, style: 203, format: '[%{length}|-:--]', align: right}
-
-lists:                           # every list screen
-  style: yellow
-  cursor_style: yellow reverse
-  inactive_cursor_style: yellow on 237   # the cursor in a column without focus
-  selected_style: yellow on 24
-  found_style: underline         # the matches while a find is typed
-  playing_style: bold
-  queued_style: bold             # songs in the queue, in the other screens
-  keep_cursor_centered: false
-  ignore_leading_the: false
-  missing_tag: —
-  missing_tag_style: ~           # e.g. cyan; without it, the style around the marker.
-                                 # Also empty fields of the search engine and song info;
-                                 # not in columns, which use their own style
-  tag_separator: ' | '
-
-queue:
-  display: columns               # or classic
-  album_separators: false
-  follow_playing: false          # move the cursor to each new song
-  show_remaining_time: false     # in the title, next to the total time
-
-browser:
-  display: classic
-  sort:
-    by: type                     # type, name, mtime, format or none
-    format: '%{artist} - %{title}'
-  playlist_prefix: '<red>playlist</> '
-
-search_engine:
-  display: classic
-
-header:
-  style: default
-  title_style: bold              # ncmpcpp always bolds the title
-  volume_style: default
-  flags_style: bold
-  line_style: default
-
-status_bar:
-  song: '[[%{artist}[ "%{album}"[ (%{year})]] - ]%{title}|%{filename}]'
-  style: default
-  state_style: bold
-  time_style: bold
-  show_remaining_time: false
-  show_bitrate: false
-
-progress_bar:
-  chars: ▅▅▅                     # elapsed, the current position, remaining
-  style: 236
-  elapsed_style: 28
-
-visualizer:
-  data_source: ~                 # the fifo of an MPD fifo output of 44100:16:2; ~/ is home
-  visualization: spectrum        # or ellipse or wave; toggle visualization goes through them
-  fps: 60
-  trail: 150ms                   # how long the samples of the ellipse stay
-  colors: [46 bold, 82 bold, 118 bold, 154 bold, 190 bold, 226 bold, 220 bold, 214 bold, 208 bold, 202 bold, 196 bold, 160 bold]   # a gradient from quiet to loud
-  debug: false                   # show the frame rate and the worker's frames at the top
-
-lyrics:
-  directory: ~                   # $XDG_DATA_HOME/reprise/lyrics; ncmpcpp's is ~/.lyrics
-  fetchers: [lrclib, tekstowo]   # in order; [] shows only the stored lyrics
-  fetch_in_background: false     # fetch the lyrics of each song that plays
-  follow_playing: false          # show the lyrics of each song that plays
-
-editor:
-  command: ~                     # $VISUAL, else $EDITOR; sh runs it with the file
-
-styles:                          # used across screens
-  label: white                   # field names, e.g. in the search engine
-  value: green                   # field values
-  popup_border: green
-  text: yellow                   # the lyrics and the descriptions of the help
-```
-
-A column's width is relative if it ends in `%` and fixed otherwise.
-
-Options of later features get names in the same spirit, e.g.
-`media_library.primary_tag`, `hooks.on_song_change`, `mouse.scroll_lines`,
-`header.design`.
+Options of later features get their defaults when the feature arrives,
+again from the author's ncmpcpp config where it sets them, and names in the
+same spirit, e.g. `media_library.primary_tag`, `hooks.on_song_change`,
+`mouse.scroll_lines`, `header.design`.
 
 ### MPD connection defaults
 
@@ -1694,7 +1598,9 @@ The default keymap follows the [default keymap rule](#key-bindings):
   next", `t r` is "toggle repeat". Ctrl keys were harder to type for every
   group.
   - **Two topics' letters are everyday keys:** `s` stops and `q` quits. So
-    selection is `v`, as Vim's visual mode.
+    selection is `v`, as Vim's visual mode. `v A` selects the artist next
+    to `v a`'s album, as the artist moves `{` and `}` are the shifted
+    album moves `[` and `]`.
   - **`e` edits:** the queue, with `e c` to clear it and `e s` to shuffle
     it, stored playlists, with `e w` to save one, and what a screen is
     about, with `e e`: the lyrics on the lyrics screen, and later the tags
@@ -1720,180 +1626,25 @@ The default keymap follows the [default keymap rule](#key-bindings):
     cover it: `:volume 40` sets the volume, which `+` and `-` change. The
     crossfade's `t X` is next to its toggle.
 
-Action names and arguments are a first draft; they settle when the actions
-are written.
-
 The defaults are a Haskell value, not YAML, so that the compiler checks
-their actions. The block below shows them in the config's format. A test
-checks that a config can name every default key.
+their actions. [doc/config.yaml](doc/config.yaml) shows them in the
+config's format, and a test checks that it builds the same keymaps. Another
+test checks that a config can name every default key.
 
-```yaml
-keys:
-  global:
-    # moving around
-    up: move up
-    down: move down
-    page_up: move page_up
-    page_down: move page_down
-    home: move first
-    end: move last
-    "[": move previous_album
-    "]": move next_album
-    "{": move previous_artist
-    "}": move next_artist
-
-    # selecting
-    shift-up: select up          # toggle the selection, then move
-    shift-down: select down
-    insert: select
-
-    # verbs; each screen implements them its own way
-    enter: activate              # play, enter a directory, toggle an output
-    space: add_or_remove         # add to the queue, or remove if already there
-    delete: delete
-
-    # playback
-    p: pause
-    s: stop
-    "<": previous
-    ">": next
-    backspace: replay            # the browser's goes to the parent, as in ncmpcpp
-    f: seek +1s                  # hold to go further
-    b: seek -1s
-    "+": volume +2
-    "-": volume -2
-    right: volume +2             # screens with columns move between columns
-    left: volume -2
-
-    # find and filter
-    /: find forward
-    "?": find backward
-    .: find next
-    ",": find previous
-    ctrl-f: filter
-
-    # screens; 4, 5 and 6 are kept for the media library, the playlist editor
-    # and the tag editor
-    1: show queue
-    2: show browser
-    3: show search_engine
-    7: show outputs
-    8: show visualizer
-    l: show lyrics               # of the song under the cursor
-    i: show song_info            # of the song under the cursor
-    tab: next_screen             # the screens with numbers, in their order
-    shift-tab: previous_screen
-    f1: show help
-    ":": command
-    q: quit                      # ctrl-q quits too, in no keymap (see above)
-
-    a:
-      name: add
-      e: add end
-      n: add next                # after the playing song
-      b: add beginning
-      p: add_and_play
-      /: command add_path        # asks for the path in the : prompt
-    e:
-      name: edit
-      c: clear                   # the queue
-      s: shuffle
-      w: save                    # as a stored playlist
-    v:
-      name: selection
-      r: select range
-      i: select invert
-      c: select none
-      a: select album
-      A: select artist           # as { and } are the shifted [ and ]
-      f: select found
-    t:
-      name: toggle
-      r: toggle repeat
-      z: toggle random
-      s: toggle single
-      c: toggle consume
-      x: toggle crossfade 5         # 0 or 5 seconds
-      X: command crossfade       # asks for the seconds
-      g: toggle replay_gain
-      a: toggle album_separators
-      b: toggle bitrate
-    g:
-      name: go
-      b: jump_to_browser         # the song under the cursor
-      s: command seek            # asks for m:ss, N% or ±Ns, as ncmpcpp's g
-    d:
-      name: database
-      u: update current
-      U: update all
-
-  queue:
-    space: select down           # as in the author's ncmpcpp bindings
-    o: jump_to_playing
-    m: move_selection up
-    n: move_selection down
-    e:                           # merged with the global e group
-      m:
-        name: move selection
-        c: move_selection cursor # above the cursor
-        e: move_selection end
-        b: move_selection beginning
-        n: move_selection next   # after the playing song, as a n adds
-      p: command priority        # asks for 0–255
-    t:
-      d: toggle display          # of the queue
-      f: toggle follow_playing   # move the cursor to each new song
-
-  browser:
-    backspace: parent
-    o: jump_to_playing           # lists its directory, as G does
-    t:
-      d: toggle display          # of the browser
-      o: next_sort_mode
-
-  visualizer:
-    space: toggle visualization  # as in ncmpcpp
-
-  lyrics:
-    "`": refetch_lyrics          # as in ncmpcpp
-    e:
-      e: edit_lyrics             # in editor.command, $VISUAL or $EDITOR
-    t:
-      f: toggle follow_playing   # of the lyrics here, as the queue's t f
-    space: toggle follow_playing # of the lyrics here, as in ncmpcpp
-    o: jump_to_playing           # follow the line being sung again
-    l: back                      # as the key that showed them, as in ncmpcpp
-    escape: back
-
-  song_info:
-    i: back
-    escape: back
-
-  help:
-    f1: back
-    escape: back
-```
-
-Later features add to it: the queue's `e o` (sort dialog), `e e` on the
-other screens (the tags of the song under the cursor), the media library's
-`4` and left/right between columns, `d r` (add random songs), `g m` and
+Later features add to the keymap: the queue's `e o` (sort dialog), `e e` on the
+other screens (the tags of the song under the cursor), `4`, `5` and `6` for
+the media library, the playlist editor and the tag editor, left/right
+between the media library's columns, `d r` (add random songs), `g m` and
 `g e` (the song under the cursor in the media library and the tag editor).
 `ctrl-w` is reserved for the window framework, as in Vim, and stays unbound
 until then. `ctrl-g` and `escape` cancel a pending prefix.
 
-Compared to ncmpcpp:
-- **Toggles left the single keys:** `r` `z` `y` `R` `x` `Y` `#` `P` `!` `U`
-  are under `t`.
-- **Queue operations left the single keys:** `c` `Z` `M` `S` `ctrl-p` are
-  under `e`. `C` (crop) and `ctrl-r` (reverse) are gone.
-- **Editing the lyrics is `e e`,** not `e`, in the group of edits.
-- **Selection left the single keys:** `v` `V` `B` `ctrl-v` `ctrl-_` are under
-  `v`.
+Compared to ncmpcpp ([doc/ncmpcpp.md](doc/ncmpcpp.md) maps every key that
+moved):
 - **`shift-up`/`shift-down`** toggle the selection and move, without the
   binding chains ncmpcpp needs for it.
-- **`G` (jump to the browser) is `g b`,** in the group of `g`, ncmpcpp's
-  jump to a position, which is `g s`.
-- **`r`, `u`, `A`, `w` and `c` are free** for later features.
+- **`r`, `u`, `A`, `w` and `c` are free** for later features, as their
+  ncmpcpp actions moved into groups.
 - **`escape` is not bound to pause.** That was the author's own binding, and
   pausing by accident is a surprising result of trying to back out of
   something. On the screens that show something about a song or the keys,
@@ -1928,47 +1679,11 @@ Many single-character keys collide with YAML syntax:
 
 ### ncmpcpp options
 
-#### Renamed
+[doc/ncmpcpp.md](doc/ncmpcpp.md) says what each ncmpcpp option became. This
+section keeps the reasons.
 
-| ncmpcpp | reprise |
-|---|---|
-| `mpd_host`, `mpd_port`, `mpd_password`, `mpd_connection_timeout` | `mpd.host`, `mpd.port`, `mpd.password`, `mpd.timeout` |
-| `startup_screen` | `startup_screen` |
-| `song_window_title_format` + `enable_window_title` | `window_title` |
-| `song_list_format` | `songs.classic` (`left`, `right`) |
-| `song_columns_list_format` | `songs.columns.list` |
-| `titles_visibility` | `songs.columns.show_titles` |
-| `main_window_color` | `lists.style`, `styles.text` |
-| `current_item_prefix`/`suffix` | `lists.cursor_style` |
-| `current_item_inactive_column_prefix`/`suffix` | `lists.inactive_cursor_style` |
-| `selected_item_prefix`/`suffix` | `lists.selected_style` |
-| `now_playing_prefix`/`suffix` | `lists.playing_style` |
-| `centered_cursor` | `lists.keep_cursor_centered` |
-| `ignore_leading_the` | `lists.ignore_leading_the` |
-| `empty_tag_marker`, `empty_tag_color` | `lists.missing_tag`, `lists.missing_tag_style` |
-| `tags_separator` | `lists.tag_separator` |
-| `playlist_display_mode` | `queue.display` |
-| `playlist_separate_albums` | `queue.album_separators` |
-| `autocenter_mode` | `queue.follow_playing` |
-| `playlist_show_remaining_time` | `queue.show_remaining_time` |
-| `browser_display_mode` | `browser.display` |
-| `browser_sort_mode`, `browser_sort_format` | `browser.sort.by`, `browser.sort.format` |
-| `browser_playlist_prefix` | `browser.playlist_prefix` |
-| `search_engine_display_mode` | `search_engine.display` |
-| `header_window_color`, `volume_color`, `state_flags_color`, `state_line_color` | `header.style`, `header.volume_style`, `header.flags_style`, `header.line_style` |
-| `song_status_format` | `status_bar.song` |
-| `statusbar_color`, `player_state_color`, `statusbar_time_color` | `status_bar.style`, `status_bar.state_style`, `status_bar.time_style` |
-| `display_remaining_time`, `display_bitrate` | `status_bar.show_remaining_time`, `status_bar.show_bitrate` |
-| `progressbar_look`, `progressbar_color`, `progressbar_elapsed_color` | `progress_bar.chars`, `progress_bar.style`, `progress_bar.elapsed_style` |
-| `color1`, `color2`, `window_border_color` | `styles.label`, `styles.value`, `styles.popup_border` |
-| `visualizer_data_source`, `visualizer_type`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.visualization`, `visualizer.fps`, `visualizer.colors` |
-| `lyrics_directory` | `lyrics.directory`, `$XDG_DATA_HOME/reprise/lyrics` without it |
-| `lyrics_fetchers` | `lyrics.fetchers`, of `lrclib` and `tekstowo` (see [Core](#core)) |
-| `fetch_lyrics_for_current_song_in_background` | `lyrics.fetch_in_background` |
-| `follow_now_playing_lyrics` | `lyrics.follow_playing` |
-| `external_editor` | `editor.command`, `$VISUAL` or `$EDITOR` without it. The author sets `mcedit` in their own config. `use_console_editor` is gone: the editor always gets the terminal |
+#### Translated
 
-How the author's ncmpcpp settings were translated:
 - **Prefixes and suffixes became styles.** `current_item_prefix`/`suffix`
   (`$(yellow)$r` ... `$/r$9`), `current_item_inactive_column_*` and
   `selected_item_*` existed only to wrap rows in color codes.
@@ -2050,17 +1765,23 @@ options, `allow_for_physical_item_deletion`,
 | `header_text_scrolling` | Long text always scrolls |
 | `playlist_disable_highlight_delay` | The queue hides the cursor after a fixed 5 seconds without input, as a named constant |
 | `incremental_seeking` | Seeking always works as described in [Core](#core) |
+| `use_console_editor` | The editor always gets the terminal |
 
 #### Not carried over yet
 
+- **Named, for features that aren't built:** `playlist_separate_albums` →
+  `queue.album_separators`, `search_engine_display_mode` →
+  `search_engine.display`, `current_item_inactive_column_prefix`/`suffix` →
+  `lists.inactive_cursor_style`, `window_border_color` →
+  `styles.popup_border`. doc/ncmpcpp.md lists them when they work.
 - **The options of other later features:** `lines_scrolled`,
   `mouse_list_scroll_whole_page`, `mpd_music_dir` and the tag editor's
   options.
 
 ## Testing
 
-reprise has tests from the first commit. Every milestone includes tests for
-what it adds, and every bug fix starts with a test that reproduces the bug.
+reprise has tests from the first commit. Every feature comes with tests,
+and every bug fix starts with a test that reproduces the bug.
 
 The layers, from cheapest to most expensive:
 
@@ -2332,34 +2053,15 @@ The workflow builds and tests every GHC version in `tested-with`, runs
 fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
 `libicu-dev` is for `text-icu`.
 
-## Milestones
+## Next
 
-1. **Repository and `mpd-protocol` basics.**
-   - The repository skeleton: cabal files, `fourmolu.yaml`, the haskell-gha
-     config, the test layout.
-   - Connection, response parser, `Command` with command lists.
-   - Commands: `status`, `currentsong`, `plchanges`, `idle`, playback, volume.
-   - The integration test harness with a real `mpd`.
-2. **Something to listen with.**
-   - Config loading, styles and the format language.
-   - Header, status bar and progress bar.
-   - Queue screen with classic and columns display (the author's queue uses
-     columns).
-   - The queue sync property test.
-   - Keymaps with key sequences and the which-key panel, with bindings for
-     playback.
-   - From here on, reprise replaces ncmpcpp for the author's daily use.
-   - Moved to milestone 3: album separators and the password prompt. The
-     selection in the queue, moving the selected songs, priority, the line
-     prompts and find in the queue came after milestone 2.
-3. **Library navigation.**
-   - Browser, including stored playlists.
-   - Selection, find, filter, prompts, add and play.
-4. **Feature parity for the core.**
-   - Search engine, columns display in the other screens.
-   - Outputs, the `:` prompt with completion. The help screen came with
-     milestone 2, and the outputs screen before the search engine.
-5. **Later features**, in the order the author misses them.
+reprise replaces ncmpcpp for the author's daily use. What remains of the
+[core](#core):
+- Album separators in the queue and the password prompt.
+- Filtering lists.
+- The search engine.
+
+Then the [later features](#later), in the order the author misses them.
 
 ## Postponed decisions
 
@@ -2378,10 +2080,10 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
     `listallinfo` loads the whole database. The parser keeps a table of the
     values of one reply, so that each artist, album, date or genre is decoded
     and stored once. Measure on a real database first.
-  - **Reusing songs in the mirror** comes with the queue operations of
-    milestone 3. A move sends every song whose position changed in
-    `plchanges`, as new values. The mirror can keep its old song when only
-    the position differs, which keeps the sharing and saves allocations.
+  - **Reusing songs in the mirror** waits for the same measurement. A move
+    sends every song whose position changed in `plchanges`, as new values.
+    The mirror can keep its old song when only the position differs, which
+    keeps the sharing and saves allocations.
   - **Tuning GHC's runtime** (nursery size, heap growth factor) is not
     planned. Each setting is a constant that needs a reason, for a few
     megabytes at most.
