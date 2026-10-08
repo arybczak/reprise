@@ -120,8 +120,12 @@ Options whose choice is fixed in reprise:
 ## Not available yet
 
 The search engine, the media library, the playlist editor, the tag editors,
-album separators in the queue, filtering lists, the server info, mouse
-support, and commands that run on song change. The browser already opens
-stored playlists and loads them, and `e w` saves them.
+album separators in the queue, the server info, mouse support, and
+commands that run on song change. The browser already opens stored
+playlists and loads them, and `e w` saves them.
 
 The clock screen and split screens are gone.
+
+Filtering lists (`ctrl-f`) is gone too. To act on every match, find it
+with `/` and select every match with `v f`; any action then works on all
+of them, e.g. `delete` or `e m e`.

@@ -64,7 +64,6 @@ data Action
   | -- | Seconds.
     Crossfade Int
   | Find FindTarget
-  | Filter
   | Show ScreenName
   | NextScreen [ScreenName]
   | PreviousScreen [ScreenName]
@@ -259,7 +258,6 @@ registry =
               , ("previous", FindPrevious)
               ]
         )
-  , spec "filter" "" $ none Filter
   , spec "show" "SCREEN" $ one (fmap Show . screenFromName)
   , spec "next_screen" "[SCREEN, ...]" $ screenList NextScreen
   , spec "previous_screen" "[SCREEN, ...]" $ screenList PreviousScreen
@@ -496,7 +494,6 @@ renderAction = \case
       FindBackward -> "backward"
       FindNext -> "next"
       FindPrevious -> "previous"
-  Filter -> "filter"
   Show s -> "show " <> screenName s
   NextScreen ss -> "next_screen " <> screenList ss
   PreviousScreen ss -> "previous_screen " <> screenList ss
@@ -596,7 +593,6 @@ describeAction = \case
     FindBackward -> "find backward"
     FindNext -> "find next"
     FindPrevious -> "find previous"
-  Filter -> "filter"
   Show LyricsScreen -> "show the lyrics of the song under the cursor"
   Show SongInfoScreen -> "show the info of the song under the cursor"
   Show s -> "show " <> T.replace "_" " " (screenName s)

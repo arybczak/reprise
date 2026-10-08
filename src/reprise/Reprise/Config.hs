@@ -806,7 +806,6 @@ defaultKeymaps =
           , char '?' ~> Find FindBackward
           , char '.' ~> Find FindNext
           , char ',' ~> Find FindPrevious
-          , ctrl 'f' ~> Filter
           , -- 4, 5 and 6 are kept for the media library, the playlist editor
             -- and the tag editor.
             char '1' ~> Show QueueScreen
@@ -951,9 +950,6 @@ defaultKeymaps =
 
     char :: Char -> KeySpec
     char = plain . CharKey
-
-    ctrl :: Char -> KeySpec
-    ctrl = KeySpec (S.singleton Ctrl) . CharKey
 
     shift :: Key -> KeySpec
     shift = KeySpec (S.singleton Shift)

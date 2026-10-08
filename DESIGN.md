@@ -231,8 +231,7 @@ ncmpcpp.
   pattern is shared by all screens, as in Emacs and Vim, so a pattern found
   in one screen can be found again in another. ncmpcpp keeps one for each
   screen.
-- Filter.
-- Find and filter always ignore diacritics.
+- Find always ignores diacritics.
 - Songs that are in the queue have `lists.queued_style` in the other
   screens, bold by default, which ncmpcpp hardcodes. A song is in the queue
   if the queue has its file, and for a track of a cue sheet, the same part
@@ -774,6 +773,24 @@ has no command for it.
 selection and deleting takes as many keys, and shows what goes before it
 goes, so it needs no confirmation.
 
+**Filtering lists** (`apply_filter`). Find and select found (`v f`) cover
+its main use, acting on every match: an action then works on all of them.
+What filtering adds is seeing the matches together, and hidden rows make
+every action that works on positions or on what shows a special case, as
+they did in ncmpcpp:
+- moving songs up or down past songs that don't show, or above the cursor;
+- a selected song that the filter hides, which an action would either
+  change unseen or leave out, unlike the other actions;
+- a range, of the selection or of a shuffle, over rows that don't show;
+- the queue and the browser changing underneath, through idle, while the
+  cursor must stay on its item;
+- jumping to the playing song when it is hidden, following it, and album
+  separators across the gaps.
+
+If seeing the matches together is missed, a read-only list of them, as
+Emacs's `occur`, would show it without those cases: `enter` jumps to the
+item in the full list, and nothing in the list itself changes MPD.
+
 **Old compatibility tricks**
 - MPD versions older than 0.24. In return reprise gets filter expressions,
   relative positions in `addid`, `searchadd`/`findadd` with a position,
@@ -869,7 +886,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
 | `Reprise.Event` | The events of the loop, which every continuation produces |
 | `Reprise.Exception` | Catching the exceptions that an action throws, but not asynchronous ones |
-| `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
+| `Reprise.Find` | The patterns of find: ICU regular expressions with diacritics folded |
 | `Reprise.Collation` | The order of text by the rules of a locale, with a leading "the" ignored if the config says so. The tests use ICU's root rules, so that they don't depend on the locale |
 | `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list, and runs of consecutive positions |
 | `Reprise.Selection` | The selection of a list by the keys of its items, with the ends of the next range. `Reprise.Handler.Core` applies the select actions to any list with it |
@@ -917,7 +934,7 @@ Libraries:
 | Sockets | `network` |
 | Config | `yamlet` |
 | CLI | `optparse-applicative` |
-| Regex, diacritics folding, collation | `text-icu` (see [Find and filter](#find-and-filter)) |
+| Regex, diacritics folding, collation | `text-icu` (see [Find patterns](#find-patterns)) |
 | HTTP (lyrics, later artist info) | `http-client` and `http-client-tls` |
 | HTML (lyrics from tekstowo.pl) | `tagsoup` |
 | Effects | `effectful` (see [Effects](#effects)) |
@@ -971,7 +988,7 @@ reply comes.
 The IO surface is small and sits at the edges: the MPD sockets, the worker
 threads, reading the config, the clock, and later HTTP, the lyrics cache,
 external commands and the editor. Most of the code is pure:
-formats, config decoding, key parsing, list, filter and selection logic, the
+formats, config decoding, key parsing, list, find and selection logic, the
 mirror, layout, and the decision part of almost every action.
 
 reprise's own loop over vty is the outer loop, and effectful is used in two
@@ -1268,7 +1285,7 @@ can be measured wrong.
 
 ### Prompts
 
-Prompts (find, filter, `:`, confirmations) sit in the status bar. While a prompt is open, keys go to it, not to the keymaps. `enter`
+Prompts (find, `:`, the password, confirmations) sit in the status bar. While a prompt is open, keys go to it, not to the keymaps. `enter`
 accepts, `escape` or `ctrl-g` cancels.
 
 A line prompt edits its line with Emacs-style keys, and the terminal's cursor
@@ -1341,10 +1358,9 @@ Find (`/`, `?`):
 - **`enter`** keeps the pattern for find next and previous (`.` and `,`),
   which go forward and backward, as in ncmpcpp. An empty find repeats the
   last pattern, as in Vim.
-- **Select found** selects every song that the last pattern matches.
-
-Filter (`ctrl-f`) hides the items that don't match, also on every keystroke;
-filtering with an empty pattern removes the filter.
+- **Select found** selects every song that the last pattern matches. With
+  it, an action works on every match, which is why reprise has no filter
+  (see [Dropped](#dropped)).
 
 ### Seeking
 
@@ -1437,9 +1453,9 @@ confirmation in the new state and runs its continuation to answer it.
 `y` and `n` for yes and no. Escape and ctrl-g cancel, and other keys do
 nothing, so that a stray key picks nothing.
 
-### Find and filter
+### Find patterns
 
-Find and filter always use ICU regular expressions, which follow Perl syntax,
+Find always uses ICU regular expressions, which follow Perl syntax,
 and always ignore diacritics. There is no option for either.
 
 `text-icu` (BSD-3-Clause; ICU 62 or newer through pkg-config) provides all
@@ -1808,8 +1824,8 @@ options, `allow_for_physical_item_deletion`,
 
 | Option | Fixed behavior |
 |---|---|
-| `regular_expressions` | Always ICU regular expressions (see [Find and filter](#find-and-filter)) |
-| `ignore_diacritics` | Always ignored in find and filter |
+| `regular_expressions` | Always ICU regular expressions (see [Find patterns](#find-patterns)) |
+| `ignore_diacritics` | Always ignored in find |
 | `ask_before_clearing_playlists`, `ask_before_shuffling_playlists` | Destructive actions always ask (see [Destructive actions](#destructive-actions)) |
 | `default_find_mode` and its toggle action | Find wraps around and says so in the status bar |
 | `show_duplicate_tags` | Duplicate tag values are removed |
@@ -1860,7 +1876,7 @@ The layers, from cheapest to most expensive:
    - Key specs, keymap lookup with layering and prefixes, and the which-key
      entries.
    - Config decoding: defaults, unknown fields, error messages.
-   - List logic: selection, find, filter, scrolling, "ignore leading the"
+   - List logic: selection, find, scrolling, "ignore leading the"
      sorting.
    - The mirror: applying `plchanges` results and truncating to
      `playlistlength`.
@@ -2123,7 +2139,6 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
 reprise replaces ncmpcpp for the author's daily use. What remains of the
 [core](#core):
 - Album separators in the queue.
-- Filtering lists.
 - The search engine.
 
 Then the [later features](#later), in the order the author misses them.
