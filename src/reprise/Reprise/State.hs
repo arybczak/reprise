@@ -80,6 +80,7 @@ import Reprise.Collation
 import Reprise.Config
 import Reprise.Event
 import Reprise.Find
+import Reprise.History
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.LineEdit
@@ -127,6 +128,8 @@ data AppState = AppState
   -- ^ The width and the height.
   , pendingKeys :: Maybe PendingKeys
   , prompt :: Maybe Prompt
+  , history :: [T.Text]
+  -- ^ The lines of the line prompts, newest first.
   , findPattern :: Maybe T.Text
   -- ^ The pattern of the last find, which every screen finds again.
   , message :: Maybe Message
@@ -166,8 +169,9 @@ data Prompt = Prompt
 data PromptInput
   = -- | Options, each picked by a letter of its name, as in ncmpcpp.
     Choice [ChoiceOption]
-  | -- | A line of text, and what it is for.
-    Line LineEdit LinePurpose
+  | -- | A line of text, what it is for, and the line of the history that
+    -- it shows.
+    Line LineEdit LinePurpose (Maybe Recall)
   deriving stock (Eq, Show)
 
 -- | An option of a choice.
@@ -449,6 +453,7 @@ initialState config =
     , terminalSize = (0, 0)
     , pendingKeys = Nothing
     , prompt = Nothing
+    , history = []
     , findPattern = Nothing
     , message = Nothing
     , seek = Nothing

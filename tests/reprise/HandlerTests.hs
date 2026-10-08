@@ -68,6 +68,7 @@ handlerTests =
     , testCase "ctrl-q always quits" test_alwaysQuit
     , testCase "a prompt takes the keys" test_promptKeys
     , testCase "ask for the password" test_passwordPrompt
+    , testCase "the prompts share a history" test_promptHistory
     , testCase "find as you type" test_findAsYouType
     , testCase "find the next and the previous match" test_findAgain
     , testCase "find after the rows change" test_findRowsChange
@@ -149,7 +150,7 @@ test_promptAnswers = do
   assertEqual "run a command" [[Request "setvol" ["30"]]] =<< requested [":"] "volume 30"
   assertEqual
     "the start of the line"
-    (Just (Prompt ":" (Line (LineEdit "seek " "") ForCommand)))
+    (Just (Prompt ":" (Line (LineEdit "seek " "") ForCommand Nothing)))
     . (.state.prompt)
     =<< keys ["g", "s"] s
   invalid <- answer [":"] "volume 140"
@@ -207,6 +208,45 @@ test_passwordPrompt = do
       [] -> Nothing
       xs -> Just (last xs)
 
+test_promptHistory :: Assertion
+test_promptHistory = do
+  s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+  used <-
+    keys
+      ( [":"]
+          <> typed "volume 30"
+          <> ["enter", "g", "s"]
+          <> typed "1:30"
+          <> ["enter"]
+          <> ["/"]
+          <> typed "song"
+          <> ["enter"]
+      )
+      s
+  assertEqual "newest first" ["song", "seek 1:30", "volume 30"] used.state.history
+  let lineOf r = case r.state.prompt of
+        Just (Prompt _ (Line edit _ _)) -> Just (lineEditText edit)
+        _ -> Nothing
+  assertEqual "shared" (Just "volume 30") . lineOf
+    =<< keys [":", "up", "up", "up"] used.state
+  assertEqual "only the lines that start with the typed one" (Just "seek 1:30") . lineOf
+    =<< keys ["g", "s", "up", "up"] used.state
+  assertEqual "ctrl-p and ctrl-n" (Just "song") . lineOf
+    =<< keys ["/", "ctrl-p", "ctrl-p", "ctrl-n"] used.state
+  assertEqual "back to the typed line" (Just "vol") . lineOf
+    =<< keys ([":"] <> typed "vol" <> ["up", "down"]) used.state
+  edited <- keys ([":", "up"] <> typed "x" <> ["up"]) used.state
+  assertEqual "an edit starts from the edited line" (Just "songx") (lineOf edited)
+  finding <- testState (80, 24) (statusOf Stopped Nothing 5) titled
+  assertEqual "a recalled find finds" 3 . cursor
+    =<< keys ["/", "up"] (finding & #history .~ ["al"])
+  password <-
+    keys (typed "secret" <> ["up", "enter"])
+      =<< (.state)
+        <$> runEvents 0 [PasswordNeeded (AckError (Ack AckPermission 0 "pause" ""))] used.state
+  assertEqual "no password in the history" used.state.history password.state.history
+  assertEqual "no history in the password" [Just "secret"] (passwordAnswers password)
+
 test_promptKeys :: Assertion
 test_promptKeys = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
@@ -215,7 +255,7 @@ test_promptKeys = do
   assertEqual "no pause" [] r.requests
   assertEqual
     "the line"
-    (Just (Prompt ":" (Line (LineEdit "qp" "") ForCommand)))
+    (Just (Prompt ":" (Line (LineEdit "qp" "") ForCommand Nothing)))
     r.state.prompt
   cancelled <- keys ["escape"] r.state
   assertEqual "cancelled" (Nothing, []) (cancelled.state.prompt, cancelled.requests)
@@ -227,7 +267,7 @@ test_findAsYouType = do
       note ks = do
         r <- keys ks s
         pure $ case r.state.prompt of
-          Just (Prompt _ (Line _ (ForFind f))) -> f.note
+          Just (Prompt _ (Line _ (ForFind f) _)) -> f.note
           _ -> Just "no find"
   assertEqual "a match after the cursor" 3 =<< cursorAfter ("/" : typed "al")
   assertEqual "while typing" 2 =<< cursorAfter ("/" : typed "g")

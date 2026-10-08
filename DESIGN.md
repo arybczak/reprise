@@ -872,6 +872,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Selection` | The selection of a list by the keys of its items, with the ends of the next range. `Reprise.Handler.Core` applies the select actions to any list with it |
 | `Reprise.Save` | What a save as a stored playlist saves, from the queue or the browser. `Reprise.Handler` asks for the name and saves |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
+| `Reprise.History` | The history that the line prompts share, and recalling its lines |
 | `Reprise.Width` | The width of text in terminal columns, cutting and wrapping text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
 | `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
@@ -1263,6 +1264,20 @@ shows where:
 - `ctrl-w` deletes to the previous space, as in a shell;
 - `alt-b`, `alt-f`, `alt-d` and `alt-backspace` work on words of letters and
   digits, as in readline.
+
+The line prompts share one history, as in ncmpcpp. Separate histories would
+each hold few lines, and more prompts are coming, e.g. the search engine's.
+- **`up`/`ctrl-p` and `down`/`ctrl-n` recall the lines that start with what
+  the user typed,** as in Vim and zsh. That keeps a shared history usable:
+  `g s` opens `:seek `, so `up` goes through the earlier seeks only. Going
+  down past the newest line brings back the typed one, and an edit makes
+  the recalled line the typed one.
+- **Each line is kept once,** and using it again makes it the newest.
+- **The history keeps the last 100 lines.** The number is the author's
+  choice.
+- **The password prompt has no history,** in either direction.
+- **A recalled find pattern finds** as a typed one does.
+- **It lasts for the session.**
 
 The editor is reprise's own pure code, not brick's editor. brick's editor
 handles events in brick's monad, outside the handlers that the tests run.

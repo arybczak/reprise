@@ -134,6 +134,7 @@ library
                      Reprise.Groups
                      Reprise.Handler
                      Reprise.Handler.Core
+                     Reprise.History
                      Reprise.Keymap
                      Reprise.Keys
                      Reprise.LineEdit
@@ -301,6 +302,7 @@ test-suite reprise-tests
                     FormatTests
                     HandlerTests
                     HelpTests
+                    HistoryTests
                     KeymapTests
                     KeysTests
                     LayerTests

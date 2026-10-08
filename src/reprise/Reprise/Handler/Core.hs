@@ -136,7 +136,7 @@ screenText screen = T.replace "_" " " (screenName screen) <> " screen"
 -- | Open a line prompt for a purpose, which "Reprise.Handler" runs with the
 -- answer.
 openLine :: T.Text -> LineEdit -> LinePurpose -> AppState -> AppState
-openLine question edit purpose = #prompt ?~ Prompt question (Line edit purpose)
+openLine question edit purpose = #prompt ?~ Prompt question (Line edit purpose Nothing)
 
 ----------------------------------------
 -- Views

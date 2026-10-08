@@ -134,6 +134,10 @@ song that plays.
 `add_path some/directory`, and shows what an action takes while you type
 it. [doc/config.yaml](doc/config.yaml) shows the action of every key.
 
+The prompts in the status bar share a history of the last 100 lines. `up`
+and `down`, or `ctrl-p` and `ctrl-n`, go through the lines that start with
+what you typed, so `up` after `g s` goes through the earlier seeks.
+
 ### Lyrics
 
 `l` shows the lyrics of the song under the cursor. reprise looks for them in

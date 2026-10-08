@@ -28,6 +28,7 @@ import Reprise.Find
 import Reprise.Format
 import Reprise.Groups
 import Reprise.Handler.Core
+import Reprise.History
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.LineEdit
@@ -317,25 +318,47 @@ handlePromptKey p k = case p.input of
         close
         showMessage "Cancelled"
     | otherwise -> pure ()
-  Line edit purpose
+  Line edit purpose recall
     | k == KeySpec mempty Enter -> do
         close
-        answer purpose (lineEditText edit)
+        let text = lineEditText edit
+        when (purpose /= ForPassword) . modifyS $ #history %~ remember text
+        answer purpose text
     | isCancel k -> do
         close
         case purpose of
           ForFind f -> modifyWithEnv (restoreView f.origin)
           ForPassword -> answerPassword Nothing
           _ -> pure ()
-    | Just edit' <- editLine k edit -> do
-        purpose' <- case purpose of
-          ForFind f -> ForFind <$> findAsYouType f (lineEditText edit')
-          other -> pure other
-        modifyS $ #prompt ?~ Prompt p.question (Line edit' purpose')
-    | otherwise -> pure ()
+    | otherwise -> do
+        history <- getsS (.history)
+        forM_ (lineKey history edit purpose recall) $ \(edit', recall') -> do
+          purpose' <- case purpose of
+            ForFind f -> ForFind <$> findAsYouType f (lineEditText edit')
+            other -> pure other
+          modifyS $ #prompt ?~ Prompt p.question (Line edit' purpose' recall')
   where
     close :: App es => Eff es ()
     close = modifyS $ #prompt .~ Nothing
+
+    -- The line after a key that edits it or recalls a line of the history.
+    -- The history leaves out the password, and the password the history.
+    lineKey
+      :: [T.Text] -> LineEdit -> LinePurpose -> Maybe Recall -> Maybe (LineEdit, Maybe Recall)
+    lineKey history edit purpose recall
+      | purpose == ForPassword = edited
+      | k `elem` [KeySpec mempty ArrowUp, ctrl 'p'] =
+          fmap Just <$> recallOlder history edit recall
+      | k `elem` [KeySpec mempty ArrowDown, ctrl 'n'] =
+          recallNewer history <$> recall
+      | otherwise = edited
+      where
+        -- An edit makes the recalled line the typed one.
+        edited :: Maybe (LineEdit, Maybe Recall)
+        edited = (,Nothing) <$> editLine k edit
+
+    ctrl :: Char -> KeySpec
+    ctrl c = KeySpec (S.singleton Ctrl) (CharKey c)
 
 -- | Run what a line prompt asked for. An empty line of @:@ does nothing.
 answer :: App es => LinePurpose -> T.Text -> Eff es ()

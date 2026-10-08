@@ -86,7 +86,7 @@ browserView env s v =
       visible = Seq.take h (Seq.drop v.offset s.browser.items)
       -- The matches of a find show while the user types it.
       found = case s.prompt of
-        Just (Prompt _ (Line edit (ForFind _)))
+        Just (Prompt _ (Line edit (ForFind _) _))
           | Right p <- compilePattern (lineEditText edit)
           , Right matched <- matchAll p (Seq.take h (Seq.drop v.offset s.browser.rows)) ->
               toList matched

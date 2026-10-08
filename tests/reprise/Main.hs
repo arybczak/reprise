@@ -11,6 +11,7 @@ import FindTests
 import FormatTests
 import HandlerTests
 import HelpTests
+import HistoryTests
 import KeymapTests
 import KeysTests
 import LayerTests
@@ -46,6 +47,7 @@ main = do
       , formatTests
       , handlerTests
       , helpTests
+      , historyTests
       , keymapTests
       , keysTests
       , layerTests

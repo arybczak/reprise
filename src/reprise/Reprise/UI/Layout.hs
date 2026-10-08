@@ -202,7 +202,7 @@ statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
       cfg.style
       (Span Nothing (question <> " [") : choices options <> [Span Nothing "]"])
       []
-  (Just (Prompt question (Line edit purpose)), _, _) ->
+  (Just (Prompt question (Line edit purpose _)), _, _) ->
     let p = promptLine s question edit purpose
     in line env s cfg.style [Span Nothing question, Span Nothing p.shown] [Span Nothing p.note]
   (_, Just pending, _) -> plain (T.unwords (map renderKeySpec pending.keys) <> " -")
@@ -272,7 +272,7 @@ promptLine s question edit purpose =
 -- its line.
 promptCursor :: AppState -> Maybe (Int, Int)
 promptCursor s = case s.prompt of
-  Just (Prompt question (Line edit purpose)) ->
+  Just (Prompt question (Line edit purpose _)) ->
     Just ((promptLine s question edit purpose).cursorColumn, snd s.terminalSize - 1)
   _ -> Nothing
 
