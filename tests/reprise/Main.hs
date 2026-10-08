@@ -7,6 +7,7 @@ import AddressTests
 import BrowserTests
 import CollationTests
 import ConfigTests
+import FileTests
 import FindTests
 import FormatTests
 import HandlerTests
@@ -43,6 +44,7 @@ main = do
       , browserTests
       , collationTests
       , configTests
+      , fileTests
       , findTests
       , formatTests
       , handlerTests

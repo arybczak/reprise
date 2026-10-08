@@ -18,8 +18,8 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import System.Directory
 import System.FilePath
-import System.IO
 
+import Reprise.File
 import Reprise.LineEdit
 
 -- | A line of the history that a prompt shows in place of what the user
@@ -101,16 +101,11 @@ readHistoryFile path = do
 
 -- | Add a line to a history file. Another reprise may have added its own
 -- lines since this one read the file, so the line goes into the file as it
--- is now, and both keep theirs. The file is replaced whole, so that a
--- reader never sees half of it.
+-- is now, and both keep theirs.
 saveToHistoryFile :: FilePath -> T.Text -> IO ()
 saveToHistoryFile path line = do
   history <- readHistoryFile path
   let history' = remember line history
   when (history' /= history) $ do
-    let dir = takeDirectory path
-    createDirectoryIfMissing True dir
-    (temp, h) <- openTempFile dir (takeFileName path)
-    BS.hPut h . T.encodeUtf8 . T.unlines $ reverse history'
-    hClose h
-    renameFile temp path
+    createDirectoryIfMissing True (takeDirectory path)
+    writeFileAtomically path . T.encodeUtf8 . T.unlines $ reverse history'

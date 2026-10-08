@@ -128,6 +128,7 @@ library
                      Reprise.Effect.UiRequest
                      Reprise.Event
                      Reprise.Exception
+                     Reprise.File
                      Reprise.Find
                      Reprise.Format
                      Reprise.Groups
@@ -296,6 +297,7 @@ test-suite reprise-tests
                     BrowserTests
                     CollationTests
                     ConfigTests
+                    FileTests
                     FindTests
                     FormatTests
                     HandlerTests

@@ -17,6 +17,7 @@ import System.FilePath
 import System.IO.Error
 
 import Reprise.Event
+import Reprise.File
 import Reprise.Lyrics
 import Reprise.Mpd.Protocol.Types
 
@@ -107,7 +108,7 @@ lyricsWorker src = go Nothing Nothing
 
     writeLyrics :: FilePath -> T.Text -> IO ()
     writeLyrics file text =
-      BS.writeFile (src.directory </> file) (T.encodeUtf8 (T.stripEnd text <> "\n"))
+      writeFileAtomically (src.directory </> file) (T.encodeUtf8 (T.stripEnd text <> "\n"))
 
 -- | The stored lyrics of a song in the directory: timed if the times are
 -- stored, else plain. A file that isn't UTF-8 shows, with its bytes that

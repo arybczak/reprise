@@ -538,7 +538,10 @@ ncmpcpp.
   the newest request, so the songs that the screen passed by aren't read,
   and a token drops the lyrics of a song that the screen left.
 - **Lyrics that aren't stored are fetched** from `lyrics.fetchers`, in
-  order, and stored, so that they are fetched once.
+  order, and stored, so that they are fetched once. A file is written to a
+  temporary file and renamed, as the history's is, so that a reader, e.g.
+  ncmpcpp sharing the directory, never sees half of it, and a write that
+  fails leaves the old lyrics.
   - **The screen says which fetcher is asked,** e.g. "Fetching the lyrics
     from LRCLIB…", as with two of them it can wait twice as long. It says
     so only once the worker found no lyrics stored, so stored ones show
@@ -873,6 +876,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Save` | What a save as a stored playlist saves, from the queue or the browser. `Reprise.Handler` asks for the name and saves |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
 | `Reprise.History` | The history that the line prompts share, recalling its lines, and its file |
+| `Reprise.File` | Writing a file whole, through a temporary file that takes its name |
 | `Reprise.Width` | The width of text in terminal columns, cutting and wrapping text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
 | `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
@@ -1299,7 +1303,11 @@ each hold few lines, and more prompts are coming, e.g. the search engine's.
     lines. The session's own history doesn't take the other's new lines
     until the next start, as in bash.
   - The file is written to a temporary file and renamed over the old one,
-    so that a reader never sees half of it.
+    so that a reader never sees half of it. A write that fails removes the
+    temporary file. Only a process killed without its cleanup, e.g. by
+    `SIGKILL`, leaves one, under a name of its own that reprise never
+    reads. A fixed name would leave none for long, but two reprises that
+    save at once would write the same temporary file.
   - A file that can't be read or written goes to the log, and the prompts
     work without it.
 
