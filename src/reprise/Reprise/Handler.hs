@@ -637,21 +637,20 @@ toggle = \case
   ToggleReplayGain -> request replayGainStatus ReplayGainFetched
   -- Of the browser in the browser, as ncmpcpp toggles the display of the
   -- screen that shows, and of the queue elsewhere.
-  ToggleDisplay -> do
-    screen <- getsS ((.screen) . focusedView)
-    if screen == BrowserScreen
-      then toggleBrowserDisplay
-      else do
-        modifyS $
-          #toggles % #queueDisplay %~ \case
-            Classic -> Columns
-            Columns -> Classic
-        modifyWithEnv (modifyView id)
-        d <- getsS (.toggles.queueDisplay)
-        showMessage $
-          "Display: " <> case d of
-            Classic -> "classic"
-            Columns -> "columns"
+  ToggleDisplay -> verb (Toggle ToggleDisplay) $ \case
+    QueueScreen -> Just $ do
+      modifyS $
+        #toggles % #queueDisplay %~ \case
+          Classic -> Columns
+          Columns -> Classic
+      modifyWithEnv (modifyView id)
+      d <- getsS (.toggles.queueDisplay)
+      showMessage $
+        "Display: " <> case d of
+          Classic -> "classic"
+          Columns -> "columns"
+    BrowserScreen -> Just toggleBrowserDisplay
+    _ -> Nothing
   ToggleAlbumSeparators -> notAvailable "Album separators"
   ToggleFollowPlaying -> verb (Toggle ToggleFollowPlaying) $ \case
     QueueScreen -> Just $ do

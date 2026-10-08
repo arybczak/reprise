@@ -856,7 +856,6 @@ defaultKeymaps =
               , char 'x' ~> Toggle (ToggleCrossfade 5)
               , char 'X' ~> CommandPrompt "crossfade"
               , char 'g' ~> Toggle ToggleReplayGain
-              , char 'd' ~> Toggle ToggleDisplay
               , char 'a' ~> Toggle ToggleAlbumSeparators
               , char 'b' ~> Toggle ToggleBitrate
               ]
@@ -897,7 +896,10 @@ defaultKeymaps =
                         ]
                     , char 'p' ~> CommandPrompt "priority"
                     ]
-                , group (char 't') "toggle" [char 'f' ~> Toggle ToggleFollowPlaying]
+                , group
+                    (char 't')
+                    "toggle"
+                    [char 'd' ~> Toggle ToggleDisplay, char 'f' ~> Toggle ToggleFollowPlaying]
                 ]
             )
           ,
@@ -905,7 +907,7 @@ defaultKeymaps =
             , keymap
                 [ plain Backspace ~> Parent
                 , char 'o' ~> JumpToPlaying
-                , group (char 't') "toggle" [char 'o' ~> NextSortMode]
+                , group (char 't') "toggle" [char 'd' ~> Toggle ToggleDisplay, char 'o' ~> NextSortMode]
                 ]
             )
           , -- As in ncmpcpp.

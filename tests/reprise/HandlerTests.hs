@@ -9,6 +9,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Reprise.Action
+import Reprise.Config
 import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Keys
@@ -40,6 +41,7 @@ handlerTests =
     , testCase
         "following the playing song in the queue and the lyrics"
         test_followPlayingScreens
+    , testCase "the display of the queue and the browser" test_displayScreens
     , testCase "stale timers keep the screen" test_staleTimers
     , testCase "cursor movement" test_cursorMovement
     , testCase "album navigation" test_albumNavigation
@@ -577,6 +579,23 @@ test_followPlayingScreens = do
     (Just "The browser screen has no toggle follow_playing")
     (message ran)
   assertBool "the queue still doesn't follow" (not ran.state.toggles.followPlaying)
+
+-- | The display is the queue's and the browser's. Elsewhere its keys aren't
+-- bound, and the action says that the screen has none.
+test_displayScreens :: Assertion
+test_displayScreens = do
+  s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+  queue <- keys ["t", "d"] s
+  assertEqual "the queue's" Classic queue.state.toggles.queueDisplay
+  outputs <- keys ["7"] s
+  assertEqual "the outputs' keys" (Just "t d is not bound") . message
+    =<< keys ["t", "d"] outputs.state
+  ran <- keys ([":"] <> typed "toggle display" <> ["enter"]) outputs.state
+  assertEqual
+    "the action in the outputs"
+    (Just "The outputs screen has no toggle display")
+    (message ran)
+  assertEqual "the queue's stays" Columns ran.state.toggles.queueDisplay
 
 test_staleTimers :: Assertion
 test_staleTimers = do

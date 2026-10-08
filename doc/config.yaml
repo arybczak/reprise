@@ -208,7 +208,6 @@ keys:
       x: toggle crossfade 5      # 0 or 5 seconds
       X: command crossfade       # asks for the seconds
       g: toggle replay_gain
-      d: toggle display          # columns or classic
       b: toggle bitrate
     g:
       name: go
@@ -233,12 +232,14 @@ keys:
         n: move_selection next   # after the playing song
       p: command priority        # asks for 0–255
     t:
+      d: toggle display          # columns or classic
       f: toggle follow_playing   # move the cursor to each song that plays
 
   browser:
     backspace: parent
     o: jump_to_playing           # the directory of the playing song
     t:
+      d: toggle display          # columns or classic
       o: next_sort_mode
 
   visualizer:

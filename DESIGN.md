@@ -1706,6 +1706,12 @@ The default keymap follows the [default keymap rule](#key-bindings):
     end, `b` the beginning, `n` next, after the playing song, and `c` the
     cursor. So `a n` adds songs where `e m n` moves them, and a later
     group that puts songs somewhere uses the same letters.
+  - **A toggle of what one screen shows is in that screen's `t` group,**
+    not in the global one: `t d` (the display) in the queue and the
+    browser, `t f` (following the playing song) in the queue and the
+    lyrics, and `t o` (the sort mode) in the browser. On another screen
+    it would change a screen that isn't shown, so its keys aren't bound
+    there, and the which-key panel shows them only where they apply.
   - **`g` goes somewhere:** to the song under the cursor in another screen,
     e.g. `g b` in the browser, and to a position in the song, `g s`, which
     is what ncmpcpp's `g` does. The media library and the tag editor will
@@ -1810,7 +1816,6 @@ keys:
       x: toggle crossfade 5         # 0 or 5 seconds
       X: command crossfade       # asks for the seconds
       g: toggle replay_gain
-      d: toggle display
       a: toggle album_separators
       b: toggle bitrate
     g:
@@ -1836,12 +1841,14 @@ keys:
         n: move_selection next   # after the playing song, as a n adds
       p: command priority        # asks for 0–255
     t:
+      d: toggle display          # of the queue
       f: toggle follow_playing   # move the cursor to each new song
 
   browser:
     backspace: parent
     o: jump_to_playing           # lists its directory, as G does
     t:
+      d: toggle display          # of the browser
       o: next_sort_mode
 
   visualizer:
