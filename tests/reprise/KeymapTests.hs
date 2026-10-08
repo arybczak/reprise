@@ -77,12 +77,12 @@ test_prefixesMerge :: Assertion
 test_prefixesMerge = do
   let queueKeymap =
         keymap
-          [ ("ctrl-q", BindPrefix (keymap [("m", BindAction (MoveSelection MoveSelectionToCursor))]))
+          [ ("ctrl-q", BindPrefix (keymap [("m", BindAction (MoveSongs MoveSongsToCursor))]))
           ]
       layers = Layers (Just queueKeymap) (Just globalKeymap)
   assertEqual
     "screen's key in the group"
-    (Bound (MoveSelection MoveSelectionToCursor))
+    (Bound (MoveSongs MoveSongsToCursor))
     (lookupKeys layers (keys ["ctrl-q", "m"]))
   assertEqual
     "global key in the group"
@@ -110,8 +110,8 @@ test_whichKey = do
   let queueGroup =
         named
           "queue extras"
-          [ ("m", BindAction (MoveSelection MoveSelectionToCursor))
-          , ("c", BindAction (MoveSelection MoveSelectionToEnd))
+          [ ("m", BindAction (MoveSongs MoveSongsToCursor))
+          , ("c", BindAction (MoveSongs MoveSongsToEnd))
           ]
       layers = Layers (Just (keymap [("ctrl-q", BindPrefix queueGroup)])) (Just globalKeymap)
   case lookupKey layers (key "ctrl-q") of
@@ -119,8 +119,8 @@ test_whichKey = do
       assertEqual "the screen's name first" (Just "queue extras") (layersName next)
       assertEqual
         "entries"
-        [ WhichKeyEntry (key "c") "move selection to the end" False True
-        , WhichKeyEntry (key "m") "move selection above the cursor" False True
+        [ WhichKeyEntry (key "c") "move to the end" False True
+        , WhichKeyEntry (key "m") "move the selection above the cursor" False True
         , WhichKeyEntry (key "s") "shuffle" False False
         ]
         (whichKeyEntries next)

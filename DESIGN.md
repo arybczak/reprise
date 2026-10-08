@@ -1148,7 +1148,7 @@ Key sequences, e.g. `t r`, are supported from the start:
 - A keymap is a tree. A binding is either an action or a prefix with its own
   keymap, and in YAML a prefix is simply a nested mapping. YAML already makes
   "both an action and a prefix" impossible. Prefixes nest to any depth, e.g.
-  the queue's `e m b`, move the selection to the beginning.
+  the queue's `e m b`, move songs to the beginning.
 - The pending prefix lives in `AppState`. It is not a blocking read, so MPD
   events keep updating the screen in the middle of a sequence.
 - The status bar shows the prefix (`t -`), and the

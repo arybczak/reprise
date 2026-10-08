@@ -17,7 +17,7 @@ module Reprise.Screen.Queue
   , activate
   , deleteMarked
   , prioritize
-  , moveSelection
+  , moveSongs
 
     -- * Finding
   , queueRows
@@ -171,8 +171,8 @@ prioritize p = do
   mutate $ prioId p ids
   showMessage $ "Priority " <> T.pack (show p) <> " set for " <> countSongs (length ids)
 
-moveSelection :: App es => MoveSelectionTarget -> Eff es ()
-moveSelection t = do
+moveSongs :: App es => MoveSongsTarget -> Eff es ()
+moveSongs t = do
   s <- getS
   let ps = markedPositions s
       n = queueLength s.mirror
@@ -183,20 +183,20 @@ moveSelection t = do
         when (or [moves a b && c >= a && c <= b | (a, b) <- runs ps]) $
           modifyWithEnv (setCursor (c + delta))
   case t of
-    MoveSelectionUp -> do
+    MoveSongsUp -> do
       mutate $ moveUp ps
       follow (\a _ -> a > 0) (-1)
-    MoveSelectionDown -> do
+    MoveSongsDown -> do
       mutate $ moveDown n ps
       follow (\_ b -> b < n - 1) 1
-    MoveSelectionToCursor -> case selectedSongPositions s of
+    MoveSongsToCursor -> case selectedSongPositions s of
       [] -> showMessage "Select the songs to move first"
       selected -> case moveBefore selected c of
         Just cmd -> mutate cmd
         Nothing -> showMessage "The cursor is among the selected songs"
-    MoveSelectionToEnd -> forM_ (moveBefore ps n) mutate
-    MoveSelectionToBeginning -> mutate (moveToStart ps)
-    MoveSelectionToNext -> case currentPosition s.mirror of
+    MoveSongsToEnd -> forM_ (moveBefore ps n) mutate
+    MoveSongsToBeginning -> mutate (moveToStart ps)
+    MoveSongsToNext -> case currentPosition s.mirror of
       Nothing -> showMessage "No song is playing"
       Just current
         | current `elem` ps -> showMessage "The playing song is among the songs to move"

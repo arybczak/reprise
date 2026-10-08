@@ -46,8 +46,8 @@ Keys that are new in reprise:
 
 - `ctrl-q` quits from anywhere, also in a prompt, and can't be rebound.
 - `shift-up` and `shift-down` select songs while moving.
-- `e m e`, `e m b` and `e m n` move the selection to the end, to the
-  beginning and after the playing song. `a e`, `a b` and `a n` add songs
+- `e m e`, `e m b` and `e m n` move songs to the end, to the beginning and
+  after the playing song. `a e`, `a b` and `a n` add songs
   to the same places, and `a p` adds and plays them.
 - `v A` selects the songs of the artist around the cursor.
 - `:` runs an action by its name, e.g. `:volume 50` or `:add_path dir/x.flac`.

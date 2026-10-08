@@ -399,8 +399,8 @@ runAction = \case
   action@(Priority p) -> verb action $ \case
     QueueScreen -> Just $ prioritize p
     _ -> Nothing
-  action@(MoveSelection t) -> verb action $ \case
-    QueueScreen -> Just $ moveSelection t
+  action@(MoveSongs t) -> verb action $ \case
+    QueueScreen -> Just $ moveSongs t
     _ -> Nothing
   action@(Find t) -> verb action $ \screen ->
     if screen `elem` [QueueScreen, BrowserScreen]

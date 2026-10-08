@@ -881,18 +881,18 @@ defaultKeymaps =
                 [ -- As in the author's ncmpcpp bindings.
                   plain Space ~> Select (SelectItem (Just MoveDown))
                 , char 'o' ~> JumpToPlaying
-                , char 'm' ~> MoveSelection MoveSelectionUp
-                , char 'n' ~> MoveSelection MoveSelectionDown
+                , char 'm' ~> MoveSongs MoveSongsUp
+                , char 'n' ~> MoveSongs MoveSongsDown
                 , group
                     (char 'e')
                     "edit"
                     [ group
                         (char 'm')
-                        "move selection"
-                        [ char 'c' ~> MoveSelection MoveSelectionToCursor
-                        , char 'e' ~> MoveSelection MoveSelectionToEnd
-                        , char 'b' ~> MoveSelection MoveSelectionToBeginning
-                        , char 'n' ~> MoveSelection MoveSelectionToNext
+                        "move"
+                        [ char 'c' ~> MoveSongs MoveSongsToCursor
+                        , char 'e' ~> MoveSongs MoveSongsToEnd
+                        , char 'b' ~> MoveSongs MoveSongsToBeginning
+                        , char 'n' ~> MoveSongs MoveSongsToNext
                         ]
                     , char 'p' ~> CommandPrompt "priority"
                     ]

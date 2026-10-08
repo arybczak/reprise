@@ -107,8 +107,8 @@ down. The group `e` edits:
 
 - `e c` clears the queue, after asking, and `e s` shuffles it;
 - `e w` saves the queue, or the selection, as a stored playlist;
-- `e m c`, `e m e`, `e m b` and `e m n` move the selection above the cursor,
-  to the end, to the beginning, or after the playing song;
+- `e m e`, `e m b` and `e m n` move songs to the end, to the beginning, or
+  after the playing song, and `e m c` moves the selection above the cursor;
 - `e p` sets the priority of songs, which MPD plays first in random mode.
 
 `o` moves the cursor to the playing song, and `g b` shows the song under the

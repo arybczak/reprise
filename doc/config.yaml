@@ -221,15 +221,15 @@ keys:
   queue:
     space: select down
     o: jump_to_playing
-    m: move_selection up
-    n: move_selection down
+    m: move_songs up
+    n: move_songs down
     e:
       m:
-        name: move selection
-        c: move_selection cursor # above the cursor
-        e: move_selection end
-        b: move_selection beginning
-        n: move_selection next   # after the playing song
+        name: move
+        c: move_songs cursor     # the selection, above the cursor
+        e: move_songs end
+        b: move_songs beginning
+        n: move_songs next       # after the playing song
       p: command priority        # asks for 0–255
     t:
       d: toggle display          # columns or classic

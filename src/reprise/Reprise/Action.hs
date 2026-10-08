@@ -14,7 +14,7 @@ module Reprise.Action
   , VolumeChange (..)
   , SeekStep (..)
   , UpdateScope (..)
-  , MoveSelectionTarget (..)
+  , MoveSongsTarget (..)
 
     -- * Screens
   , ScreenName (..)
@@ -80,7 +80,7 @@ data Action
   | Save
   | Toggle ToggleTarget
   | Update UpdateScope
-  | MoveSelection MoveSelectionTarget
+  | MoveSongs MoveSongsTarget
   | Priority Int
   | NextSortMode
   | RefetchLyrics
@@ -145,13 +145,13 @@ data SeekStep
 data UpdateScope = UpdateCurrent | UpdateAll
   deriving stock (Eq, Show, Enum, Bounded)
 
-data MoveSelectionTarget
-  = MoveSelectionUp
-  | MoveSelectionDown
-  | MoveSelectionToCursor
-  | MoveSelectionToEnd
-  | MoveSelectionToBeginning
-  | MoveSelectionToNext
+data MoveSongsTarget
+  = MoveSongsUp
+  | MoveSongsDown
+  | MoveSongsToCursor
+  | MoveSongsToEnd
+  | MoveSongsToBeginning
+  | MoveSongsToNext
   deriving stock (Eq, Show, Enum, Bounded)
 
 ----------------------------------------
@@ -283,17 +283,17 @@ registry =
       _ -> Left "expected an option"
   , spec "update" "current | all" $
       one (fmap Update . choice "scope" [("current", UpdateCurrent), ("all", UpdateAll)])
-  , spec "move_selection" "up | down | cursor | end | beginning | next"
+  , spec "move_songs" "up | down | cursor | end | beginning | next"
       $ one
-      $ fmap MoveSelection
+      $ fmap MoveSongs
         . choice
           "target"
-          [ ("up", MoveSelectionUp)
-          , ("down", MoveSelectionDown)
-          , ("cursor", MoveSelectionToCursor)
-          , ("end", MoveSelectionToEnd)
-          , ("beginning", MoveSelectionToBeginning)
-          , ("next", MoveSelectionToNext)
+          [ ("up", MoveSongsUp)
+          , ("down", MoveSongsDown)
+          , ("cursor", MoveSongsToCursor)
+          , ("end", MoveSongsToEnd)
+          , ("beginning", MoveSongsToBeginning)
+          , ("next", MoveSongsToNext)
           ]
   , spec "priority" "0-255" $ one (fmap Priority . priority)
   , spec "next_sort_mode" "" $ none NextSortMode
@@ -517,14 +517,14 @@ renderAction = \case
     "update " <> case s of
       UpdateCurrent -> "current"
       UpdateAll -> "all"
-  MoveSelection t ->
-    "move_selection " <> case t of
-      MoveSelectionUp -> "up"
-      MoveSelectionDown -> "down"
-      MoveSelectionToCursor -> "cursor"
-      MoveSelectionToEnd -> "end"
-      MoveSelectionToBeginning -> "beginning"
-      MoveSelectionToNext -> "next"
+  MoveSongs t ->
+    "move_songs " <> case t of
+      MoveSongsUp -> "up"
+      MoveSongsDown -> "down"
+      MoveSongsToCursor -> "cursor"
+      MoveSongsToEnd -> "end"
+      MoveSongsToBeginning -> "beginning"
+      MoveSongsToNext -> "next"
   Priority p -> "priority " <> T.pack (show p)
   NextSortMode -> "next_sort_mode"
   RefetchLyrics -> "refetch_lyrics"
@@ -619,13 +619,13 @@ describeAction = \case
   Update s -> case s of
     UpdateCurrent -> "update the database here"
     UpdateAll -> "update the whole database"
-  MoveSelection t -> case t of
-    MoveSelectionUp -> "move selection up"
-    MoveSelectionDown -> "move selection down"
-    MoveSelectionToCursor -> "move selection above the cursor"
-    MoveSelectionToEnd -> "move selection to the end"
-    MoveSelectionToBeginning -> "move selection to the beginning"
-    MoveSelectionToNext -> "move selection after the playing song"
+  MoveSongs t -> case t of
+    MoveSongsUp -> "move up"
+    MoveSongsDown -> "move down"
+    MoveSongsToCursor -> "move the selection above the cursor"
+    MoveSongsToEnd -> "move to the end"
+    MoveSongsToBeginning -> "move to the beginning"
+    MoveSongsToNext -> "move after the playing song"
   Priority p -> "set priority " <> T.pack (show p)
   NextSortMode -> "next sort mode"
   RefetchLyrics -> "fetch the lyrics again"

@@ -56,7 +56,7 @@ test_renderParse =
     , Toggle (ToggleCrossfade 5)
     , Toggle ToggleAlbumSeparators
     , Update UpdateAll
-    , MoveSelection MoveSelectionToEnd
+    , MoveSongs MoveSongsToEnd
     , Priority 5
     , Crossfade 3
     , CommandPrompt ""

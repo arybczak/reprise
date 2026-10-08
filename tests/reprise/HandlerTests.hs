@@ -74,8 +74,8 @@ handlerTests =
     , testCase "the help screen has no selection" test_selectOnHelp
     , testCase "songs that leave the queue leave the selection" test_selectionPruned
     , testCase "delete the marked songs" test_delete
-    , testCase "move the marked songs up and down" test_moveSelection
-    , testCase "move the selection to a place" test_moveSelectionTo
+    , testCase "move the marked songs up and down" test_moveSongs
+    , testCase "move songs to a place" test_moveSongsTo
     , testCase "shuffle the selection" test_shuffleSelection
     ]
 
@@ -301,8 +301,8 @@ test_delete = do
   assertEqual "under the cursor" [[Request "delete" ["1:2"]]] . (.requests)
     =<< keys ["down", "delete"] s
 
-test_moveSelection :: Assertion
-test_moveSelection = do
+test_moveSongs :: Assertion
+test_moveSongs = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   up <- keys ["down", "insert", "m"] s
   assertEqual "up" [[Request "move" ["0:1", "1"]]] up.requests
@@ -318,8 +318,8 @@ test_moveSelection = do
   assertEqual "the top stays" [] top.requests
   assertEqual "with the cursor" 0 (cursor top)
 
-test_moveSelectionTo :: Assertion
-test_moveSelectionTo = do
+test_moveSongsTo :: Assertion
+test_moveSongsTo = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   assertEqual "above the cursor" [[Request "move" ["0:1", "3"]]] . (.requests)
     =<< keys ["insert", "end", "e", "m", "c"] s
