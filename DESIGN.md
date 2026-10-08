@@ -638,9 +638,10 @@ ncmpcpp.
   the lyrics screen shows, as ncmpcpp's `follow_now_playing_lyrics` does.
   Only a new song moves the screen, so `l` still shows the lyrics of
   another song until then. Space on the lyrics screen toggles it, as in
-  ncmpcpp, with `toggle follow_playing`, which toggles the queue's on the
-  other screens, as `toggle display` does the browser's in the browser.
-  Turned on, it shows the lyrics of the song that plays at once.
+  ncmpcpp, and so does `t f`, with `toggle follow_playing`, which toggles
+  the queue's in the queue. Turned on, it shows the lyrics of the song that
+  plays at once. The other screens have no such toggle, so `t f` is bound
+  only on these two, and the which-key panel marks it as theirs.
 - **`e e` edits the stored lyrics,** as ncmpcpp's `e` does: the `.lrc` if
   the times show, else the `.txt`. The lyrics show again when the editor
   exits.
@@ -1799,7 +1800,6 @@ keys:
       g: toggle replay_gain
       d: toggle display
       a: toggle album_separators
-      f: toggle follow_playing
       b: toggle bitrate
     g:
       name: go
@@ -1823,6 +1823,8 @@ keys:
         b: move_selection beginning
         n: move_selection next   # after the playing song, as a n adds
       p: command priority        # asks for 0–255
+    t:
+      f: toggle follow_playing   # move the cursor to each new song
 
   browser:
     backspace: parent
@@ -1837,6 +1839,8 @@ keys:
     "`": refetch_lyrics          # as in ncmpcpp
     e:
       e: edit_lyrics             # in editor.command, $VISUAL or $EDITOR
+    t:
+      f: toggle follow_playing   # of the lyrics here, as the queue's t f
     space: toggle follow_playing # of the lyrics here, as in ncmpcpp
     o: jump_to_playing           # follow the line being sung again
     l: back                      # as the key that showed them, as in ncmpcpp

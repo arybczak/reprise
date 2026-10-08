@@ -37,6 +37,9 @@ handlerTests =
     , testCase "seeking" test_seek
     , testCase "a stale seek timer" test_staleSeek
     , testCase "one timer hides the cursor" test_cursorTimer
+    , testCase
+        "following the playing song in the queue and the lyrics"
+        test_followPlayingScreens
     , testCase "stale timers keep the screen" test_staleTimers
     , testCase "cursor movement" test_cursorMovement
     , testCase "album navigation" test_albumNavigation
@@ -547,6 +550,24 @@ test_cursorTimer = do
   assertBool "hidden" (not (cursorVisible late.state))
   next <- runEvents 9 [key' "down"] late.state
   assertEqual "a new timer for the next key" [5] [d | After d HideCursor <- next.commands]
+
+-- | Following the playing song is the queue's and the lyrics screen's.
+-- Elsewhere its keys aren't bound, and the action says that the screen has
+-- none.
+test_followPlayingScreens :: Assertion
+test_followPlayingScreens = do
+  s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+  queue <- keys ["t", "f"] s
+  assertBool "the queue follows" queue.state.toggles.followPlaying
+  browser <- keys ["2"] s
+  assertEqual "the browser's keys" (Just "t f is not bound") . message
+    =<< keys ["t", "f"] browser.state
+  ran <- keys ([":"] <> typed "toggle follow_playing" <> ["enter"]) browser.state
+  assertEqual
+    "the action in the browser"
+    (Just "The browser screen has no toggle follow_playing")
+    (message ran)
+  assertBool "the queue still doesn't follow" (not ran.state.toggles.followPlaying)
 
 test_staleTimers :: Assertion
 test_staleTimers = do

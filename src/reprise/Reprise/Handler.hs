@@ -652,15 +652,13 @@ toggle = \case
             Classic -> "classic"
             Columns -> "columns"
   ToggleAlbumSeparators -> notAvailable "Album separators"
-  -- Of the lyrics on the lyrics screen, and of the queue elsewhere.
-  ToggleFollowPlaying -> do
-    screen <- getsS ((.screen) . focusedView)
-    if screen == LyricsScreen
-      then toggleLyricsFollowing
-      else do
-        localToggle "Follow playing" #followPlaying
-        follow <- getsS (.toggles.followPlaying)
-        when follow (modifyWithEnv jumpToPlaying)
+  ToggleFollowPlaying -> verb (Toggle ToggleFollowPlaying) $ \case
+    QueueScreen -> Just $ do
+      localToggle "Follow playing" #followPlaying
+      follow <- getsS (.toggles.followPlaying)
+      when follow (modifyWithEnv jumpToPlaying)
+    LyricsScreen -> Just toggleLyricsFollowing
+    _ -> Nothing
   ToggleBitrate -> localToggle "Bitrate" #showBitrate
   ToggleVisualization -> nextVisualization
   where

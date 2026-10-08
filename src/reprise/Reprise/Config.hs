@@ -858,7 +858,6 @@ defaultKeymaps =
               , char 'g' ~> Toggle ToggleReplayGain
               , char 'd' ~> Toggle ToggleDisplay
               , char 'a' ~> Toggle ToggleAlbumSeparators
-              , char 'f' ~> Toggle ToggleFollowPlaying
               , char 'b' ~> Toggle ToggleBitrate
               ]
           , group
@@ -898,6 +897,7 @@ defaultKeymaps =
                         ]
                     , char 'p' ~> CommandPrompt "priority"
                     ]
+                , group (char 't') "toggle" [char 'f' ~> Toggle ToggleFollowPlaying]
                 ]
             )
           ,
@@ -916,6 +916,7 @@ defaultKeymaps =
             , keymap
                 [ char '`' ~> RefetchLyrics
                 , group (char 'e') "edit" [char 'e' ~> EditLyrics]
+                , group (char 't') "toggle" [char 'f' ~> Toggle ToggleFollowPlaying]
                 , plain Space ~> Toggle ToggleFollowPlaying
                 , char 'o' ~> JumpToPlaying
                 , -- As the key that showed them, as in ncmpcpp.
