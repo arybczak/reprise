@@ -97,10 +97,10 @@ song, and `a p` adds and plays it.
 ### Selecting and editing the queue
 
 `insert` selects the song under the cursor, `shift-up` and `shift-down`
-select while moving, and in the queue `space` selects too. The group `v`
-selects more: `v r` a range, `v a` the album, `v i` the opposite, and `v c`
-nothing. An action acts on the selection, or on the song under the cursor
-without one.
+select while moving, and in the queue `space` selects too. `V` clears the
+selection. The group `v` selects more: `v r` a range, `v a` the album, and
+`v i` the opposite. An action acts on the selection, or on the song under
+the cursor without one.
 
 In the queue, `delete` removes songs, `m` and `n` move them up and down,
 and `M` moves the selection above the cursor. The group `e` edits:

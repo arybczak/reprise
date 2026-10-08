@@ -141,6 +141,7 @@ keys:
     shift-up: select up          # toggle the selection, then move
     shift-down: select down
     insert: select
+    V: select none               # clear the selection
 
     # each screen does these its own way
     enter: activate              # play, enter a directory, switch an output
@@ -195,7 +196,6 @@ keys:
       name: selection
       r: select range
       i: select invert
-      c: select none
       a: select album
       A: select artist
       f: select found

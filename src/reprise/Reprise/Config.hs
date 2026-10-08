@@ -784,6 +784,7 @@ defaultKeymaps =
           , shift ArrowUp ~> Select (SelectItem (Just MoveUp))
           , shift ArrowDown ~> Select (SelectItem (Just MoveDown))
           , plain InsertKey ~> Select (SelectItem Nothing)
+          , char 'V' ~> Select SelectNone
           , -- Verbs: each screen implements them its own way.
             plain Enter ~> Activate
           , plain Space ~> AddOrRemove
@@ -841,7 +842,6 @@ defaultKeymaps =
               "selection"
               [ char 'r' ~> Select SelectRange
               , char 'i' ~> Select SelectInvert
-              , char 'c' ~> Select SelectNone
               , char 'a' ~> Select SelectAlbum
               , char 'A' ~> Select SelectArtist
               , char 'f' ~> Select SelectFound

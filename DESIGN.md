@@ -1614,7 +1614,8 @@ The default keymap follows the [default keymap rule](#key-bindings):
     somewhere uses the same letters.
   - **`M` moves the selection above the cursor,** as in ncmpcpp. It is in
     daily use, and unlike the moves of `e m` it needs a selection, as the
-    song under the cursor can't move above itself.
+    song under the cursor can't move above itself. `V` clears the
+    selection, as in ncmpcpp, as it is in daily use too.
   - **A toggle of what one screen shows is in that screen's `t` group,**
     not in the global one: `t d` (the display) in the queue and the
     browser, `t f` (following the playing song) in the queue and the

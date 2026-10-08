@@ -124,7 +124,7 @@ test_selectInvertNone :: Assertion
 test_selectInvertNone = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   assertEqual "inverted" (ids [2 .. 5]) . selected =<< keys ["insert", "v", "i"] s
-  assertEqual "cleared" (ids []) . selected =<< keys ["space", "space", "v", "c"] s
+  assertEqual "cleared" (ids []) . selected =<< keys ["space", "space", "V"] s
 
 test_selectAlbum :: Assertion
 test_selectAlbum = do

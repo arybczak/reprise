@@ -21,7 +21,7 @@ good start.
 
 The everyday keys are ncmpcpp's: `p`, `s`, `<`, `>`, `f`, `b`, `+`, `-`,
 `enter`, `space`, `delete`, `/`, `?`, `.`, `,`, `1`, `2`, `7`, `8`, `l`,
-`i`, `o`, `M`, `tab`, `f1`, `q`. The rest moved into groups of keys: press the
+`i`, `o`, `M`, `V`, `tab`, `f1`, `q`. The rest moved into groups of keys: press the
 first key, and a panel at the bottom lists what can follow it. `f1` lists
 every key.
 
@@ -35,7 +35,7 @@ every key.
 | `Z` | `e s` | shuffle the queue, or the selected songs |
 | `S` | `e w` | save the queue, or the selection, as a stored playlist |
 | `ctrl-p` | `e p` | set the priority of songs |
-| reverse, remove the selection | `v i`, `v c` | |
+| `v` (reverse the selection) | `v i` | |
 | select the album, a range, the found items | `v a`, `v r`, `v f` | |
 | `G` | `g b` | the song under the cursor in the browser |
 | `g` | `g s` | seek to a position |
