@@ -191,6 +191,7 @@ executable reprise
                     , http-client-tls
                     , optparse-applicative >= 0.18
                     , reprise
+                    , reprise:mpd-protocol
                     , stm
                     , strict-mutable-base
                     , text

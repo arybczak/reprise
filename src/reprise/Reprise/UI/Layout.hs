@@ -251,15 +251,22 @@ promptLine s question edit purpose =
         ForCommand -> actionHint (lineEditText edit)
         ForFind f -> fromMaybe "" f.note
         ForSave _ -> ""
+        ForPassword -> ""
+      shownEdit = case purpose of
+        ForPassword -> LineEdit (stars edit.before) (stars edit.after)
+        _ -> edit
       -- The line and a column for the cursor come first, then a space and
       -- as much of the note as fits.
-      noteRoom = w - textWidth question - textWidth (lineEditText edit) - 2
+      noteRoom = w - textWidth question - textWidth (lineEditText shownEdit) - 2
       note
         | T.null fullNote || noteRoom < textWidth ellipsis = ""
         | otherwise = " " <> truncateToWidth noteRoom fullNote
       room = max 1 (w - textWidth question - textWidth note)
-      (shown, column) = visibleLine room edit
+      (shown, column) = visibleLine room shownEdit
   in PromptLine shown (textWidth question + column) note
+  where
+    stars :: T.Text -> T.Text
+    stars = T.map (const '*')
 
 -- | Where the terminal's cursor shows: in a line prompt, at the cursor of
 -- its line.

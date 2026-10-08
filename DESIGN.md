@@ -937,7 +937,9 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
   can't reach the UI thread, so this is where it becomes a value. Unless a
   query names its own (see below), the failure event is `MpdFailed` with the
   request lines, so errors are handled in one place: the status bar shows
-  them, and later the password prompt can retry the failed request there.
+  them.
+- A command that MPD refuses without a password, or with a wrong one,
+  doesn't fail at once (see [Errors and logging](#errors-and-logging)).
 - Mutations (play, delete, move, ...) don't need the reply. The new state comes
   back through `idle`.
 - Queries (`lsinfo`, `find`, ...) deliver their result to the screen that asked
@@ -1051,9 +1053,21 @@ never use it directly; they go through `MpdRequest`.
   that reprise isn't connected.
 - **MPD errors** (`ACK` replies) appear in the status bar, with the command
   that failed.
-- **Permission errors** (`ACK [4@...]`) prompt for the password, send it, and
-  retry the command. Cancelling the prompt leaves reprise running but
-  read-only.
+- **Permission errors** (`ACK [4@...]`), and a wrong password (`ACK
+  [3@...]`), prompt for the password, as ncmpcpp does. The command worker
+  keeps the refused request, and every request after it, until the
+  answer, so that they still run in order and keep their continuations.
+  The UI only knows the request lines of a failure, which would lose a
+  query's reply.
+  - The worker opens a new connection with the password, which works also
+    when the connection itself was refused for a wrong password, then
+    runs the requests again. A request that MPD refuses again asks again.
+  - Both workers send the password that MPD accepted on every later
+    connection, so the idle connection gets it at its next reconnect.
+  - Cancelling fails the refused request with MPD's error and runs the
+    others. The next refused command asks again.
+  - The prompt replaces any other prompt, since the requests wait for it,
+    and shows the password as stars.
 - **Logging.** Unexpected exceptions and protocol errors go to
   `$XDG_STATE_HOME/reprise/reprise.log`, never to the terminal while the UI is
   running. Each run appends to the file.
@@ -2061,7 +2075,7 @@ fourmolu job. `mpd` and `flac` are for the protocol and queue sync tests, and
 
 reprise replaces ncmpcpp for the author's daily use. What remains of the
 [core](#core):
-- Album separators in the queue and the password prompt.
+- Album separators in the queue.
 - Filtering lists.
 - The search engine.
 

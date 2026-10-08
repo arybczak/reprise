@@ -15,6 +15,7 @@ module Reprise.Effect.Mpd
   ) where
 
 import Data.IORef.Strict qualified as S
+import Data.Text qualified as T
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Exception
@@ -33,13 +34,15 @@ data Mpd :: Effect where
 type instance DispatchOf Mpd = Dynamic
 
 -- | Run the effect with one connection at a time. A command without a
--- connection opens one first.
-runMpd :: IOE :> es => Settings -> Eff (Mpd : es) a -> Eff es a
-runMpd settings action = do
+-- connection opens one first. Each connection reads the password anew, so
+-- that it has the one that the user gave last.
+runMpd :: IOE :> es => Settings -> IO (Maybe T.Text) -> Eff (Mpd : es) a -> Eff es a
+runMpd settings currentPassword action = do
   ref <- liftIO $ S.newIORef Nothing
   let disconnect = S.readIORef ref >>= mapM_ close >> S.writeIORef ref Nothing
       connected = do
-        conn <- connect settings
+        p <- currentPassword
+        conn <- connect settings {password = p}
         S.writeIORef ref (Just conn)
         pure conn
       withConnection' :: (Connection -> IO a) -> IO a

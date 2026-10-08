@@ -41,6 +41,7 @@ import Reprise.Lyrics.Lrclib
 import Reprise.Lyrics.Tekstowo
 import Reprise.Lyrics.Worker
 import Reprise.Mpd.Address
+import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Worker
 import Reprise.State
 import Reprise.Style
@@ -101,10 +102,20 @@ main = do
   settings <- resolveSettings config.mpd <$> sources opts
   logLine <- openLog
   requests <- newTQueueIO
+  password <- newTVarIO settings.password
   events <- B.newBChan eventChannelSize
   visualizing <- newTVarIO Nothing
-  let workers = Workers {emit = B.writeBChan events, logLine = logLine, requests = requests}
-      mpdWorkers = [runEff . runMpd settings $ worker workers | worker <- [idleWorker, commandWorker]]
+  let workers =
+        Workers
+          { emit = B.writeBChan events
+          , logLine = logLine
+          , requests = requests
+          , password = password
+          }
+      mpdWorkers =
+        [ runEff . runMpd settings (readTVarIO password) $ worker workers
+        | worker <- [idleWorker, commandWorker]
+        ]
   visualizer <- forM config.visualizer.dataSource $ \source -> do
     path <- expandHome source
     let FrameRate fps = config.visualizer.fps

@@ -67,6 +67,7 @@ handlerTests =
     , testCase "prompts for a value" test_promptAnswers
     , testCase "ctrl-q always quits" test_alwaysQuit
     , testCase "a prompt takes the keys" test_promptKeys
+    , testCase "ask for the password" test_passwordPrompt
     , testCase "find as you type" test_findAsYouType
     , testCase "find the next and the previous match" test_findAgain
     , testCase "find after the rows change" test_findRowsChange
@@ -169,6 +170,42 @@ test_alwaysQuit = do
   forM_ [[], [":", "x"], ["t"]] $ \before -> do
     r <- keys (before <> ["ctrl-q"]) s
     assertEqual (show before) [()] [() | Halt <- r.commands]
+
+test_passwordPrompt :: Assertion
+test_passwordPrompt = do
+  s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+  let refusal = AckError $ Ack AckPermission 0 "pause" "you don't have permission for \"pause\""
+  asked <- runEvents 0 [PasswordNeeded refusal] =<< (.state) <$> keys ["t"] s
+  assertEqual
+    "the question"
+    (Just "MPD refused pause. Password: ")
+    ((.question) <$> asked.state.prompt)
+  assertEqual "the pending keys end" Nothing asked.state.pendingKeys
+  typing <- keys (typed "secret") asked.state
+  assertEqual
+    "stars"
+    (Just "MPD refused pause. Password: ******")
+    (fmap T.stripEnd . lastMaybe . imageLines $ renderScreen testAppEnv typing.state)
+  answered <- keys ["enter"] typing.state
+  assertEqual "the answer" [Just "secret"] (passwordAnswers answered)
+  assertEqual "closed" Nothing answered.state.prompt
+  cancelled <- keys ["escape"] typing.state
+  assertEqual "a cancel" [Nothing] (passwordAnswers cancelled)
+  assertEqual "closed by a cancel" Nothing cancelled.state.prompt
+  wrong <-
+    runEvents
+      0
+      [PasswordNeeded . AckError $ Ack AckPassword 0 "password" "incorrect password"]
+      s
+  assertEqual
+    "a wrong password"
+    (Just "Wrong password. Password: ")
+    ((.question) <$> wrong.state.prompt)
+  where
+    lastMaybe :: [a] -> Maybe a
+    lastMaybe = \case
+      [] -> Nothing
+      xs -> Just (last xs)
 
 test_promptKeys :: Assertion
 test_promptKeys = do

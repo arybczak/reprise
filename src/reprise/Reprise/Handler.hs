@@ -135,6 +135,16 @@ handleEvent = \case
         ReplayGainAuto -> "auto"
   MpdDone -> keepScreen
   MpdFailed _ err -> showError $ T.pack (displayException err)
+  -- MPD's requests wait for the answer, so the prompt replaces any other.
+  PasswordNeeded err -> do
+    let reason = case err of
+          AckError ack
+            | ack.code == AckPassword -> "Wrong password"
+            | otherwise -> "MPD refused " <> ack.command
+          _ -> T.pack (displayException err)
+    modifyS $
+      (#pendingKeys .~ Nothing)
+        . openLine (reason <> ". Password: ") emptyLineEdit ForPassword
   Tick token ->
     getsS (.tick) >>= \case
       Just (t, _) | t == token -> modifyS $ #tick .~ Nothing
@@ -315,6 +325,7 @@ handlePromptKey p k = case p.input of
         close
         case purpose of
           ForFind f -> modifyWithEnv (restoreView f.origin)
+          ForPassword -> answerPassword Nothing
           _ -> pure ()
     | Just edit' <- editLine k edit -> do
         purpose' <- case purpose of
@@ -331,6 +342,7 @@ answer :: App es => LinePurpose -> T.Text -> Eff es ()
 answer purpose text = case purpose of
   ForFind f -> acceptFind f text
   ForSave source -> saveNamed source (T.strip text)
+  ForPassword -> answerPassword (Just text)
   ForCommand
     | T.null (T.strip text) -> pure ()
     | otherwise -> either showError runAction (parseAction text)

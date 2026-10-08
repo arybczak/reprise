@@ -12,6 +12,7 @@ module Utils
   , Result (..)
   , replyTo
   , failureOf
+  , passwordAnswers
 
     -- * Images
   , imageLines
@@ -134,12 +135,20 @@ runEventsWith env now events s0 = foldM step (Result s0 [] [] []) events
 -- | The event of a request's continuation, for a reply of the given lines
 -- before its @OK@.
 replyTo :: [BS.ByteString] -> PendingRequest -> AppEvent
-replyTo ls (PendingRequest cmd _ k) =
-  either (error . show) k $ parseCommandReply cmd =<< parseReply (ls <> ["OK"])
+replyTo ls = \case
+  PendingRequest cmd _ k ->
+    either (error . show) k $ parseCommandReply cmd =<< parseReply (ls <> ["OK"])
+  PasswordAnswer _ -> error "a password answer has no reply"
 
 -- | The event of a request's failure.
 failureOf :: MpdError -> PendingRequest -> AppEvent
-failureOf err (PendingRequest _ onFailure _) = onFailure err
+failureOf err = \case
+  PendingRequest _ onFailure _ -> onFailure err
+  PasswordAnswer _ -> error "a password answer can't fail"
+
+-- | The answers to 'PasswordNeeded' that the events gave.
+passwordAnswers :: Result -> [Maybe T.Text]
+passwordAnswers r = [a | PasswordAnswer a <- r.pending]
 
 ----------------------------------------
 -- Images

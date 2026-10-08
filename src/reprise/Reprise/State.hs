@@ -186,6 +186,8 @@ data LinePurpose
   | ForFind Finding
   | -- | The name of the stored playlist to save to.
     ForSave SaveSource
+  | -- | The password that MPD asked for. The line shows as stars.
+    ForPassword
   deriving stock (Eq, Show)
 
 -- | A find in progress, which moves the cursor while the user types.

@@ -44,6 +44,9 @@ data AppEvent
     MpdDone
   | -- | A requested command failed, instead of its continuation.
     MpdFailed [Request] MpdError
+  | -- | MPD refused a command without a password, or refused the password.
+    -- The requests wait for 'Reprise.Effect.MpdRequest.answerPassword'.
+    PasswordNeeded MpdError
   | -- | A timer for the next redraw of the elapsed time, with its token.
     Tick Int
   | -- | The pause after the last seek key, with its token.
