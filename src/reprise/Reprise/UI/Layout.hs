@@ -9,7 +9,6 @@ import Data.List qualified as L
 import Data.Maybe
 import Data.Set qualified as S
 import Data.Text qualified as T
-import Data.Word
 import Graphics.Vty qualified as V
 import Optics.Core
 
@@ -206,7 +205,8 @@ statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
     let p = promptLine s question edit purpose
     in line env s cfg.style [Span Nothing question, Span Nothing p.shown] [Span Nothing p.note]
   (_, Just pending, _) -> plain (T.unwords (map renderKeySpec pending.keys) <> " -")
-  (_, _, Just m) -> line env s cfg.style [Span (if m.isError then Just errorStyle else Nothing) m.text] []
+  (_, _, Just m) ->
+    line env s cfg.style [Span (if m.isError then Just cfg.errorStyle else Nothing) m.text] []
   _ -> playerStatus env s
   where
     cfg :: StatusBarConfig
@@ -227,13 +227,6 @@ statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
 
     bold :: Style
     bold = mempty & #attributes .~ S.singleton Bold
-
-    errorStyle :: Style
-    errorStyle = mempty & #foreground ?~ Color red
-
-    -- The number of red in the terminal's color chart.
-    red :: Word8
-    red = 1
 
 -- | What of a line prompt shows: the part of the line that fits next to
 -- the question and the note, the column of the cursor in the status bar,

@@ -85,6 +85,7 @@ status_bar:
   style: default
   state_style: bold
   time_style: bold
+  error_style: 9                 # the terminal's bright red
   show_remaining_time: false
   show_bitrate: false
 

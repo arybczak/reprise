@@ -229,6 +229,7 @@ data StatusBarConfig = StatusBarConfig
   , style :: Style
   , stateStyle :: Style
   , timeStyle :: Style
+  , errorStyle :: Style
   , showRemainingTime :: Bool
   , showBitrate :: Bool
   }
@@ -481,6 +482,7 @@ defaultStatusBar =
     , style = style "default"
     , stateStyle = style "bold"
     , timeStyle = style "bold"
+    , errorStyle = style "9"
     , showRemainingTime = False
     , showBitrate = False
     }
