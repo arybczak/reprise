@@ -20,7 +20,7 @@ import Data.Version
 import Effectful
 import Graphics.Vty qualified as V
 import Graphics.Vty.Platform.Unix qualified as V
-import Network.HTTP.Client.TLS
+import Network.HTTP.Client.OpenSSL
 import Options.Applicative
 import System.Directory
 import System.Environment
@@ -80,7 +80,7 @@ options =
       )
 
 main :: IO ()
-main = do
+main = withOpenSSL $ do
   opts <-
     execParser $
       info
@@ -148,7 +148,7 @@ main = do
       (getXdgDirectory XdgData ("reprise" </> "lyrics"))
       expandHome
       config.lyrics.directory
-  manager <- newTlsManager
+  manager <- newOpenSSLManager
   let userAgent = "reprise/" <> T.pack (showVersion Paths.version) <> " (" <> repository <> ")"
       fetcher = \case
         Lrclib -> lrclib (httpsGet manager userAgent "LRCLIB" "lrclib.net")

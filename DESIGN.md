@@ -589,8 +589,12 @@ ncmpcpp.
   - **The replies decode with yamlet,** with types derived generically. Each
     of 52 songs in five replies had the same keys, and only the lyrics
     could be null. Unknown keys are allowed, as LRCLIB adds some.
-  - **LRCLIB is HTTPS only,** so reprise needs `http-client-tls`. The
-    requests name reprise in the user agent, as LRCLIB asks.
+  - **LRCLIB is HTTPS only,** so reprise needs TLS. It uses the system's
+    OpenSSL through `http-client-openssl`, which checks the certificate
+    against the system's store and the host name. `http-client-tls` would
+    have pulled in about 30 packages of cryptography in Haskell, and the
+    distribution keeps OpenSSL patched. The requests name reprise in the
+    user agent, as LRCLIB asks.
   - **A request gives up after 10 seconds.** LRCLIB answered 30 requests in
     0.86 s at most, and the worker serves one request at a time, so one
     that hangs holds up the next.
@@ -936,7 +940,7 @@ Libraries:
 | Config | `yamlet` |
 | CLI | `optparse-applicative` |
 | Regex, diacritics folding, collation | `text-icu` (see [Find patterns](#find-patterns)) |
-| HTTP (lyrics, later artist info) | `http-client` and `http-client-tls` |
+| HTTP (lyrics, later artist info) | `http-client` and `http-client-openssl` |
 | HTML (lyrics from tekstowo.pl) | `tagsoup` |
 | Effects | `effectful` (see [Effects](#effects)) |
 | FFT | pocketfft, in `cbits` (see [Visualizer](#core)) |
