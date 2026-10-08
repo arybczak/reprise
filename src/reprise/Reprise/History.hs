@@ -14,6 +14,7 @@ module Reprise.History
 
 import Control.Monad
 import Data.ByteString qualified as BS
+import Data.List qualified as L
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import System.Directory
@@ -96,7 +97,7 @@ readHistoryFile :: FilePath -> IO [T.Text]
 readHistoryFile path = do
   exists <- doesFileExist path
   if exists
-    then foldl' (flip remember) [] . T.lines . T.decodeUtf8Lenient <$> BS.readFile path
+    then L.foldl' (flip remember) [] . T.lines . T.decodeUtf8Lenient <$> BS.readFile path
     else pure []
 
 -- | Add a line to a history file. Another reprise may have added its own
