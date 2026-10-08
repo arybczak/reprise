@@ -14,6 +14,7 @@ module Reprise.State
   , ConnectionState (..)
   , Prompt (..)
   , PromptInput (..)
+  , ChoiceOption (..)
   , LinePurpose (..)
   , Finding (..)
   , Message (..)
@@ -162,10 +163,20 @@ data Prompt = Prompt
   deriving stock (Eq, Show, Generic)
 
 data PromptInput
-  = -- | The event that yes sends.
-    YesNo AppEvent
+  = -- | Options, each picked by a letter of its name, as in ncmpcpp.
+    Choice [ChoiceOption]
   | -- | A line of text, and what it is for.
     Line LineEdit LinePurpose
+  deriving stock (Eq, Show)
+
+-- | An option of a choice.
+data ChoiceOption = ChoiceOption
+  { letter :: Char
+  -- ^ The key that picks it, which is in its name.
+  , name :: T.Text
+  , event :: Maybe AppEvent
+  -- ^ What it sends. Without one, it cancels.
+  }
   deriving stock (Eq, Show)
 
 data LinePurpose

@@ -3,6 +3,7 @@ module HandlerTests (handlerTests) where
 import Data.Foldable
 import Data.Set qualified as S
 import Data.Text qualified as T
+import Graphics.Vty qualified as V
 import Optics.Core
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -17,6 +18,7 @@ import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 import Reprise.Selection
 import Reprise.State
+import Reprise.UI.Layout
 import Utils
 
 handlerTests :: TestTree
@@ -453,6 +455,16 @@ test_clearConfirm = do
     "question"
     (Just "Clear 3 songs from the queue?")
     ((.question) <$> asked.state.prompt)
+  -- The header's title is bold too, but it isn't a letter.
+  assertEqual
+    "the letters that pick the options in bold"
+    ["y", "n"]
+    [ t
+    | (a, t) <- imageSpans (renderScreen testAppEnv asked.state)
+    , T.length t == 1
+    , V.SetTo st <- [V.attrStyle a]
+    , V.hasStyle st V.bold
+    ]
   assertEqual "nothing yet" [] asked.requests
   assertEqual "other keys wait" [] . (.requests) =<< keys ["x"] asked.state
   assertEqual "yes" [[Request "clear" []]] . (.requests) =<< keys ["y"] asked.state

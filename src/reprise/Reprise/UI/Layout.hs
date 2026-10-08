@@ -5,6 +5,7 @@ module Reprise.UI.Layout
   , promptCursor
   ) where
 
+import Data.List qualified as L
 import Data.Maybe
 import Data.Set qualified as S
 import Data.Text qualified as T
@@ -194,7 +195,13 @@ progressBar env s =
 
 statusBar :: AppEnv -> AppState -> V.Image
 statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
-  (Just (Prompt question (YesNo _)), _, _) -> plain (question <> " [y/n]")
+  (Just (Prompt question (Choice options)), _, _) ->
+    line
+      env
+      s
+      cfg.style
+      (Span Nothing (question <> " [") : choices options <> [Span Nothing "]"])
+      []
   (Just (Prompt question (Line edit purpose)), _, _) ->
     let p = promptLine s question edit purpose
     in line env s cfg.style [Span Nothing question, Span Nothing p.shown] [Span Nothing p.note]
@@ -207,6 +214,19 @@ statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
 
     plain :: T.Text -> V.Image
     plain t = line env s cfg.style [Span Nothing t] []
+
+    -- The names of the options, with the letter that picks each in bold.
+    choices :: [ChoiceOption] -> [Span Style]
+    choices options =
+      L.intercalate
+        [Span Nothing "/"]
+        [ [Span Nothing before, Span (Just bold) (T.take 1 rest), Span Nothing (T.drop 1 rest)]
+        | o <- options
+        , let (before, rest) = T.breakOn (T.singleton o.letter) o.name
+        ]
+
+    bold :: Style
+    bold = mempty & #attributes .~ S.singleton Bold
 
     errorStyle :: Style
     errorStyle = mempty & #foreground ?~ Color red

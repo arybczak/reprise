@@ -1326,9 +1326,14 @@ Not destructive:
 - playback controls.
 
 Whether an action is destructive is part of its entry in the registry. The
-confirmation is a `y/n` prompt in the status bar that names what will be lost,
-e.g. "Clear 1243 songs from the queue? [y/n]". A test checks the pending
+confirmation is a choice in the status bar that names what will be lost, e.g.
+"Clear 1243 songs from the queue? [yes/no]". A test checks the pending
 confirmation in the new state and runs its continuation to answer it.
+
+**A choice** lists its options in brackets, as ncmpcpp's prompts do, e.g.
+`[replace/append]`. A letter of each option picks it, and shows in bold:
+`y` and `n` for yes and no. Escape and ctrl-g cancel, and other keys do
+nothing, so that a stray key picks nothing.
 
 ### Find and filter
 

@@ -9,4 +9,4 @@ Zespół | Gość  1/12   Zażółć gęślą jaźń                    Płyta  
 
 
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
-Clear 6 songs from the queue? [y/n]
+Clear 6 songs from the queue? [yes/no]

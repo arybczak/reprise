@@ -294,11 +294,11 @@ isCancel k = k `elem` [plain Escape, ctrl 'g']
 
 handlePromptKey :: App es => Prompt -> KeySpec -> Eff es ()
 handlePromptKey p k = case p.input of
-  YesNo onYes
-    | k == KeySpec mempty (CharKey 'y') -> do
+  Choice options
+    | Just o <- find (\o -> k == KeySpec mempty (CharKey o.letter)) options -> do
         close
-        handleEvent onYes
-    | k == KeySpec mempty (CharKey 'n') || isCancel k -> do
+        maybe (showMessage "Cancelled") handleEvent o.event
+    | isCancel k -> do
         close
         showMessage "Cancelled"
     | otherwise -> pure ()
@@ -478,7 +478,11 @@ runConfirmed = \case
   _ -> pure ()
 
 confirm :: T.Text -> AppEvent -> AppState -> AppState
-confirm question onYes = #prompt ?~ Prompt question (YesNo onYes)
+confirm question onYes =
+  #prompt
+    ?~ Prompt
+      question
+      (Choice [ChoiceOption 'y' "yes" (Just onYes), ChoiceOption 'n' "no" Nothing])
 
 withStatus :: App es => (Status -> Eff es ()) -> Eff es ()
 withStatus k =
