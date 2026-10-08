@@ -815,8 +815,8 @@ defaultKeymaps =
           , char '8' ~> Show VisualizerScreen
           , char 'l' ~> Show LyricsScreen
           , char 'i' ~> Show SongInfoScreen
-          , plain Tab ~> NextScreen [BrowserScreen, VisualizerScreen, MediaLibraryScreen]
-          , shift Tab ~> PreviousScreen [BrowserScreen, VisualizerScreen, MediaLibraryScreen]
+          , plain Tab ~> NextScreen numberedScreens
+          , shift Tab ~> PreviousScreen numberedScreens
           , plain (Function 1) ~> Show HelpScreen
           , char ':' ~> CommandPrompt ""
           , char 'q' ~> Quit

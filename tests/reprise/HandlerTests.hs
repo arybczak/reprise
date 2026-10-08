@@ -31,6 +31,7 @@ handlerTests =
     , testCase "a key sequence" test_keySequence
     , testCase "cancel a key sequence" test_cancelSequence
     , testCase "an unbound next key" test_unboundNextKey
+    , testCase "next and previous screen" test_nextScreen
     , testCase "clear asks first" test_clearConfirm
     , testCase "volume without a mixer" test_noMixer
     , testCase "seeking" test_seek
@@ -459,6 +460,19 @@ test_unboundNextKey :: Assertion
 test_unboundNextKey = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
   assertEqual "message" (Just "t j is not bound") . message =<< keys ["t", "j"] s
+
+-- | The default list names the screens with numbers, and those that aren't
+-- built yet are skipped.
+test_nextScreen :: Assertion
+test_nextScreen = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
+  let screenAfter ks = (.screen) . focusedView . (.state) <$> keys ks s
+  assertEqual
+    "forward, around to the queue"
+    [BrowserScreen, OutputsScreen, VisualizerScreen, QueueScreen]
+    =<< traverse (\n -> screenAfter (replicate n "tab")) [1 .. 4]
+  assertEqual "back" VisualizerScreen =<< screenAfter ["shift-tab"]
+  assertEqual "from a screen outside the list" QueueScreen =<< screenAfter ["f1", "tab"]
 
 test_clearConfirm :: Assertion
 test_clearConfirm = do

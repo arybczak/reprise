@@ -21,6 +21,7 @@ module Reprise.Action
   , screenName
   , screenFromName
   , screenNames
+  , numberedScreens
 
     -- * Registry
   , ActionSpec (..)
@@ -185,6 +186,19 @@ screenName = \case
 screenNames :: [ScreenName]
 screenNames = [minBound .. maxBound]
 
+-- | The screens that a number key shows, in the order of their numbers. The
+-- others show something about a song or the keys, from another screen.
+numberedScreens :: [ScreenName]
+numberedScreens =
+  [ QueueScreen
+  , BrowserScreen
+  , SearchEngineScreen
+  , MediaLibraryScreen
+  , PlaylistEditorScreen
+  , OutputsScreen
+  , VisualizerScreen
+  ]
+
 screenFromName :: T.Text -> Either T.Text ScreenName
 screenFromName = choice "screen" [(screenName s, s) | s <- screenNames]
 
@@ -308,7 +322,7 @@ registry =
     screenList :: ([ScreenName] -> Action) -> [Argument] -> Either T.Text Action
     screenList f = \case
       [List ws] -> f <$> traverse screenFromName ws
-      [] -> Right (f screenNames)
+      [] -> Right (f numberedScreens)
       _ -> Left "expected a list of screens, e.g. [browser, outputs]"
 
     moveTarget :: T.Text -> Either T.Text MoveTarget

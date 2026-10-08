@@ -243,6 +243,18 @@ ncmpcpp.
   [Key bindings](#key-bindings)).
 - The `:` prompt runs any action with the same syntax as the keymaps.
 
+**Switching screens**
+- A number key shows its screen, and `next_screen` and `previous_screen`,
+  `tab` and `shift-tab`, go through a list of screens, around from the last
+  to the first.
+  - **Without a list, they go through the screens with numbers,** in their
+    order. The lyrics, the song info and the help show something about a
+    song or the keys, so they open from another screen and go back to it.
+  - **From a screen that isn't in the list,** `next_screen` shows the first
+    and `previous_screen` the last.
+  - **A screen that isn't built yet is skipped,** so that a list can name
+    it ahead, and it joins once it is built.
+
 **Other screens**
 - Outputs screen. It is small and used often.
   - **`activate` enables the output under the cursor, or disables it,** and
@@ -1745,8 +1757,8 @@ keys:
     8: show visualizer
     l: show lyrics               # of the song under the cursor
     i: show song_info            # of the song under the cursor
-    tab: next_screen [browser, visualizer, media_library]
-    shift-tab: previous_screen [browser, visualizer, media_library]
+    tab: next_screen             # the screens with numbers, in their order
+    shift-tab: previous_screen
     f1: show help
     ":": command
     q: quit
@@ -1979,7 +1991,8 @@ options, `allow_for_physical_item_deletion`,
 **Replaced by action arguments or keymap entries**
 - `volume_change_step` → `volume +2`, `seek_time` → `seek +1s`,
   `mpd_crossfade_time` → `toggle crossfade 5`.
-- `screen_switcher_mode` → `tab: next_screen [browser, visualizer, media_library]`.
+- `screen_switcher_mode` → `tab: next_screen [SCREEN, ...]`, which goes
+  through the screens with numbers without a list.
 - `space_add_mode` → two actions, `add` and `add_or_remove`; space is bound to
   `add_or_remove`.
 
