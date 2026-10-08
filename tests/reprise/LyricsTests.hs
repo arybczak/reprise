@@ -125,7 +125,7 @@ test_longName :: Assertion
 test_longName =
   assertEqual
     "the name"
-    ("A - " <> replicate 230 'a' <> " 76ff80d8f3718ac6.txt")
+    ("A - " <> replicate 230 'a' <> " c98f27d3cedf8c0d.txt")
     (lyricsFileName (song 3 [(Artist, ["A"]), (Title, [T.replicate 300 "a"])] 60))
 
 test_show :: Assertion

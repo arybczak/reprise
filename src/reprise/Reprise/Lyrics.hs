@@ -21,7 +21,8 @@ module Reprise.Lyrics
   ) where
 
 import Control.Monad
-import Crypto.Hash
+import Data.Bits
+import Data.ByteString qualified as BS
 import Data.Char
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
@@ -29,6 +30,8 @@ import Data.Maybe
 import Data.Ratio
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Word
+import Numeric
 import System.FilePath
 import Text.Read
 
@@ -184,11 +187,15 @@ lyricsBaseName song
     room :: Int
     room = nameLimit - maximum (map length [textExtension, timedExtension])
 
-    -- BLAKE2b is the same on every machine and in every version, as a
+    -- FNV-1a is the same on every machine and in every version, as a
     -- file's name must be. 64 bits keep two long names that begin alike
     -- apart, and leave most of the room to the name.
     suffix :: T.Text
-    suffix = " " <> T.pack (show (hash @_ @(Blake2b 64) (T.encodeUtf8 name)))
+    suffix = " " <> T.pack (showHex (fnv1a (T.encodeUtf8 name)) "")
+
+    -- The offset basis and the prime are those of 64-bit FNV-1a.
+    fnv1a :: BS.ByteString -> Word64
+    fnv1a = BS.foldl' (\h b -> (h `xor` fromIntegral b) * 0x100000001b3) 0xcbf29ce484222325
 
     -- The longest start of text that is at most a number of bytes.
     cut :: Int -> T.Text -> T.Text

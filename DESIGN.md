@@ -525,9 +525,10 @@ ncmpcpp.
   the ones that reprise stores. A file that isn't UTF-8 shows, with
   replacement characters for its bytes that aren't.
   - **A name too long for a file is cut** to 255 bytes of UTF-8 with its
-    extension, at a character, and ends in a BLAKE2b hash of 64 bits of the
-    whole name, from crypton, so that two long names that begin alike stay
-    apart. ncmpcpp can't store such lyrics at all; in the author's library
+    extension, at a character, and ends in a 64-bit FNV-1a hash of the
+    whole name, so that two long names that begin alike stay apart. The
+    hash needn't resist attacks, so a few lines replace a cryptography
+    package. ncmpcpp can't store such lyrics at all; in the author's library
     one name is 285 bytes, of Handel's Messiah. 255 bytes is the limit of
     ext4, XFS, Btrfs and ZFS, and such a name fits NTFS's and exFAT's 255
     units of UTF-16 and APFS's 255 characters. It is fixed, not the limit
