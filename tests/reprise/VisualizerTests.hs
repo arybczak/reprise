@@ -551,16 +551,23 @@ test_workerSpectrum = withSystemTempDirectory "visualizer" $ \dir -> do
   createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
   events <- newTQueueIO
   reading <- newTVarIO (Just Spectrum)
-  bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ ->
-    withWriting path (samples (replicate 100 (1000, -1000))) $
-      expectWithin (atomically (readTQueue events)) >>= \case
-        VisualizerSpectrum left right -> do
-          assertEqual
-            "the bins"
-            [32768 `div` 2 + 1, 32768 `div` 2 + 1]
-            (map VS.length [left, right])
-          assertBool "the samples" (all ((> 0) . VS.maximum) [left, right])
-        e -> assertFailure $ "event: " <> show e
+  bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ -> do
+    (left, right) <-
+      withWriting path (samples (replicate 100 (1000, -1000))) . expectWithin $
+        firstSpectrum events
+    assertEqual
+      "the bins"
+      [32768 `div` 2 + 1, 32768 `div` 2 + 1]
+      (map VS.length [left, right])
+    assertBool "both channels" (all ((> 0) . VS.maximum) [left, right])
+  where
+    -- The spectra are of silence until the samples come.
+    firstSpectrum :: TQueue AppEvent -> IO (VS.Vector Double, VS.Vector Double)
+    firstSpectrum events =
+      atomically (readTQueue events) >>= \case
+        VisualizerSpectrum left right
+          | any ((> 0) . VS.maximum) [left, right] -> pure (left, right)
+        _ -> firstSpectrum events
 
 -- | The mix of the channels is silent, so the wave ends with the last
 -- samples.
@@ -571,13 +578,19 @@ test_workerWave = withSystemTempDirectory "visualizer" $ \dir -> do
   createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
   events <- newTQueueIO
   reading <- newTVarIO (Just Wave)
-  bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ ->
-    withWriting path (BS.concat (replicate 100 sample)) $
-      expectWithin (atomically (readTQueue events)) >>= \case
-        VisualizerWave pcm -> do
-          assertEqual "the length" (waveSamples * frameBytes) (BS.length pcm)
-          assertEqual "the last sample" sample (BS.takeEnd frameBytes pcm)
-        e -> assertFailure $ "event: " <> show e
+  bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ -> do
+    pcm <-
+      withWriting path (BS.concat (replicate 100 sample)) . expectWithin $
+        firstWave events
+    assertEqual "the length" (waveSamples * frameBytes) (BS.length pcm)
+    assertEqual "the last sample" sample (BS.takeEnd frameBytes pcm)
+  where
+    -- The wave is of silence until the samples come.
+    firstWave :: TQueue AppEvent -> IO BS.ByteString
+    firstWave events =
+      atomically (readTQueue events) >>= \case
+        VisualizerWave pcm | BS.any (/= 0) pcm -> pure pcm
+        _ -> firstWave events
 
 -- | Write the samples to the fifo again and again while an action runs. The
 -- writer can open the fifo once the worker opened it, which also drops
@@ -590,12 +603,13 @@ withWriting path pcm act = do
   act `finally` killThread writer
   where
     -- Opening a fifo without a reader fails, so it opens again until the
-    -- worker reads it.
+    -- worker reads it. Closing flushes into the fifo, which fails once the
+    -- worker stopped reading it.
     withWriter :: (Handle -> IO ()) -> IO ()
     withWriter k =
       try @IOException (openBinaryFile path WriteMode) >>= \case
         Left _ -> threadDelay writeInterval >> withWriter k
-        Right h -> k h `finally` hClose h
+        Right h -> k h `finally` void (try @IOException (hClose h))
 
     -- A tenth of a frame at 60 frames a second.
     writeInterval :: Int
