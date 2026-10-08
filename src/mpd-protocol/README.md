@@ -1,7 +1,7 @@
 # mpd-protocol
 
 A client library for the protocol of the
-[Music Player Daemon](https://www.musicpd.org) (MPD), version 0.23.1 or newer.
+[Music Player Daemon](https://www.musicpd.org) (MPD), version 0.24 or newer.
 
 - Commands are typed values that keep their request lines as plain data, so
   tests can compare them without a server.

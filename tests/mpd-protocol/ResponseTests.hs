@@ -93,7 +93,7 @@ test_displayError = do
     (displayException . AckError $ Ack AckArg 0 "play" "Bad song index")
   assertEqual
     "too old"
-    "MPD 0.22.0 is too old, 0.23.1 or newer is needed"
+    "MPD 0.22.0 is too old, 0.24.0 or newer is needed"
     (displayException . ConnectionError $ UnsupportedVersion (Version 0 22 0))
 
 test_readSeconds :: Assertion

@@ -734,9 +734,10 @@ selection and deleting takes as many keys, and shows what goes before it
 goes, so it needs no confirmation.
 
 **Old compatibility tricks**
-- MPD versions older than 0.23.1. In return reprise gets filter expressions,
-  relative positions in `addid`, `searchadd`/`findadd` with a position, and
-  `load` with a position.
+- MPD versions older than 0.24. In return reprise gets filter expressions,
+  relative positions in `addid`, `searchadd`/`findadd` with a position,
+  `load` with a position, and `save` that replaces a stored playlist or
+  appends to it.
 - The "add and play" trick (`play <old length>` after the add). reprise sends
   `add` or `load` at the queue's length N and `play N` in one command list,
   for songs, directories and playlists alike. MPD runs a command list without

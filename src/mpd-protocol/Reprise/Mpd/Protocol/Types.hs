@@ -391,9 +391,10 @@ data Version = Version Int Int Int
   deriving anyclass (NFData)
 
 -- | The oldest version of MPD that the library supports. It needs the
--- relative positions of 0.23, and @load@ with a position from 0.23.1.
+-- relative positions of 0.23, @load@ with a position from 0.23.1, and the
+-- modes of @save@ from 0.24.
 minimumVersion :: Version
-minimumVersion = Version 0 23 1
+minimumVersion = Version 0 24 0
 
 ----------------------------------------
 -- Errors
