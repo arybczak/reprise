@@ -16,6 +16,7 @@ description:
 extra-doc-files:
   CHANGELOG.md
   doc/config.yaml
+  doc/ncmpcpp.md
   README.md
 
 extra-source-files:
