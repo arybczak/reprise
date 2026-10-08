@@ -4,6 +4,7 @@ module Reprise.History
   , historySize
   , remember
   , recallOlder
+  , recallOldest
   , recallNewer
   ) where
 
@@ -48,6 +49,17 @@ recallOlder history edit recall =
 
     start :: Int
     start = maybe 0 ((+ 1) . (.index)) recall
+
+-- | The oldest line that starts with what the user typed, as bash's
+-- @beginning-of-history@.
+recallOldest :: [T.Text] -> LineEdit -> Maybe Recall -> Maybe (LineEdit, Recall)
+recallOldest history edit recall =
+  case reverse . filter (matches typed . snd) $ zip [0 ..] history of
+    (i, line) : _ -> Just (LineEdit line T.empty, Recall typed i)
+    [] -> Nothing
+  where
+    typed :: LineEdit
+    typed = maybe edit (.typed) recall
 
 -- | The next newer line that starts with what the user typed, or what the
 -- user typed after the newest one.

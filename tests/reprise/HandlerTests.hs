@@ -235,6 +235,10 @@ test_promptHistory = do
     =<< keys ["/", "ctrl-p", "ctrl-p", "ctrl-n"] used.state
   assertEqual "back to the typed line" (Just "vol") . lineOf
     =<< keys ([":"] <> typed "vol" <> ["up", "down"]) used.state
+  assertEqual "page up to the oldest" (Just "volume 30") . lineOf
+    =<< keys [":", "page_up"] used.state
+  assertEqual "page down to the typed line" (Just "s") . lineOf
+    =<< keys ([":"] <> typed "s" <> ["up", "up", "page_down"]) used.state
   edited <- keys ([":", "up"] <> typed "x" <> ["up"]) used.state
   assertEqual "an edit starts from the edited line" (Just "songx") (lineOf edited)
   finding <- testState (80, 24) (statusOf Stopped Nothing 5) titled

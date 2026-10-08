@@ -54,6 +54,14 @@ test_recallPrefix = do
     (LineEdit "seek 1:30" "", Just r1)
     (recallNewer history r2)
   assertEqual "nothing matches" Nothing (recallOlder history (LineEdit "x" "") Nothing)
+  assertEqual
+    "the oldest match"
+    (Just (LineEdit "seek 0:10" "", r2))
+    (recallOldest history (LineEdit "seek " "") Nothing)
+  assertEqual
+    "the oldest match from a recalled line"
+    (Just (LineEdit "seek 0:10" "", r2))
+    (recallOldest history first (Just r1))
 
 -- | The next older line, which the test expects.
 older :: [T.Text] -> LineEdit -> Maybe Recall -> IO (LineEdit, Recall)

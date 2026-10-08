@@ -1272,6 +1272,8 @@ each hold few lines, and more prompts are coming, e.g. the search engine's.
   `g s` opens `:seek `, so `up` goes through the earlier seeks only. Going
   down past the newest line brings back the typed one, and an edit makes
   the recalled line the typed one.
+- **`page_up` goes to the oldest matching line, and `page_down` back to the
+  typed one,** as bash's `beginning-of-history` and `end-of-history`.
 - **Each line is kept once,** and using it again makes it the newest.
 - **The history keeps the last 100 lines.** The number is the author's
   choice.

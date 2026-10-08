@@ -351,6 +351,9 @@ handlePromptKey p k = case p.input of
           fmap Just <$> recallOlder history edit recall
       | k `elem` [KeySpec mempty ArrowDown, ctrl 'n'] =
           recallNewer history <$> recall
+      | k == KeySpec mempty PageUp = fmap Just <$> recallOldest history edit recall
+      -- As bash's end-of-history, back to the typed line.
+      | k == KeySpec mempty PageDown = (\r -> (r.typed, Nothing)) <$> recall
       | otherwise = edited
       where
         -- An edit makes the recalled line the typed one.
