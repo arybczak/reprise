@@ -271,6 +271,10 @@ ncmpcpp.
     and orange. Without pure yellow, whose lightness peaks between green
     and red, the gradient lost the thin bright line at the yellow, but
     that looked worse too.
+  - **The default stops are bold,** which makes the thin braille dots of
+    the ellipse and the wave easier to see. Bold doesn't change the colors
+    of the chart's cube or 24-bit colors, and the blocks of the bars are
+    already full. A list of colors without `bold` turns it off.
   - **Between two stops, the foreground blends in Oklab,** so that the
     steps look even, and yellow between green and red isn't muddy, as it
     is in sRGB. A stop takes the rest from the nearer stop.
@@ -1572,7 +1576,7 @@ visualizer:
   visualization: spectrum        # or ellipse or wave; toggle visualization goes through them
   fps: 60
   trail: 150ms                   # how long the samples of the ellipse stay
-  colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # a gradient from quiet to loud
+  colors: [46 bold, 82 bold, 118 bold, 154 bold, 190 bold, 226 bold, 220 bold, 214 bold, 208 bold, 202 bold, 196 bold, 160 bold]   # a gradient from quiet to loud
   debug: false                   # show the frame rate and the worker's frames at the top
 
 lyrics:

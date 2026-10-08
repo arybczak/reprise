@@ -500,9 +500,12 @@ defaultVisualizer =
     , visualization = Spectrum
     , fps = FrameRate 60
     , trail = 0.15
-    , colors =
-        style "46"
-          NE.:| map style ["82", "118", "154", "190", "226", "220", "214", "208", "202", "196", "160"]
+    , -- Bold makes the thin braille dots of the ellipse and the wave easier
+      -- to see.
+      colors =
+        style . (<> " bold")
+          <$> "46"
+            NE.:| ["82", "118", "154", "190", "226", "220", "214", "208", "202", "196", "160"]
     , debug = False
     }
 

@@ -136,6 +136,9 @@ test_durations = do
 test_visualizer :: Assertion
 test_visualizer = do
   assertEqual "no data source by default" Nothing defaultConfig.visualizer.dataSource
+  assertBool
+    "bold colors by default"
+    (all (\s -> Bold `elem` s.attributes) defaultConfig.visualizer.colors)
   config <-
     expectRight $
       decode "visualizer:\n  data_source: ~/.config/mpd/feed\n  fps: 30\n  colors: [red, 82]\n"
