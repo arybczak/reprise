@@ -1127,7 +1127,8 @@ screen.
 Key sequences, e.g. `t r`, are supported from the start:
 - A keymap is a tree. A binding is either an action or a prefix with its own
   keymap, and in YAML a prefix is simply a nested mapping. YAML already makes
-  "both an action and a prefix" impossible.
+  "both an action and a prefix" impossible. Prefixes nest to any depth, e.g.
+  the queue's `e m b`, move the selection to the beginning.
 - The pending prefix lives in `AppState`. It is not a blocking read, so MPD
   events keep updating the screen in the middle of a sequence.
 - The status bar shows the prefix (`t -`), and the
@@ -1792,8 +1793,11 @@ keys:
     m: move_selection up
     n: move_selection down
     e:                           # merged with the global e group
-      m: move_selection cursor
-      M: move_selection end
+      m:
+        name: move selection
+        c: move_selection cursor # above the cursor
+        e: move_selection end
+        b: move_selection beginning
       p: command priority        # asks for 0–255
 
   browser:

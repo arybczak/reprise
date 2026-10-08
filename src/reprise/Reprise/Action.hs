@@ -149,6 +149,7 @@ data MoveSelectionTarget
   | MoveSelectionDown
   | MoveSelectionToCursor
   | MoveSelectionToEnd
+  | MoveSelectionToBeginning
   deriving stock (Eq, Show, Enum, Bounded)
 
 ----------------------------------------
@@ -267,7 +268,7 @@ registry =
       _ -> Left "expected an option"
   , spec "update" "current | all" $
       one (fmap Update . choice "scope" [("current", UpdateCurrent), ("all", UpdateAll)])
-  , spec "move_selection" "up | down | cursor | end"
+  , spec "move_selection" "up | down | cursor | end | beginning"
       $ one
       $ fmap MoveSelection
         . choice
@@ -276,6 +277,7 @@ registry =
           , ("down", MoveSelectionDown)
           , ("cursor", MoveSelectionToCursor)
           , ("end", MoveSelectionToEnd)
+          , ("beginning", MoveSelectionToBeginning)
           ]
   , spec "priority" "0-255" $ one (fmap Priority . priority)
   , spec "next_sort_mode" "" $ none NextSortMode
@@ -505,6 +507,7 @@ renderAction = \case
       MoveSelectionDown -> "down"
       MoveSelectionToCursor -> "cursor"
       MoveSelectionToEnd -> "end"
+      MoveSelectionToBeginning -> "beginning"
   Priority p -> "priority " <> T.pack (show p)
   NextSortMode -> "next_sort_mode"
   RefetchLyrics -> "refetch_lyrics"
@@ -604,6 +607,7 @@ describeAction = \case
     MoveSelectionDown -> "move selection down"
     MoveSelectionToCursor -> "move selection above the cursor"
     MoveSelectionToEnd -> "move selection to the end"
+    MoveSelectionToBeginning -> "move selection to the beginning"
   Priority p -> "set priority " <> T.pack (show p)
   NextSortMode -> "next sort mode"
   RefetchLyrics -> "fetch the lyrics again"

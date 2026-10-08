@@ -5,6 +5,7 @@ module Reprise.Screen.Queue.Edits
   , moveUp
   , moveDown
   , moveBefore
+  , moveToStart
   ) where
 
 import Control.Monad
@@ -45,16 +46,28 @@ moveDown len ps = for_ (runs ps) $ \(a, b) ->
 moveBefore :: [Int] -> Int -> Maybe (Command ())
 moveBefore ps target = do
   songs <- NE.nonEmpty ps
-  let k = length ps
-      -- Each run with the number of songs before it.
-      indexed = zip (scanl (+) 0 [b - a + 1 | (a, b) <- runs ps]) (runs ps)
   if
     | target > NE.last songs ->
-        Just $ for_ (reverse indexed) $ \(i, r) -> moveRun r (target - k + i)
-    | target < NE.head songs ->
-        Just $ for_ indexed $ \(i, r) -> moveRun r (target + i)
+        Just $ for_ (reverse (indexedRuns ps)) $ \(i, r) -> moveRun r (target - length ps + i)
+    | target < NE.head songs -> Just (moveUpTo target ps)
     | otherwise -> Nothing
-  where
-    moveRun :: (Int, Int) -> Int -> Command ()
-    moveRun (a, b) to =
-      when (a /= to) $ move (Range (SongPos a) (Just (SongPos (b + 1)))) (At (SongPos to))
+
+-- | Move the songs at the positions, in their order, to the start of the
+-- queue. Unlike 'moveBefore' with the first position, the songs may be
+-- there already, and the others join them.
+moveToStart :: [Int] -> Command ()
+moveToStart = moveUpTo 0
+
+-- | Move the songs at the positions, in their order, up to a position
+-- before them.
+moveUpTo :: Int -> [Int] -> Command ()
+moveUpTo target ps = for_ (indexedRuns ps) $ \(i, r) -> moveRun r (target + i)
+
+-- | Each run with the number of songs before it.
+indexedRuns :: [Int] -> [(Int, (Int, Int))]
+indexedRuns ps = zip (scanl (+) 0 [b - a + 1 | (a, b) <- runs ps]) (runs ps)
+
+-- | Move a run to a position, unless it is there.
+moveRun :: (Int, Int) -> Int -> Command ()
+moveRun (a, b) to =
+  when (a /= to) $ move (Range (SongPos a) (Just (SongPos (b + 1)))) (At (SongPos to))

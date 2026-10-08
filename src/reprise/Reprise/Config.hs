@@ -888,8 +888,13 @@ defaultKeymaps =
                 , group
                     (char 'e')
                     "edit"
-                    [ char 'm' ~> MoveSelection MoveSelectionToCursor
-                    , char 'M' ~> MoveSelection MoveSelectionToEnd
+                    [ group
+                        (char 'm')
+                        "move selection"
+                        [ char 'c' ~> MoveSelection MoveSelectionToCursor
+                        , char 'e' ~> MoveSelection MoveSelectionToEnd
+                        , char 'b' ~> MoveSelection MoveSelectionToBeginning
+                        ]
                     , char 'p' ~> CommandPrompt "priority"
                     ]
                 ]

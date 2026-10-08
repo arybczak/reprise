@@ -23,6 +23,7 @@ queueTests =
     , testCase "delete from the last run" test_delete
     , testCase "move runs up and down" test_moveUpDown
     , testCase "move before a position" test_moveBefore
+    , testCase "move to the start" test_moveToStart
     , withResource (startTestServer testSongs) stopTestServer $ \getServer ->
         testProperty "MPD gives the queue of the model" (prop_model getServer)
     ]
@@ -67,6 +68,16 @@ test_moveBefore = do
     (commandRequests <$> moveBefore [1, 2, 4] 6)
   assertEqual "in place already" (Just []) (commandRequests <$> moveBefore [3, 4] 5)
 
+-- | A song at the start already stays, and the others join it, where
+-- 'moveBefore' with the first position does nothing.
+test_moveToStart :: Assertion
+test_moveToStart = do
+  assertEqual "before the first song" Nothing (commandRequests <$> moveBefore [0, 3] 0)
+  assertEqual
+    "the others join"
+    [Request "move" ["3:4", "1"]]
+    (commandRequests $ moveToStart [0, 3])
+
 ----------------------------------------
 -- Model
 
@@ -74,6 +85,7 @@ data Operation
   = MoveUp
   | MoveDown
   | MoveBefore Int
+  | MoveToStart
   | Delete
   deriving stock (Show)
 
@@ -88,7 +100,8 @@ genCase :: Gen Case
 genCase = do
   n <- chooseInt (1, 2 * length testSongs)
   queue <- vectorOf n $ (,) <$> chooseInt (0, length testSongs - 1) <*> arbitrary
-  operation <- oneof [elements [MoveUp, MoveDown, Delete], MoveBefore <$> chooseInt (0, n)]
+  operation <-
+    oneof [elements [MoveUp, MoveDown, MoveToStart, Delete], MoveBefore <$> chooseInt (0, n)]
   pure Case {queue = queue, operation = operation}
 
 -- | The queue after the operation, by the plain definition of the
@@ -103,6 +116,7 @@ model c = map fst $ case c.operation of
         [s | (p, s@(_, False)) <- indexed, p < target]
           <> filter snd c.queue
           <> [s | (p, s@(_, False)) <- indexed, p >= target]
+  MoveToStart -> filter snd c.queue <> filter (not . snd) c.queue
   Delete -> filter (not . snd) c.queue
   where
     indexed :: [(Int, (Int, Bool))]
@@ -133,6 +147,7 @@ prop_model getServer = forAll genCase $ \c -> ioProperty $ do
       MoveUp -> moveUp positions
       MoveDown -> moveDown (length c.queue) positions
       MoveBefore target -> sequenceA_ (moveBefore positions target)
+      MoveToStart -> moveToStart positions
       Delete -> deletePositions positions
     map (.file) <$> run conn playlistInfo
   pure $ actual === map file (model c)

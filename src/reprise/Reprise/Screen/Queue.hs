@@ -195,6 +195,7 @@ moveSelection t = do
         Just cmd -> mutate cmd
         Nothing -> showMessage "The cursor is among the selected songs"
     MoveSelectionToEnd -> forM_ (moveBefore ps n) mutate
+    MoveSelectionToBeginning -> mutate (moveToStart ps)
 
 ----------------------------------------
 -- Finding

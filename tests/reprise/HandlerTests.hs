@@ -307,14 +307,16 @@ test_moveSelectionTo :: Assertion
 test_moveSelectionTo = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   assertEqual "above the cursor" [[Request "move" ["0:1", "3"]]] . (.requests)
-    =<< keys ["insert", "end", "e", "m"] s
+    =<< keys ["insert", "end", "e", "m", "c"] s
   assertEqual "among the selected songs" (Just "The cursor is among the selected songs")
     . message
-    =<< keys ["insert", "down", "down", "insert", "up", "e", "m"] s
+    =<< keys ["insert", "down", "down", "insert", "up", "e", "m", "c"] s
   assertEqual "without a selection" (Just "Select the songs to move first") . message
-    =<< keys ["e", "m"] s
+    =<< keys ["e", "m", "c"] s
   assertEqual "end" [[Request "move" ["0:1", "4"]]] . (.requests)
-    =<< keys ["insert", "e", "M"] s
+    =<< keys ["insert", "e", "m", "e"] s
+  assertEqual "beginning" [[Request "move" ["2:3", "0"]]] . (.requests)
+    =<< keys ["down", "down", "insert", "e", "m", "b"] s
 
 test_shuffleSelection :: Assertion
 test_shuffleSelection = do

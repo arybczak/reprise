@@ -59,6 +59,10 @@ test_defaultKeymaps = do
     (Bound (CommandPrompt "priority"))
     (lookupKeys global (keys ["e", "p"]))
   assertEqual
+    "a group in the queue's group"
+    (Bound (MoveSelection MoveSelectionToBeginning))
+    (lookupKeys global (keys ["e", "m", "b"]))
+  assertEqual
     "the global group in the queue"
     (Bound Clear)
     (lookupKeys global (keys ["e", "c"]))
