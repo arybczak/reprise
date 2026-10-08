@@ -162,6 +162,7 @@ handleEvent = \case
   LyricsFetching token fetcher -> lyricsFetching token fetcher
   LyricsLoaded token result -> lyricsLoaded token result
   Edited file failure -> lyricsEdited file failure
+  EditLyricsFile file -> editLyricsFile file
   SongCommentsFetched token comments -> songCommentsFetched token comments
   OutputsFetched fetched -> outputsFetched fetched
   Confirmed action -> runConfirmed action

@@ -542,8 +542,23 @@ test_edit :: Assertion
 test_edit = do
   r <- runEvents 0 [key "l"] =<< queueShown
   token <- requestToken r
-  missing <- runEvents 0 [LyricsLoaded token (LyricsMissing []), key "e", key "e"] r.state
-  assertEqual "the text" [Edit "edit" ("lyrics" </> "A - One.txt")] (edits missing)
+  loading <- runEvents 0 [key "e", key "e"] r.state
+  assertEqual "not while loading" [] (edits loading)
+  assertEqual
+    "says why"
+    (Just "The lyrics are still loading")
+    ((.text) <$> loading.state.message)
+  missing <- runEvents 0 [LyricsLoaded token (LyricsMissing [])] r.state
+  asked <- runEvents 0 [key "e", key "e"] missing.state
+  assertEqual "nothing yet" [] (edits asked)
+  assertEqual
+    "the choice"
+    (Just "Edit which lyrics?")
+    ((.question) <$> asked.state.prompt)
+  assertEqual "unsynced" [Edit "edit" ("lyrics" </> "A - One.txt")] . edits
+    =<< runEvents 0 [key "u"] asked.state
+  assertEqual "synced" [Edit "edit" ("lyrics" </> "A - One.lrc")] . edits
+    =<< runEvents 0 [key "s"] asked.state
   timed <-
     runEvents
       0

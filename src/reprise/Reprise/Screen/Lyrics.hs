@@ -6,6 +6,7 @@ module Reprise.Screen.Lyrics
   , showLyrics
   , refetchLyrics
   , editLyrics
+  , editLyricsFile
   , lyricsEdited
   , lyricsFetching
   , lyricsLoaded
@@ -25,6 +26,7 @@ import System.FilePath
 import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.UiRequest
+import Reprise.Event
 import Reprise.Handler.Core
 import Reprise.Lyrics
 import Reprise.Mpd.Mirror
@@ -73,20 +75,39 @@ refetchLyrics = do
           modifyWithEnv . modifyView $ #offset .~ 0
 
 -- | Edit the stored lyrics of the song on the screen: the times if they
--- show, else the text. Without either, the text, which the editor makes.
+-- show, else the text. Without stored lyrics, a choice asks which file to
+-- make. Lyrics on their way would be stored over the file, so they are
+-- waited for.
 editLyrics :: App es => Eff es ()
 editLyrics = do
   env <- getAppEnv
   s <- getS
   case (s.lyrics.song, env.editor) of
     (Nothing, _) -> showMessage "There are no lyrics to edit"
-    (_, Nothing) ->
-      showMessage "There is no editor: set editor.command in the config, or $VISUAL or $EDITOR"
-    (Just song, Just command) -> do
-      let file = case s.lyrics.status of
-            ShowingLyrics (LyricsFound _ lyrics) | isJust lyrics.timed -> timedLyricsFileName song
-            _ -> lyricsFileName song
-      editFile command (env.lyricsDirectory </> file)
+    (_, Nothing) -> showMessage noEditor
+    (Just song, Just command) -> case s.lyrics.status of
+      ShowingLyrics (LyricsFound _ lyrics) ->
+        editFile command . (env.lyricsDirectory </>) $
+          if isJust lyrics.timed then timedLyricsFileName song else lyricsFileName song
+      ShowingLyrics _ ->
+        let option :: Char -> T.Text -> (Song -> FilePath) -> ChoiceOption
+            option letter name file =
+              ChoiceOption letter name (Just (EditLyricsFile (env.lyricsDirectory </> file song)))
+        in modifyS $
+             #prompt
+               ?~ Prompt
+                 "Edit which lyrics?"
+                 (Choice [option 's' "synced" timedLyricsFileName, option 'u' "unsynced" lyricsFileName])
+      _ -> showMessage "The lyrics are still loading"
+
+-- | Edit a file of lyrics that the user chose.
+editLyricsFile :: App es => FilePath -> Eff es ()
+editLyricsFile file = do
+  env <- getAppEnv
+  maybe (showMessage noEditor) (`editFile` file) env.editor
+
+noEditor :: T.Text
+noEditor = "There is no editor: set editor.command in the config, or $VISUAL or $EDITOR"
 
 -- | The editor of a file exited. If the file is of the lyrics on the
 -- screen, they show again as the editor left them.

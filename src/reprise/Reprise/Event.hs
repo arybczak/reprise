@@ -76,6 +76,8 @@ data AppEvent
   | OutputsFetched [Output]
   | -- | The editor of a file exited, with why it failed.
     Edited FilePath (Maybe T.Text)
+  | -- | Edit the file of lyrics, which the user chose as there were none.
+    EditLyricsFile FilePath
   | -- | The user confirmed a destructive action.
     Confirmed Action
   | -- | MPD's reply before a save to the stored playlist of the name: what

@@ -642,9 +642,14 @@ ncmpcpp.
   other screens, as `toggle display` does the browser's in the browser.
   Turned on, it shows the lyrics of the song that plays at once.
 - **`e e` edits the stored lyrics,** as ncmpcpp's `e` does: the `.lrc` if
-  the times show, else the `.txt`, which the editor makes if there is none,
-  e.g. for lyrics pasted from elsewhere. The lyrics show again when the
-  editor exits.
+  the times show, else the `.txt`. The lyrics show again when the editor
+  exits.
+  - **Without stored lyrics, a choice asks which to make,**
+    `[synced/unsynced]`, the `.lrc` or the `.txt`, e.g. for lyrics pasted
+    from elsewhere. Found lyrics are always stored, so the screen tells
+    whether there are.
+  - **Lyrics that are still loading are waited for:** a fetcher that finds
+    them stores them, over a file that the user started to write.
   - **The editor is `editor.command`,** else `$VISUAL`, else `$EDITOR`.
     ncmpcpp's default was `nano`; with the environment, a user who set an
     editor for every program needs no config.
