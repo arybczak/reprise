@@ -542,12 +542,16 @@ test_edit :: Assertion
 test_edit = do
   r <- runEvents 0 [key "l"] =<< queueShown
   token <- requestToken r
-  missing <- runEvents 0 [LyricsLoaded token (LyricsMissing []), key "e"] r.state
+  missing <- runEvents 0 [LyricsLoaded token (LyricsMissing []), key "e", key "e"] r.state
   assertEqual "the text" [Edit "edit" ("lyrics" </> "A - One.txt")] (edits missing)
   timed <-
-    runEvents 0 [LyricsLoaded token (LyricsFound Stored timedTwenty), key "e"] r.state
+    runEvents
+      0
+      [LyricsLoaded token (LyricsFound Stored timedTwenty), key "e", key "e"]
+      r.state
   assertEqual "the times" [Edit "edit" ("lyrics" </> "A - One.lrc")] (edits timed)
-  noEditor <- runEventsWith (testAppEnv & #editor .~ Nothing) 0 [key "e"] missing.state
+  noEditor <-
+    runEventsWith (testAppEnv & #editor .~ Nothing) 0 [key "e", key "e"] missing.state
   assertEqual "no editor" [] (edits noEditor)
   assertBool
     "says how to set one"

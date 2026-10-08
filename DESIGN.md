@@ -629,9 +629,10 @@ ncmpcpp.
   ncmpcpp, with `toggle follow_playing`, which toggles the queue's on the
   other screens, as `toggle display` does the browser's in the browser.
   Turned on, it shows the lyrics of the song that plays at once.
-- **`e` edits the stored lyrics,** as in ncmpcpp: the `.lrc` if the times
-  show, else the `.txt`, which the editor makes if there is none, e.g. for
-  lyrics pasted from elsewhere. The lyrics show again when the editor exits.
+- **`e e` edits the stored lyrics,** as ncmpcpp's `e` does: the `.lrc` if
+  the times show, else the `.txt`, which the editor makes if there is none,
+  e.g. for lyrics pasted from elsewhere. The lyrics show again when the
+  editor exits.
   - **The editor is `editor.command`,** else `$VISUAL`, else `$EDITOR`.
     ncmpcpp's default was `nano`; with the environment, a user who set an
     editor for every program needs no config.
@@ -1136,7 +1137,7 @@ Key sequences, e.g. `t r`, are supported from the start:
 - Layering works one key at a time. The screen's and the global keymaps are
   walked in parallel:
   - if both bind the key to a prefix, the walk continues into both groups, so
-    the queue's `c` group adds keys to the global one;
+    the queue's `e` group adds keys to the global one;
   - otherwise the screen's binding wins. If the screen binds `t` to an
     action, it shadows the global `t` prefix.
 - Some keys look the same to a terminal: `ctrl-i` is `tab`, `ctrl-m` is
@@ -1166,8 +1167,8 @@ to volume. That one is a quirk, and `+`/`-` already change the volume.
 - Single keys for actions used many times per session: play/pause,
   next/previous, volume, seek, navigation, selection, `activate`, screen
   switching, find.
-- Prefix groups by topic for everything else, e.g. `t` for toggles and `c`
-  for queue operations.
+- Prefix groups by topic for everything else, e.g. `t` for toggles and `e`
+  for edits.
 - The full layout is in [Keymaps](#keymaps).
 
 The author once considered making ncmpcpp's bindings file a Python script.
@@ -1662,8 +1663,12 @@ The default keymap follows the [default keymap rule](#key-bindings):
   next", `t r` is "toggle repeat". Ctrl keys were harder to type for every
   group.
   - **Two topics' letters are everyday keys:** `s` stops and `q` quits. So
-    selection is `v`, as Vim's visual mode, and the queue is `c`, so that
-    `c c` clears it as ncmpcpp's `c` does.
+    selection is `v`, as Vim's visual mode.
+  - **`e` edits:** the queue, with `e c` to clear it and `e s` to shuffle
+    it, stored playlists, with `e w` to save one, and what a screen is
+    about, with `e e`: the lyrics on the lyrics screen, and later the tags
+    of a file. The queue was `c` once, so that `c c` cleared it as
+    ncmpcpp's `c` does, but `c` names nothing else in the group.
   - **`g` goes somewhere:** to the song under the cursor in another screen,
     e.g. `g b` in the browser, and to a position in the song, `g s`, which
     is what ncmpcpp's `g` does. The media library and the tag editor will
@@ -1746,9 +1751,9 @@ keys:
       b: add beginning
       p: add_and_play
       /: command add_path        # asks for the path in the : prompt
-    c:
-      name: queue
-      c: clear
+    e:
+      name: edit
+      c: clear                   # the queue
       s: shuffle
       w: save                    # as a stored playlist
     v:
@@ -1786,9 +1791,9 @@ keys:
     o: jump_to_playing
     m: move_selection up
     n: move_selection down
-    c:                           # merged with the global c group
+    e:                           # merged with the global e group
       m: move_selection cursor
-      e: move_selection end
+      M: move_selection end
       p: command priority        # asks for 0–255
 
   browser:
@@ -1802,7 +1807,8 @@ keys:
 
   lyrics:
     "`": refetch_lyrics          # as in ncmpcpp
-    e: edit_lyrics               # in editor.command, $VISUAL or $EDITOR
+    e:
+      e: edit_lyrics             # in editor.command, $VISUAL or $EDITOR
     space: toggle follow_playing # of the lyrics here, as in ncmpcpp
     o: jump_to_playing           # follow the line being sung again
     l: back                      # as the key that showed them, as in ncmpcpp
@@ -1817,10 +1823,10 @@ keys:
     escape: back
 ```
 
-Later features add to it: the queue's `c o` (sort dialog), the media
-library's `4` and left/right between columns, `d r` (add random songs),
-`g m` and `g e` (the song under the cursor in the media library and the tag
-editor).
+Later features add to it: the queue's `e o` (sort dialog), `e e` on the
+other screens (the tags of the song under the cursor), the media library's
+`4` and left/right between columns, `d r` (add random songs), `g m` and
+`g e` (the song under the cursor in the media library and the tag editor).
 `ctrl-w` is reserved for the window framework, as in Vim, and stays unbound
 until then. `ctrl-g` and `escape` cancel a pending prefix.
 
@@ -1828,14 +1834,15 @@ Compared to ncmpcpp:
 - **Toggles left the single keys:** `r` `z` `y` `R` `x` `Y` `#` `P` `!` `U`
   are under `t`.
 - **Queue operations left the single keys:** `c` `Z` `M` `S` `ctrl-p` are
-  under `c`. `C` (crop) and `ctrl-r` (reverse) are gone.
+  under `e`. `C` (crop) and `ctrl-r` (reverse) are gone.
+- **Editing the lyrics is `e e`,** not `e`, in the group of edits.
 - **Selection left the single keys:** `v` `V` `B` `ctrl-v` `ctrl-_` are under
   `v`.
 - **`shift-up`/`shift-down`** toggle the selection and move, without the
   binding chains ncmpcpp needs for it.
 - **`G` (jump to the browser) is `g b`,** in the group of `g`, ncmpcpp's
   jump to a position, which is `g s`.
-- **`r`, `u`, `A`, `w` and `e` are free** for later features.
+- **`r`, `u`, `A`, `w` and `c` are free** for later features.
 - **`escape` is not bound to pause.** That was the author's own binding, and
   pausing by accident is a surprising result of trying to back out of
   something. On the screens that show something about a song or the keys,

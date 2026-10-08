@@ -830,8 +830,8 @@ defaultKeymaps =
               , char '/' ~> CommandPrompt "add_path"
               ]
           , group
-              (char 'c')
-              "queue"
+              (char 'e')
+              "edit"
               [ char 'c' ~> Clear
               , char 's' ~> Shuffle
               , char 'w' ~> Save
@@ -886,10 +886,10 @@ defaultKeymaps =
                 , char 'm' ~> MoveSelection MoveSelectionUp
                 , char 'n' ~> MoveSelection MoveSelectionDown
                 , group
-                    (char 'c')
-                    "queue"
+                    (char 'e')
+                    "edit"
                     [ char 'm' ~> MoveSelection MoveSelectionToCursor
-                    , char 'e' ~> MoveSelection MoveSelectionToEnd
+                    , char 'M' ~> MoveSelection MoveSelectionToEnd
                     , char 'p' ~> CommandPrompt "priority"
                     ]
                 ]
@@ -909,7 +909,7 @@ defaultKeymaps =
             ( LyricsScreen
             , keymap
                 [ char '`' ~> RefetchLyrics
-                , char 'e' ~> EditLyrics
+                , group (char 'e') "edit" [char 'e' ~> EditLyrics]
                 , plain Space ~> Toggle ToggleFollowPlaying
                 , char 'o' ~> JumpToPlaying
                 , -- As the key that showed them, as in ncmpcpp.

@@ -31,7 +31,7 @@ layoutTests =
     , snapshot "queue-narrow" $ playing (40, 12)
     , snapshot "queue-classic" $ press ["t", "d"] =<< playing (80, 12)
     , snapshot "which-key" $ press ["t"] =<< playing (80, 12)
-    , snapshot "confirm" $ press ["c", "c"] =<< playing (80, 12)
+    , snapshot "confirm" $ press ["e", "c"] =<< playing (80, 12)
     , snapshot "stopped" $ testState (80, 8) (statusOf Stopped Nothing 2) (take 2 queue)
     , snapshot "empty" $ testState (80, 6) (statusOf Stopped Nothing 0) []
     , snapshot "disconnected" $

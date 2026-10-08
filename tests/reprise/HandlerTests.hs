@@ -135,7 +135,7 @@ test_promptAnswers = do
   assertEqual "seek to" [[Request "seekcur" ["90"]]] =<< requested ["g", "s"] "1:30"
   assertEqual "set crossfade" [[Request "crossfade" ["5"]]]
     =<< requested ["t", "X"] "5"
-  assertEqual "priority" [[Request "prioid" ["7", "1"]]] =<< requested ["c", "p"] "7"
+  assertEqual "priority" [[Request "prioid" ["7", "1"]]] =<< requested ["e", "p"] "7"
   assertEqual "add a path" [[Request "add" ["a/b.flac"]]]
     =<< requested ["a", "/"] "a/b.flac"
   assertEqual "run a command" [[Request "setvol" ["30"]]] =<< requested [":"] "volume 30"
@@ -307,22 +307,22 @@ test_moveSelectionTo :: Assertion
 test_moveSelectionTo = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   assertEqual "above the cursor" [[Request "move" ["0:1", "3"]]] . (.requests)
-    =<< keys ["insert", "end", "c", "m"] s
+    =<< keys ["insert", "end", "e", "m"] s
   assertEqual "among the selected songs" (Just "The cursor is among the selected songs")
     . message
-    =<< keys ["insert", "down", "down", "insert", "up", "c", "m"] s
+    =<< keys ["insert", "down", "down", "insert", "up", "e", "m"] s
   assertEqual "without a selection" (Just "Select the songs to move first") . message
-    =<< keys ["c", "m"] s
+    =<< keys ["e", "m"] s
   assertEqual "end" [[Request "move" ["0:1", "4"]]] . (.requests)
-    =<< keys ["insert", "c", "e"] s
+    =<< keys ["insert", "e", "M"] s
 
 test_shuffleSelection :: Assertion
 test_shuffleSelection = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
-  r <- keys ["space", "space", "c", "s"] s
+  r <- keys ["space", "space", "e", "s"] s
   assertEqual "next to each other" [[Request "shuffle" ["0:2"]]] r.requests
   assertEqual "message" (Just "Shuffled 2 songs") (message r)
-  apart <- keys ["space", "down", "space", "c", "s"] s
+  apart <- keys ["space", "down", "space", "e", "s"] s
   assertEqual "apart" [] apart.requests
   assertEqual "error" (Just True) (isError apart)
 
@@ -450,7 +450,7 @@ test_unboundNextKey = do
 test_clearConfirm :: Assertion
 test_clearConfirm = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
-  asked <- keys ["c", "c"] s
+  asked <- keys ["e", "c"] s
   assertEqual
     "question"
     (Just "Clear 3 songs from the queue?")

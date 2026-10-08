@@ -30,7 +30,7 @@ saveTests =
 
 test_newPlaylist :: Assertion
 test_newPlaylist = do
-  asked <- press ["c", "w"] =<< queue
+  asked <- press ["e", "w"] =<< queue
   assertEqual
     "the question"
     (Just "Save the queue as: ")
@@ -44,7 +44,7 @@ test_newPlaylist = do
 test_existing :: Assertion
 test_existing = do
   asked <-
-    answer ["playlist: mix"] =<< named "mix" . (.state) =<< press ["c", "w"] =<< queue
+    answer ["playlist: mix"] =<< named "mix" . (.state) =<< press ["e", "w"] =<< queue
   assertEqual
     "the choice"
     (Just "The playlist mix exists. [replace/append]")
@@ -59,14 +59,14 @@ test_existing = do
 test_cancel :: Assertion
 test_cancel = do
   asked <-
-    answer ["playlist: mix"] =<< named "mix" . (.state) =<< press ["c", "w"] =<< queue
+    answer ["playlist: mix"] =<< named "mix" . (.state) =<< press ["e", "w"] =<< queue
   r <- press ["escape"] asked.state
   assertEqual "no save" [] r.requests
   assertEqual "the message" (Just "Cancelled") (message r.state)
 
 test_selectedSongs :: Assertion
 test_selectedSongs = do
-  asked <- press ["insert", "down", "insert", "c", "w"] =<< queue
+  asked <- press ["insert", "down", "insert", "e", "w"] =<< queue
   assertEqual "the question" (Just "Save 2 songs as: ") ((.question) <$> asked.state.prompt)
   saved <- answer [] =<< named "mix" asked.state
   assertEqual
@@ -81,7 +81,7 @@ test_replaceItems = do
   asked <-
     answer ["playlist: mix"]
       =<< named "mix" . (.state)
-      =<< press ["insert", "c", "w"]
+      =<< press ["insert", "e", "w"]
       =<< queue
   replaced <- press ["r"] asked.state
   assertEqual
@@ -94,7 +94,7 @@ test_replaceItems = do
 test_browserItems :: Assertion
 test_browserItems = do
   root <- browserRoot
-  asked <- press ["insert", "end", "insert", "c", "w"] root
+  asked <- press ["insert", "end", "insert", "e", "w"] root
   assertEqual "the question" (Just "Save 2 items as: ") ((.question) <$> asked.state.prompt)
   checked <- named "mix" asked.state
   assertEqual
@@ -120,7 +120,7 @@ test_parts :: Assertion
 test_parts = do
   let songs = [song 0 [] 60, (song 1 [] 60) {range = Just (SongRange 60 (Just 90))}]
   s <- testState (80, 12) (statusOf Stopped Nothing 0) songs
-  asked <- press ["insert", "down", "insert", "c", "w"] s
+  asked <- press ["insert", "down", "insert", "e", "w"] s
   assertEqual "the question" (Just "Save 1 song as: ") ((.question) <$> asked.state.prompt)
   saved <- answer [] =<< named "mix" asked.state
   assertEqual "the song" [[Request "playlistadd" ["mix", "dir/0.flac"]]] saved.requests
@@ -128,7 +128,7 @@ test_parts = do
     "the message"
     (Just "Saved 1 song as mix, without 1 part of a file")
     (message saved.state)
-  onlyPart <- press ["down", "insert", "c", "w"] s
+  onlyPart <- press ["down", "insert", "e", "w"] s
   assertEqual "no prompt" Nothing onlyPart.state.prompt
   assertEqual
     "why"
@@ -137,13 +137,13 @@ test_parts = do
 
 test_emptyQueue :: Assertion
 test_emptyQueue = do
-  r <- press ["c", "w"] =<< testState (80, 12) (statusOf Stopped Nothing 0) []
+  r <- press ["e", "w"] =<< testState (80, 12) (statusOf Stopped Nothing 0) []
   assertEqual "no prompt" Nothing r.state.prompt
   assertEqual "the message" (Just "The queue is empty") (message r.state)
 
 test_emptyName :: Assertion
 test_emptyName = do
-  r <- press ["c", "w", "enter"] =<< queue
+  r <- press ["e", "w", "enter"] =<< queue
   assertEqual "no request" [] r.requests
 
 ----------------------------------------

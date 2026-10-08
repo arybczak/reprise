@@ -57,11 +57,11 @@ test_defaultKeymaps = do
   assertEqual
     "the queue's own group"
     (Bound (CommandPrompt "priority"))
-    (lookupKeys global (keys ["c", "p"]))
+    (lookupKeys global (keys ["e", "p"]))
   assertEqual
     "the global group in the queue"
     (Bound Clear)
-    (lookupKeys global (keys ["c", "c"]))
+    (lookupKeys global (keys ["e", "c"]))
   assertEqual
     "the queue's space"
     (Bound (Select (SelectItem (Just MoveDown))))
