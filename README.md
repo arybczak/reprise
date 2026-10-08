@@ -1,6 +1,6 @@
 # reprise
 
-[![CI](https://github.com/arybczak/reprise/actions/workflows/haskell-gha.yml/badge.svg)](https://github.com/arybczak/reprise/actions/workflows/haskell-gha.yml)
+[![CI](https://github.com/arybczak/reprise/actions/workflows/haskell-gha.yaml/badge.svg)](https://github.com/arybczak/reprise/actions/workflows/haskell-gha.yaml)
 
 A terminal client for the [Music Player Daemon](https://www.musicpd.org)
 (MPD), meant to succeed [ncmpcpp](https://github.com/ncmpcpp/ncmpcpp). It
