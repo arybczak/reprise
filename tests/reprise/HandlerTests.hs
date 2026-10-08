@@ -63,6 +63,7 @@ handlerTests =
     , testCase "select an album" test_selectAlbum
     , testCase "select an artist" test_selectArtist
     , testCase "prompts for a value" test_promptAnswers
+    , testCase "ctrl-q always quits" test_alwaysQuit
     , testCase "a prompt takes the keys" test_promptKeys
     , testCase "find as you type" test_findAsYouType
     , testCase "find the next and the previous match" test_findAgain
@@ -158,6 +159,14 @@ test_promptAnswers = do
   assertEqual "unknown command" (Just True) . isError =<< answer [":"] "nope"
   assertEqual "empty" ([], Nothing) . (\r -> (r.requests, r.state.message))
     =<< answer [":"] ""
+
+-- | ctrl-q quits on a screen, in a prompt and after a prefix alike.
+test_alwaysQuit :: Assertion
+test_alwaysQuit = do
+  s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+  forM_ [[], [":", "x"], ["t"]] $ \before -> do
+    r <- keys (before <> ["ctrl-q"]) s
+    assertEqual (show before) [()] [() | Halt <- r.commands]
 
 test_promptKeys :: Assertion
 test_promptKeys = do

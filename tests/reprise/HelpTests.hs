@@ -23,6 +23,7 @@ test_sections =
   assertEqual
     "lines"
     [ Heading 0 "Global"
+    , Entry 1 "ctrl-q" "quit, also in a prompt"
     , Entry 1 "p" "pause or resume"
     , Blank
     , Heading 1 "ctrl-t: toggle"

@@ -5,6 +5,7 @@ module Reprise.Keymap
   , Binding (..)
   , Keymaps (..)
   , emptyKeymap
+  , alwaysQuit
   , screenKeymap
 
     -- * Overrides
@@ -32,6 +33,7 @@ module Reprise.Keymap
 import Control.Monad
 import Data.Map.Strict qualified as M
 import Data.Maybe
+import Data.Set qualified as S
 import Data.Text qualified as T
 import Yamlet hiding (lookupKey)
 
@@ -62,6 +64,12 @@ data Keymaps = Keymaps
 
 emptyKeymap :: Keymap
 emptyKeymap = Keymap Nothing M.empty
+
+-- | The key that quits wherever it is pressed, also in a prompt or after a
+-- prefix. No keymap can bind it, so that no keymap leaves reprise without a
+-- way out.
+alwaysQuit :: KeySpec
+alwaysQuit = KeySpec (S.singleton Ctrl) (CharKey 'q')
 
 screenKeymap :: ScreenName -> Keymaps -> Keymap
 screenKeymap s keymaps = M.findWithDefault emptyKeymap s keymaps.screens
@@ -103,6 +111,8 @@ instance FromYaml KeymapOverride where
       insertUnique
         :: M.Map KeySpec Override -> (Node, KeySpec, Override) -> Parser (M.Map KeySpec Override)
       insertUnique m (node, k, v)
+        | k == alwaysQuit =
+            failAt node $ T.unpack (renderKeySpec k) <> " always quits, so a keymap can't bind it"
         | k `M.member` m =
             failAt node $ "the key " <> T.unpack (renderKeySpec k) <> " is bound twice"
         | otherwise = pure (M.insert k v m)
@@ -218,10 +228,12 @@ data HelpLine
 helpLines :: Keymaps -> [HelpLine]
 helpLines keymaps =
   drop 1 . concat $
-    [ Blank : Heading 0 title : keymapLines 1 [] keymap
-    | (title, keymap) <- ("Global", keymaps.global) : screens
-    , not (M.null keymap.bindings)
-    ]
+    [Blank, Heading 0 "Global", Entry 1 (renderKeySpec alwaysQuit) "quit, also in a prompt"]
+      : keymapLines 1 [] keymaps.global
+      : [ Blank : Heading 0 title : keymapLines 1 [] keymap
+        | (title, keymap) <- screens
+        , not (M.null keymap.bindings)
+        ]
   where
     screens :: [(T.Text, Keymap)]
     screens =

@@ -1675,6 +1675,14 @@ A user's keymap is merged with the default one key by key:
 - `null` (written `~`) removes a default binding, e.g. `p: ~`, or a whole
   group, e.g. `d: ~`.
 
+**`ctrl-q` always quits,** on every screen, in a prompt and after a prefix,
+and no keymap can bind it, so that no keymap leaves reprise without a way
+out. A keymap that binds it is an error. `q` is the quit of the default
+keymap, as in ncmpcpp, and can be changed. `ctrl-q` rather than `ctrl-c`:
+in a prompt, `ctrl-c` is what a shell user presses to drop the line, and
+`ctrl-q` means nothing there. vty turns the terminal's flow control off, so
+`ctrl-q` reaches reprise. The help lists it first.
+
 The default keymap follows the [default keymap rule](#key-bindings):
 - **Everyday actions keep ncmpcpp's single keys.**
 - **Everything else is in prefix groups.** Each group is a plain letter that
@@ -1767,7 +1775,7 @@ keys:
     shift-tab: previous_screen
     f1: show help
     ":": command
-    q: quit
+    q: quit                      # ctrl-q quits too, in no keymap (see above)
 
     a:
       name: add

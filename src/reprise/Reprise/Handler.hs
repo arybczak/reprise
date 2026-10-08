@@ -269,6 +269,7 @@ handleKey k = do
     modifyS $ #cursorTimer .~ True
     after cursorHideDelay HideCursor
   case s.prompt of
+    _ | k == alwaysQuit -> halt
     Just p -> handlePromptKey p k
     Nothing -> case s.pendingKeys of
       Just pending

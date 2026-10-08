@@ -1,6 +1,7 @@
 Help                                                                 Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
 Global
+  ctrl-q      quit, also in a prompt
   +           change volume by +2
   ,           find previous
   -           change volume by -2
@@ -19,6 +20,5 @@ Global
   ]           move next album
   b           seek -1s
   f           seek +1s
-  i           show the info of the song under the cursor
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

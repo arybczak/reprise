@@ -201,6 +201,10 @@ test_errors = do
     "the key 1 is bound twice"
     (decode "keys:\n  global:\n    1: pause\n    \"1\": stop\n")
   assertError
+    "the key that always quits"
+    "ctrl-q always quits, so a keymap can't bind it"
+    (decode "keys:\n  queue:\n    t:\n      ctrl-q: pause\n")
+  assertError
     "missing column format"
     "missing key \"format\""
     (decode "songs:\n  columns:\n    list:\n    - {width: 5}\n")
