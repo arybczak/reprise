@@ -93,7 +93,6 @@ library
     import:         language
 
     build-depends:    base                 >= 4.18      && < 5
-                    , brick                >= 2.4
                     , bytestring           >= 0.11.4
                     , containers           >= 0.6.7
                     , crypton              >= 1.0
@@ -185,7 +184,6 @@ executable reprise
 
     build-depends:    base
                     , async
-                    , brick
                     , directory
                     , effectful-core
                     , filepath

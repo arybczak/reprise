@@ -450,7 +450,7 @@ ncmpcpp.
     old,** so the worker drops them. ncmpcpp resets the output for that,
     which needs its name in the config.
 - A frame that the UI can't take in time is dropped: the worker doesn't
-  wait for brick's channel of events.
+  wait for the queue of events.
 - **A frame** (see [Benchmarks](#benchmarks)), at 160×45 with 24-bit
   colors: the worker computes the spectra of the two channels in 160 µs,
   the layout draws the spectrum in 174 µs, the ellipse in 231 µs and the
@@ -839,8 +839,8 @@ modules are under `Reprise.Mpd.Protocol`.
 
 | Module | Contents |
 |---|---|
-| `Main` (`app/Main.hs`) | CLI options (optparse-applicative), loading the config, starting the workers and brick |
-| `Reprise.App` | The brick application: a thin adapter between brick's events and the handlers |
+| `Main` (`app/Main.hs`) | CLI options (optparse-applicative), loading the config, starting the workers and the event loop |
+| `Reprise.App` | The event loop: a thin adapter between vty, the queue of events and the handlers |
 | `Reprise.Effect.*` | The app's own effects (`MpdRequest`, `UiRequest`, `Mpd`), one module each |
 | `Reprise.Config` | Config types, yamlet decoders, defaults, the default keymaps |
 | `Reprise.Format` | The format language: parser and renderer to styled spans. Pure, with golden tests |
@@ -852,7 +852,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
 | `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors, the order of text, the directory of lyrics and the editor. Queries of the state that both the handlers and the layout need, such as whether the cursor shows, or the header's title and whether it scrolls |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
-| `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write events to brick's `BChan` |
+| `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write to the queue of events |
 | `Reprise.Visualizer.Worker` | The thread that reads MPD's fifo output while the visualizer shows, and sends the samples of each frame |
 | `Reprise.Visualizer.Samples` | The format of the samples that the worker reads and the visualizer draws |
 | `Reprise.Visualizer.Spectrum` | The spectrum of the samples, with pocketfft's FFT in `cbits` |
@@ -864,7 +864,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Lyrics.Lrclib` | The lyrics of a song from lrclib.net |
 | `Reprise.Lyrics.Tekstowo` | The lyrics of a song from the pages of tekstowo.pl |
 | `Reprise.Mpd.Address` | Where MPD is: the command line, the config, `MPD_HOST`, the usual sockets |
-| `Reprise.Event` | The brick custom event type, which every continuation produces |
+| `Reprise.Event` | The events of the loop, which every continuation produces |
 | `Reprise.Exception` | Catching the exceptions that an action throws, but not asynchronous ones |
 | `Reprise.Find` | The patterns of find and filter: ICU regular expressions with diacritics folded |
 | `Reprise.Collation` | The order of text by the rules of a locale, with a leading "the" ignored if the config says so. The tests use ICU's root rules, so that they don't depend on the locale |
@@ -909,7 +909,7 @@ Libraries:
 
 | Need | Package |
 |---|---|
-| UI | `brick`, plus `vty`/`vty-unix` |
+| UI | `vty`/`vty-unix` |
 | Sockets | `network` |
 | Config | `yamlet` |
 | CLI | `optparse-applicative` |
@@ -970,9 +970,8 @@ external commands and the editor. Most of the code is pure:
 formats, config decoding, key parsing, list, filter and selection logic, the
 mirror, layout, and the decision part of almost every action.
 
-Brick's `EventM` is a separate monad, a state monad over IO with `MonadIO`, so
-brick handlers don't run in `Eff`. brick stays the outer loop, and effectful is
-used in two places:
+reprise's own loop over vty is the outer loop, and effectful is used in two
+places:
 
 1. **Actions are `Eff` code with a small, mostly pure stack,** for example
    `(State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()`.
@@ -984,9 +983,9 @@ used in two places:
    - Logic that only changes the state is a pure function, e.g.
      `jumpTo :: Int -> AppEnv -> AppState -> AppState`, and the handlers
      apply it. Only what messages the user or requests something from MPD
-     or brick is `Eff` code.
+     or the loop is `Eff` code.
    - `MpdRequest` queues commands with continuations.
-   - `UiRequest` covers what only brick can do: halting, suspending for an
+   - `UiRequest` covers what only the loop can do: halting, suspending for an
      external program, the terminal title, timers that send an event later,
      and skipping the redraw after an event that changed nothing on the
      screen. The timers end a seek, expire messages, hide the queue's cursor,
@@ -995,7 +994,8 @@ used in two places:
      early, it waits for the rest of the delay after the last key, so
      holding a key doesn't add a redraw per key.
    - Prompts and confirmations are state, not requests. An action can't stop
-     halfway and wait for the user, because brick is the outer loop. So it
+     halfway and wait for the user, because the loop handles one event at
+     a time. So it
      opens a prompt with a continuation, e.g. `confirm msg onYes`, and the
      pending prompt lives in `AppState`. When the user answers, the
      continuation runs.
@@ -1005,9 +1005,10 @@ used in two places:
      must be data: a function in `AppState` would need the effects, whose
      operations carry the continuations, and the modules would form a
      cycle. As data, they also have `Eq` and `Show` for the tests.
-   - The brick handler is a thin adapter. It reads the state, runs the event
-     with handlers that collect the requests, writes the new state back, and
-     then performs the collected requests.
+   - The loop is a thin adapter. It waits for a key or an event from the
+     queue, runs the event with handlers that collect the requests, keeps
+     the new state, performs the collected requests, and draws the screen
+     unless the event asked to skip it. Keys go before the queue's events.
    - The event runs in `IO` with `runEff`, not `runPureEff`, though the
      handlers can't do IO without `IOE`. `runPureEff` hides the IO of `Eff`
      behind `unsafeDupablePerformIO`, and the benchmark of the down key
@@ -1017,7 +1018,7 @@ used in two places:
      This is the main payoff.
 2. **Worker threads are ordinary `Eff` programs** with IO-backed effects (the
    MPD connection, and later HTTP, processes and logging). Each thread runs
-   its own `runEff`. The workers are cancelled when brick exits, so their
+   its own `runEff`. The workers are cancelled when the loop ends, so their
    cleanups run, e.g. the MPD connections close. A worker that fails is
    logged and starts again a second later.
 
@@ -1026,9 +1027,18 @@ Actions are data, in `Reprise.Action`, and their handlers are in
 its keymaps, and the handlers need `AppEnv`, which holds the config, so an
 action with its handler inside would make the modules a cycle too.
 
-The screen is drawn as one vty image from the state and the environment, with
-brick as the event loop around it. The image is a pure function of them, so
-the snapshot tests render it to text.
+The screen is drawn as one vty image from the state and the environment. The
+image is a pure function of them, so the snapshot tests render it to text.
+
+reprise used brick once, and dropped it for vty alone. Of brick, it used only
+the event loop, suspending the terminal for the editor, and skipping a
+redraw, which take a few dozen lines on vty. brick's widgets don't fit: they
+size themselves while they draw, and the pure handlers need the sizes of the
+views before that, e.g. to page and to center the cursor, so the layout
+keeps them in the state. Popups are another layer of vty's picture, and
+split windows and the media library's columns are images joined side by
+side. Without brick, a build has a dozen fewer packages, megaparsec among
+them.
 
 The elapsed time is redrawn by a timer, not by polling. After each event, the
 handler computes when the screen next changes, the next whole second or the
@@ -1281,8 +1291,8 @@ each hold few lines, and more prompts are coming, e.g. the search engine's.
 - **A recalled find pattern finds** as a typed one does.
 - **It lasts for the session.**
 
-The editor is reprise's own pure code, not brick's editor. brick's editor
-handles events in brick's monad, outside the handlers that the tests run.
+The editor is reprise's own pure code, so that the tests run it with the
+handlers.
 
 The `:` prompt runs an action. It is also how a key asks for a value: the
 `command` action takes the start of the line, so `g s: command seek`
@@ -1982,7 +1992,7 @@ Settings that effectful doesn't have:
 - `tested-with: GHC ^>= { 9.6, 9.8, 9.10, 9.12, 9.14 }`. effectful supports
   the same range, and yamlet supports a wider one.
 - `OverloadedStrings`, because reprise and mpd-protocol work with `Text`
-  everywhere (yamlet, brick, the protocol).
+  everywhere (yamlet, vty, the protocol).
 - `OverloadedLabels`, for the optics labels (see [Code](#code)).
 - `MultiWayIf`, for conditions that guards in a `case` would only make
   longer.

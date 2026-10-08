@@ -3,8 +3,6 @@ module Main
   ( main
   ) where
 
-import Brick qualified as B
-import Brick.BChan qualified as B
 import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
@@ -103,11 +101,12 @@ main = do
   logLine <- openLog
   requests <- newTQueueIO
   password <- newTVarIO settings.password
-  events <- B.newBChan eventChannelSize
+  events <- newTBQueueIO eventQueueSize
   visualizing <- newTVarIO Nothing
-  let workers =
+  let emit = atomically . writeTBQueue events
+      workers =
         Workers
-          { emit = B.writeBChan events
+          { emit = emit
           , logLine = logLine
           , requests = requests
           , password = password
@@ -124,7 +123,10 @@ main = do
         { path = path
         , fps = fps
         , reading = visualizing
-        , emit = B.writeBChanNonBlocking events
+        , emit = \e -> atomically $ do
+            full <- isFullTBQueue events
+            unless full $ writeTBQueue events e
+            pure (not full)
         , debug = config.visualizer.debug
         }
   lyrics <- newTVarIO Nothing
@@ -152,7 +154,7 @@ main = do
             , fetchers = map fetcher config.lyrics.fetchers
             , requested = lyrics
             , background = lyricsInBackground
-            , emit = B.writeBChan events
+            , emit = emit
             , logLine = logLine
             }
       restarted :: IO () -> IO ()
@@ -160,34 +162,27 @@ main = do
         worker `catchSync` \e -> logLine $ "A worker failed: " <> T.pack (displayException e)
         threadDelay retryInterval
   installWidthTable
-  let buildVty = V.mkVty V.defaultConfig
-  vty <- buildVty
   withAsync
     (mapConcurrently_ restarted (mpdWorkers <> toList visualizer <> [lyricsFetcher]))
     $ \_ ->
-      void $
-        B.customMain
-          vty
-          buildVty
-          (Just events)
-          ( app
-              AppEnv
-                { config = config
-                , keymaps = keymapsOf config.keys
-                , colorMode = colorMode
-                , collator = userCollator
-                , lyricsDirectory = lyricsDirectory
-                , editor = editor
-                }
-              Channels
-                { requests = requests
-                , events = events
-                , visualizing = visualizing
-                , lyrics = lyrics
-                , lyricsInBackground = lyricsInBackground
-                }
-          )
-          (initialState config)
+      runApp
+        AppEnv
+          { config = config
+          , keymaps = keymapsOf config.keys
+          , colorMode = colorMode
+          , collator = userCollator
+          , lyricsDirectory = lyricsDirectory
+          , editor = editor
+          }
+        Channels
+          { requests = requests
+          , events = events
+          , visualizing = visualizing
+          , lyrics = lyrics
+          , lyricsInBackground = lyricsInBackground
+          }
+        (V.mkVty V.defaultConfig)
+        (initialState config)
 
 sources :: Options -> IO Sources
 sources opts = do
