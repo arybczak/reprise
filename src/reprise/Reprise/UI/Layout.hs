@@ -250,6 +250,7 @@ promptLine s question edit purpose =
       fullNote = case purpose of
         ForCommand -> actionHint (lineEditText edit)
         ForFind f -> fromMaybe "" f.note
+        ForSave _ -> ""
       -- The line and a column for the cursor come first, then a space and
       -- as much of the note as fits.
       noteRoom = w - textWidth question - textWidth (lineEditText edit) - 2

@@ -34,6 +34,7 @@ import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
+import Reprise.Save
 import Reprise.Screen.Browser
 import Reprise.Screen.Lyrics
 import Reprise.Screen.Outputs
@@ -164,6 +165,8 @@ handleEvent = \case
   SongCommentsFetched token comments -> songCommentsFetched token comments
   OutputsFetched fetched -> outputsFetched fetched
   Confirmed action -> runConfirmed action
+  SaveChecked name source exists -> saveChecked name source exists
+  SaveTo name source mode -> saveTo name source mode
   where
     statusSubsystems :: [Subsystem]
     statusSubsystems = [PlayerSubsystem, MixerSubsystem, OptionsSubsystem, UpdateSubsystem, DatabaseSubsystem]
@@ -325,6 +328,7 @@ handlePromptKey p k = case p.input of
 answer :: App es => LinePurpose -> T.Text -> Eff es ()
 answer purpose text = case purpose of
   ForFind f -> acceptFind f text
+  ForSave source -> saveNamed source (T.strip text)
   ForCommand
     | T.null (T.strip text) -> pure ()
     | otherwise -> either showError runAction (parseAction text)
@@ -360,6 +364,10 @@ runAction = \case
     _ -> Nothing
   action@Parent -> verb action $ \case
     BrowserScreen -> Just leave
+    _ -> Nothing
+  action@Save -> verb action $ \case
+    QueueScreen -> Just $ getsS queueToSave >>= maybe (showMessage "The queue is empty") askSaveName
+    BrowserScreen -> Just $ askSaveName =<< getsS browserToSave
     _ -> Nothing
   action@EditLyrics -> verb action $ \case
     LyricsScreen -> Just editLyrics
@@ -476,6 +484,113 @@ runConfirmed = \case
   Clear -> mutate clear
   Shuffle -> mutate $ shuffle Nothing
   _ -> pure ()
+
+----------------------------------------
+-- Saving as a stored playlist
+
+-- | Ask for the name of the stored playlist to save to.
+askSaveName :: App es => SaveSource -> Eff es ()
+askSaveName source
+  | Just why <- nothingToSave source = showMessage why
+  | otherwise =
+      modifyS $
+        openLine ("Save " <> describeSave source <> " as: ") (LineEdit "" "") (ForSave source)
+
+-- | Ask MPD which stored playlists there are, with the songs of those to
+-- save, before a save to the one of a name. An empty name saves nothing.
+saveNamed :: App es => SaveSource -> T.Text -> Eff es ()
+saveNamed source name
+  | T.null name = pure ()
+  | otherwise =
+      request ((,) <$> listPlaylists <*> traverse listPlaylistInfo playlists) $
+        \(existing, songs) -> SaveChecked name (withSongs songs) (name `elem` existing)
+  where
+    playlists :: [T.Text]
+    playlists = case source of
+      SaveQueue -> []
+      SaveItems items -> [p | SavePlaylist p <- items]
+
+    -- The songs of each stored playlist take its place.
+    withSongs :: [[Song]] -> SaveSource
+    withSongs songs = case source of
+      SaveQueue -> SaveQueue
+      SaveItems items -> SaveItems (go items songs)
+      where
+        go :: [SaveItem] -> [[Song]] -> [SaveItem]
+        go (SavePlaylist _ : rest) (ss : more) = map songToSave ss <> go rest more
+        go (item : rest) more = item : go rest more
+        go [] _ = []
+
+-- | Save to a new stored playlist, or ask whether to replace the one of the
+-- name or to append to it.
+saveChecked :: App es => T.Text -> SaveSource -> Bool -> Eff es ()
+saveChecked name source exists
+  | Just why <- nothingToSave source = showMessage why
+  | exists =
+      modifyS $
+        #prompt
+          ?~ Prompt
+            ("The playlist " <> name <> " exists.")
+            ( Choice
+                [ ChoiceOption 'r' "replace" (Just (SaveTo name source ReplacePlaylist))
+                , ChoiceOption 'a' "append" (Just (SaveTo name source AppendToPlaylist))
+                ]
+            )
+  | otherwise = saveTo name source CreatePlaylist
+
+saveTo :: App es => T.Text -> SaveSource -> SaveMode -> Eff es ()
+saveTo name source mode = do
+  mutate $ case source of
+    SaveQueue -> save name mode
+    SaveItems items ->
+      when (mode == ReplacePlaylist) (playlistClear name)
+        *> traverse_ addItem (savedItems items)
+  showMessage $
+    ( case mode of
+        CreatePlaylist -> "Saved " <> describeSave source <> " as " <> name
+        ReplacePlaylist -> "Replaced " <> name <> " with " <> describeSave source
+        AppendToPlaylist -> "Added " <> describeSave source <> " to " <> name
+    )
+      <> case partsLeftOut source of
+        0 -> ""
+        1 -> ", without 1 part of a file"
+        n -> ", without " <> T.pack (show n) <> " parts of files"
+  where
+    addItem :: SaveItem -> Command ()
+    addItem = \case
+      SaveSong uri -> playlistAdd name uri
+      SaveDirectory path -> playlistAddDirectory name path
+      -- 'saveNamed' put their songs in their places, and 'savedItems' left
+      -- the parts out.
+      SavePlaylist _ -> pure ()
+      SavePart -> pure ()
+
+-- | What a save saves, as the status bar says it.
+describeSave :: SaveSource -> T.Text
+describeSave = \case
+  SaveQueue -> "the queue"
+  SaveItems items
+    | all isSong saved -> countSongs (length saved)
+    | otherwise -> countItems (length saved)
+    where
+      saved :: [SaveItem]
+      saved = savedItems items
+
+      isSong :: SaveItem -> Bool
+      isSong = \case
+        SaveSong _ -> True
+        _ -> False
+
+-- | Why a save has nothing to save, if it hasn't.
+nothingToSave :: SaveSource -> Maybe T.Text
+nothingToSave = \case
+  SaveItems items
+    | null (savedItems items) ->
+        Just $
+          if null items
+            then "There is nothing to save"
+            else "Parts of files, e.g. the tracks of a cue sheet, can't be saved"
+  _ -> Nothing
 
 confirm :: T.Text -> AppEvent -> AppState -> AppState
 confirm question onYes =

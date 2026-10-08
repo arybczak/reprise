@@ -22,6 +22,7 @@ module Reprise.Screen.Browser
   , addMarked
   , addAndPlay
   , addOrRemove
+  , browserToSave
   , browserDirectory
 
     -- * Selection
@@ -61,6 +62,7 @@ import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
+import Reprise.Save
 import Reprise.Selection
 import Reprise.State
 import Reprise.Style
@@ -404,6 +406,17 @@ addItems location items pos = traverse_ ($ pos) $ case pos of
             PlaylistEntry p -> load p.path Nothing
         | (_, EntryItem entry) <- items
         ]
+
+-- | What a save saves: the marked items.
+browserToSave :: AppState -> SaveSource
+browserToSave s =
+  SaveItems
+    [ case entry of
+        SongEntry song -> songToSave song
+        DirectoryEntry d -> SaveDirectory d.path
+        PlaylistEntry p -> SavePlaylist p.path
+    | (_, EntryItem entry) <- markedItems s
+    ]
 
 -- | The ids of a song's copies in the queue.
 queuedIds :: Song -> AppState -> [SongId]

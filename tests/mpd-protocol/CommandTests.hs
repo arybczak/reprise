@@ -18,6 +18,7 @@ commandTests =
     , testCase "a command list reply needs list_OK" test_listNeedsListOk
     , testCase "too many parts" test_tooManyParts
     , testCase "arguments" test_arguments
+    , testCase "the names of the stored playlists" test_listPlaylists
     ]
 
 test_pure :: Assertion
@@ -93,3 +94,27 @@ test_arguments = do
     "a position needs a range"
     [Request "load" ["p", "0:", "+0"]]
     (commandRequests $ load "p" Nothing (Just $ AfterCurrent 0))
+  assertEqual
+    "save, appending"
+    [Request "save" ["p", "append"]]
+    (commandRequests $ save "p" AppendToPlaylist)
+  assertEqual
+    "a directory into a playlist"
+    [Request "searchaddpl" ["p", "(base \"a \\\"b\\\" \\\\c\")"]]
+    (commandRequests $ playlistAddDirectory "p" "a \"b\" \\c")
+
+test_listPlaylists :: Assertion
+test_listPlaylists =
+  assertEqual
+    "the names"
+    (Right ["p", "q r"])
+    ( parseCommandReply
+        listPlaylists
+        [
+          [ Field "playlist" "p"
+          , Field "Last-Modified" "2024-01-01T00:00:00Z"
+          , Field "playlist" "q r"
+          , Field "Last-Modified" "2024-01-02T00:00:00Z"
+          ]
+        ]
+    )

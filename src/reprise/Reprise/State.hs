@@ -86,6 +86,7 @@ import Reprise.LineEdit
 import Reprise.Lyrics
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
+import Reprise.Save
 import Reprise.Selection
 import Reprise.SongInfo
 import Reprise.Style
@@ -183,6 +184,8 @@ data LinePurpose
   = -- | The @:@ prompt, which runs an action.
     ForCommand
   | ForFind Finding
+  | -- | The name of the stored playlist to save to.
+    ForSave SaveSource
   deriving stock (Eq, Show)
 
 -- | A find in progress, which moves the cursor while the user types.

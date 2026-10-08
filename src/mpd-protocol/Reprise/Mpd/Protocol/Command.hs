@@ -71,6 +71,12 @@ module Reprise.Mpd.Protocol.Command
 
     -- * Playlists
   , listPlaylistInfo
+  , listPlaylists
+  , SaveMode (..)
+  , save
+  , playlistAdd
+  , playlistAddDirectory
+  , playlistClear
   , load
 
     -- * Outputs
@@ -347,6 +353,54 @@ readComments uri = command "readcomments" [uri] parseComments
 -- directory.
 listPlaylistInfo :: T.Text -> Command [Song]
 listPlaylistInfo name = command "listplaylistinfo" [name] parseSongs
+
+-- | The names of the stored playlists.
+listPlaylists :: Command [T.Text]
+listPlaylists = command "listplaylists" [] $ \fields ->
+  Right [decode f.value | f <- fields, f.key == "playlist"]
+
+-- | What @save@ does with a stored playlist of its name.
+data SaveMode
+  = -- | Make a new one, which fails if it exists.
+    CreatePlaylist
+  | ReplacePlaylist
+  | AppendToPlaylist
+  deriving stock (Eq, Show)
+
+instance Argument SaveMode where
+  toArgument = \case
+    CreatePlaylist -> "create"
+    ReplacePlaylist -> "replace"
+    AppendToPlaylist -> "append"
+
+-- | Save the queue as a stored playlist.
+save :: T.Text -> SaveMode -> Command ()
+save name mode = command "save" [name, toArgument mode] noReply
+
+-- | Add a song to a stored playlist, which it makes if it doesn't exist.
+playlistAdd :: T.Text -> T.Text -> Command ()
+playlistAdd name uri = command "playlistadd" [name, uri] noReply
+
+-- | Add the songs of a directory of the database, with those of the
+-- directories in it, to a stored playlist, which it makes if it doesn't
+-- exist.
+playlistAddDirectory :: T.Text -> T.Text -> Command ()
+playlistAddDirectory name path =
+  command "searchaddpl" [name, "(base " <> filterString path <> ")"] noReply
+  where
+    -- A string of a filter expression is quoted, with a backslash before a
+    -- quote or a backslash in it.
+    filterString :: T.Text -> T.Text
+    filterString t = "\"" <> T.concatMap escape t <> "\""
+
+    escape :: Char -> T.Text
+    escape c
+      | c == '"' || c == '\\' = T.pack ['\\', c]
+      | otherwise = T.singleton c
+
+-- | Remove the songs of a stored playlist.
+playlistClear :: T.Text -> Command ()
+playlistClear name = command "playlistclear" [name] noReply
 
 -- | Add a playlist, or a range of its songs, to the queue, at the end or at
 -- a position.

@@ -143,6 +143,7 @@ library
                      Reprise.Mpd.Address
                      Reprise.Mpd.Mirror
                      Reprise.Mpd.Worker
+                     Reprise.Save
                      Reprise.Screen.Browser
                      Reprise.Screen.Help
                      Reprise.Screen.Lyrics
@@ -307,6 +308,7 @@ test-suite reprise-tests
                     MirrorTests
                     OutputsTests
                     QueueTests
+                    SaveTests
                     SongInfoTests
                     StyleTests
                     TekstowoTests

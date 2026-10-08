@@ -13,8 +13,10 @@ import Data.Vector.Storable qualified as VS
 import Reprise.Action
 import Reprise.Keys
 import Reprise.Lyrics
+import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
+import Reprise.Save
 
 data AppEvent
   = -- | A key that the user pressed.
@@ -76,6 +78,12 @@ data AppEvent
     Edited FilePath (Maybe T.Text)
   | -- | The user confirmed a destructive action.
     Confirmed Action
+  | -- | MPD's reply before a save to the stored playlist of the name: what
+    -- to save, with the songs of its stored playlists, and whether a stored
+    -- playlist of the name exists.
+    SaveChecked T.Text SaveSource Bool
+  | -- | Save to the stored playlist of the name.
+    SaveTo T.Text SaveSource SaveMode
   deriving stock (Eq, Show)
 
 -- | What happened to the visualizer worker's frames in a second.

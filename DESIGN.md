@@ -164,6 +164,23 @@ ncmpcpp.
 - `jump_to_browser` opens the directory of the song under the cursor, with
   the cursor on that song, as ncmpcpp's `G` does.
 
+**Saving as a stored playlist**
+- `save` asks for a name in the status bar, and saves what the focused
+  screen marks: in the queue, the selected songs, or the whole queue
+  without a selection; in the browser, the selected items, or the item
+  under the cursor.
+- If a stored playlist of the name exists, a choice asks whether to replace
+  it or to append to it. A new name saves at once.
+- **MPD saves the whole queue itself,** with `save` and its mode, which
+  needs MPD 0.24.
+- **Other songs go in with `playlistadd`,** after a `playlistclear` to
+  replace. A directory goes in with `searchaddpl` and a `base` filter, with
+  the songs of the directories in it. A stored playlist goes in with its
+  songs, which the request that checks the name fetches too.
+- **A part of a file, e.g. a track of a cue sheet, is left out,** and the
+  message says how many. A stored playlist has no ranges, so it would get
+  the whole file.
+
 **Search engine**
 - The constraint form, searching the database or the queue. The fields are
   ncmpcpp's: any tag, artist, album artist, title, album, filename, composer,
@@ -832,6 +849,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Collation` | The order of text by the rules of a locale, with a leading "the" ignored if the config says so. The tests use ICU's root rules, so that they don't depend on the locale |
 | `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list, and runs of consecutive positions |
 | `Reprise.Selection` | The selection of a list by the keys of its items, with the ends of the next range. `Reprise.Handler.Core` applies the select actions to any list with it |
+| `Reprise.Save` | What a save as a stored playlist saves, from the queue or the browser. `Reprise.Handler` asks for the name and saves |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
 | `Reprise.Width` | The width of text in terminal columns, cutting and wrapping text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
@@ -1315,7 +1333,7 @@ or if it changes a stored playlist, which lives on disk:
 | Clear the queue | Removes every song |
 | Shuffle or sort the whole queue | Loses the current order |
 | Delete a stored playlist | Removes it from disk |
-| Save over an existing stored playlist | Replaces its contents |
+| Save to an existing stored playlist | Replaces its contents, or adds to it |
 | Clear a stored playlist, or remove songs from it | Changes it on disk |
 
 Not destructive:

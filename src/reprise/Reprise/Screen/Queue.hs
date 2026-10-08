@@ -11,6 +11,7 @@ module Reprise.Screen.Queue
     -- * Selection
   , select
   , selectedSongPositions
+  , queueToSave
 
     -- * Changes
   , activate
@@ -41,6 +42,7 @@ import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
+import Reprise.Save
 import Reprise.Screen.Queue.Edits
 import Reprise.Selection
 import Reprise.State
@@ -115,6 +117,16 @@ jumpToPlaying env s =
 -- | The positions of the selected songs of the queue, in order.
 selectedSongPositions :: AppState -> [Int]
 selectedSongPositions s = selectedPositions ((.songId) <$> s.mirror.queue) s.queueState.selection
+
+-- | What a save saves: the selected songs, or the whole queue without a
+-- selection. Nothing when the queue is empty.
+queueToSave :: AppState -> Maybe SaveSource
+queueToSave s = case selectedSongPositions s of
+  []
+    | null s.mirror.queue -> Nothing
+    | otherwise -> Just SaveQueue
+  ps ->
+    Just $ SaveItems [songToSave song | p <- ps, Just song <- [Seq.lookup p s.mirror.queue]]
 
 -- | The positions of the songs that an action applies to: the selected
 -- songs, or the song under the cursor without a selection.

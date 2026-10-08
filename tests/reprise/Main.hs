@@ -22,6 +22,7 @@ import MirrorTests
 import OutputsTests
 import QueueTests
 import Reprise.Width
+import SaveTests
 import SongInfoTests
 import StyleTests
 import TekstowoTests
@@ -55,6 +56,7 @@ main = do
       , mirrorTests
       , outputsTests
       , queueTests
+      , saveTests
       , songInfoTests
       , styleTests
       , tekstowoTests
