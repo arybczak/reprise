@@ -26,6 +26,7 @@ browserTests =
     , testCase "showing it again lists nothing" test_showAgain
     , testCase "entering a directory and leaving it" test_enterAndLeave
     , testCase "the .. entry goes up" test_parentItem
+    , testCase "enter held on .. goes up once" test_parentHeld
     , testCase "nothing is above the root" test_aboveRoot
     , testCase "a playlist opens like a directory" test_playlist
     , testCase "a replaced listing is dropped" test_replacedListing
@@ -86,6 +87,15 @@ test_parentItem = do
   inA <- answer ["file: a/x.flac"] =<< press ["enter"] =<< root
   assertEqual "the listing of the root" [[Request "lsinfo" []]] . (.requests)
     =<< press ["enter"] inA
+
+-- | Until the reply, the screen shows the listing of a/c, with the cursor
+-- on its @..@, so enter held on it lists a each time.
+test_parentHeld :: Assertion
+test_parentHeld = do
+  inA <- answer ["directory: a/c"] =<< press ["enter"] =<< root
+  inC <- answer ["file: a/c/x.flac"] =<< press ["down", "enter"] inA
+  r <- press ["enter", "enter"] inC
+  assertEqual "the listings of a" (replicate 2 [Request "lsinfo" ["a"]]) r.requests
 
 test_aboveRoot :: Assertion
 test_aboveRoot = assertEqual "requests" [] . (.requests) =<< press ["backspace"] =<< root

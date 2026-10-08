@@ -217,10 +217,15 @@ browserChanged subsystems = do
 leave :: App es => Eff es ()
 leave = do
   b <- getsS (.browser)
-  forM_ (maybe b.location (Just . (.location)) b.listing) $ \location ->
-    forM_ (parentOf location) $ \up -> list up . JumpTo $ case location of
-      InDirectory path -> DirectoryKey path
-      InPlaylist path -> PlaylistKey path
+  forM_ (maybe b.location (Just . (.location)) b.listing) goUp
+
+-- | Go up to the directory of a directory or a playlist, with the cursor on
+-- it.
+goUp :: App es => Location -> Eff es ()
+goUp location =
+  forM_ (parentOf location) $ \up -> list up . JumpTo $ case location of
+    InDirectory path -> DirectoryKey path
+    InPlaylist path -> PlaylistKey path
 
 -- | List the directory of a song, with the cursor on the song, as ncmpcpp's
 -- @jump_to_browser@ does. A stream isn't in the database.
@@ -317,12 +322,14 @@ selectInBrowser t = do
 -- Adding
 
 -- | Enter the directory or open the playlist under the cursor, go up from
--- @..@, or play the song.
+-- @..@, or play the song. @..@ goes up from the listing that it is in, not
+-- from one on its way, so that enter held on it goes up once: until the
+-- reply, the screen still shows it.
 activateItem :: App es => Eff es ()
 activateItem = do
   s <- getS
   forM_ (cursorItem s) $ \case
-    (_, ParentItem) -> leave
+    (_, ParentItem) -> forM_ s.browser.location goUp
     (_, EntryItem (DirectoryEntry d)) -> list (InDirectory d.path) AtTop
     (_, EntryItem (PlaylistEntry p)) -> list (InPlaylist p.path) AtTop
     item@(_, EntryItem (SongEntry _)) -> addAndPlayItems [item]

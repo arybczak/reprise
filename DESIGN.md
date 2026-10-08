@@ -126,6 +126,11 @@ ncmpcpp.
 - `activate` enters a directory, opens a playlist and plays a song. A song
   that is already in the queue plays there instead of being added again.
 - Going up puts the cursor on the directory or the playlist that was left.
+  - **`parent` goes up from a listing on its way,** so that presses typed
+    ahead of MPD's reply add up.
+  - **`..` goes up from the listing that it is in.** Until the reply, the
+    screen still shows it, with the cursor on `..`, so enter held on it
+    went up again from the listing on its way, past the directory above.
 - Playlists open like directories, with their songs and a `..` entry:
   - **Which playlists:** stored playlists, which `lsinfo` lists at the root,
     and playlist files in the music directory, e.g. `.m3u` files and cue
