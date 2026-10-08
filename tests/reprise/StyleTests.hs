@@ -37,6 +37,10 @@ test_parse = do
     "only a background"
     (Right $ Style Nothing (Just (Color 237)) S.empty)
     (parseStyle "on 237")
+  assertEqual
+    "red, green and blue"
+    (Right $ Style (Just (Rgb 0 255 128)) (Just (Rgb 0x1a 0x2b 0x3c)) S.empty)
+    (parseStyle "#00ff80 on #1A2B3C")
 
 test_parseErrors :: Assertion
 test_parseErrors = do
@@ -54,6 +58,14 @@ test_parseErrors = do
     "on without a color"
     (Left "expected a color after \"on\"")
     (parseStyle "red on")
+  assertEqual
+    "too few digits"
+    (Left "a color of red, green and blue must be # and 6 hexadecimal digits, not #00ff8")
+    (parseStyle "#00ff8")
+  assertEqual
+    "not hexadecimal"
+    (Left "a color of red, green and blue must be # and 6 hexadecimal digits, not #00gg00")
+    (parseStyle "#00gg00")
 
 test_render :: Assertion
 test_render =
@@ -66,6 +78,7 @@ test_render =
     , "bold underline"
     , "on 237"
     , "white italic reverse on default"
+    , "#00ff80 bold on #1a2b3c"
     ]
 
 test_overlay :: Assertion
@@ -90,3 +103,10 @@ test_vtyAttributes = do
     "attributes stay without colors"
     (V.SetTo V.bold)
     (V.attrStyle (toAttr NoColors s))
+  assertEqual
+    "red, green and blue"
+    (V.SetTo (V.RGBColor 0 255 128))
+    (V.attrForeColor (toAttr WithColors (fg (Rgb 0 255 128))))
+
+fg :: Color -> Style
+fg c = Style (Just c) Nothing S.empty

@@ -50,6 +50,9 @@ data Color
     DefaultColor
   | -- | A color of the standard 256 color chart. The first 8 have names.
     Color Word8
+  | -- | A color by its red, green and blue, which a terminal without 24-bit
+    -- colors shows as the nearest of the chart.
+    Rgb Word8 Word8 Word8
   deriving stock (Eq, Ord, Show)
 
 data StyleAttribute = Bold | Italic | Underline | Reverse
@@ -92,14 +95,22 @@ parseStyle input = case T.words input of
           Right (n, "")
             | n <= toInteger (maxBound @Word8) -> Right . Color $ fromInteger n
           _ -> Left $ "a color number must be from 0 to 255, not " <> w
+      | Just hex <- T.stripPrefix "#" w =
+          if T.length hex == 6 && T.all isHexDigit hex
+            then Right $ Rgb (byte hex 0) (byte hex 2) (byte hex 4)
+            else Left $ "a color of red, green and blue must be # and 6 hexadecimal digits, not " <> w
       | otherwise =
           Left $
             "unknown color or attribute "
               <> w
-              <> ", expected a number from 0 to 255, default, one of: "
+              <> ", expected a number from 0 to 255, #rrggbb, default, one of: "
               <> T.intercalate ", " colorNames
               <> ", or one of: "
               <> T.intercalate ", " (map fst attributeNames)
+
+    -- The byte of the two hexadecimal digits at an index.
+    byte :: T.Text -> Int -> Word8
+    byte hex i = fromIntegral (digitToInt (T.index hex i) * 16 + digitToInt (T.index hex (i + 1)))
 
 -- | The text of a style, which 'parseStyle' reads back.
 renderStyle :: Style -> T.Text
@@ -115,6 +126,10 @@ renderStyle style =
       Color n
         | fromIntegral n < length colorNames -> colorNames !! fromIntegral n
         | otherwise -> T.pack (show n)
+      Rgb r g b -> "#" <> foldMap hex [r, g, b]
+
+    hex :: Word8 -> T.Text
+    hex b = T.pack [intToDigit (fromIntegral (b `div` 16)), intToDigit (fromIntegral (b `mod` 16))]
 
 colorNames :: [T.Text]
 colorNames = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
@@ -162,17 +177,14 @@ toAttr mode style =
     color :: Maybe Color -> V.MaybeDefault V.Color
     color = \case
       Just (Color n) | mode == WithColors -> V.SetTo (vtyColor n)
+      Just (Rgb r g b) | mode == WithColors -> V.SetTo (V.RGBColor r g b)
       _ -> V.Default
 
+    -- vty numbers the colors after the ISO ones from 0.
     vtyColor :: Word8 -> V.Color
     vtyColor n
       | n < isoColors = V.ISOColor n
       | otherwise = V.Color240 (n - isoColors)
-
-    -- The first 16 colors of the chart are the ISO colors, and vty numbers
-    -- the other 240 from 0.
-    isoColors :: Word8
-    isoColors = 16
 
     vtyStyle :: StyleAttribute -> V.Style
     vtyStyle = \case
@@ -180,3 +192,8 @@ toAttr mode style =
       Italic -> V.italic
       Underline -> V.underline
       Reverse -> V.reverseVideo
+
+-- | The first 16 colors of the chart are the ISO colors, which terminals
+-- theme.
+isoColors :: Word8
+isoColors = 16

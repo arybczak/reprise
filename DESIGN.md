@@ -1428,6 +1428,10 @@ changes; everything else has a default.
   `yellow on 24` or `black bold`. `default` means the terminal's own colors.
 - **Colors** are names (`red`, `cyan`, ...) or numbers 0–255, the standard
   numbering of terminal color charts. ncmpcpp numbers them from 1.
+- **A color can be `#rrggbb`,** of red, green and blue, which a terminal
+  without 24-bit colors shows as the nearest color of the chart. YAML reads
+  a `#` after a space as a comment, so a style that has one is quoted, e.g.
+  `"#ff8700 bold"`.
 - **Styles combine.** A row's style is its own style with the cursor,
   selection or playing style laid over it. Each one changes only what it sets,
   e.g. the background.
