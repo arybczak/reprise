@@ -28,11 +28,11 @@ import Control.Monad.ST
 import Data.Bits
 import Data.ByteString qualified as BS
 import Data.Char
-import Data.List.NonEmpty qualified as NE
 import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
+import Data.Vector qualified as VB
 import Data.Vector.Storable qualified as VS
 import Data.Vector.Unboxed qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as MVU
@@ -197,24 +197,25 @@ bars colorMode cfg w h = \case
     let top = h `div` 2
     in channel Rising top left V.<-> channel Hanging (h - top) right
   where
+    -- A color for each row.
     channel :: Growth -> Int -> VS.Vector Double -> V.Image
     channel growth rows magnitudes =
       let ls = levels w magnitudes
+          colors = palette colorMode cfg rows
           row i =
             let fromFoot = case growth of
                   Rising -> rows - 1 - i
                   Hanging -> i
-            in rowImage colorMode cfg.colors [cell growth rows fromFoot l | l <- ls]
+                color = shade colors (fromIntegral fromFoot / fromIntegral (max 1 (rows - 1)))
+            in rowImage colors [cell growth rows fromFoot color l | l <- ls]
       in V.vertCat (map row [0 .. rows - 1])
 
     -- The part of a bar in a row, from the foot of the bar, with the index
-    -- of its color.
-    cell :: Growth -> Int -> Int -> Double -> Maybe (Int, Char)
-    cell growth rows fromFoot level =
+    -- of the row's color.
+    cell :: Growth -> Int -> Int -> Int -> Double -> Maybe (Int, Char)
+    cell growth rows fromFoot color level =
       let filled = level * fromIntegral rows - fromIntegral fromFoot
           eighths = floor @Double @Int (filled * fromIntegral eighthsPerCell)
-          n = NE.length cfg.colors
-          color = min (n - 1) (fromFoot * n `div` rows)
       in if
            | filled >= 1 -> Just (color, fullBlock)
            | eighths <= 0 -> Nothing
@@ -293,15 +294,22 @@ upperBlock eighths = "▔🮂🮃▀🮄🮅🮆" !! (eighths - 1)
 ellipse
   :: ColorMode -> VisualizerConfig -> Int -> Int -> Seq.Seq BS.ByteString -> V.Image
 ellipse colorMode cfg w h frames =
-  braille colorMode cfg.colors w h $ \plot ->
+  braille colors w h $ \plot ->
     forM_ frames $ \pcm -> forM_ (points pcm) $ \(dx, dy, color) -> plot dx dy color
   where
+    -- A color for each dot from the center to the farther edge.
+    colors :: Palette
+    colors = palette colorMode cfg (max dotsWide dotsHigh `div` 2)
+
     -- The dots of a frame's samples, with their colors: the left channel
     -- across and the right one up, each at full scale at the edges of the
     -- grid.
     points :: BS.ByteString -> [(Int, Int, Int)]
     points pcm =
-      [ (round (centerX + left * centerX), round (centerY - right * centerY), colorOf left right)
+      [ ( nearest (centerX + left * centerX)
+        , nearest (centerY - right * centerY)
+        , colorOf left right
+        )
       | i <- [0 .. BS.length pcm `div` frameBytes - 1]
       , let left = sampleAt pcm (i * channels)
             right = sampleAt pcm (i * channels + 1)
@@ -310,10 +318,7 @@ ellipse colorMode cfg w h frames =
     -- By the distance from the center, as the root mean square of the
     -- channels, so that mono at full scale has the last color.
     colorOf :: Double -> Double -> Int
-    colorOf left right =
-      let loudness = sqrt ((left * left + right * right) / 2)
-          n = NE.length cfg.colors
-      in min (n - 1) (floor (loudness * fromIntegral n))
+    colorOf left right = shade colors (sqrt ((left * left + right * right) / 2))
 
     dotsWide, dotsHigh :: Int
     dotsWide = w * dotColumns
@@ -331,13 +336,17 @@ ellipse colorMode cfg w h frames =
 -- half. The samples go across the width.
 wave :: ColorMode -> VisualizerConfig -> Int -> Int -> Maybe BS.ByteString -> V.Image
 wave colorMode cfg w h samples =
-  braille colorMode cfg.colors w h $ \plot ->
+  braille colors w h $ \plot ->
     forM_ (mfilter (\pcm -> BS.length pcm >= frameBytes) samples) $ \pcm ->
       forM_ (channelDots pcm 0 0 top <> channelDots pcm 1 (top * dotRows) (h - top)) $
         \(dx, dy, color) -> plot dx dy color
   where
     top :: Int
     top = h `div` 2
+
+    -- A color for each dot from the middle of the taller half to its edge.
+    colors :: Palette
+    colors = palette colorMode cfg ((h - top) * dotRows `div` 2)
 
     -- The dots of a channel's wave in rows from a row of dots, with their
     -- colors. A column of dots has a dot of its samples, and the dots
@@ -349,7 +358,7 @@ wave colorMode cfg w h samples =
       | otherwise = concat (zipWith3 joined [0 ..] (Nothing : map Just ys) ys)
       where
         ys :: [Int]
-        ys = [round (middle - level x * middle) | x <- [0 .. dotsWide - 1]]
+        ys = [nearest (middle - level x * middle) | x <- [0 .. dotsWide - 1]]
 
         joined :: Int -> Maybe Int -> Int -> [(Int, Int, Int)]
         joined x previous y =
@@ -362,10 +371,7 @@ wave colorMode cfg w h samples =
         -- By the distance from the middle, so that a sample at full scale
         -- has the last color.
         dot :: Int -> Int -> (Int, Int, Int)
-        dot x y =
-          let n = NE.length cfg.colors
-              loudness = abs (fromIntegral y - middle) / middle
-          in (x, offset + y, min (n - 1) (floor (loudness * fromIntegral n)))
+        dot x y = (x, offset + y, shade colors (abs (fromIntegral y - middle) / middle))
 
         -- The mean of the samples that start in a column. A column that is
         -- narrower than a sample interpolates between the samples around
@@ -400,13 +406,12 @@ wave colorMode cfg w h samples =
 -- columns and rows of dots from the top left, with the indices of their
 -- colors. A cell has the color of its loudest dot.
 braille
-  :: ColorMode
-  -> NE.NonEmpty Style
+  :: Palette
   -> Int
   -> Int
   -> (forall s. (Int -> Int -> Int -> ST s ()) -> ST s ())
   -> V.Image
-braille colorMode colors w h draw = V.vertCat (map row [0 .. h - 1])
+braille colors w h draw = V.vertCat (map row [0 .. h - 1])
   where
     (dots, cellColors) = runST $ do
       dotsM <- MVU.replicate (w * h) (0 :: Word8)
@@ -418,7 +423,7 @@ braille colorMode colors w h draw = V.vertCat (map row [0 .. h - 1])
       (,) <$> VU.unsafeFreeze dotsM <*> VU.unsafeFreeze colorsM
 
     row :: Int -> V.Image
-    row y = rowImage colorMode colors [cellAt (y * w + x) | x <- [0 .. w - 1]]
+    row y = rowImage colors [cellAt (y * w + x) | x <- [0 .. w - 1]]
 
     cellAt :: Int -> Maybe (Int, Char)
     cellAt i = case dots VU.! i of
@@ -449,37 +454,71 @@ brailleBit column row
 ----------------------------------------
 -- Helpers
 
+-- | The colors of a picture from quiet to loud, along the gradient of
+-- @visualizer.colors@, by their index.
+data Palette = Palette
+  { attrs :: VB.Vector V.Attr
+  , blank :: V.Attr
+  -- ^ Of a run of blanks alone.
+  , blanksJoin :: Bool
+  -- ^ Whether no color shows on a space, so that a blank can join the run
+  -- of any color.
+  }
+
+-- | A number of colors, at least one, and no more than the eye tells apart:
+-- each is a run of its own, which vty writes with the escape sequence of
+-- its color.
+palette :: ColorMode -> VisualizerConfig -> Int -> Palette
+palette colorMode cfg n =
+  Palette
+    { attrs =
+        VB.fromList . map (toAttr colorMode) $
+          gradient cfg.colors (max 1 (min (distinctShades cfg.colors) n))
+    , blank = toAttr colorMode mempty
+    , -- A background, an underline or reverse video shows on a space.
+      blanksJoin =
+        all
+          ( \s ->
+              isNothing s.background
+                && S.null (S.intersection s.attributes (S.fromList [Underline, Reverse]))
+          )
+          cfg.colors
+    }
+
+-- | The index of the color of a loudness from 0 to 1.
+shade :: Palette -> Double -> Int
+shade colors loudness =
+  let n = VB.length colors.attrs
+  in max 0 . min (n - 1) $ nearest (loudness * fromIntegral (n - 1))
+
+-- | The nearest integer, with halves up. 'round' takes halves to even,
+-- which is slower: with it for the dots of the ellipse and their colors, a
+-- frame of the ellipse took 302 µs to draw in the benchmarks, and 231 µs
+-- with this.
+nearest :: Double -> Int
+nearest x = floor (x + 0.5)
+
 -- | A row of cells, each a character in one of the colors, by its index, or
 -- blank. A run of a color is a text of its own, so that vty has as few to
 -- write as it can. When no color shows on a space, a blank joins the run
 -- that it is in, e.g. a row of the spectrum is one run.
-rowImage :: ColorMode -> NE.NonEmpty Style -> [Maybe (Int, Char)] -> V.Image
-rowImage colorMode colors = V.horizCat . go Nothing ""
+rowImage :: Palette -> [Maybe (Int, Char)] -> V.Image
+rowImage colors = V.horizCat . go Nothing ""
   where
     go :: Maybe Int -> String -> [Maybe (Int, Char)] -> [V.Image]
     go color reversed = \case
       [] -> flush color reversed
       Just (c, ch) : rest
         | color == Just c -> go color (ch : reversed) rest
-        | blanksJoin, Nothing <- color -> go (Just c) (ch : reversed) rest
+        | colors.blanksJoin, Nothing <- color -> go (Just c) (ch : reversed) rest
         | otherwise -> flush color reversed <> go (Just c) [ch] rest
       Nothing : rest
-        | blanksJoin || isNothing color -> go color (' ' : reversed) rest
+        | colors.blanksJoin || isNothing color -> go color (' ' : reversed) rest
         | otherwise -> flush color reversed <> go Nothing [' '] rest
 
     -- The characters of a run, from the last.
     flush :: Maybe Int -> String -> [V.Image]
     flush color reversed =
-      [ V.text' (toAttr colorMode (maybe mempty (colors NE.!!) color)) (T.pack (reverse reversed))
+      [ V.text' (maybe colors.blank (colors.attrs VB.!) color) (T.pack (reverse reversed))
       | not (null reversed)
       ]
-
-    -- A background, an underline or reverse video shows on a space.
-    blanksJoin :: Bool
-    blanksJoin =
-      all
-        ( \s ->
-            isNothing s.background
-              && S.null (S.intersection s.attributes (S.fromList [Underline, Reverse]))
-        )
-        colors

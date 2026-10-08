@@ -244,6 +244,44 @@ ncmpcpp.
   starts with `visualizer.visualization`, the spectrum as in ncmpcpp, and
   `toggle visualization` goes to the next, on space in the visualizer as in
   ncmpcpp.
+- **`visualizer.colors` are the stops of a gradient** from quiet to loud.
+  Each picture has as many colors as it has steps: a row of a bar of the
+  spectrum, and a dot from the middle of the wave or the center of the
+  ellipse. So the colors change as finely as the picture, where a list of
+  colors of the 256 color chart changed in steps: the chart's cube has 6
+  levels of each of red, green and blue, so no color lies between two of
+  its neighbours, and the steps from yellow to red stood out.
+  - **A picture has no more colors than the eye tells apart:** with the
+    fewest in which neighbours differ by 0.02 in Oklab at most, which CSS
+    Color 4's gamut mapping takes as just noticeable, and the stops among
+    them. Each color is a run of text of its own, with the escape sequence
+    of its color, so more cost the terminal output for nothing. The
+    default has 56; at 160 columns the ellipse had 160, and vty wrote a
+    frame of it in 232 µs instead of 125 µs.
+  - **The default stops are every color of the cube's edges from green to
+    yellow to red,** and dark red. They don't change the color evenly: a
+    step from green to yellow changes it by 0.03 to 0.05 in Oklab, and one
+    from yellow to red by 0.08 to 0.1. Stops that changed it evenly, with
+    fewer greens, looked worse: the quiet greens passed quickly into lime
+    and orange. Without pure yellow, whose lightness peaks between green
+    and red, the gradient lost the thin bright line at the yellow, but
+    that looked worse too.
+  - **Between two stops, the foreground blends in Oklab,** so that the
+    steps look even, and yellow between green and red isn't muddy, as it
+    is in sRGB. A stop takes the rest from the nearer stop.
+  - **A stop of the chart keeps its color,** and a blend is a 24-bit
+    color. A terminal without 24-bit colors shows a blend as a color of
+    the chart, which vty picks by rounding each of red, green and blue up
+    to a level of the cube. The default gradient goes along the cube's
+    edges, so there it shows the colors of the edges in steps, as a list
+    of them did.
+    - **Mapping a blend to the chart's nearest color in Oklab** instead
+      gave the default the same steps, and turned a gradient from green
+      to gold at green's lightness olive: the chart has no colors of that
+      lightness between them.
+  - **The ISO colors, the chart's first 16, don't blend:** terminals theme
+    them, so their red, green and blue are unknown. The nearer stop has
+    the color.
 - **The spectrum** shows the levels of the frequencies as bars.
   - **The worker computes it,** in its own thread, which can call C
     without `unsafePerformIO`, and sends the magnitudes of the bins. The
@@ -366,18 +404,24 @@ ncmpcpp.
     which needs its name in the config.
 - A frame that the UI can't take in time is dropped: the worker doesn't
   wait for brick's channel of events.
-- Measured at 160×45 at 60 fps, 60 frames a second without a drop:
+- Measured at 160×45 at 60 fps, 60 frames a second without a drop, before
+  the colors blended:
   - **The ellipse,** on a private MPD that played generated pink noise:
     about 7% of a core, and about 140 KiB a second to the terminal.
   - **The spectrum,** on the author's MPD with music: about 9.5% of a core,
     and about 780 KiB a second to the terminal, as most of its cells change
     in every frame.
-  - **A frame** (see [Benchmarks](#benchmarks)): the worker computes the
-    spectra of the two channels in 160 µs, the layout draws the spectrum in
-    163 µs, the ellipse in 205 µs and the wave of white noise in 323 µs,
-    and vty writes them in 41 µs, 51 µs and 123 µs. Noise is the wave's
-    worst case: its columns jump across the whole height, so it has the
-    most dots to join them.
+- **A frame** (see [Benchmarks](#benchmarks)), at 160×45 with 24-bit
+  colors: the worker computes the spectra of the two channels in 160 µs,
+  the layout draws the spectrum in 174 µs, the ellipse in 231 µs and the
+  wave of white noise in 341 µs, and vty writes them in 41 µs, 127 µs and
+  191 µs. Noise is the wave's worst case: its columns jump across the whole
+  height, so it has the most dots to join them.
+  - **The blended colors cost the ellipse the most:** with the list of 12
+    colors, vty wrote a frame of it in 51 µs. Many of its cells now have
+    colors of their own, so a row is a text for each, and each has the
+    escape sequence of its color. The spectrum's rows have a color each,
+    so its cost stayed.
 - **A row is as few texts as it can be.** A cell in the drawing is a color
   by its index, or blank, and a run of a color is one text. A space looks
   the same in every foreground color, so a blank joins the run that it is
@@ -1523,7 +1567,7 @@ visualizer:
   visualization: spectrum        # or ellipse or wave; toggle visualization goes through them
   fps: 60
   trail: 150ms                   # how long the samples of the ellipse stay
-  colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # quiet to loud
+  colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # a gradient from quiet to loud
   debug: false                   # show the frame rate and the worker's frames at the top
 
 lyrics:

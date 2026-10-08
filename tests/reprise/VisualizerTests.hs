@@ -48,6 +48,7 @@ visualizerTests =
     [ testCase "showing the visualizer reads the samples, leaving it stops" test_reading
     , testCase "space switches the visualization" test_switch
     , testCase "the bars of the spectrum" test_bars
+    , testCase "the colors of a bar blend from its foot to its top" test_barColors
     , testCase "a row is as few texts as it can be" test_runs
     , testCase "without a data source, the screen says how to set one" test_noSource
     , testCase "samples after the visualizer stopped are dropped" test_staleSamples
@@ -155,6 +156,27 @@ test_bars = do
 
     mainLinesOf :: AppState -> [T.Text]
     mainLinesOf s = take (mainHeight s.terminalSize) . drop 2 $ imageLines (renderScreen visualizing s)
+
+-- | A full bar from black to white has a color of its own in each of its 4
+-- rows, from black at its foot to white at its top.
+test_barColors :: Assertion
+test_barColors = do
+  let env =
+        visualizing
+          & #config % #visualizer % #colors .~ (style "#000000" NE.:| [style "#ffffff"])
+      bins = 32768 `div` 2 + 1
+      edge x = 20 * 1000 ** (x / 40)
+      full = VS.generate bins $ \k ->
+        if binFrequency k >= edge 22 && binFrequency k < edge 23 then 1 else 0
+  s <- testState (40, 12) (statusOf Stopped Nothing 0) []
+  r <- runEventsWith env 0 [key "8", VisualizerSpectrum full (VS.replicate bins 0)] s
+  let colors = [V.attrForeColor a | (a, t) <- imageSpans (renderScreen env r.state), T.any (== '█') t]
+  case colors of
+    [V.SetTo top, V.SetTo second, V.SetTo third, V.SetTo foot] -> do
+      assertEqual "the top" (V.RGBColor 255 255 255) top
+      assertEqual "the foot" (V.RGBColor 0 0 0) foot
+      assertEqual "4 colors" 4 (length (L.nub [top, second, third, foot]))
+    _ -> assertFailure $ "colors: " <> show colors
 
 -- | A bar in the middle of a row and the blanks around it are one text,
 -- unless the color has a background, which would show on the blanks.

@@ -10,11 +10,17 @@ module Reprise.Style
     -- * Conversion to vty
   , ColorMode (..)
   , toAttr
+
+    -- * Gradients
+  , gradient
+  , distinctShades
+  , colorRgb
   ) where
 
 import Data.Bits
 import Data.Char
 import Data.List qualified as L
+import Data.List.NonEmpty qualified as NE
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Text.Read qualified as T
@@ -197,3 +203,124 @@ toAttr mode style =
 -- theme.
 isoColors :: Word8
 isoColors = 16
+
+----------------------------------------
+-- Gradients
+
+-- | A number of styles evenly from the first of some to the last, through
+-- them all. Between two of them, the foreground blends in Oklab, so that
+-- the steps look even, and the rest is the nearer one's. A foreground
+-- whose red, green and blue the chart doesn't fix, e.g. an ISO color,
+-- doesn't blend.
+gradient :: NE.NonEmpty Style -> Int -> [Style]
+gradient stops n = map styleAt [0 .. n - 1]
+  where
+    -- At an exact position of a stop, the stop itself, so that a color of
+    -- the chart stays one.
+    styleAt :: Int -> Style
+    styleAt k
+      | m == 1 || n == 1 = NE.head stops
+      | otherwise =
+          let (i, r) = (k * (m - 1)) `divMod` (n - 1)
+          in if r == 0
+               then stopAt i
+               else blend (stopAt i) (stopAt (i + 1)) (fromIntegral r / fromIntegral (n - 1))
+
+    blend :: Style -> Style -> Double -> Style
+    blend a b f =
+      let nearer = if f < 0.5 then a else b
+      in case (colorRgb =<< a.foreground, colorRgb =<< b.foreground) of
+           (Just x, Just y) -> nearer & #foreground ?~ mix x y f
+           _ -> nearer
+
+    stopAt :: Int -> Style
+    stopAt i = stops NE.!! i
+
+    m :: Int
+    m = NE.length stops
+
+-- | The fewest styles of a 'gradient' through some in which neighbours
+-- differ by a just noticeable difference at most, so that more would look
+-- the same. The stops are among them.
+distinctShades :: NE.NonEmpty Style -> Int
+distinctShades stops =
+  1 + (NE.length stops - 1) * maximum (1 : zipWith steps (NE.toList stops) (NE.tail stops))
+  where
+    steps :: Style -> Style -> Int
+    steps a b = case (colorRgb =<< a.foreground, colorRgb =<< b.foreground) of
+      (Just x, Just y) -> ceiling (distance (toOklab x) (toOklab y) / justNoticeable)
+      _ -> 1
+
+    distance :: (Double, Double, Double) -> (Double, Double, Double) -> Double
+    distance (l1, a1, b1) (l2, a2, b2) = sqrt ((l1 - l2) ^ (2 :: Int) + (a1 - a2) ^ (2 :: Int) + (b1 - b2) ^ (2 :: Int))
+
+    -- The difference in Oklab that CSS Color 4's gamut mapping takes as
+    -- just noticeable.
+    justNoticeable :: Double
+    justNoticeable = 0.02
+
+-- | The red, green and blue of a color, if the chart fixes them, as xterm's
+-- chart does: a cube of 6 levels of each from 16, and 24 grays from 232.
+colorRgb :: Color -> Maybe (Word8, Word8, Word8)
+colorRgb = \case
+  DefaultColor -> Nothing
+  Rgb r g b -> Just (r, g, b)
+  Color n
+    | n < isoColors -> Nothing
+    | n < grays ->
+        let i = n - isoColors
+        in Just (level (i `div` 36), level (i `div` 6 `mod` 6), level (i `mod` 6))
+    | otherwise -> let v = 8 + 10 * (n - grays) in Just (v, v, v)
+  where
+    level :: Word8 -> Word8
+    level k = if k == 0 then 0 else 55 + 40 * k
+
+    grays :: Word8
+    grays = isoColors + 6 * 6 * 6
+
+-- | The color a part of the way from one to another, in Oklab.
+mix :: (Word8, Word8, Word8) -> (Word8, Word8, Word8) -> Double -> Color
+mix x y f =
+  let (l1, a1, b1) = toOklab x
+      (l2, a2, b2) = toOklab y
+      between u v = u + f * (v - u)
+  in fromOklab (between l1 l2, between a1 a2, between b1 b2)
+
+-- | Björn Ottosson's Oklab of an sRGB color.
+toOklab :: (Word8, Word8, Word8) -> (Double, Double, Double)
+toOklab (r8, g8, b8) =
+  let r = linear r8
+      g = linear g8
+      b = linear b8
+      l = cbrt (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+      m = cbrt (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+      s = cbrt (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+  in ( 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s
+     , 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s
+     , 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+     )
+  where
+    linear :: Word8 -> Double
+    linear c =
+      let v = fromIntegral c / 255
+      in if v <= 0.04045 then v / 12.92 else ((v + 0.055) / 1.055) ** 2.4
+
+    cbrt :: Double -> Double
+    cbrt v = v ** (1 / 3)
+
+-- | The sRGB color of an Oklab one, at the nearest in the sRGB gamut.
+fromOklab :: (Double, Double, Double) -> Color
+fromOklab (lightness, a, b) =
+  let l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ^ (3 :: Int)
+      m = (lightness - 0.1055613458 * a - 0.0638541728 * b) ^ (3 :: Int)
+      s = (lightness - 0.0894841775 * a - 1.2914855480 * b) ^ (3 :: Int)
+  in Rgb
+       (gammaEncoded (4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s))
+       (gammaEncoded (-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s))
+       (gammaEncoded (-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s))
+  where
+    gammaEncoded :: Double -> Word8
+    gammaEncoded c =
+      let v = max 0 (min 1 c)
+          gamma = if v <= 0.0031308 then 12.92 * v else 1.055 * v ** (1 / 2.4) - 0.055
+      in round (255 * gamma)

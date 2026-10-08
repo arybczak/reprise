@@ -262,9 +262,9 @@ data VisualizerConfig = VisualizerConfig
   , trail :: Duration
   -- ^ How long the samples of a frame of the ellipse stay on the screen.
   , colors :: NE.NonEmpty Style
-  -- ^ From quiet to loud: from the center of the ellipse to its edges, from
-  -- the middle of a channel's wave to its edges, and from the foot of a bar
-  -- of the spectrum to its top.
+  -- ^ The stops of a gradient from quiet to loud: from the center of the
+  -- ellipse to its edges, from the middle of a channel's wave to its edges,
+  -- and from the foot of a bar of the spectrum to its top.
   , debug :: Bool
   -- ^ Show at the top how many frames a second the screen draws, and what
   -- happened to the frames of the worker that reads the samples.
