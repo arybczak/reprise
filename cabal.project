@@ -14,3 +14,14 @@ source-repository-package
   type: git
   location: https://github.com/arybczak/vty-unix.git
   tag: 82c2b1ac3caa041dc54794ff41ef5e1b7c485a1a
+
+constraints:
+  , any.cryptonite <0
+  , any.memory <0
+
+if impl(ghc >= 9.14)
+  allow-newer:
+    , cborg:base
+    , cborg:containers
+    , serialise:base
+    , serialise:containers
