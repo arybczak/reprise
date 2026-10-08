@@ -1669,7 +1669,13 @@ The default keymap follows the [default keymap rule](#key-bindings):
     it, stored playlists, with `e w` to save one, and what a screen is
     about, with `e e`: the lyrics on the lyrics screen, and later the tags
     of a file. The queue was `c` once, so that `c c` cleared it as
-    ncmpcpp's `c` does, but `c` names nothing else in the group.
+    ncmpcpp's `c` does, but `c` names nothing else in the group. The
+    sort dialog will be `e o`, as it orders the queue; the browser's
+    `t o` only changes how the browser shows its listing.
+  - **A place in the queue has the same letter in every group:** `e` the
+    end, `b` the beginning, `n` next, after the playing song, and `c` the
+    cursor. So `a n` adds songs where `e m n` moves them, and a later
+    group that puts songs somewhere uses the same letters.
   - **`g` goes somewhere:** to the song under the cursor in another screen,
     e.g. `g b` in the browser, and to a position in the song, `g s`, which
     is what ncmpcpp's `g` does. The media library and the tag editor will
