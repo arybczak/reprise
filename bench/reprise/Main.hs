@@ -35,6 +35,7 @@ import Reprise.State
 import Reprise.Style
 import Reprise.UI.Layout
 import Reprise.Visualizer.Spectrum
+import Reprise.Visualizer.Wave
 
 main :: IO ()
 main =
@@ -69,6 +70,13 @@ main =
             bench "a frame of the ellipse" $ nf (renderScreen visualizerEnv) s
         , env (xterm (renderScreen visualizerEnv <$> ellipseShown)) $ \t ->
             bench "the output of a whole frame of the ellipse for xterm-256color" . whnfIO $
+              output t
+        , env (Pushed <$> noiseWave) $ \ ~(Pushed w) ->
+            bench "the wave of a frame" . nfIO $ pushWave w (mconcat (take 1 noise)) >> waveOf w
+        , env (Settled <$> waveShown) $ \ ~(Settled s) ->
+            bench "a frame of the wave" $ nf (renderScreen visualizerEnv) s
+        , env (xterm (renderScreen visualizerEnv <$> waveShown)) $ \t ->
+            bench "the output of a whole frame of the wave for xterm-256color" . whnfIO $
               output t
         , env (Planned <$> newTransform <*> noiseWindow) $ \ ~(Planned transform window) ->
             bench "the spectra of the channels for a frame" . nfIO $ spectraOf transform window
@@ -137,6 +145,13 @@ instance NFData Planned where
 scrolling :: [T.Text]
 scrolling = replicate (snd terminalSize) "down"
 
+-- | A wave's window has no 'NFData' instance, and it is ready once it is
+-- made.
+newtype Pushed = Pushed WaveWindow
+
+instance NFData Pushed where
+  rnf (Pushed w) = w `seq` ()
+
 -- | The ellipse after a second of noise, which covers much of the screen as
 -- loud music does.
 ellipseShown :: IO AppState
@@ -146,6 +161,24 @@ ellipseShown = do
     (flip (handleIn visualizerEnv))
     s
     (key "8" : key "space" : map VisualizerSamples noise)
+
+-- | The wave of the noise, which jumps across the whole height, as loud
+-- music does.
+waveShown :: IO AppState
+waveShown = do
+  s <- loaded
+  pcm <- waveOf =<< noiseWave
+  foldM
+    (flip (handleIn visualizerEnv))
+    s
+    [key "8", key "space", key "space", VisualizerWave pcm]
+
+-- | A wave's window of noise.
+noiseWave :: IO WaveWindow
+noiseWave = do
+  w <- newWaveWindow
+  pushWave w (BS.concat noise)
+  pure w
 
 -- | The spectrum of the noise, which has bars as high as loud music does.
 spectrumShown :: IO AppState

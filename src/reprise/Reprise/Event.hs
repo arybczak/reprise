@@ -55,6 +55,9 @@ data AppEvent
   | -- | The magnitudes of the spectra of the left channel and of the right
     -- one for the visualizer's next frame.
     VisualizerSpectrum (VS.Vector Double) (VS.Vector Double)
+  | -- | The samples of the wave of the visualizer's next frame, as MPD's
+    -- fifo output wrote them.
+    VisualizerWave BS.ByteString
   | -- | The visualizer's data source can't be read, with the reason.
     VisualizerFailed T.Text
   | -- | What happened to the visualizer's frames in the last second, with

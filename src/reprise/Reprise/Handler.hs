@@ -155,6 +155,7 @@ handleEvent = \case
       else modifyS $ #cursorTimer .~ False
   VisualizerSamples samples -> visualizerSamples samples
   VisualizerSpectrum left right -> visualizerSpectrum left right
+  VisualizerWave samples -> visualizerWave samples
   VisualizerFailed reason -> showError reason
   VisualizerStats frameStats -> visualizerStats frameStats
   LyricsFetching token fetcher -> lyricsFetching token fetcher

@@ -262,8 +262,9 @@ data VisualizerConfig = VisualizerConfig
   , trail :: Duration
   -- ^ How long the samples of a frame of the ellipse stay on the screen.
   , colors :: NE.NonEmpty Style
-  -- ^ From quiet to loud: from the center of the ellipse to its edges, and
-  -- from the foot of a bar of the spectrum to its top.
+  -- ^ From quiet to loud: from the center of the ellipse to its edges, from
+  -- the middle of a channel's wave to its edges, and from the foot of a bar
+  -- of the spectrum to its top.
   , debug :: Bool
   -- ^ Show at the top how many frames a second the screen draws, and what
   -- happened to the frames of the worker that reads the samples.
@@ -312,12 +313,15 @@ data Visualization
     Spectrum
   | -- | The left channel across and the right one up.
     Ellipse
+  | -- | The samples of each channel over time.
+    Wave
   deriving stock (Eq, Show, Enum, Bounded)
 
 visualizationName :: Visualization -> T.Text
 visualizationName = \case
   Spectrum -> "spectrum"
   Ellipse -> "ellipse"
+  Wave -> "wave"
 
 -- | Frames per second, at least one.
 newtype FrameRate = FrameRate Int

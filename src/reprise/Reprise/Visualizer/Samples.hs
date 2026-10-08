@@ -7,12 +7,16 @@ module Reprise.Visualizer.Samples
   , channels
   , frameBytes
   , sampleAt
+  , lowestFrequency
+  , highestFrequency
+  , pushOut
   ) where
 
 import Data.Bits
 import Data.ByteString qualified as BS
 import Data.ByteString.Unsafe qualified as BS
 import Data.Int
+import Data.Vector.Storable.Mutable qualified as VSM
 import Data.Word
 import GHC.ByteOrder
 
@@ -43,3 +47,17 @@ sampleAt pcm i =
   where
     fullScale :: Double
     fullScale = fromIntegral (maxBound @Int16) + 1
+
+-- | The range of human hearing, in Hz.
+lowestFrequency, highestFrequency :: Double
+lowestFrequency = 20
+highestFrequency = 20000
+
+-- | Move the elements of a buffer of the last samples to its start by a
+-- number of elements, and return the end that they leave for new ones. The
+-- buffer is moved in place, which a frame would otherwise copy.
+pushOut :: VSM.Storable a => VSM.IOVector a -> Int -> IO (VSM.IOVector a)
+pushOut v n = do
+  let kept = VSM.length v - n
+  VSM.move (VSM.slice 0 kept v) (VSM.slice n kept v)
+  pure $ VSM.slice kept n v

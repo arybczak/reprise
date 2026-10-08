@@ -7,12 +7,17 @@
 --   ncmpcpp's stereo ellipse. Music in mono is a diagonal, and stereo widens
 --   it. The samples are braille dots, eight in a cell, and those of the last
 --   frames stay for a moment.
+-- * The wave: the samples of each channel over time, as in ncmpcpp's sound
+--   wave, of braille dots too, from where the worker found the bass rising.
+--   The left channel is in the top half and the right one in the bottom
+--   half.
 --
 -- The colors go from quiet to loud.
 module Reprise.Screen.Visualizer
   ( visualizerView
   , visualizerSamples
   , visualizerSpectrum
+  , visualizerWave
   , visualizerStats
   , nextVisualization
   , updateVisualizer
@@ -61,6 +66,7 @@ visualizerView env s v = case env.config.visualizer.dataSource of
     picture h = case s.toggles.visualization of
       Spectrum -> bars env.colorMode env.config.visualizer v.width h s.visualizer.spectrum
       Ellipse -> ellipse env.colorMode env.config.visualizer v.width h s.visualizer.frames
+      Wave -> wave env.colorMode env.config.visualizer v.width h s.visualizer.wave
 
     debugLine :: V.Image
     debugLine =
@@ -95,7 +101,8 @@ updateVisualizer = do
           isJust env.config.visualizer.dataSource && (focusedView s).screen == VisualizerScreen
         pure s.toggles.visualization
   when (wanted /= s.visualizer.reading) $ do
-    modifyS $ #visualizer .~ VisualizerState wanted Seq.empty Nothing Seq.empty Nothing
+    modifyS $
+      #visualizer .~ VisualizerState wanted Seq.empty Nothing Nothing Seq.empty Nothing
     visualize wanted
 
 nextVisualization :: App es => Eff es ()
@@ -128,6 +135,17 @@ visualizerSpectrum left right = do
     then keepScreen
     else do
       modifyS $ #visualizer % #spectrum ?~ (left, right)
+      countDrawn
+
+-- | Show the wave of a frame. A wave that comes after the wave stopped
+-- reading is dropped.
+visualizerWave :: App es => BS.ByteString -> Eff es ()
+visualizerWave samples = do
+  v <- getsS (.visualizer)
+  if v.reading /= Just Wave
+    then keepScreen
+    else do
+      modifyS $ #visualizer % #wave ?~ samples
       countDrawn
 
 -- | Show what happened to the worker's frames in the last second.
@@ -242,11 +260,6 @@ levels w magnitudes = map level [0 .. w - 1]
     binWidth :: Double
     binWidth = binFrequency 1
 
--- | The range of human hearing, in Hz.
-lowestFrequency, highestFrequency :: Double
-lowestFrequency = 20
-highestFrequency = 20000
-
 -- | The magnitudes, in dB, of an empty bar and of a full one, as in ncmpcpp
 -- with the author's @visualizer_spectrum_gain@ of 10.
 quietest, loudest :: Double
@@ -279,27 +292,10 @@ upperBlock eighths = "▔🮂🮃▀🮄🮅🮆" !! (eighths - 1)
 -- A cell has the color of its loudest sample.
 ellipse
   :: ColorMode -> VisualizerConfig -> Int -> Int -> Seq.Seq BS.ByteString -> V.Image
-ellipse colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
+ellipse colorMode cfg w h frames =
+  braille colorMode cfg.colors w h $ \plot ->
+    forM_ frames $ \pcm -> forM_ (points pcm) $ \(dx, dy, color) -> plot dx dy color
   where
-    -- The dots of each cell, and the color of its loudest sample.
-    (dots, colors) = runST $ do
-      dotsM <- MVU.replicate (w * h) (0 :: Word8)
-      colorsM <- MVU.replicate (w * h) (0 :: Int)
-      forM_ frames $ \pcm ->
-        forM_ (points pcm) $ \(dx, dy, color) -> do
-          let cell = (dy `div` dotRows) * w + dx `div` dotColumns
-          MVU.modify dotsM (.|. brailleBit (dx `mod` dotColumns) (dy `mod` dotRows)) cell
-          MVU.modify colorsM (max color) cell
-      (,) <$> VU.unsafeFreeze dotsM <*> VU.unsafeFreeze colorsM
-
-    row :: Int -> V.Image
-    row y = rowImage colorMode cfg.colors [cellAt (y * w + x) | x <- [0 .. w - 1]]
-
-    cellAt :: Int -> Maybe (Int, Char)
-    cellAt i = case dots VU.! i of
-      0 -> Nothing
-      d -> Just (colors VU.! i, chr (brailleBlank + fromIntegral d))
-
     -- The dots of a frame's samples, with their colors: the left channel
     -- across and the right one up, each at full scale at the edges of the
     -- grid.
@@ -326,6 +322,112 @@ ellipse colorMode cfg w h frames = V.vertCat (map row [0 .. h - 1])
     centerX, centerY :: Double
     centerX = fromIntegral (dotsWide - 1) / 2
     centerY = fromIntegral (dotsHigh - 1) / 2
+
+----------------------------------------
+-- The wave
+
+-- | The samples of the wave as braille dots in a grid of the given size: the
+-- left channel's wave in the top half and the right one's in the bottom
+-- half. The samples go across the width.
+wave :: ColorMode -> VisualizerConfig -> Int -> Int -> Maybe BS.ByteString -> V.Image
+wave colorMode cfg w h samples =
+  braille colorMode cfg.colors w h $ \plot ->
+    forM_ (mfilter (\pcm -> BS.length pcm >= frameBytes) samples) $ \pcm ->
+      forM_ (channelDots pcm 0 0 top <> channelDots pcm 1 (top * dotRows) (h - top)) $
+        \(dx, dy, color) -> plot dx dy color
+  where
+    top :: Int
+    top = h `div` 2
+
+    -- The dots of a channel's wave in rows from a row of dots, with their
+    -- colors. A column of dots has a dot of its samples, and the dots
+    -- between it and the previous column's go to the nearer of the two, as
+    -- in ncmpcpp, so that the wave is a line.
+    channelDots :: BS.ByteString -> Int -> Int -> Int -> [(Int, Int, Int)]
+    channelDots pcm channel offset rows
+      | rows <= 0 = []
+      | otherwise = concat (zipWith3 joined [0 ..] (Nothing : map Just ys) ys)
+      where
+        ys :: [Int]
+        ys = [round (middle - level x * middle) | x <- [0 .. dotsWide - 1]]
+
+        joined :: Int -> Maybe Int -> Int -> [(Int, Int, Int)]
+        joined x previous y =
+          dot x y
+            : [ dot (if abs (between - p) < abs (between - y) then x - 1 else x) between
+              | Just p <- [previous]
+              , between <- [min p y + 1 .. max p y - 1]
+              ]
+
+        -- By the distance from the middle, so that a sample at full scale
+        -- has the last color.
+        dot :: Int -> Int -> (Int, Int, Int)
+        dot x y =
+          let n = NE.length cfg.colors
+              loudness = abs (fromIntegral y - middle) / middle
+          in (x, offset + y, min (n - 1) (floor (loudness * fromIntegral n)))
+
+        -- The mean of the samples that start in a column. A column that is
+        -- narrower than a sample interpolates between the samples around
+        -- its middle.
+        level :: Int -> Double
+        level x =
+          let first = (x * count + dotsWide - 1) `div` dotsWide
+              final = ((x + 1) * count + dotsWide - 1) `div` dotsWide - 1
+              position = (fromIntegral x + 0.5) * fromIntegral count / fromIntegral dotsWide - 0.5
+              k = floor position
+              f = position - fromIntegral k
+          in if first <= final
+               then sum (map sampleOf [first .. final]) / fromIntegral (final - first + 1)
+               else (1 - f) * sampleOf k + f * sampleOf (k + 1)
+
+        sampleOf :: Int -> Double
+        sampleOf i = sampleAt pcm (max 0 (min (count - 1) i) * channels + channel)
+
+        count :: Int
+        count = BS.length pcm `div` frameBytes
+
+        middle :: Double
+        middle = fromIntegral (rows * dotRows - 1) / 2
+
+    dotsWide :: Int
+    dotsWide = w * dotColumns
+
+----------------------------------------
+-- Braille dots
+
+-- | The dots that a drawing plots in a grid of the given size, by their
+-- columns and rows of dots from the top left, with the indices of their
+-- colors. A cell has the color of its loudest dot.
+braille
+  :: ColorMode
+  -> NE.NonEmpty Style
+  -> Int
+  -> Int
+  -> (forall s. (Int -> Int -> Int -> ST s ()) -> ST s ())
+  -> V.Image
+braille colorMode colors w h draw = V.vertCat (map row [0 .. h - 1])
+  where
+    (dots, cellColors) = runST $ do
+      dotsM <- MVU.replicate (w * h) (0 :: Word8)
+      colorsM <- MVU.replicate (w * h) (0 :: Int)
+      draw $ \dx dy color -> do
+        let cell = (dy `div` dotRows) * w + dx `div` dotColumns
+        MVU.modify dotsM (.|. brailleBit (dx `mod` dotColumns) (dy `mod` dotRows)) cell
+        MVU.modify colorsM (max color) cell
+      (,) <$> VU.unsafeFreeze dotsM <*> VU.unsafeFreeze colorsM
+
+    row :: Int -> V.Image
+    row y = rowImage colorMode colors [cellAt (y * w + x) | x <- [0 .. w - 1]]
+
+    cellAt :: Int -> Maybe (Int, Char)
+    cellAt i = case dots VU.! i of
+      0 -> Nothing
+      d -> Just (cellColors VU.! i, chr (brailleBlank + fromIntegral d))
+-- The drawing then plots its dots in a loop of its own instead of calling an
+-- unknown function for each: in the benchmarks, a frame of the ellipse took
+-- 393 µs without the pragma and 215 µs with it.
+{-# INLINE braille #-}
 
 -- | A braille character has two columns of four dots.
 dotColumns, dotRows :: Int

@@ -71,23 +71,15 @@ newSampleWindow = SampleWindow <$> VSM.replicate (windowSamples * frameBytes) 0
 pushSamples :: SampleWindow -> BS.ByteString -> IO ()
 pushSamples samples pcm = do
   let pushed = BS.takeEnd (VSM.length samples.bytes) pcm
-  end <- pushOut samples (BS.length pushed)
+  end <- pushOut samples.bytes (BS.length pushed)
   VSM.unsafeWith end $ \dst ->
     BS.unsafeUseAsCStringLen pushed $ \(src, n) -> copyBytes dst (castPtr src) n
 
 -- | Push a number of bytes of silence into the window.
 pushSilence :: SampleWindow -> Int -> IO ()
 pushSilence samples n = do
-  end <- pushOut samples (min n (VSM.length samples.bytes))
+  end <- pushOut samples.bytes (min n (VSM.length samples.bytes))
   VSM.set end 0
-
--- | Move the bytes of the window to its start by a number of bytes, and
--- return the end that they leave for new ones.
-pushOut :: SampleWindow -> Int -> IO (VSM.IOVector Word8)
-pushOut samples n = do
-  let kept = VSM.length samples.bytes - n
-  VSM.move (VSM.slice 0 kept samples.bytes) (VSM.slice n kept samples.bytes)
-  pure $ VSM.slice kept n samples.bytes
 
 -- | The magnitudes of the spectrum of a channel of the window, one for each
 -- bin.

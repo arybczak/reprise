@@ -240,9 +240,10 @@ ncmpcpp.
   only. `visualizer.data_source` is the path of the fifo, and the
   visualizer says how to set it when it is missing. A worker thread opens
   the fifo while the visualizer shows, and only then.
-- It has two visualizations, the spectrum and the ellipse. It starts with
-  `visualizer.visualization`, the spectrum as in ncmpcpp, and `toggle
-  visualization` switches, on space in the visualizer as in ncmpcpp.
+- It has three visualizations, the spectrum, the ellipse and the wave. It
+  starts with `visualizer.visualization`, the spectrum as in ncmpcpp, and
+  `toggle visualization` goes to the next, on space in the visualizer as in
+  ncmpcpp.
 - **The spectrum** shows the levels of the frequencies as bars.
   - **The worker computes it,** in its own thread, which can call C
     without `unsafePerformIO`, and sends the magnitudes of the bins. The
@@ -303,6 +304,38 @@ ncmpcpp.
     has a dot in nearly every cell of the picture, so it hid the older
     ones.
   - **The samples of the last frames stay** for `visualizer.trail`.
+- **The wave** draws the samples of each channel over time, as ncmpcpp's
+  sound wave does: the left channel in the top half and the right one in
+  the bottom half, as in the spectrum.
+  - **It shows 735 samples across the width,** about 17 ms: a frame's at
+    the default 60 frames a second. They don't depend on the rate, so the
+    wave looks the same at any rate.
+  - **A trigger keeps a steady sound still,** as in an oscilloscope. The
+    samples start where the bass last rose through zero, so each frame
+    starts at the same point of the bass's period. Without it, each frame
+    started at another point, and the wave jumped sideways.
+    - **The bass** is the mix of the channels through a one-pole low-pass
+      filter, so that both channels start at the same time. Its cutoff,
+      about 60 Hz, is the frequency whose period is the wave's length: a
+      sound of a shorter period repeats within the wave, so its jumps move
+      it by a smaller part of the wave. On the raw samples, the treble
+      rises through zero many times in a period of the bass, and a treble
+      as loud as the bass left the bass at any point of its period.
+    - **It looks back a period of 20 Hz,** the lowest frequency that
+      people hear, so that it finds a rise of any bass. That is the most
+      lag that it adds, 50 ms; a bass of 100 Hz adds at most 10 ms.
+      Without a rise, e.g. in silence, the wave is the last samples.
+    - **The worker keeps the last samples and their bass,** about 67 ms,
+      and finds the rise in about 6 µs a frame. It pushes silence into
+      them once MPD stopped writing, as for the spectrum, so the wave
+      falls flat and then stays.
+  - **A column of dots has the mean of the samples that start in it,** as
+    in ncmpcpp. A column narrower than a sample interpolates between the
+    samples around its middle, so the wave fills a wide terminal too.
+  - **The dots between two columns' dots join them,** each in the nearer
+    of the two columns, as in ncmpcpp, so the wave is a line.
+  - **The colors go from the middle of a channel to its edges,** as the
+    ellipse's go from its center.
 - **A frame shows the samples of its own time,** `44100 / fps` of them on
   average, e.g. 367 or 368 at 120 frames a second. The worker waits for
   each frame on the clock, so a late frame doesn't make the next ones late.
@@ -341,8 +374,10 @@ ncmpcpp.
     in every frame.
   - **A frame** (see [Benchmarks](#benchmarks)): the worker computes the
     spectra of the two channels in 160 µs, the layout draws the spectrum in
-    163 µs and the ellipse in 205 µs, and vty writes them in 41 µs and
-    51 µs.
+    163 µs, the ellipse in 205 µs and the wave of white noise in 323 µs,
+    and vty writes them in 41 µs, 51 µs and 123 µs. Noise is the wave's
+    worst case: its columns jump across the whole height, so it has the
+    most dots to join them.
 - **A row is as few texts as it can be.** A cell in the drawing is a color
   by its index, or blank, and a run of a color is one text. A space looks
   the same in every foreground color, so a blank joins the run that it is
@@ -359,7 +394,7 @@ ncmpcpp.
   18% faster, 171 µs instead of 208 µs. `-ffast-math` made no difference
   beyond the noise, so it isn't worth giving up exact floating point in
   pocketfft.
-- ncmpcpp's sound wave and its mono ellipse come later, if ever.
+- ncmpcpp's filled wave and its mono ellipse come later, if ever.
 
 **Song info**
 - **`i` shows the info of the song under the cursor** of a list, and `i` on
@@ -729,6 +764,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Visualizer.Worker` | The thread that reads MPD's fifo output while the visualizer shows, and sends the samples of each frame |
 | `Reprise.Visualizer.Samples` | The format of the samples that the worker reads and the visualizer draws |
 | `Reprise.Visualizer.Spectrum` | The spectrum of the samples, with pocketfft's FFT in `cbits` |
+| `Reprise.Visualizer.Wave` | The samples of the wave, from where the bass rose through zero |
 | `Reprise.Lyrics` | Where the lyrics of a song are stored, as ncmpcpp stores them |
 | `Reprise.SongInfo` | What the song info screen shows of a song: the lines of its file, its audio, its ReplayGain and its tags, and their rows at a width |
 | `Reprise.Lyrics.Worker` | The thread that loads the lyrics that the lyrics screen asks for: the stored ones, else fetched ones, which it stores |
@@ -1480,7 +1516,7 @@ progress_bar:
 
 visualizer:
   data_source: ~                 # the fifo of an MPD fifo output of 44100:16:2; ~/ is home
-  visualization: spectrum        # or ellipse, which toggle visualization switches to
+  visualization: spectrum        # or ellipse or wave; toggle visualization goes through them
   fps: 60
   trail: 150ms                   # how long the samples of the ellipse stay
   colors: [46, 82, 118, 154, 190, 226, 220, 214, 208, 202, 196, 160]   # quiet to loud
@@ -1820,12 +1856,12 @@ options, `allow_for_physical_item_deletion`,
   `visualizer_spectrum_smooth_look_legacy_chars`: the spectrum is always on
   log scales, of eighth blocks, with the upper blocks of Symbols for Legacy
   Computing, as the author has it.
-- `visualizer_in_stereo`: the fifo is in stereo, `44100:16:2`. Both
+- `visualizer_in_stereo`: the fifo is in stereo, `44100:16:2`. All the
   visualizations show the two channels, and music in mono is the same in
   both, so a feed in mono has no use. A fifo in another format shows
   wrongly, which the visualizer doesn't check.
-- `visualizer_look`: the dots of the ellipse are braille, and the bars of
-  the spectrum are blocks.
+- `visualizer_look`: the dots of the ellipse and the wave are braille, and
+  the bars of the spectrum are blocks.
 - `visualizer_output_name` and `visualizer_sync_interval`: the worker drops
   the old samples itself, instead of resetting the output.
 - `visualizer_autoscale`: the size of the picture shows how loud the music

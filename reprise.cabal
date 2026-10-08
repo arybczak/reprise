@@ -159,6 +159,7 @@ library
                      Reprise.UI.SongList
                      Reprise.Visualizer.Samples
                      Reprise.Visualizer.Spectrum
+                     Reprise.Visualizer.Wave
                      Reprise.Visualizer.Worker
                      Reprise.Width
 

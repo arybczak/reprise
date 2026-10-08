@@ -36,6 +36,7 @@ import Reprise.Style
 import Reprise.UI.Layout
 import Reprise.Visualizer.Samples
 import Reprise.Visualizer.Spectrum
+import Reprise.Visualizer.Wave
 import Reprise.Visualizer.Worker
 import Reprise.Width
 import Utils
@@ -59,7 +60,19 @@ visualizerTests =
     , goldenVsString
         "a circle"
         ("tests" </> "reprise" </> "golden" </> "visualizer.txt")
-        (BL.fromStrict . T.encodeUtf8 . T.unlines <$> mainLines visualizing [circle])
+        (BL.fromStrict . T.encodeUtf8 . T.unlines <$> mainLines Ellipse visualizing [circle])
+    , testCase "silence is a line in the middle of each channel" test_waveSilence
+    , testCase "a wave goes across the screen" test_waveRamp
+    , testCase "a jump of the wave is a line" test_waveJump
+    , testCase "louder samples of the wave have later colors" test_waveLoudness
+    , testCase "a steady sound stands still in the wave" test_triggerStill
+    , testCase "the wave follows the bass" test_triggerBass
+    , testCase "without a rise of the bass, the wave is of the last samples" test_triggerNone
+    , testCase "the wave of silence" test_triggerSilence
+    , goldenVsString
+        "a period of a sine and a cosine"
+        ("tests" </> "reprise" </> "golden" </> "visualizer-wave.txt")
+        (BL.fromStrict . T.encodeUtf8 . T.unlines <$> mainLines Wave visualizing [circle])
     , testCase "the spectrum of a sine" test_sineSpectrum
     , testCase "the window of the spectrum" test_window
     , testCase "every frame shows the samples of its time" test_playout
@@ -67,6 +80,7 @@ visualizerTests =
     , testCase "the lag is bounded" test_playoutLag
     , testCase "the worker sends the samples of the fifo" test_worker
     , testCase "the worker sends the spectrum" test_workerSpectrum
+    , testCase "the worker sends the wave" test_workerWave
     , testCase "the worker reports a data source that it can't read" test_workerFails
     , testCase "the debug line shows what happened to the frames" test_debugLine
     , testCase "the worker sends what happened to its frames" test_workerStats
@@ -83,12 +97,12 @@ test_reading = do
 test_switch :: Assertion
 test_switch = do
   s <- testState (40, 12) (statusOf Stopped Nothing 0) []
-  r <- runEventsWith visualizing 0 [key "8", key "space"] s
+  r <- runEventsWith visualizing 0 [key "8", key "space", key "space"] s
   assertEqual
     "the samples"
-    [Visualize (Just Spectrum), Visualize (Just Ellipse)]
+    [Visualize (Just Spectrum), Visualize (Just Ellipse), Visualize (Just Wave)]
     [c | c@(Visualize _) <- r.commands]
-  assertEqual "the message" (Just "Visualization: ellipse") ((.text) <$> r.state.message)
+  assertEqual "the message" (Just "Visualization: wave") ((.text) <$> r.state.message)
   back <- runEventsWith visualizing 0 [key "space"] r.state
   assertEqual "back" Spectrum back.state.toggles.visualization
 
@@ -162,9 +176,6 @@ test_runs = do
     "the blanks on both sides of the bar in each of the 8 rows"
     (2 * 8)
     (apart - joined)
-  where
-    style :: T.Text -> Style
-    style = either (error . T.unpack) id . parseStyle
 
 test_noSource :: Assertion
 test_noSource = do
@@ -186,15 +197,15 @@ test_staleSamples = do
 test_trail :: Assertion
 test_trail = do
   let env = visualizing & #config % #visualizer % #trail .~ 0.05
-  r <- shownWith env (replicate 5 circle)
+  r <- shownWith Ellipse env (replicate 5 circle)
   assertEqual "frames" 3 (Seq.length r.visualizer.frames)
 
 test_silence :: Assertion
 test_silence = do
-  s <- shownWith visualizing []
+  s <- shownWith Ellipse visualizing []
   r <- runEventsWith visualizing 0 [VisualizerSamples BS.empty] s
   assertEqual "the screen stays" [KeepScreen] r.commands
-  stayed <- shownWith visualizing [circle, BS.empty]
+  stayed <- shownWith Ellipse visualizing [circle, BS.empty]
   assertEqual
     "the screen changes while samples are on it"
     2
@@ -209,7 +220,7 @@ test_noRoom = do
 
 test_mono :: Assertion
 test_mono = do
-  dots <- dotsOf [(v, v) | v <- [minBound, minBound + 1000 .. maxBound]]
+  dots <- dotsOf Ellipse [(v, v) | v <- [minBound, minBound + 1000 .. maxBound]]
   assertBool "dots on several rows" (length (L.nub (map fst dots)) > 1)
   case (dots, reverse dots) of
     ((_, top) : _, (_, bottom) : _) -> assertBool "up to the right" (top > bottom)
@@ -217,7 +228,7 @@ test_mono = do
 
 test_oneChannel :: Assertion
 test_oneChannel = do
-  dots <- dotsOf [(v, 0) | v <- [minBound, minBound + 1000 .. maxBound]]
+  dots <- dotsOf Ellipse [(v, 0) | v <- [minBound, minBound + 1000 .. maxBound]]
   assertBool "dots in several columns" (length (L.nub (map snd dots)) > 1)
   assertEqual "one row" 1 (length (L.nub (map fst dots)))
 
@@ -226,15 +237,115 @@ test_oneChannel = do
 test_loudness :: Assertion
 test_loudness = do
   let env = visualizing & #config % #visualizer % #colors .~ (style "red" NE.:| [style "blue"])
-  s <- shownWith env [samples [(1000, 1000), (maxBound, maxBound)]]
+  s <- shownWith Ellipse env [samples [(1000, 1000), (maxBound, maxBound)]]
   let colorsOf = [V.attrForeColor a | (a, t) <- imageSpans (renderScreen env s), T.any isBraille t]
   assertEqual "colors" [V.SetTo (V.ISOColor 4), V.SetTo (V.ISOColor 1)] colorsOf
-  where
-    isBraille :: Char -> Bool
-    isBraille c = c >= '\x2801' && c <= '\x28ff'
 
-    style :: T.Text -> Style
-    style = either (error . T.unpack) id . parseStyle
+-- | The left channel in the top 4 rows and the right one in the bottom 4.
+test_waveSilence :: Assertion
+test_waveSilence = do
+  dots <- dotsOf Wave (replicate 100 (0, 0))
+  let rows = L.nub (map fst dots)
+  assertBool ("the rows " <> show rows) (rows `elem` [[r, r + 4] | r <- [1, 2]])
+  assertEqual "a dot in each column of both" (2 * 40) (length dots)
+
+-- | 10 samples across the 80 columns of dots, which interpolate between
+-- them.
+test_waveRamp :: Assertion
+test_waveRamp = do
+  dots <-
+    dotsOf
+      Wave
+      [ (round @Double (fromIntegral (maxBound @Int16) * (2 * fromIntegral i / 9 - 1)), 0)
+      | i <- [0 .. 9 :: Int]
+      ]
+  let left = [d | d@(r, _) <- dots, r < 4]
+  assertEqual "every column" [0 .. 39] (L.nub (L.sort (map snd left)))
+  assertEqual "every row" [0 .. 3] (L.nub (L.sort (map fst left)))
+  assertEqual "from the bottom" [3] [r | (r, 0) <- left]
+  assertEqual "to the top" [0] [r | (r, 39) <- left]
+
+-- | 300 samples across 80 columns of dots jump from the bottom to the top
+-- between the columns of dots 39 and 40, which are in the cells 19 and 20.
+-- The dots between join them.
+test_waveJump :: Assertion
+test_waveJump = do
+  dots <- dotsOf Wave [(if i < 150 then minBound else maxBound, 0) | i <- [0 .. 299 :: Int]]
+  assertEqual
+    "the columns of the middle rows of the left channel"
+    [19, 20]
+    (L.nub (L.sort [c | (r, c) <- dots, r `elem` [1, 2]]))
+
+-- | With two colors, the silent right channel has the first, and the left
+-- one at full scale the second.
+test_waveLoudness :: Assertion
+test_waveLoudness = do
+  let env = visualizing & #config % #visualizer % #colors .~ (style "red" NE.:| [style "blue"])
+  s <- shownWith Wave env [samples (replicate 100 (maxBound, 0))]
+  let colorsOf = [V.attrForeColor a | (a, t) <- imageSpans (renderScreen env s), T.any isBraille t]
+  assertEqual "colors" [V.SetTo (V.ISOColor 4), V.SetTo (V.ISOColor 1)] colorsOf
+
+-- | A tone of 100 Hz, with a period of 441 samples. Once more samples come,
+-- the wave is the same.
+test_triggerStill :: Assertion
+test_triggerStill = do
+  w <- newWaveWindow
+  let tone i = 20000 * sin (2 * pi * 100 * fromIntegral (i `mod` 441) / 44100)
+  pushWave w (sound tone 0 44100)
+  first <- waveOf w
+  assertEqual "the length" (waveSamples * frameBytes) (BS.length first)
+  pushWave w (sound tone 44100 44200)
+  assertEqual "the wave" first =<< waveOf w
+
+-- | A bass of 100 Hz and a treble of 2953 Hz as loud. The treble isn't a
+-- harmonic of the bass, so it rises through zero at other points of the
+-- bass's period in each one. As more samples come, in 20 chunks of more
+-- than 2 periods, the waves differ from the first by the swing of the
+-- treble and the bass's change in 10 samples at most: the treble that the
+-- filter passes moves the rise by a few samples. Without the filter, the
+-- bass is at any point of its period, and they differ by up to the swing
+-- of both.
+test_triggerBass :: Assertion
+test_triggerBass = do
+  w <- newWaveWindow
+  let tone i =
+        let t = fromIntegral i / 44100
+        in bass * sin (2 * pi * 100 * t) + treble * sin (2 * pi * 2953 * t)
+  pushWave w (sound tone 0 44100)
+  first <- waveOf w
+  differences <- forM [1 .. 20] $ \k -> do
+    pushWave w (sound tone (44100 + (k - 1) * 1000) (44100 + k * 1000))
+    later <- waveOf w
+    pure . maximum $ zipWith (\a b -> abs (a - b)) (left first) (left later)
+  assertBool
+    ("the differences: " <> show differences)
+    (all (<= 2 * treble + bass * 2 * pi * 100 * 10 / 44100) differences)
+  where
+    bass, treble :: Double
+    bass = 10000
+    treble = 10000
+
+    left :: BS.ByteString -> [Double]
+    left pcm =
+      [ sampleAt pcm (i * channels) * fromIntegral (maxBound @Int16)
+      | i <- [0 .. BS.length pcm `div` frameBytes - 1]
+      ]
+
+test_triggerNone :: Assertion
+test_triggerNone = do
+  w <- newWaveWindow
+  let rising = samples [(fromIntegral (i `mod` 30000) + 1, 1000) | i <- [0 .. 4000 :: Int]]
+  pushWave w rising
+  assertEqual "the last samples" (BS.takeEnd (waveSamples * frameBytes) rising) =<< waveOf w
+
+test_triggerSilence :: Assertion
+test_triggerSilence = do
+  w <- newWaveWindow
+  let silence = BS.replicate (waveSamples * frameBytes) 0
+  assertEqual "at first" silence =<< waveOf w
+  pushWave w circle
+  pushWaveSilence w (historySamples * frameBytes)
+  assertEqual "after the samples" silence =<< waveOf w
 
 -- | The Blackman window passes 0.42 of a sine, and a real sine is half in
 -- the bin of its frequency and half in the bin of the negative one.
@@ -429,6 +540,23 @@ test_workerSpectrum = withSystemTempDirectory "visualizer" $ \dir -> do
           assertBool "the samples" (all ((> 0) . VS.maximum) [left, right])
         e -> assertFailure $ "event: " <> show e
 
+-- | The mix of the channels is silent, so the wave ends with the last
+-- samples.
+test_workerWave :: Assertion
+test_workerWave = withSystemTempDirectory "visualizer" $ \dir -> do
+  let path = dir </> "fifo"
+      sample = samples [(1000, -1000)]
+  createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
+  events <- newTQueueIO
+  reading <- newTVarIO (Just Wave)
+  bracket (forkIO . visualizerWorker $ source path reading events) killThread $ \_ ->
+    withWriting path (BS.concat (replicate 100 sample)) $
+      expectWithin (atomically (readTQueue events)) >>= \case
+        VisualizerWave pcm -> do
+          assertEqual "the length" (waveSamples * frameBytes) (BS.length pcm)
+          assertEqual "the last sample" sample (BS.takeEnd frameBytes pcm)
+        e -> assertFailure $ "event: " <> show e
+
 -- | Write the samples to the fifo again and again while an action runs. The
 -- writer can open the fifo once the worker opened it, which also drops
 -- what the fifo held before, so the samples go on until they come.
@@ -521,30 +649,46 @@ test_workerStats = withSystemTempDirectory "visualizer" $ \dir -> do
 visualizing :: AppEnv
 visualizing = testAppEnv & #config % #visualizer % #dataSource ?~ "fifo"
 
--- | The state after the ellipse showed the frames, the oldest first.
-shownWith :: AppEnv -> [BS.ByteString] -> IO AppState
-shownWith env frames = do
+-- | The state after a visualization showed the frames, the oldest first.
+shownWith :: Visualization -> AppEnv -> [BS.ByteString] -> IO AppState
+shownWith v env frames = do
   s <- testState (40, 12) (statusOf Stopped Nothing 0) []
-  (.state) <$> runEventsWith env 0 (key "8" : key "space" : map VisualizerSamples frames) s
+  (.state)
+    <$> runEventsWith
+      env
+      0
+      (key "8" : replicate (fromEnum v) (key "space") <> map frame frames)
+      s
+  where
+    frame :: BS.ByteString -> AppEvent
+    frame = case v of
+      Wave -> VisualizerWave
+      _ -> VisualizerSamples
 
--- | The lines of the main area, after the header's two, once the visualizer
--- showed the frames.
-mainLines :: AppEnv -> [BS.ByteString] -> IO [T.Text]
-mainLines env frames = do
-  s <- shownWith env frames
+-- | The lines of the main area, after the header's two, once a
+-- visualization showed the frames.
+mainLines :: Visualization -> AppEnv -> [BS.ByteString] -> IO [T.Text]
+mainLines v env frames = do
+  s <- shownWith v env frames
   pure . take (mainHeight s.terminalSize) . drop 2 $ imageLines (renderScreen env s)
 
--- | The rows and the columns of the cells with dots, from the top, after
--- the visualizer showed a frame of the samples.
-dotsOf :: [(Int16, Int16)] -> IO [(Int, Int)]
-dotsOf frame = do
-  ls <- mainLines visualizing [samples frame]
+-- | The rows and the columns of the cells with dots, from the top, after a
+-- visualization showed a frame of the samples.
+dotsOf :: Visualization -> [(Int16, Int16)] -> IO [(Int, Int)]
+dotsOf v frame = do
+  ls <- mainLines v visualizing [samples frame]
   pure
     [ (row, column)
     | (row, l) <- zip [0 ..] ls
     , (column, c) <- zip [0 ..] (T.unpack l)
     , c /= ' '
     ]
+
+isBraille :: Char -> Bool
+isBraille c = c >= '\x2801' && c <= '\x28ff'
+
+style :: T.Text -> Style
+style = either (error . T.unpack) id . parseStyle
 
 -- | A frame of samples of the left and the right channel, as MPD writes
 -- them.
@@ -555,6 +699,11 @@ samples = BL.toStrict . BB.toLazyByteString . foldMap (\(l, r) -> sample l <> sa
     sample = case targetByteOrder of
       LittleEndian -> BB.int16LE
       BigEndian -> BB.int16BE
+
+-- | The samples of a sound from an index until an end, the same in both
+-- channels.
+sound :: (Int -> Double) -> Int -> Int -> BS.ByteString
+sound f from end = samples [(s, s) | i <- [from .. end - 1], let s = round (f i)]
 
 -- | A frame with a period of a sine on the left and a cosine on the right,
 -- which is a circle.

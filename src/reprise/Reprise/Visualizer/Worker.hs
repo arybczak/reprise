@@ -1,6 +1,6 @@
 -- | The thread that reads the samples of MPD's fifo output for the
 -- visualizer, while the visualizer shows, and sends what each frame shows:
--- the samples of the ellipse, or the spectrum.
+-- the samples of the ellipse, the spectrum or the samples of the wave.
 module Reprise.Visualizer.Worker
   ( VisualizerSource (..)
   , visualizerWorker
@@ -26,6 +26,7 @@ import Reprise.Config
 import Reprise.Event
 import Reprise.Visualizer.Samples
 import Reprise.Visualizer.Spectrum
+import Reprise.Visualizer.Wave
 
 data VisualizerSource = VisualizerSource
   { path :: FilePath
@@ -57,13 +58,15 @@ visualizerWorker src = do
         void (readAvailable h)
         start <- getMonotonicTime
         window <- newSampleWindow
+        wave <- newWaveWindow
         second <- S.newIORef (Second start noFrames)
-        frames transform window h second start 1 0 (newPlayout start) 0
+        frames transform window wave h second start 1 0 (newPlayout start) 0
   where
     -- The frames of silence since the last samples.
     frames
       :: Transform
       -> SampleWindow
+      -> WaveWindow
       -> Handle
       -> S.IORef Second
       -> Double
@@ -72,7 +75,7 @@ visualizerWorker src = do
       -> Playout
       -> Int
       -> IO ()
-    frames transform window h second start n previous p quiet = do
+    frames transform window wave h second start n previous p quiet = do
       sleepUntil $ start + fromIntegral n / fromIntegral src.fps
       visualization <- readTVarIO src.reading
       forM_ visualization $ \v -> do
@@ -81,6 +84,20 @@ visualizerWorker src = do
         let shown = frameBytes * (samplesUntil n - samplesUntil previous)
             (frame, stopped, p') = playout shown arrival new p
             continue = frames' arrival p'
+
+            -- What the last samples show falls through silence, and stays
+            -- once the samples, of a number, are silent.
+            lastSamples :: (BS.ByteString -> IO ()) -> (Int -> IO ()) -> Int -> IO () -> IO ()
+            lastSamples push pushSilent kept draw
+              | not (BS.null frame) = do
+                  push frame
+                  draw
+                  continue 0
+              | stopped = do
+                  pushSilent shown
+                  when (quiet < silentFrames kept) draw
+                  continue (quiet + 1)
+              | otherwise = continue quiet
         count arrival $ \st ->
           st
             { frames = st.frames + 1
@@ -92,18 +109,10 @@ visualizerWorker src = do
           Ellipse -> do
             send $ VisualizerSamples frame
             continue 0
-          Spectrum
-            | not (BS.null frame) -> do
-                pushSamples window frame
-                spectrum
-                continue 0
-            -- The spectrum falls through silence, and stays once the
-            -- window is silent.
-            | stopped -> do
-                pushSilence window shown
-                when (quiet < silentFrames) spectrum
-                continue (quiet + 1)
-            | otherwise -> continue quiet
+          Spectrum -> lastSamples (pushSamples window) (pushSilence window) windowSamples spectrum
+          Wave ->
+            lastSamples (pushWave wave) (pushWaveSilence wave) historySamples $
+              send . VisualizerWave =<< waveOf wave
       where
         -- A frame that came late doesn't make the next ones late.
         frames' :: Double -> Playout -> Int -> IO ()
@@ -111,6 +120,7 @@ visualizerWorker src = do
           frames
             transform
             window
+            wave
             h
             second
             start
@@ -149,9 +159,9 @@ visualizerWorker src = do
     samplesUntil :: Int -> Int
     samplesUntil n = n * sampleRate `div` src.fps
 
-    -- The frames of silence that fill the window.
-    silentFrames :: Int
-    silentFrames = (windowSamples * src.fps + sampleRate - 1) `div` sampleRate
+    -- The frames of silence that fill a number of samples.
+    silentFrames :: Int -> Int
+    silentFrames kept = (kept * src.fps + sampleRate - 1) `div` sampleRate
 
     noFrames :: FrameStats
     noFrames = FrameStats {frames = 0, late = 0, empty = 0, dropped = 0, bytes = 0}
