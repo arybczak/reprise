@@ -15,7 +15,20 @@ findTests =
     , testCase "an incomplete pattern" test_incomplete
     , testCase "a pattern that is too slow" test_tooSlow
     , testCase "searching" test_search
+    , testCase "where a pattern matches" test_matchRanges
     ]
+
+test_matchRanges :: Assertion
+test_matchRanges = do
+  assertEqual "each match" (Right [(1, 1), (3, 1), (5, 1)]) (ranges "a" "banana")
+  assertEqual "case" (Right [(0, 4)]) (ranges "beta" "BETA")
+  assertEqual "diacritics" (Right [(0, 5)]) (ranges "pokoj" "Pokój")
+  assertEqual "a mark after the match" (Right [(0, 2)]) (ranges "o" "o\x301x")
+  assertEqual "after a wide character" (Right [(2, 1)]) (ranges "b" "日ab")
+  assertEqual "no empty match" (Right []) (ranges "x*" "ab")
+  where
+    ranges :: T.Text -> T.Text -> Either T.Text [(Int, Int)]
+    ranges p t = either (Left . ("compile: " <>)) (`matchRanges` t) (compilePattern p)
 
 test_matching :: Assertion
 test_matching = do

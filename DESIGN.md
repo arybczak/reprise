@@ -1431,6 +1431,16 @@ Find (`/`, `?`):
 - **Select found** selects every song that the last pattern matches. With
   it, an action works on every match, which is why reprise has no filter
   (see [Dropped](#dropped)).
+- **In text,** the help, the lyrics and the song info, a find goes through
+  the rows as they show, wrapped. ncmpcpp's `find` there only highlights
+  the matches; reprise's goes to them as in a list, with `.` and `,`.
+  - **Text has no cursor,** so the row of a match stands for one. It shows
+    in the middle, and the next find starts after it. Once it scrolls out of
+    view, a find starts at the edge of the view instead.
+  - **The matched text has `lists.found_style`,** as ncmpcpp highlights it,
+    also after the prompt closes, until a find on another screen: without
+    a cursor, nothing else shows where the find went.
+  - **A find stops the lyrics following the song,** as a scroll does.
 
 ### Seeking
 

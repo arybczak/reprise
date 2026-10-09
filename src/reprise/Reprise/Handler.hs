@@ -45,6 +45,7 @@ import Reprise.Screen.Visualizer
 import Reprise.Selection
 import Reprise.State
 import Reprise.StatusBar
+import Reprise.Style
 import Reprise.UI.SongList
 
 -- | Handle an event at a monotonic time, with pure handlers that collect the
@@ -492,11 +493,15 @@ verbOr otherwise' action = do
 screenVerb :: App es => ScreenName -> Action -> Maybe (Eff es ())
 screenVerb screen = \case
   Find t ->
-    screenRows screen <&> \rows -> case t of
-      FindForward -> modifyS (startFind Forward)
-      FindBackward -> modifyS (startFind Backward)
-      FindNext -> findAgain rows Forward
-      FindPrevious -> findAgain rows Backward
+    screenRows screen <&> \rows -> do
+      -- A find moves the lyrics, so it stops following the song as a
+      -- scroll does, before it notes where it starts.
+      when (screen == LyricsScreen) stopFollowing
+      case t of
+        FindForward -> modifyS (startFind Forward)
+        FindBackward -> modifyS (startFind Backward)
+        FindNext -> findAgain rows Forward
+        FindPrevious -> findAgain rows Backward
   action -> case screen of
     QueueScreen -> queueVerb action
     BrowserScreen -> browserVerb action
@@ -660,13 +665,14 @@ startFind direction s =
 findAsYouType :: App es => Finding -> T.Text -> Eff es Finding
 findAsYouType f text = do
   rows <- focusedRows
+  start <- searchStart f.direction f.origin
   note <-
     if T.null text
       then modifyWithEnv (restoreView f.origin) >> pure Nothing
       else case compilePattern text of
         -- The cursor stays until the pattern is complete again.
         Left err -> pure (Just err)
-        Right p -> case search p f.direction (fst f.origin) rows of
+        Right p -> case search p f.direction start rows of
           Left err -> pure (Just err)
           Right Nothing -> modifyWithEnv (restoreView f.origin) >> pure (Just "no match")
           Right (Just found) -> do
@@ -684,7 +690,8 @@ acceptFind f text
         modifyWithEnv (restoreView f.origin)
         showError $ "Invalid pattern: " <> text
       Right _ -> do
-        modifyS $ #findPattern ?~ text
+        screen <- getsS ((.screen) . focusedView)
+        modifyS $ (#findPattern ?~ text) . (#foundOn ?~ screen)
         forM_ f.note (showMessage . capitalize)
 
 -- | Move to the next or the previous match of the last pattern in rows of
@@ -692,13 +699,32 @@ acceptFind f text
 findAgain :: App es => Eff es (Seq.Seq Folded) -> Direction -> Eff es ()
 findAgain getRows direction = withFindPattern $ \text p -> do
   rows <- getRows
-  c <- getsS ((.cursor) . focusedView)
-  case search p direction c rows of
+  v <- getsS focusedView
+  modifyS $ #foundOn ?~ v.screen
+  start <- searchStart direction (v.cursor, v.offset)
+  case search p direction start rows of
     Left err -> showError (capitalize err)
     Right Nothing -> showMessage $ "No match for " <> text
     Right (Just found) -> do
       modifyWithEnv (jumpTo found.index)
       forM_ (wrapNote direction found) (showMessage . capitalize)
+
+-- | The row that a search starts after, from a cursor and an offset of the
+-- focused view: the cursor of a list. A screen of text has no cursor; a
+-- find puts it on its match. While that shows, a search starts there, else
+-- at the edge of the view where it goes from.
+searchStart :: App es => Direction -> (Int, Int) -> Eff es Int
+searchStart direction (c, o) = do
+  env <- getAppEnv
+  s <- getS
+  let v = focusedView s
+      h = listHeight env s v
+  pure $ case (screenInfo v.screen).content of
+    Lines
+      | c < o || c >= o + h -> case direction of
+          Forward -> o - 1
+          Backward -> o + h
+    _ -> c
 
 wrapNote :: Direction -> Found -> Maybe T.Text
 wrapNote direction found
@@ -725,9 +751,17 @@ screenRows = \case
   PlaylistEditorScreen -> Nothing
   OutputsScreen -> Nothing
   VisualizerScreen -> Nothing
-  LyricsScreen -> Nothing
-  SongInfoScreen -> Nothing
-  HelpScreen -> Nothing
+  LyricsScreen -> Just $ textRows lyricsSpans
+  SongInfoScreen -> Just $ textRows songInfoSpans
+  HelpScreen -> Just $ textRows (\env _ _ -> helpRows env)
+  where
+    -- The rows of a screen of text at the focused view's width.
+    textRows
+      :: App es => (AppEnv -> AppState -> Int -> [[Span Style]]) -> Eff es (Seq.Seq Folded)
+    textRows spansOf = do
+      env <- getAppEnv
+      s <- getS
+      pure . Seq.fromList . map (foldText . spansText) $ spansOf env s (focusedView s).width
 
 ----------------------------------------
 -- Seeking

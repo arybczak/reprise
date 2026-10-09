@@ -2,6 +2,7 @@
 -- of a song, as text that scrolls.
 module Reprise.Screen.SongInfo
   ( songInfoView
+  , songInfoSpans
   , songInfoVerb
   , showSongInfo
   , songCommentsFetched
@@ -18,31 +19,39 @@ import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Event
+import Reprise.Format
 import Reprise.Handler.Core
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
+import Reprise.UI.SongList
 
 -- | The labels have 'styles.label', the values 'styles.value', and a tag
 -- that the song is without is the missing tag, as in the lists.
 songInfoView :: AppEnv -> AppState -> View -> V.Image
 songInfoView env s v =
-  V.vertCat . map row . take v.height . drop v.offset $ songInfoRows env s v.width
+  V.vertCat
+    . map (textRow env.colorMode v.width)
+    . highlightFound env s SongInfoScreen
+    . take v.height
+    . drop v.offset
+    $ songInfoSpans env s v.width
+
+-- | The rows of the song info at a width.
+songInfoSpans :: AppEnv -> AppState -> Int -> [[Span Style]]
+songInfoSpans env s width = map row (songInfoRows env s width)
   where
-    row :: (T.Text, Maybe T.Text) -> V.Image
+    row :: (T.Text, Maybe T.Text) -> [Span Style]
     row (label, value) =
-      V.horizCat
-        [ V.text' (toAttr env.colorMode env.config.styles.label) label
-        , case value of
-            Just text -> V.text' (toAttr env.colorMode env.config.styles.value) text
-            Nothing ->
-              V.text'
-                ( toAttr env.colorMode $
-                    fromMaybe env.config.styles.value env.config.lists.missingTagStyle
-                )
-                env.config.lists.missingTag
-        ]
+      [ Span (Just env.config.styles.label) label
+      , case value of
+          Just text -> Span (Just env.config.styles.value) text
+          Nothing ->
+            Span
+              (Just (fromMaybe env.config.styles.value env.config.lists.missingTagStyle))
+              env.config.lists.missingTag
+      ]
 
 -- | How the song info screen does a verb, if it does it.
 songInfoVerb :: App es => Action -> Maybe (Eff es ())

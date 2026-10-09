@@ -176,7 +176,8 @@ data ListsConfig = ListsConfig
   , inactiveCursorStyle :: Style
   , selectedStyle :: Style
   , foundStyle :: Style
-  -- ^ The items that match an unfinished find.
+  -- ^ The items that match an unfinished find, and the text that a find
+  -- matches in a screen of text.
   , playingStyle :: Style
   , queuedStyle :: Style
   -- ^ The songs that are in the queue, in the other screens. ncmpcpp

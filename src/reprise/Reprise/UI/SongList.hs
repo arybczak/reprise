@@ -11,6 +11,8 @@ module Reprise.UI.SongList
   , songFindText
   , visibleItems
   , typedMatches
+  , textRow
+  , highlightFound
 
     -- * Rendering contexts
   , renderContext
@@ -28,6 +30,7 @@ import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
 
+import Reprise.Action
 import Reprise.Config
 import Reprise.Find
 import Reprise.Format
@@ -148,6 +151,31 @@ typedMatches s rows = case s.prompt of
     , Right matched <- matchAll p rows ->
         toList matched
   _ -> repeat False
+
+-- | A row of a screen of text, cut to the width.
+textRow :: ColorMode -> Int -> [Span Style] -> V.Image
+textRow colorMode width spans =
+  padded (toAttr colorMode) (mempty, mempty) AlignLeft width (fitSpans width spans)
+
+-- | The rows of a screen of text with the matches of a find in the style of
+-- found items: of the find that the user types on the screen, else of the
+-- last find on it.
+highlightFound :: AppEnv -> AppState -> ScreenName -> [[Span Style]] -> [[Span Style]]
+highlightFound env s screen = case pattern of
+  Just p -> map $ \spans ->
+    either (const spans) (\ranges -> highlightSpans env.config.lists.foundStyle ranges spans) $
+      matchRanges p (spansText spans)
+  Nothing -> id
+  where
+    pattern :: Maybe Pattern
+    pattern = case s.prompt of
+      Just (Prompt _ (Line edit (ForFind _) _))
+        | (focusedView s).screen == screen ->
+            either (const Nothing) Just (compilePattern (lineEditText edit))
+      _
+        | s.foundOn == Just screen ->
+            either (const Nothing) Just . compilePattern =<< s.findPattern
+        | otherwise -> Nothing
 
 -- | The row of the titles of the columns, if the list of a view leaves one
 -- for it.

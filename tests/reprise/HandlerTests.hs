@@ -1,6 +1,7 @@
 module HandlerTests (handlerTests) where
 
 import Data.Foldable
+import Data.List qualified as L
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
@@ -12,11 +13,13 @@ import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Format
 import Reprise.Keys
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
+import Reprise.Screen.Help
 import Reprise.Selection
 import Reprise.State
 import Reprise.UI.Layout
@@ -79,6 +82,7 @@ handlerTests =
     , testCase "the prompts share a history" test_promptHistory
     , testCase "find as you type" test_findAsYouType
     , testCase "find the next and the previous match" test_findAgain
+    , testCase "find in text" test_findInText
     , testCase "find after the rows change" test_findRowsChange
     , testCase "select the found songs" test_selectFound
     , testCase "the help screen has no selection" test_selectOnHelp
@@ -302,8 +306,49 @@ test_findAsYouType = do
     (3, Nothing)
     ((focusedView accepted.state).cursor, accepted.state.prompt)
   assertEqual "the pattern" (Just "al") accepted.state.findPattern
-  assertEqual "on the help screen" (Just "The help screen has no find forward") . message
-    =<< keys ["f1", "/"] s
+  assertEqual "on the visualizer" (Just "The visualizer screen has no find forward")
+    . message
+    =<< keys ["8", "/"] s
+
+-- | The help of the default keys, on a view of 20 rows. A match goes to
+-- the middle, as in a list.
+test_findInText :: Assertion
+test_findInText = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
+  help <- keys ["f1"] s
+  let rows = map spansText (helpRows testAppEnv)
+      withVolume = [i | (i, r) <- zip [0 ..] rows, "volume" `T.isInfixOf` T.toLower r]
+      centered i = (i, max 0 (min (length rows - 20) (i - 10)))
+      highlighted r =
+        [ t
+        | (a, t) <- imageSpans (renderScreen testAppEnv r.state)
+        , T.toLower t == "volume"
+        , V.attrStyle a /= V.Default
+        ]
+  (first, second, lastOne) <- case (withVolume, L.unsnoc withVolume) of
+    (a : b : _ : _, Just (_, z)) -> pure (a, b, z)
+    _ -> assertFailure $ "too few matches: " <> show withVolume
+  typing <- keys ("/" : typed "volume") help.state
+  assertEqual "while typing" (centered first) (position typing)
+  assertBool "highlighted while typing" (not (null (highlighted typing)))
+  found <- keys ["enter"] typing.state
+  assertEqual "found" (centered first) (position found)
+  assertBool "highlighted after" (not (null (highlighted found)))
+  assertEqual "the next" (centered second) . position =<< keys ["."] found.state
+  backward <- keys ("?" : typed "volume" <> ["enter"]) help.state
+  assertEqual "backward around the start" (centered lastOne) (position backward)
+  -- The first match leaves the view, so the next find starts at its top,
+  -- not after the first match.
+  let lastPage = length rows - 20
+      afterTop = case [i | i <- withVolume, i >= lastPage] of
+        i : _ -> i
+        [] -> first
+  assertBool "a find from the view differs" (afterTop /= second)
+  scrolled <- keys ["end"] found.state
+  assertEqual "from the view after a scroll" (centered afterTop) . position
+    =<< keys ["."] scrolled.state
+  queueFind <- keys ("/" : typed "volume" <> ["enter", "f1"]) s
+  assertEqual "not after a find on another screen" [] (highlighted queueFind)
 
 test_findAgain :: Assertion
 test_findAgain = do

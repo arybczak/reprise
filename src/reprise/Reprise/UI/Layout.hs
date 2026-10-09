@@ -112,7 +112,7 @@ mainView env s =
        VisualizerScreen -> visualizerView env s v
        LyricsScreen -> lyricsView env s v
        SongInfoScreen -> songInfoView env s v
-       HelpScreen -> helpView env v
+       HelpScreen -> helpView env s v
        OutputsScreen -> outputsView env s v
        SearchEngineScreen -> V.emptyImage
        MediaLibraryScreen -> V.emptyImage

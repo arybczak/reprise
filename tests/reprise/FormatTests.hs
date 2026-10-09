@@ -25,8 +25,32 @@ formatTests =
     , testCase "styles" test_styles
     , testCase "fields" test_fields
     , testCase "width" test_width
+    , testCase "highlighting ranges of spans" test_highlightSpans
     , testProperty "print then parse" prop_printParse
     ]
+
+-- | The ranges count the characters of all the spans together.
+test_highlightSpans :: Assertion
+test_highlightSpans = do
+  let red = style "red"
+      spans = [Span Nothing "ab", Span (Just boldStyle) "cde"]
+  assertEqual
+    "a range across two spans"
+    [ Span Nothing "a"
+    , Span (Just red) "b"
+    , Span (Just (boldStyle <> red)) "c"
+    , Span (Just boldStyle) "de"
+    ]
+    (highlightSpans red [(1, 2)] spans)
+  assertEqual
+    "two ranges in a span"
+    [ Span Nothing "ab"
+    , Span (Just (boldStyle <> red)) "c"
+    , Span (Just boldStyle) "d"
+    , Span (Just (boldStyle <> red)) "e"
+    ]
+    (highlightSpans red [(2, 1), (4, 1)] spans)
+  assertEqual "no ranges" spans (highlightSpans red [] spans)
 
 test_parse :: Assertion
 test_parse = do

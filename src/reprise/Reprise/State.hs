@@ -139,6 +139,10 @@ data AppState = AppState
   -- ^ The lines of the line prompts, newest first.
   , findPattern :: Maybe T.Text
   -- ^ The pattern of the last find, which every screen finds again.
+  , foundOn :: Maybe ScreenName
+  -- ^ The screen of the last find, or of the last find again. A screen of
+  -- text keeps showing the matches of 'findPattern' on it, since it has no
+  -- cursor to show where it went.
   , message :: Maybe Message
   , seek :: Maybe SeekState
   , now :: Double
@@ -486,6 +490,7 @@ initialState config =
     , prompt = Nothing
     , history = []
     , findPattern = Nothing
+    , foundOn = Nothing
     , message = Nothing
     , seek = Nothing
     , now = 0

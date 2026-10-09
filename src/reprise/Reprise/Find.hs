@@ -7,6 +7,7 @@ module Reprise.Find
   , foldText
   , matches
   , matchAll
+  , matchRanges
   , Direction (..)
   , Found (..)
   , search
@@ -16,6 +17,7 @@ import Control.Exception
 import Data.Char
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
+import Data.Text.Foreign qualified as T
 import Data.Text.ICU qualified as ICU
 import Data.Text.ICU.Error qualified as ICU
 import Data.Text.ICU.Regex qualified as Regex
@@ -93,16 +95,61 @@ search p direction from items = withMatcher p $ \match -> go match order
         found <- match (Seq.index items i)
         if found then pure (Just (Found i w)) else go match rest
 
+-- | The characters of a text that the pattern matches, as the start and the
+-- length of each match. A match covers a character whose folded text it
+-- covers, and the combining marks after its last one, which folding drops.
+matchRanges :: Pattern -> T.Text -> Either T.Text [(Int, Int)]
+matchRanges p t = withRegex p $ \matcher -> do
+  Regex.setText matcher (T.concat [piece | (_, piece, _) <- pieces])
+  let matchesFrom :: IO [(Int, Int)]
+      matchesFrom =
+        Regex.findNext matcher >>= \case
+          False -> pure []
+          True -> do
+            s <- fromIntegral <$> Regex.start_ matcher 0
+            e <- fromIntegral <$> Regex.end_ matcher 0
+            ((s, e) :) <$> matchesFrom
+  bytes <- matchesFrom
+  pure
+    [ (first, lastChar - first + 1)
+    | (s, e) <- bytes
+    , e > s
+    , let covered =
+            [ i
+            | (i, piece, at) <- pieces
+            , let n = T.lengthWord8 piece
+            , if n > 0 then at < e && at + n > s else at > s && at <= e
+            ]
+    , (first, lastChar) <- [(minimum covered, maximum covered) | not (null covered)]
+    ]
+  where
+    -- Each character with its folded text and where that starts in the
+    -- folded text, in bytes, as ICU counts it.
+    pieces :: [(Int, T.Text, Int)]
+    pieces =
+      let folded = [foldChar c | c <- T.unpack t]
+          starts = scanl (+) 0 (map T.lengthWord8 folded)
+      in zip3 [0 ..] folded starts
+
+    foldChar :: Char -> T.Text
+    foldChar c
+      | isAscii c = T.singleton c
+      | otherwise = foldDiacritics (T.singleton c)
+
 -- | Run matches with one matcher, which holds the work limit.
+withMatcher :: Pattern -> ((Folded -> IO Bool) -> IO a) -> Either T.Text a
+withMatcher p act =
+  withRegex p $ \matcher ->
+    act $ \(Folded t) -> Regex.setText matcher t >> Regex.find matcher 0
+
+-- | Run an action with a matcher of the pattern.
 --
 -- text-icu's pure matching clones the matcher for every match, and a clone
 -- loses the limit, so this uses its IO interface the way the pure one
 -- does. ICU reports a match over the limit with an exception.
-withMatcher :: Pattern -> ((Folded -> IO Bool) -> IO a) -> Either T.Text a
-withMatcher (Pattern p) act = unsafePerformIO $ do
-  let run = do
-        matcher <- Regex.regex matchOptions p
-        act $ \(Folded t) -> Regex.setText matcher t >> Regex.find matcher 0
+withRegex :: Pattern -> (Regex.Regex -> IO a) -> Either T.Text a
+withRegex (Pattern p) act = unsafePerformIO $ do
+  let run = act =<< Regex.regex matchOptions p
   try run >>= \case
     Right a -> pure (Right a)
     Left err

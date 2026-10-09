@@ -23,6 +23,7 @@ module Reprise.Format
   , renderPlain
   , fieldValue
   , spansText
+  , highlightSpans
   , spansWidth
   , fitSpans
   , songName
@@ -370,6 +371,35 @@ formatDuration s =
 
 spansText :: [Span s] -> T.Text
 spansText = T.concat . map (.text)
+
+-- | Spans with a style laid over ranges of the characters of their text,
+-- each from its start and with its length, e.g. the matches of a find.
+highlightSpans :: forall s. Monoid s => s -> [(Int, Int)] -> [Span s] -> [Span s]
+highlightSpans over ranges = go 0
+  where
+    go :: Int -> [Span s] -> [Span s]
+    go at = \case
+      [] -> []
+      Span st t : rest ->
+        [ Span (if covered i then Just (fromMaybe mempty st <> over) else st) piece
+        | (i, piece) <- cut at t
+        , not (T.null piece)
+        ]
+          <> go (at + T.length t) rest
+
+    -- The text cut where the ranges begin and end, each piece with the
+    -- index of its first character.
+    cut :: Int -> T.Text -> [(Int, T.Text)]
+    cut at t =
+      let edges =
+            L.nub . L.sort $
+              [e | (s, n) <- ranges, e <- [s, s + n], e > at, e < at + T.length t]
+          lengths = zipWith (-) (edges <> [at + T.length t]) (at : edges)
+      in snd $
+           L.mapAccumL (\(i, rest) n -> ((i + n, T.drop n rest), (i, T.take n rest))) (at, t) lengths
+
+    covered :: Int -> Bool
+    covered i = any (\(s, n) -> i >= s && i < s + n) ranges
 
 spansWidth :: [Span s] -> Int
 spansWidth = sum . map (textWidth . (.text))

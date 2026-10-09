@@ -2,6 +2,8 @@
 -- worker reads from the directory of lyrics, or fetches.
 module Reprise.Screen.Lyrics
   ( lyricsView
+  , lyricsSpans
+  , stopFollowing
   , sungLine
   , nextLyricsLine
   , lyricsVerb
@@ -26,23 +28,33 @@ import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Format
 import Reprise.Handler.Core
 import Reprise.Lyrics
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
+import Reprise.UI.SongList
 
 -- | The line being sung also has the style of the song that plays in a list.
 lyricsView :: AppEnv -> AppState -> View -> V.Image
 lyricsView env s v =
-  V.vertCat . map row . take v.height . drop (lyricsOffset s v) $
-    lyricsRows v.width s.lyrics
+  V.vertCat
+    . map (textRow env.colorMode v.width)
+    . highlightFound env s LyricsScreen
+    . take v.height
+    . drop (lyricsOffset s v)
+    $ lyricsSpans env s v.width
+
+-- | The rows of the lyrics at a width.
+lyricsSpans :: AppEnv -> AppState -> Int -> [[Span Style]]
+lyricsSpans env s width = map row (lyricsRows width s.lyrics)
   where
-    row :: (Maybe Int, T.Text) -> V.Image
+    row :: (Maybe Int, T.Text) -> [Span Style]
     row (line, text) =
       let playing = if isJust line && line == sung then env.config.lists.playingStyle else mempty
-      in V.text' (toAttr env.colorMode (env.config.styles.text <> playing)) text
+      in [Span (Just (env.config.styles.text <> playing)) text]
 
     sung :: Maybe Int
     sung = sungLine s
@@ -101,10 +113,16 @@ lyricsVerb = \case
 -- | Scroll the lyrics from where they show, which stops following the song.
 scrollLyrics :: App es => MoveTarget -> Eff es ()
 scrollLyrics t = do
+  stopFollowing
+  scrollLines t
+
+-- | Stop following the song, with the lyrics where they show, e.g. before
+-- they scroll.
+stopFollowing :: App es => Eff es ()
+stopFollowing = do
   s <- getS
   modifyS $ #lyrics % #following .~ False
   modifyWithEnv . modifyView $ #offset .~ lyricsOffset s (focusedView s)
-  scrollLines t
 
 -- | Show the lyrics of the song under the cursor, from the top.
 showLyrics :: App es => Eff es ()

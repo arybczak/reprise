@@ -2,6 +2,7 @@
 -- keymap, as text that scrolls.
 module Reprise.Screen.Help
   ( helpView
+  , helpRows
   , helpVerb
   , keyColumnWidth
   ) where
@@ -20,11 +21,19 @@ import Reprise.Style
 import Reprise.UI.SongList
 import Reprise.Width
 
-helpView :: AppEnv -> View -> V.Image
-helpView env v =
+helpView :: AppEnv -> AppState -> View -> V.Image
+helpView env s v =
+  V.vertCat
+    . map (textRow env.colorMode v.width)
+    . highlightFound env s HelpScreen
+    . take v.height
+    $ drop v.offset (helpRows env)
+
+-- | The rows of the help.
+helpRows :: AppEnv -> [[Span Style]]
+helpRows env =
   let ls = helpLines env.keymaps
-      render = renderHelpLine env.colorMode env.config.styles (keyColumnWidth ls) v.width
-  in V.vertCat . map render . take v.height $ drop v.offset ls
+  in map (helpLineSpans env.config.styles (keyColumnWidth ls)) ls
 
 -- | How the help screen does a verb, if it does it.
 helpVerb :: App es => Action -> Maybe (Eff es ())
@@ -32,22 +41,18 @@ helpVerb = \case
   Move t -> Just $ scrollLines t
   _ -> Nothing
 
--- | A line of the given width. The keys of all entries, after their
--- indentation, share a column as wide as the widest.
-renderHelpLine :: ColorMode -> StylesConfig -> Int -> Int -> HelpLine -> V.Image
-renderHelpLine colorMode styles keyWidth width = \case
-  Heading depth t -> cell [Span Nothing (indent depth), Span (Just (styles.label <> boldStyle)) t]
+-- | A line. The keys of all entries, after their indentation, share a
+-- column as wide as the widest.
+helpLineSpans :: StylesConfig -> Int -> HelpLine -> [Span Style]
+helpLineSpans styles keyWidth = \case
+  Heading depth t -> [Span Nothing (indent depth), Span (Just (styles.label <> boldStyle)) t]
   Entry depth keys description ->
     let keys' = indent depth <> keys
-    in cell
-         [ Span (Just styles.value) (keys' <> T.replicate (keyWidth + gap - textWidth keys') " ")
-         , Span (Just styles.text) description
-         ]
-  Blank -> cell []
+    in [ Span (Just styles.value) (keys' <> T.replicate (keyWidth + gap - textWidth keys') " ")
+       , Span (Just styles.text) description
+       ]
+  Blank -> []
   where
-    cell :: [Span Style] -> V.Image
-    cell spans = padded (toAttr colorMode) (mempty, mempty) AlignLeft width (fitSpans width spans)
-
     gap :: Int
     gap = 2
 

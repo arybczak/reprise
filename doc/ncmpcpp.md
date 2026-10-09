@@ -112,6 +112,9 @@ What changed in how they are written:
 Options whose choice is fixed in reprise:
 
 - Find uses regular expressions and ignores diacritics and case.
+- In the help, the lyrics and the song info, find goes to the matches, and
+  `.` and `,` go to the next and the previous one, as in a list. ncmpcpp
+  only highlights them there.
 - Clearing and shuffling the whole queue always ask first.
 - Colors are on unless the `NO_COLOR` environment variable is set.
 - The header, the status bar and the volume always show.

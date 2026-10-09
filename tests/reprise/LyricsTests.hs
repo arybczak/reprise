@@ -61,6 +61,7 @@ lyricsTests =
     , testCase "the worker stores and reads the times" test_workerTimes
     , testCase "the line being sung" test_sung
     , testCase "scrolling stops following the song" test_stopFollowing
+    , testCase "a find stops following the song" test_findStopsFollowing
     , testCase "o on another song's lyrics" test_jumpToPlayingLyrics
     , testCase "a redraw when the next line is sung" test_nextLine
     , testCase "the worker fetches in the background" test_workerInBackground
@@ -457,6 +458,32 @@ test_stopFollowing = do
     "the line being sung in the middle"
     ["line 7"]
     (take 1 (mainLines jumped.state))
+
+-- | The 6 rows show line 15 in their middle, and its 15 in the style of
+-- found items.
+test_findStopsFollowing :: Assertion
+test_findStopsFollowing = do
+  shown <- timedShown Paused
+  let find ks = runEvents 0 (map key ks) shown
+  found <- find ["/", "1", "5", "enter"]
+  assertBool "not following" (not found.state.lyrics.following)
+  assertEqual "in the middle" ["line 12", "line 13", "line 14", "line 15"]
+    . take 4
+    $ mainLines found.state
+  assertBool
+    "the match"
+    ( not $
+        null
+          [ t
+          | (a, t) <- imageSpans (renderScreen testAppEnv found.state)
+          , t == "15"
+          , V.attrStyle a /= V.Default
+          ]
+    )
+  cancelled <- find ["/", "1", "5", "escape"]
+  assertEqual "a cancel goes back to where it showed" (take 1 (mainLines shown))
+    . take 1
+    $ mainLines cancelled.state
 
 -- | On another song's lyrics, o asks for those of the song that plays.
 test_jumpToPlayingLyrics :: Assertion
