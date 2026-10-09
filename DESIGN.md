@@ -2090,6 +2090,11 @@ Settings that effectful doesn't have:
   is rare, because every config field has a real default.
 - `ghc-options: -threaded` for the `reprise` executable and both test suites.
   The MPD worker threads and the real-server tests need it.
+- `-with-rtsopts=-maxN4` for both test suites, which run their tests on a
+  thread for each capability, unless `-j` or `TASTY_NUM_THREADS` says
+  otherwise. tasty would take a thread for each core. More than 4 don't
+  speed the tests up: on 32 cores, `reprise-tests` took 0.24-0.30 s with 4,
+  0.24-0.31 s with 8, 0.29-0.35 s with 16 and 0.35-0.50 s with 32.
 - `-with-rtsopts=-Iw10 --disable-delayed-os-memory-return` for the `reprise`
   executable.
   - **An idle collection runs at most every 10 seconds.** While a song plays,

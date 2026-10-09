@@ -28,6 +28,7 @@ import SaveTests
 import SongInfoTests
 import StyleTests
 import TekstowoTests
+import TestMain
 import VisualizerTests
 import WidthTests
 import WorkerTests
@@ -36,7 +37,7 @@ main :: IO ()
 main = do
   -- As reprise does at the start.
   installWidthTable
-  defaultMain $
+  testMain $
     testGroup
       "reprise"
       [ actionTests

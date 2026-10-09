@@ -233,7 +233,8 @@ library mpd-test-server
 test-suite mpd-protocol-tests
     import:         language
 
-    ghc-options:    -threaded
+    -- More threads don't make the tests faster.
+    ghc-options:    -threaded "-with-rtsopts=-maxN4"
 
     build-depends:    base
                     , bytestring
@@ -251,6 +252,7 @@ test-suite mpd-protocol-tests
                     , time
 
     hs-source-dirs: tests/mpd-protocol
+                    tests/common
 
     type:           exitcode-stdio-1.0
     main-is:        Main.hs
@@ -259,12 +261,14 @@ test-suite mpd-protocol-tests
                     ConnectionTests
                     RequestTests
                     ResponseTests
+                    TestMain
                     Thunks
 
 test-suite reprise-tests
     import:         language
 
-    ghc-options:    -threaded
+    -- More threads don't make the tests faster.
+    ghc-options:    -threaded "-with-rtsopts=-maxN4"
 
     build-depends:    base
                     , bytestring
@@ -292,6 +296,7 @@ test-suite reprise-tests
                     , yamlet
 
     hs-source-dirs: tests/reprise
+                    tests/common
 
     type:           exitcode-stdio-1.0
     main-is:        Main.hs
@@ -321,6 +326,7 @@ test-suite reprise-tests
                     SongInfoTests
                     StyleTests
                     TekstowoTests
+                    TestMain
                     VisualizerTests
                     WidthTests
                     WorkerTests

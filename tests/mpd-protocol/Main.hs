@@ -6,10 +6,11 @@ import CommandTests
 import ConnectionTests
 import RequestTests
 import ResponseTests
+import TestMain
 
 main :: IO ()
 main =
-  defaultMain $
+  testMain $
     testGroup
       "mpd-protocol"
       [ commandTests
