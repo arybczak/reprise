@@ -130,14 +130,12 @@ markedPositions s = case selectedSongPositions s of
 select :: App es => SelectTarget -> Eff es ()
 select t = do
   q <- getsS (.mirror.queue)
-  case t of
-    SelectFound -> do
-      rows <- queueRows
-      selectFound (#queueState % #selection) ((.songId) <$> q) rows countSongs
-    _ -> selectInList (#queueState % #selection) ((\song -> (song.songId, Just song)) <$> q) t
-  case t of
-    SelectItem (Just m) -> modifyWithEnv (moveListCursor m)
-    _ -> pure ()
+  selectInList
+    (#queueState % #selection)
+    ((\song -> (song.songId, Just song)) <$> q)
+    queueRows
+    countSongs
+    t
 
 ----------------------------------------
 -- Changes

@@ -51,7 +51,7 @@ module Reprise.Handler.Core
 
     -- * Selection
   , selectInList
-  , selectFound
+  , withFindPattern
   ) where
 
 import Control.Monad
@@ -282,19 +282,23 @@ moveListCursor t env s =
 
 -- | Change the selection of the focused list, as a select action says. The
 -- list's items have keys, which the selection holds, and songs, which tell
--- albums and artists apart. An item without a key can't be selected. A
--- screen selects what its find found, and moves after a select itself.
+-- albums and artists apart. An item without a key can't be selected.
 selectInList
   :: forall k es
    . (App es, Ord k)
   => Lens' AppState (Selection k)
   -> Seq.Seq (Maybe k, Maybe Song)
+  -> Eff es (Seq.Seq Folded)
+  -- ^ The text of the items as finds match it.
+  -> (Int -> T.Text)
+  -- ^ How many items, e.g. @3 songs@.
   -> SelectTarget
   -> Eff es ()
-selectInList selection items = \case
-  SelectItem _ -> do
+selectInList selection items findRows count = \case
+  SelectItem move -> do
     c <- getsS ((.cursor) . focusedView)
     forM_ (Seq.lookup c items >>= fst) $ \k -> modifyS $ selection %~ toggleKey k
+    forM_ move $ modifyWithEnv . moveListCursor
   SelectRange ->
     getsS (selectRange itemKeys . view selection) >>= \case
       Nothing -> showMessage "Select the first and the last item of the range first"
@@ -309,7 +313,14 @@ selectInList selection items = \case
     showMessage "Selection cleared"
   SelectAlbum -> selectGroup albumKey "Album"
   SelectArtist -> selectGroup artistKey "Artist"
-  SelectFound -> pure ()
+  SelectFound -> withFindPattern $ \_ p -> do
+    rows <- findRows
+    case matchAll p rows of
+      Left err -> showError (capitalize err)
+      Right found -> do
+        let ks = [k | (Just k, True) <- zip (toList itemKeys) (toList found)]
+        modifyS $ selection %~ addKeys ks
+        showMessage $ count (length ks) <> " found and selected"
   where
     itemKeys :: Seq.Seq (Maybe k)
     itemKeys = fst <$> items
@@ -326,27 +337,13 @@ selectInList selection items = \case
         modifyS $ selection %~ addKeys [k | i <- group, Just k <- [Seq.lookup i items >>= fst]]
         showMessage $ name <> " around the cursor selected"
 
--- | Select the items that the last find's pattern matches. The rows are the
--- text of the items as finds match it.
-selectFound
-  :: (App es, Ord k)
-  => Lens' AppState (Selection k)
-  -> Seq.Seq (Maybe k)
-  -> Seq.Seq Folded
-  -> (Int -> T.Text)
-  -- ^ How many items, e.g. @3 songs@.
-  -> Eff es ()
-selectFound selection itemKeys rows count = do
-  s <- getS
-  case compilePattern <$> s.findPattern of
+-- | Run with the pattern of the last find, and its text, or say why there
+-- is none.
+withFindPattern :: App es => (T.Text -> Pattern -> Eff es ()) -> Eff es ()
+withFindPattern k =
+  getsS (.findPattern) >>= \case
     Nothing -> showMessage "Nothing was found yet"
-    Just (Left err) -> showError (capitalize err)
-    Just (Right p) -> case matchAll p rows of
-      Left err -> showError (capitalize err)
-      Right found -> do
-        let ks = [k | (Just k, True) <- zip (toList itemKeys) (toList found)]
-        modifyS $ selection %~ addKeys ks
-        showMessage $ count (length ks) <> " found and selected"
+    Just text -> either (showError . capitalize) (k text) (compilePattern text)
 
 -- | Bring back a cursor and an offset, e.g. after a cancelled find.
 restoreView :: (Int, Int) -> AppEnv -> AppState -> AppState

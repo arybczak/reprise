@@ -274,14 +274,12 @@ browserListed token entries =
 selectInBrowser :: App es => SelectTarget -> Eff es ()
 selectInBrowser t = do
   items <- getsS (.browser.items)
-  case t of
-    SelectFound -> do
-      rows <- getsS (.browser.rows)
-      selectFound (#browser % #selection) (fst . selectable <$> items) rows countItems
-    _ -> selectInList (#browser % #selection) (selectable <$> items) t
-  case t of
-    SelectItem (Just m) -> modifyWithEnv (moveListCursor m)
-    _ -> pure ()
+  selectInList
+    (#browser % #selection)
+    (selectable <$> items)
+    (getsS (.browser.rows))
+    countItems
+    t
   where
     -- @..@ can't be selected.
     selectable :: BrowserItem -> (Maybe ItemKey, Maybe Song)

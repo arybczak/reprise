@@ -670,19 +670,15 @@ acceptFind f text
 -- | Move to the next or the previous match of the last pattern in rows of
 -- the focused list.
 findAgain :: App es => Eff es (Seq.Seq Folded) -> Direction -> Eff es ()
-findAgain getRows direction = do
+findAgain getRows direction = withFindPattern $ \text p -> do
   rows <- getRows
-  s <- getS
-  case s.findPattern of
-    Nothing -> showMessage "Nothing was found yet"
-    Just text -> case compilePattern text of
-      Left err -> showError (capitalize err)
-      Right p -> case search p direction (focusedView s).cursor rows of
-        Left err -> showError (capitalize err)
-        Right Nothing -> showMessage $ "No match for " <> text
-        Right (Just found) -> do
-          modifyWithEnv (jumpTo found.index)
-          forM_ (wrapNote direction found) (showMessage . capitalize)
+  c <- getsS ((.cursor) . focusedView)
+  case search p direction c rows of
+    Left err -> showError (capitalize err)
+    Right Nothing -> showMessage $ "No match for " <> text
+    Right (Just found) -> do
+      modifyWithEnv (jumpTo found.index)
+      forM_ (wrapNote direction found) (showMessage . capitalize)
 
 wrapNote :: Direction -> Found -> Maybe T.Text
 wrapNote direction found
