@@ -88,9 +88,24 @@ wrapText width t
       rest -> (line, rest)
 
 -- | Text with a space for each control character, e.g. a tab, which would
--- break the terminal's layout.
+-- break the terminal's layout. It also leaves out characters that take no
+-- column but change how the terminal draws others, so that it draws what
+-- was measured:
+--
+-- * the selector of an emoji's look, after which a terminal draws e.g. ❤,
+--   a character of one column, as an emoji of two;
+-- * the joiner of emoji, e.g. of 👨‍👩‍👧, which some terminals draw as one
+--   emoji of two columns, and others as three;
+-- * the controls of the direction of text, which can reverse the rest of a
+--   row in a terminal that orders text by its direction.
 sanitize :: T.Text -> T.Text
-sanitize = T.map $ \c -> if isControl c then ' ' else c
+sanitize = T.map (\c -> if isControl c then ' ' else c) . T.filter (not . invisible)
+  where
+    invisible :: Char -> Bool
+    invisible c =
+      c `elem` ['\xFE0F', '\x200D', '\x061C', '\x200E', '\x200F']
+        || (c >= '\x202A' && c <= '\x202E')
+        || (c >= '\x2066' && c <= '\x2069')
 
 -- | Text that doesn't fit in the width, scrolled by a character for each
 -- step, e.g. each second. It goes round with a separator. Text that fits

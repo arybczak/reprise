@@ -24,6 +24,7 @@ widthTests =
     , testCase "an emoji is wide" test_emoji
     , testCase "a row with an emoji fits the terminal" test_emojiRowFits
     , testCase "a row with control characters fits the terminal" test_controlRowFits
+    , testCase "sequences that terminals draw differently" test_sequences
     , testCase "the ranges are vty's" test_sameRanges
     ]
 
@@ -76,6 +77,17 @@ test_emojiRowFits = do
   forM_ (imageLines (renderScreen testAppEnv s)) $ \line -> do
     w <- sum <$> mapM width (T.unpack line)
     assertBool ("wider than the terminal: " <> T.unpack line) (w <= 80)
+
+-- | A terminal draws an emoji that a selector asks for, and emoji that a
+-- joiner joins, wider or narrower than they measure, and a control of the
+-- direction of text can reverse a row. They are left out.
+test_sequences :: Assertion
+test_sequences = do
+  assertEqual "the heart of text" "❤" (sanitize "❤\xFE0F")
+  assertEqual "emoji each on their own" "👨👩👧" (sanitize "👨\x200D👩\x200D👧")
+  assertEqual "no change of direction" "ab" (sanitize "a\x202E\&b")
+  forM_ ["❤\xFE0F", "👨\x200D👩\x200D👧", "a\x202E\&b"] $ \t ->
+    assertEqual ("the width of " <> show t) (textWidth t) (textWidth (sanitize t))
 
 -- | A control character shows as a space, which takes a column.
 test_controlRowFits :: Assertion

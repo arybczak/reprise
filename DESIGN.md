@@ -1413,6 +1413,15 @@ the same limit and it never showed. Widths are for single characters, so a
 sequence that a terminal draws as one emoji, e.g. with a zero-width joiner,
 can be measured wrong.
 
+So the text that reprise draws leaves out the characters of such sequences,
+which take no column themselves: the selector of an emoji's look, U+FE0F,
+and the joiner of emoji, U+200D. ❤️ shows as the heart of text, ❤, one
+column, and 👨‍👩‍👧 as 👨👩👧, six columns, as measured, in every terminal.
+Terminals disagree on joined emoji, e.g. kitty joins them and xterm doesn't,
+so measuring them as one would break the rows in some. The controls of the
+direction of text are left out too, as a terminal that orders text by its
+direction, e.g. Konsole, would reverse the rest of the row.
+
 ### Prompts
 
 Prompts (find, `:`, the password, confirmations) sit in the status bar. While a prompt is open, keys go to it, not to the keymaps. `enter`
