@@ -681,10 +681,12 @@ findAsYouType f text = do
   pure $ f & #note .~ note
 
 -- | Keep the pattern for the next and the previous match, in every screen.
--- An empty pattern finds the last pattern again, as in Vim.
+-- An empty pattern forgets the last one, and what it found.
 acceptFind :: App es => Finding -> T.Text -> Eff es ()
 acceptFind f text
-  | T.null text = findAgain focusedRows f.direction
+  | T.null text = do
+      modifyS $ (#findPattern .~ Nothing) . (#foundOn .~ Nothing)
+      showMessage "Find cleared"
   | otherwise = case compilePattern text of
       Left _ -> do
         modifyWithEnv (restoreView f.origin)

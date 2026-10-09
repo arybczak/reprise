@@ -396,7 +396,7 @@ selectInList selection items findRows count = \case
 withFindPattern :: App es => (T.Text -> Pattern -> Eff es ()) -> Eff es ()
 withFindPattern k =
   getsS (.findPattern) >>= \case
-    Nothing -> showMessage "Nothing was found yet"
+    Nothing -> showMessage "No find pattern"
     Just text -> either (showError . capitalize) (k text) (compilePattern text)
 
 -- | Bring back a cursor and an offset, e.g. after a cancelled find.

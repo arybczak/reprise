@@ -349,6 +349,7 @@ test_findInText = do
     =<< keys ["."] scrolled.state
   queueFind <- keys ("/" : typed "volume" <> ["enter", "f1"]) s
   assertEqual "not after a find on another screen" [] (highlighted queueFind)
+  assertEqual "not after an empty find" [] . highlighted =<< keys ["/", "enter"] found.state
 
 test_findAgain :: Assertion
 test_findAgain = do
@@ -360,10 +361,15 @@ test_findAgain = do
   assertEqual "previous" (0, Nothing) =<< findAfter [","]
   assertEqual "previous twice" (3, Just "Wrapped around to the bottom")
     =<< findAfter [",", ","]
-  assertEqual "an empty find repeats" (0, Just "Wrapped around to the top")
-    =<< findAfter ["/", "enter"]
+  cleared <- keys ["/", "enter"] s.state
+  assertEqual
+    "an empty find clears"
+    (Nothing, Just "Find cleared")
+    (cleared.state.findPattern, message cleared)
+  assertEqual "nothing to find again" (Just "No find pattern") . message
+    =<< keys ["."] cleared.state
   fresh <- testState (80, 24) (statusOf Stopped Nothing 5) titled
-  assertEqual "nothing yet" (Just "Nothing was found yet") . message =<< keys ["."] fresh
+  assertEqual "nothing yet" (Just "No find pattern") . message =<< keys ["."] fresh
 
 -- | A find matches the rows of the queue and the display of now, not the
 -- ones of an earlier find.

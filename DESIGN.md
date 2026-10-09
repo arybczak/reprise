@@ -1426,8 +1426,10 @@ Find (`/`, `?`):
 - **Cancelling** goes back to where the find started. ncmpcpp stays at the
   match, which makes `escape` the same as `enter`.
 - **`enter`** keeps the pattern for find next and previous (`.` and `,`),
-  which go forward and backward, as in ncmpcpp. An empty find repeats the
-  last pattern, as in Vim.
+  which go forward and backward, as in ncmpcpp.
+- **An empty find clears the last pattern,** with what it found: the
+  highlights in text, and the songs that select found would select. `.`
+  repeats a find, so an empty find needn't, as it does in Vim.
 - **Select found** selects every song that the last pattern matches. With
   it, an action works on every match, which is why reprise has no filter
   (see [Dropped](#dropped)).
