@@ -120,7 +120,7 @@ itemRows env display = fmap $ \item -> foldText $ case rowContent env item of
 -- | How the browser does a verb, if it does it.
 browserVerb :: App es => Action -> Maybe (Eff es ())
 browserVerb = \case
-  Move t -> Just $ modifyWithEnv (moveBrowserCursor t)
+  Move t -> Just $ modifyWithEnv (moveListCursor t)
   JumpToPlaying ->
     Just $
       getsS (currentSong . (.mirror)) >>= \case
@@ -144,17 +144,6 @@ toggleBrowserDisplay = do
   env <- getAppEnv
   s <- getS
   modifyS $ #browser % #rows .~ itemRows env s.toggles.browserDisplay s.browser.items
-
-----------------------------------------
--- Moving
-
-moveBrowserCursor :: MoveTarget -> AppEnv -> AppState -> AppState
-moveBrowserCursor t env s = moveListCursor itemSong s.browser.items t env s
-  where
-    itemSong :: BrowserItem -> Maybe Song
-    itemSong = \case
-      EntryItem (SongEntry song) -> Just song
-      _ -> Nothing
 
 ----------------------------------------
 -- Listing
@@ -291,7 +280,7 @@ selectInBrowser t = do
       selectFound (#browser % #selection) (fst . selectable <$> items) rows countItems
     _ -> selectInList (#browser % #selection) (selectable <$> items) t
   case t of
-    SelectItem (Just m) -> modifyWithEnv (moveBrowserCursor m)
+    SelectItem (Just m) -> modifyWithEnv (moveListCursor m)
     _ -> pure ()
   where
     -- @..@ can't be selected.
@@ -362,7 +351,7 @@ addOrRemove = do
     (location, item) -> do
       mutate $ addItems location [item] Nothing
       showMessage $ addedText env [item]
-  modifyWithEnv $ moveBrowserCursor MoveDown
+  modifyWithEnv $ moveListCursor MoveDown
 
 -- | The commands that add items to the queue in their order, at the end or
 -- from a position. Each item at a position goes before the ones after it,

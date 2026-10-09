@@ -250,22 +250,27 @@ setScreenPosition screen (c, o) env s
 
 -- | Move the cursor of the focused list. The songs of its items tell albums
 -- and artists apart.
-moveListCursor
-  :: (a -> Maybe Song) -> Seq.Seq a -> MoveTarget -> AppEnv -> AppState -> AppState
-moveListCursor songOf items t env s =
-  let h = max 1 (listHeight env s (focusedView s))
-      c = (focusedView s).cursor
+moveListCursor :: MoveTarget -> AppEnv -> AppState -> AppState
+moveListCursor t env s =
+  let v = focusedView s
+      info = screenInfo v.screen
+      h = max 1 (listHeight env s v)
+      n = info.size env s v
+      c = v.cursor
+      -- What tells the groups of the item at an index apart.
+      keyOf :: (Song -> k) -> Int -> Maybe k
+      keyOf key = fmap key . info.songAt s
   in case t of
        MoveUp -> setCursor (c - 1) env s
        MoveDown -> setCursor (c + 1) env s
        MovePageUp -> modifyView (paged (-h)) env s
        MovePageDown -> modifyView (paged h) env s
        MoveFirst -> setCursor 0 env s
-       MoveLast -> setCursor (Seq.length items - 1) env s
-       MovePreviousAlbum -> jumpTo (previousGroup (fmap albumKey . songOf) items c) env s
-       MoveNextAlbum -> jumpTo (nextGroup (fmap albumKey . songOf) items c) env s
-       MovePreviousArtist -> jumpTo (previousGroup (fmap artistKey . songOf) items c) env s
-       MoveNextArtist -> jumpTo (nextGroup (fmap artistKey . songOf) items c) env s
+       MoveLast -> setCursor (n - 1) env s
+       MovePreviousAlbum -> jumpTo (previousGroup (keyOf albumKey) n c) env s
+       MoveNextAlbum -> jumpTo (nextGroup (keyOf albumKey) n c) env s
+       MovePreviousArtist -> jumpTo (previousGroup (keyOf artistKey) n c) env s
+       MoveNextArtist -> jumpTo (nextGroup (keyOf artistKey) n c) env s
   where
     -- The cursor stays on its row, as in ncmpcpp, unless the start or the
     -- end of the list stops the scrolling.

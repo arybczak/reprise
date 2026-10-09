@@ -49,7 +49,7 @@ outputsView env s v =
 -- | How the outputs screen does a verb, if it does it.
 outputsVerb :: App es => Action -> Maybe (Eff es ())
 outputsVerb = \case
-  Move t -> Just $ modifyWithEnv (moveOutputsCursor t)
+  Move t -> Just $ modifyWithEnv (moveListCursor t)
   Activate -> Just toggleOutput
   _ -> Nothing
 
@@ -73,9 +73,6 @@ outputsFetched fetched = do
   -- Fewer outputs can leave the cursor past the last.
   screen <- getsS ((.screen) . focusedView)
   when (screen == OutputsScreen) . modifyWithEnv $ modifyView id
-
-moveOutputsCursor :: MoveTarget -> AppEnv -> AppState -> AppState
-moveOutputsCursor t env s = moveListCursor (const Nothing) (fromMaybe Seq.empty s.outputs) t env s
 
 -- | Enable the output under the cursor, or disable it. Its new state comes
 -- back as a change of the outputs.

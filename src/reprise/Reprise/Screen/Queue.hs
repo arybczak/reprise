@@ -75,7 +75,7 @@ queueView env s v =
 -- | How the queue does a verb, if it does it.
 queueVerb :: App es => Action -> Maybe (Eff es ())
 queueVerb = \case
-  Move t -> Just $ modifyWithEnv (moveQueueCursor t)
+  Move t -> Just $ modifyWithEnv (moveListCursor t)
   JumpToPlaying -> Just $ modifyWithEnv jumpToPlaying
   Activate -> Just activate
   Save -> Just $ getsS queueToSave >>= maybe (showMessage "The queue is empty") askSaveName
@@ -95,9 +95,6 @@ toggleFollowPlaying = do
 
 ----------------------------------------
 -- Moving
-
-moveQueueCursor :: MoveTarget -> AppEnv -> AppState -> AppState
-moveQueueCursor t env s = moveListCursor Just s.mirror.queue t env s
 
 -- | Move the queue's cursor to the playing song in the middle of the list,
 -- also while the view shows another screen.
@@ -139,7 +136,7 @@ select t = do
       selectFound (#queueState % #selection) ((.songId) <$> q) rows countSongs
     _ -> selectInList (#queueState % #selection) ((\song -> (song.songId, Just song)) <$> q) t
   case t of
-    SelectItem (Just m) -> modifyWithEnv (moveQueueCursor m)
+    SelectItem (Just m) -> modifyWithEnv (moveListCursor m)
     _ -> pure ()
 
 ----------------------------------------

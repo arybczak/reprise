@@ -15,8 +15,9 @@ module Reprise.Groups
   ) where
 
 import Control.Applicative
+import Data.List qualified as L
 import Data.Map.Strict qualified as M
-import Data.Sequence qualified as Seq
+import Data.Maybe
 import Data.Text qualified as T
 
 import Reprise.Mpd.Protocol.Types
@@ -32,25 +33,26 @@ artistKey song = M.lookup AlbumArtist song.tags <|> M.lookup Artist song.tags
 albumKey :: Song -> (Maybe [T.Text], Maybe [T.Text])
 albumKey song = (artistKey song, M.lookup Album song.tags)
 
--- | The first item after the group of the item at the index.
-nextGroup :: Eq k => (a -> k) -> Seq.Seq a -> Int -> Int
-nextGroup key items c = case Seq.lookup c items of
-  Nothing -> c
-  Just item ->
-    maybe (Seq.length items - 1) (+ (c + 1)) $
-      Seq.findIndexL ((/= key item) . key) (Seq.drop (c + 1) items)
+-- | The first item after the group of the item at the index, in a list of
+-- items of a number, by the keys of their indices.
+nextGroup :: Eq k => (Int -> k) -> Int -> Int -> Int
+nextGroup key n c
+  | c < 0 || c >= n = c
+  | otherwise = fromMaybe (n - 1) $ L.find ((/= key c) . key) [c + 1 .. n - 1]
 
 -- | The first item of the group of the item at the index, or of the group
 -- before it if the item is already the first.
-previousGroup :: Eq k => (a -> k) -> Seq.Seq a -> Int -> Int
-previousGroup key items c
+previousGroup :: Eq k => (Int -> k) -> Int -> Int -> Int
+previousGroup key n c
   | c <= 0 = 0
   | otherwise =
-      let start i = case Seq.lookup i items of
-            Nothing -> i
-            Just item -> maybe 0 (+ 1) $ Seq.findIndexR ((/= key item) . key) (Seq.take i items)
-          s = start c
+      let s = start c
       in if s < c then s else start (c - 1)
+  where
+    start :: Int -> Int
+    start i
+      | i >= n = i
+      | otherwise = maybe 0 (+ 1) $ L.find ((/= key i) . key) [i - 1, i - 2 .. 0]
 
 -- | The runs of consecutive positions, each as its first and its last
 -- position, in order. The positions must be ascending and distinct.
