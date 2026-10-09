@@ -120,9 +120,7 @@ refetchLyrics = do
     Just song
       | null env.config.lyrics.fetchers ->
           showMessage "There is nowhere to fetch the lyrics from: lyrics.fetchers is empty"
-      | otherwise -> do
-          request song True
-          modifyWithEnv . modifyView $ #offset .~ 0
+      | otherwise -> request song True
 
 -- | Edit the stored lyrics of the song on the screen: the times if they
 -- show, else the text. Without stored lyrics, a choice asks which file to
@@ -173,7 +171,8 @@ lyricsEdited file failure = do
       )
       $ request song False
 
--- | Ask for the lyrics of a song, which the screen shows when they come.
+-- | Ask for the lyrics of a song, which the screen shows from their top
+-- when they come.
 request :: App es => Song -> Bool -> Eff es ()
 request song refetch = do
   token <- newToken
@@ -183,6 +182,7 @@ request song refetch = do
       . (#token .~ token)
       . (#status .~ ReadingLyrics)
       . (#following .~ True)
+  modifyWithEnv $ setScreenPosition LyricsScreen (0, 0)
   fetchLyrics token (LyricsRequest song refetch)
 
 -- | Follow the line being sung again, or show the lyrics of the song that

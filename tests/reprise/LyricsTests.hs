@@ -65,6 +65,7 @@ lyricsTests =
     , testCase "the worker fetches in the background" test_workerInBackground
     , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
     , testCase "the lyrics follow the song that plays" test_followPlaying
+    , testCase "the next song's lyrics show from their top" test_followFromTop
     , testCase "space turns following the song on and off" test_toggleFollowing
     , testCase "e edits the lyrics" test_edit
     , testCase "the lyrics show again after the editor" test_edited
@@ -528,6 +529,23 @@ test_followPlaying = do
   elsewhere <-
     runEvents 0 [key "l", key "l", StatusFetched (statusOf Playing (Just 2) 3)] following
   assertEqual "not on another screen" ["A - One"] (askedFor elsewhere)
+
+-- | The next song's lyrics show from their top, wherever the last song's
+-- were scrolled to.
+test_followFromTop :: Assertion
+test_followFromTop = do
+  s <- testState (40, 10) (statusOf Playing (Just 0) 3) threeSongs
+  two <- runEvents 0 [key "down", key "l"] (s & #toggles % #lyricsFollowPlaying .~ True)
+  twoToken <- requestToken two
+  scrolled <-
+    runEvents 0 [LyricsLoaded twoToken (stored (numbered 20)), key "end"] two.state
+  three <- runEvents 0 [StatusFetched (statusOf Playing (Just 2) 3)] scrolled.state
+  threeToken <- requestToken three
+  shown <- runEvents 0 [LyricsLoaded threeToken (stored (numbered 3))] three.state
+  assertEqual "from the top" ["line 1"] (take 1 (mainLines shown.state))
+  where
+    numbered :: Int -> T.Text
+    numbered n = T.unlines ["line " <> T.pack (show i) | i <- [1 .. n]]
 
 test_toggleFollowing :: Assertion
 test_toggleFollowing = do
