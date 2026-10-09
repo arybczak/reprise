@@ -27,6 +27,7 @@ import Reprise.Collation
 import Reprise.Config
 import Reprise.Event
 import Reprise.Handler
+import Reprise.History
 import Reprise.Keys
 import Reprise.Mpd.Mirror hiding (queueLength)
 import Reprise.Mpd.Protocol.Types
@@ -40,7 +41,11 @@ import Reprise.Visualizer.Wave
 main :: IO ()
 main =
   defaultMain
-    [ bgroup
+    [ bench "reading a full history" $
+        nf
+          historyOfLines
+          [T.pack ("find a pattern of a line, number " <> show i) | i <- [1 .. historySize]]
+    , bgroup
         "handler"
         [ afterKeys [] $ \s ->
             bench "down key" . whnfIO $ settled <$> handle (key "down") s

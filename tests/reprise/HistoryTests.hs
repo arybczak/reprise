@@ -1,10 +1,12 @@
 module HistoryTests (historyTests) where
 
+import Data.List qualified as L
 import Data.Text qualified as T
 import System.FilePath
 import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 
 import Reprise.History
 import Reprise.LineEdit
@@ -17,6 +19,8 @@ historyTests =
     , testCase "recall older and newer lines" test_recall
     , testCase "recall the lines that start with what was typed" test_recallPrefix
     , testCase "the history file" test_historyFile
+    , testProperty "the history of the lines of a file" prop_historyOfLines
+    , testCase "the history of more lines than it keeps" test_historyOfManyLines
     ]
 
 test_historyFile :: Assertion
@@ -32,6 +36,27 @@ test_historyFile = withSystemTempDirectory "history" $ \dir -> do
   assertEqual "a line once" ["volume 30", "seek 1:30"] =<< readHistoryFile path
   writeFile path "a\nb\na\n\n"
   assertEqual "a file with repeated and blank lines" ["a", "b"] =<< readHistoryFile path
+
+-- | The lines of a file make the history that remembering each would make.
+prop_historyOfLines :: Property
+prop_historyOfLines =
+  forAll (listOf (elements pool)) $ \ls -> historyOfLines ls === rememberAll ls
+  where
+    -- Few, so that lines repeat, and blank ones.
+    pool :: [T.Text]
+    pool = ["", " ", "a", "b", "c", "seek 1:30", "volume 30"]
+
+-- | More distinct lines than the history keeps, some of them again after
+-- the history dropped them.
+test_historyOfManyLines :: Assertion
+test_historyOfManyLines = do
+  let numbered = [T.pack (show i) | i <- [1 .. historySize + historySize `div` 2]]
+      ls = numbered <> take 10 numbered
+  assertEqual "as remembered" (rememberAll ls) (historyOfLines ls)
+  assertEqual "full" historySize (length (historyOfLines ls))
+
+rememberAll :: [T.Text] -> [T.Text]
+rememberAll = L.foldl' (flip remember) []
 
 test_remember :: Assertion
 test_remember = do

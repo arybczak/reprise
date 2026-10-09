@@ -2021,6 +2021,8 @@ songs and a terminal of 160×45:
   for xterm-256color, which covers the pin of vty-unix. It makes and writes
   a frame of each visualization after a second of noise, which it draws 60
   times a second, and computes the spectra of the channels for a frame.
+  It reads a full history of the prompts, as at the start and at each line
+  saved to it.
 
 CI builds the suites but doesn't run them, because timings on shared
 machines are too noisy to fail a build on. To check a change, save the
