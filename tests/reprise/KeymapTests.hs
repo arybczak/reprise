@@ -8,6 +8,7 @@ import Test.Tasty.HUnit
 import Reprise.Action
 import Reprise.Keymap
 import Reprise.Keys
+import Utils
 
 keymapTests :: TestTree
 keymapTests =
@@ -99,7 +100,6 @@ test_sequences = do
   let layers = Layers Nothing (Just globalKeymap)
   case lookupKey layers (key "ctrl-q") of
     Pending next -> do
-      assertEqual "group name" (Just "queue") (layersName next)
       assertEqual "next key" (Bound Clear) (lookupKey next (key "c"))
       assertEqual "unbound next key" Unbound (lookupKey next (key "z"))
     other -> assertFailure $ "expected a prefix, got " <> show other
@@ -116,7 +116,6 @@ test_whichKey = do
       layers = Layers (Just (keymap [("ctrl-q", BindPrefix queueGroup)])) (Just globalKeymap)
   case lookupKey layers (key "ctrl-q") of
     Pending next -> do
-      assertEqual "the screen's name first" (Just "queue extras") (layersName next)
       assertEqual
         "entries"
         [ WhichKeyEntry (key "c") "move to the end" False True

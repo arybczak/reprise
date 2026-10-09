@@ -11,7 +11,6 @@ module Reprise.Mpd.TestServer
   , TestServer (..)
   , startTestServer
   , stopTestServer
-  , withTestServer
   , resetTestServer
   , rawCommand
   ) where
@@ -117,9 +116,6 @@ stopTestServer server = do
   terminateProcess server.process
   _ <- waitForProcess server.process
   removeDirectoryRecursive server.directory
-
-withTestServer :: [TestSong] -> (TestServer -> IO a) -> IO a
-withTestServer songs = bracket (startTestServer songs) stopTestServer
 
 -- | Bring the server back to its state after the start: an empty queue, no
 -- playback and the default options.

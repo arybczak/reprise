@@ -18,11 +18,9 @@ module Reprise.Keymap
   , Lookup (..)
   , startLayers
   , lookupKey
-  , lookupKeys
 
     -- * Which-key entries
   , WhichKeyEntry (..)
-  , layersName
   , whichKeyEntries
 
     -- * Help
@@ -169,16 +167,6 @@ lookupKey layers k = case (find layers.screen, find layers.global) of
     find :: Maybe Keymap -> Maybe Binding
     find = (>>= M.lookup k . (.bindings))
 
--- | Look up a sequence of keys.
-lookupKeys :: Layers -> [KeySpec] -> Lookup
-lookupKeys layers = \case
-  [] -> Pending layers
-  k : ks -> case lookupKey layers k of
-    Pending next -> lookupKeys next ks
-    result
-      | null ks -> result
-      | otherwise -> Unbound
-
 ----------------------------------------
 -- Which-key entries
 
@@ -190,10 +178,6 @@ data WhichKeyEntry = WhichKeyEntry
   -- ^ The screen's keymap binds the key, not the global one.
   }
   deriving stock (Eq, Show)
-
--- | The name of the group the keys lead to, the screen's first.
-layersName :: Layers -> Maybe T.Text
-layersName layers = listToMaybe $ mapMaybe (>>= (.name)) [layers.screen, layers.global]
 
 -- | The keys that can follow, in key order. The screen's bindings shadow
 -- the global ones.

@@ -16,6 +16,7 @@ import Reprise.Config
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.Style
+import Utils
 
 configTests :: TestTree
 configTests =

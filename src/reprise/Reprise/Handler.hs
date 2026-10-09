@@ -3,8 +3,6 @@
 -- them with pure handlers. Actions of a screen go on to the screen's module.
 module Reprise.Handler
   ( runEvent
-  , handleEvent
-  , runAction
   ) where
 
 import Control.Monad

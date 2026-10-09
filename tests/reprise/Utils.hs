@@ -14,6 +14,9 @@ module Utils
   , failureOf
   , passwordAnswers
 
+    -- * Keys
+  , lookupKeys
+
     -- * Images
   , imageLines
   , imageSpans
@@ -34,6 +37,8 @@ import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Handler
+import Reprise.Keymap
+import Reprise.Keys
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Response
@@ -149,6 +154,19 @@ failureOf err = \case
 -- | The answers to 'PasswordNeeded' that the events gave.
 passwordAnswers :: Result -> [Maybe T.Text]
 passwordAnswers r = [a | PasswordAnswer a <- r.pending]
+
+----------------------------------------
+-- Keys
+
+-- | Look up a sequence of keys.
+lookupKeys :: Layers -> [KeySpec] -> Lookup
+lookupKeys layers = \case
+  [] -> Pending layers
+  k : ks -> case lookupKey layers k of
+    Pending following -> lookupKeys following ks
+    result
+      | null ks -> result
+      | otherwise -> Unbound
 
 ----------------------------------------
 -- Images
