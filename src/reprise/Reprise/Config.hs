@@ -49,6 +49,7 @@ import Data.ByteString qualified as BS
 import Data.Char hiding (Space)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
+import Data.Maybe
 import Data.Text qualified as T
 import Data.Void
 import Optics.Core hiding (view)
@@ -347,19 +348,10 @@ data StylesConfig = StylesConfig
 -- | The user's changes to the default keymaps.
 data KeysConfig = KeysConfig
   { global :: KeymapOverride
-  , queue :: KeymapOverride
-  , browser :: KeymapOverride
-  , searchEngine :: KeymapOverride
-  , mediaLibrary :: KeymapOverride
-  , playlistEditor :: KeymapOverride
-  , outputs :: KeymapOverride
-  , visualizer :: KeymapOverride
-  , lyrics :: KeymapOverride
-  , songInfo :: KeymapOverride
-  , help :: KeymapOverride
+  , screens :: M.Map ScreenName KeymapOverride
+  -- ^ Of the screens whose keymaps change.
   }
   deriving stock (Eq, Show, Generic)
-  deriving (FromYaml) via GenericYaml KeysConfig
 
 ----------------------------------------
 -- Defaults
@@ -540,22 +532,11 @@ defaultStyles =
 
 defaultKeys :: KeysConfig
 defaultKeys =
-  KeysConfig
-    { global = noOverride
-    , queue = noOverride
-    , browser = noOverride
-    , searchEngine = noOverride
-    , mediaLibrary = noOverride
-    , playlistEditor = noOverride
-    , outputs = noOverride
-    , visualizer = noOverride
-    , lyrics = noOverride
-    , songInfo = noOverride
-    , help = noOverride
-    }
-  where
-    noOverride :: KeymapOverride
-    noOverride = KeymapOverride Nothing M.empty
+  KeysConfig {global = noOverride, screens = M.empty}
+
+-- | No changes to a keymap.
+noOverride :: KeymapOverride
+noOverride = KeymapOverride Nothing M.empty
 
 -- The defaults are literals that the tests decode, so an error here is a
 -- bug in the defaults.
@@ -649,9 +630,16 @@ instance GenericYamlOptions StylesConfig where
   yamlOptions = options
   yamlDefault = Just defaultStyles
 
-instance GenericYamlOptions KeysConfig where
-  yamlOptions = options
-  yamlDefault = Just defaultKeys
+-- | A mapping of @global@ and the names of the screens to their changes.
+instance FromYaml KeysConfig where
+  parseYaml = withMapping $ \o ->
+    rejectUnknownKeys ("global" : map screenName screenNames) o
+      *> ( KeysConfig
+             <$> (fromMaybe noOverride <$> parseFieldIfPresent o "global")
+             <*> ( M.fromList . catMaybes
+                     <$> traverse (\s -> fmap (s,) <$> parseFieldIfPresent o (screenName s)) screenNames
+                 )
+         )
 
 ----------------------------------------
 -- Decoders of the small languages
@@ -753,24 +741,14 @@ keymapsOf user =
     { global = applyOverride user.global defaultKeymaps.global
     , screens =
         M.fromList
-          [ (screen, applyOverride (field user) (screenKeymap screen defaultKeymaps))
-          | (screen, field) <- screenFields
+          [ ( screen
+            , applyOverride
+                (M.findWithDefault noOverride screen user.screens)
+                (screenKeymap screen defaultKeymaps)
+            )
+          | screen <- screenNames
           ]
     }
-  where
-    screenFields :: [(ScreenName, KeysConfig -> KeymapOverride)]
-    screenFields =
-      [ (QueueScreen, (.queue))
-      , (BrowserScreen, (.browser))
-      , (SearchEngineScreen, (.searchEngine))
-      , (MediaLibraryScreen, (.mediaLibrary))
-      , (PlaylistEditorScreen, (.playlistEditor))
-      , (OutputsScreen, (.outputs))
-      , (VisualizerScreen, (.visualizer))
-      , (LyricsScreen, (.lyrics))
-      , (SongInfoScreen, (.songInfo))
-      , (HelpScreen, (.help))
-      ]
 
 -- | The keymaps without the user's changes.
 defaultKeymaps :: Keymaps
