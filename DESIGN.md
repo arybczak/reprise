@@ -1600,10 +1600,16 @@ and always ignore diacritics. There is no option for either.
 the pieces:
 - **Regular expressions:** `regex'` from `Data.Text.ICU` checks a pattern,
   and `Data.Text.ICU.Regex` matches it (see the work limit below).
-- **Diacritics folding:** decompose with `nfd` and drop the combining marks,
-  in the pattern and in the text. Case is ignored with the `CaseInsensitive`
-  option, because folding the pattern's case would turn escapes such as `\D`
-  into others, here `\d`. A letter of its own, such as `ł`, stays.
+- **Diacritics folding:** decompose with `nfd`, drop the combining marks,
+  and compose what is left with `nfc`, in the pattern and in the text. A
+  letter of its own, such as `ł`, stays, and so does a syllable of Hangul,
+  which `nfd` splits into its letters. Case is ignored with the
+  `CaseInsensitive` option, because folding the pattern's case would turn
+  escapes such as `\D` into others, here `\d`. For the same reason the
+  character after a backslash isn't folded, e.g. `\ñ` would become `\n`; an
+  escaped character outside ASCII is a literal, which is folded. A range of
+  characters with diacritics, e.g. `[à-ÿ]`, is folded at its ends, which
+  changes what it covers; such ranges are rare in a find.
 - **"Ignore leading the" sorting:** strip the article, then compare with a
   `Collator` (`collator`, `collate`, `sortKey`).
 
@@ -1618,6 +1624,9 @@ Details for incremental find:
   which loses the limit. So reprise matches with the IO interface, with one
   matcher for a whole search, under `unsafePerformIO` as text-icu's pure
   interface does.
+  - The limit is of one match, so a whole search stops too after 100 ms. A
+    pattern that stays within the limit on each row, e.g. `(a+)+b` on rows
+    of 16 letters, took 15 s on 4000 rows, on every key.
 - **An empty pattern is not a pattern.** ICU rejects it with an exception
   rather than a parse error, so the empty prompt of a find must not reach
   ICU.

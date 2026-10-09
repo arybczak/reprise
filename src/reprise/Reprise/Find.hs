@@ -14,6 +14,7 @@ module Reprise.Find
   ) where
 
 import Control.Exception
+import Control.Monad
 import Data.Char
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
@@ -21,6 +22,7 @@ import Data.Text.Foreign qualified as T
 import Data.Text.ICU qualified as ICU
 import Data.Text.ICU.Error qualified as ICU
 import Data.Text.ICU.Regex qualified as Regex
+import GHC.Clock
 import System.IO.Unsafe
 
 -- | A valid pattern, with its diacritics folded.
@@ -38,7 +40,21 @@ compilePattern t
       Left _ -> Left "incomplete pattern"
   where
     folded :: T.Text
-    folded = foldDiacritics t
+    folded = foldPattern t
+
+-- | Fold the diacritics of a pattern, but not the character after a
+-- backslash, as its escape could become another: @\\ñ@ folded as text is
+-- @\\n@, a line break. An escaped character outside ASCII is a literal, so
+-- it is folded and loses its backslash.
+foldPattern :: T.Text -> T.Text
+foldPattern t = case T.breakOn "\\" t of
+  (plain, escaped) ->
+    foldDiacritics plain <> case T.uncons (T.drop 1 escaped) of
+      Just (c, rest)
+        | isAscii c -> T.pack ['\\', c] <> foldPattern rest
+        | otherwise -> foldDiacritics (T.singleton c) <> foldPattern rest
+      -- Nothing escaped, or a backslash at the end, which ICU rejects.
+      Nothing -> escaped
 
 -- | Text that patterns match, with its diacritics folded, so that text
 -- matched more than once is folded once.
@@ -136,11 +152,21 @@ matchRanges p t = withRegex p $ \matcher -> do
       | isAscii c = T.singleton c
       | otherwise = foldDiacritics (T.singleton c)
 
--- | Run matches with one matcher, which holds the work limit.
+-- | Run matches with one matcher, which holds the work limit of each match.
+-- The matches together stop too once they took as long, as a pattern can
+-- stay within the limit on each text of a long list but not on all of them.
 withMatcher :: Pattern -> ((Folded -> IO Bool) -> IO a) -> Either T.Text a
 withMatcher p act =
-  withRegex p $ \matcher ->
-    act $ \(Folded t) -> Regex.setText matcher t >> Regex.find matcher 0
+  withRegex p $ \matcher -> do
+    deadline <- (+ searchTime) <$> getMonotonicTime
+    act $ \(Folded t) -> do
+      now <- getMonotonicTime
+      when (now > deadline) $ throwIO ICU.u_REGEX_TIME_OUT
+      Regex.setText matcher t >> Regex.find matcher 0
+  where
+    -- In seconds, as a reply within 100 ms feels instant, see 'matchOptions'.
+    searchTime :: Double
+    searchTime = 0.1
 
 -- | Run an action with a matcher of the pattern.
 --
@@ -169,6 +195,8 @@ matchOptions = [ICU.CaseInsensitive, ICU.WorkLimit workLimit]
     workLimit = 100
 
 -- | Decompose the characters and drop the combining marks, e.g. @ó@ becomes
--- @o@. A letter of its own, such as @ł@, stays.
+-- @o@. A letter of its own, such as @ł@, stays. What remains is composed
+-- again, so that a syllable of Hangul, which decomposes into its letters,
+-- stays one character.
 foldDiacritics :: T.Text -> T.Text
-foldDiacritics = T.filter ((/= NonSpacingMark) . generalCategory) . ICU.nfd
+foldDiacritics = ICU.nfc . T.filter ((/= NonSpacingMark) . generalCategory) . ICU.nfd

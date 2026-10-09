@@ -1,7 +1,9 @@
 module FindTests (findTests) where
 
+import Control.Exception
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
+import System.Timeout
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -14,6 +16,7 @@ findTests =
     [ testCase "matching" test_matching
     , testCase "an incomplete pattern" test_incomplete
     , testCase "a pattern that is too slow" test_tooSlow
+    , testCase "a search that is too slow" test_searchTooSlow
     , testCase "searching" test_search
     , testCase "where a pattern matches" test_matchRanges
     ]
@@ -40,6 +43,15 @@ test_matching = do
   assertEqual "diacritics in the pattern" (Right True) (match "pokój" "Pokoj")
   -- ł is a letter of its own, not l with a mark.
   assertEqual "a letter of its own" (Right False) (match "zolw" "żółw")
+  -- Folded as text, \ñ would be \n, a line break, and \ü an incomplete
+  -- escape.
+  assertEqual "an escaped letter with a diacritic" (Right True) (match "a\\ñ" "año")
+  assertEqual "another" (Right True) (match "\\über" "uber")
+  assertEqual "an escape" (Right True) (match "a\\d" "a1")
+  -- A syllable of Hangul stays whole, so it doesn't match another syllable
+  -- with some of its letters.
+  assertEqual "a syllable of Hangul" (Right False) (match "[가각]" "나")
+  assertEqual "a class of syllables" (Right True) (match "[가각]" "각")
   where
     match :: T.Text -> T.Text -> Either T.Text Bool
     match p t = either (Left . ("compile: " <>)) (`matches` foldText t) (compilePattern p)
@@ -63,6 +75,17 @@ test_tooSlow = case compilePattern "(a+)+$" of
       "error"
       (Left "the pattern is too slow")
       (matches p (foldText (T.replicate 40 "a" <> "b")))
+
+-- | A pattern that is fast enough on each row, but slow on all of them, as
+-- each row of 16 letters takes it a few milliseconds: the search stops
+-- instead of taking seconds.
+test_searchTooSlow :: Assertion
+test_searchTooSlow = case compilePattern "(a+)+b" of
+  Left err -> assertFailure (T.unpack err)
+  Right p -> do
+    let rows = Seq.replicate 4000 (foldText (T.replicate 16 "a"))
+    r <- timeout (5 * 1000000) . evaluate $ search p Forward 0 rows
+    assertEqual "error" (Just (Left "the pattern is too slow")) r
 
 test_search :: Assertion
 test_search = case compilePattern "a" of
