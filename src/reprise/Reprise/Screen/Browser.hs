@@ -82,7 +82,7 @@ browserView env s v =
         let flags =
               RowFlags
                 { queued = case item of
-                    EntryItem (SongEntry song) -> (song.file, song.range) `S.member` s.mirror.queued
+                    EntryItem (SongEntry song) -> songKey song `S.member` s.mirror.queued
                     _ -> False
                 , playing = False
                 , selected = isSelected (itemKey item) s.browser.selection
@@ -243,7 +243,7 @@ goUp location =
 -- @jump_to_browser@ does. A stream isn't in the database.
 locateSong :: App es => Song -> Eff es ()
 locateSong song
-  | "://" `T.isInfixOf` song.file = showError "The song isn't in MPD's database"
+  | isStream song = showError "The song isn't in MPD's database"
   | otherwise =
       list (InDirectory (directoryOf song.file)) (JumpTo (SongKey song.file song.range))
 
@@ -253,10 +253,6 @@ parentOf = \case
   InDirectory "" -> Nothing
   InDirectory path -> Just $ InDirectory (directoryOf path)
   InPlaylist path -> Just $ InDirectory (directoryOf path)
-
--- | The directory of a path, @""@ for the root.
-directoryOf :: T.Text -> T.Text
-directoryOf = T.dropEnd 1 . fst . T.breakOnEnd "/"
 
 list :: App es => Location -> ListingCursor -> Eff es ()
 list location cursor = do
@@ -433,7 +429,7 @@ queuedIds :: Song -> AppState -> [SongId]
 queuedIds song s =
   [ i
   | queued <- toList s.mirror.queue
-  , queued.file == song.file && queued.range == song.range
+  , sameSong queued song
   , Just i <- [queued.songId]
   ]
 
@@ -589,7 +585,3 @@ itemKey = \case
   EntryItem (DirectoryEntry d) -> DirectoryKey d.path
   EntryItem (SongEntry song) -> SongKey song.file song.range
   EntryItem (PlaylistEntry p) -> PlaylistKey p.path
-
--- | The last part of a path.
-baseName :: T.Text -> T.Text
-baseName = snd . T.breakOnEnd "/"

@@ -15,8 +15,6 @@ module Reprise.Lyrics
   , lyricsName
   , lyricsFileName
   , timedLyricsFileName
-  , sameSong
-  , firstTag
   , cleanTitle
   ) where
 
@@ -25,8 +23,6 @@ import Data.Bits
 import Data.ByteString qualified as BS
 import Data.Char
 import Data.List qualified as L
-import Data.Map.Strict qualified as M
-import Data.Maybe
 import Data.Ratio
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -219,10 +215,6 @@ lyricsBaseName song
 nameLimit :: Int
 nameLimit = 255
 
--- | The first value of a tag of a song, unless it is empty.
-firstTag :: Tag -> Song -> Maybe T.Text
-firstTag t song = mfilter (not . T.null) $ M.lookup t song.tags >>= listToMaybe
-
 -- | A title without what follows it in brackets, e.g. @(Bonus Track)@ or
 -- @[Film Score]@, which a database of lyrics doesn't have. A title that is
 -- all brackets stays.
@@ -249,8 +241,3 @@ cleanTitle title = case T.unsnoc stripped of
         | c == open -> opening open close (depth - 1) cs
         | c == close -> opening open close (depth + 1) cs
         | otherwise -> opening open close depth cs
-
--- | Whether two songs are the same file, or the same part of a file, e.g.
--- in the queue and in the database.
-sameSong :: Song -> Song -> Bool
-sameSong a b = a.file == b.file && a.range == b.range

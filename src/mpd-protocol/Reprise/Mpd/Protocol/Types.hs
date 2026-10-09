@@ -6,11 +6,19 @@ module Reprise.Mpd.Protocol.Types
   , SongPos (..)
   , SongRange (..)
   , Seconds (..)
+  , songKey
+  , sameSong
+  , isStream
 
     -- ** Tags
   , Tag (..)
   , tagName
   , tagFromName
+  , firstTag
+
+    -- * Paths
+  , baseName
+  , directoryOf
 
     -- * Database
   , Entry (..)
@@ -49,8 +57,10 @@ module Reprise.Mpd.Protocol.Types
 
 import Control.DeepSeq
 import Control.Exception
+import Control.Monad
 import Data.Fixed
 import Data.Map.Strict qualified as M
+import Data.Maybe
 import Data.Text qualified as T
 import Data.Time qualified as Time
 import Data.Word
@@ -102,6 +112,20 @@ newtype SongPos = SongPos Int
 -- precision of milliseconds.
 newtype Seconds = Seconds Milli
   deriving newtype (Eq, Ord, Show, Num, Real, Fractional, RealFrac, NFData)
+
+-- | What tells songs apart: the file, and the part of it.
+songKey :: Song -> (T.Text, Maybe SongRange)
+songKey song = (song.file, song.range)
+
+-- | Whether two songs are the same file, or the same part of a file, e.g.
+-- in the queue and in the database.
+sameSong :: Song -> Song -> Bool
+sameSong a b = songKey a == songKey b
+
+-- | Whether a song is a stream, whose file is a URL. It isn't in the
+-- database.
+isStream :: Song -> Bool
+isStream song = "://" `T.isInfixOf` song.file
 
 ----------------------------------------
 -- Tags
@@ -193,6 +217,21 @@ tagFromName name = M.lookup (T.toCaseFold name) tagsByName
   where
     tagsByName :: M.Map T.Text Tag
     tagsByName = M.fromList [(T.toCaseFold (tagName t), t) | t <- [minBound .. maxBound]]
+
+-- | The first value of a tag of a song, unless it is empty.
+firstTag :: Tag -> Song -> Maybe T.Text
+firstTag t song = mfilter (not . T.null) $ M.lookup t song.tags >>= listToMaybe
+
+----------------------------------------
+-- Paths
+
+-- | The last part of a path in the database.
+baseName :: T.Text -> T.Text
+baseName = snd . T.breakOnEnd "/"
+
+-- | The directory of a path in the database, @""@ for the root.
+directoryOf :: T.Text -> T.Text
+directoryOf = T.dropEnd 1 . fst . T.breakOnEnd "/"
 
 ----------------------------------------
 -- Database

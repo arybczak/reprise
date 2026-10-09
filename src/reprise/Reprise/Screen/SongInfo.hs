@@ -56,7 +56,7 @@ showSongInfo = showSongScreen SongInfoScreen $ \song -> do
   token <- newToken
   modifyS $ #songInfo .~ SongInfoState (Just song) token []
   -- A stream has no file to read, and its URL would be opened.
-  if "://" `T.isInfixOf` song.file
+  if isStream song
     then pure ()
     else
       requestOr

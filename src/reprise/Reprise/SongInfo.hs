@@ -10,7 +10,6 @@ import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Data.Time
-import System.FilePath
 import Text.Read
 
 import Reprise.Format
@@ -32,13 +31,10 @@ songInfoLines separator bitrate comments song =
   where
     file :: [InfoLine]
     file =
-      [ InfoField "Filename" (Just (T.pack (takeFileName path)))
-      , InfoField "Directory" (case takeDirectory path of "." -> Nothing; d -> Just (T.pack d))
+      [ InfoField "Filename" (Just (baseName song.file))
+      , InfoField "Directory" (case directoryOf song.file of "" -> Nothing; d -> Just d)
       ]
         <> [InfoField "Part" (Just (part r)) | Just r <- [song.range]]
-
-    path :: FilePath
-    path = T.unpack song.file
 
     part :: SongRange -> T.Text
     part r = formatDuration r.start <> " to " <> maybe "the end" formatDuration r.end

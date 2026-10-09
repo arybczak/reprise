@@ -93,7 +93,7 @@ withQueue q m =
   m
     & #queue .~ q
     & #totalLength .~ songsLength q
-    & #queued .~ S.fromList [(song.file, song.range) | song <- toList q]
+    & #queued .~ S.fromList (map songKey (toList q))
 
 -- | Songs without a length count as 0.
 songsLength :: Seq.Seq Song -> Seconds

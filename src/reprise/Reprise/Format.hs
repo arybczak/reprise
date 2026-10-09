@@ -322,11 +322,11 @@ fieldValue separator song =
     AlbumArtistField -> tag AlbumArtist
     AlbumField -> tag Album
     TitleField -> tag Title
-    TrackField -> normalizeTrack <$> firstTag Track
+    TrackField -> normalizeTrack <$> firstTag Track song
     TrackRawField -> tag Track
     DiscField -> tag Disc
     DateField -> tag Date
-    YearField -> T.takeWhile isDigit <$> firstTag Date
+    YearField -> T.takeWhile isDigit <$> firstTag Date song
     GenreField -> tag Genre
     ComposerField -> tag Composer
     PerformerField -> tag Performer
@@ -334,8 +334,8 @@ fieldValue separator song =
     PriorityField -> Just . T.pack $ show song.priority
     LengthField -> formatDuration <$> song.duration
     FileField -> Just song.file
-    FilenameField -> Just . snd $ T.breakOnEnd "/" song.file
-    DirectoryField -> Just . T.dropWhileEnd (== '/') . fst $ T.breakOnEnd "/" song.file
+    FilenameField -> Just $ baseName song.file
+    DirectoryField -> Just $ directoryOf song.file
   where
     nonEmpty :: Maybe T.Text -> Maybe T.Text
     nonEmpty = \case
@@ -344,9 +344,6 @@ fieldValue separator song =
 
     tag :: Tag -> Maybe T.Text
     tag t = T.intercalate separator . L.nub <$> M.lookup t song.tags
-
-    firstTag :: Tag -> Maybe T.Text
-    firstTag t = M.lookup t song.tags >>= listToMaybe
 
     normalizeTrack :: T.Text -> T.Text
     normalizeTrack t =
