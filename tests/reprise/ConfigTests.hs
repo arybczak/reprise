@@ -1,15 +1,22 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module ConfigTests (configTests) where
 
 import Control.Monad
+import Data.Kind
 import Data.List qualified as L
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
+import Data.Proxy
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
-import Optics.Core
+import GHC.Generics
+import GHC.TypeLits
+import Optics.Core hiding (view)
 import System.FilePath
 import Test.Tasty
 import Test.Tasty.HUnit
+import Yamlet hiding (decode, lookupKey)
 
 import Reprise.Action
 import Reprise.Config
@@ -30,6 +37,7 @@ configTests =
     , testCase "columns" test_columns
     , testCase "durations" test_durations
     , testCase "the documented defaults" test_documentedDefaults
+    , testCase "the documentation lists everything built" test_documentedEverything
     , testCase "the visualizer" test_visualizer
     , testCase "the lyrics" test_lyrics
     , testCase "window title can be disabled" test_noWindowTitle
@@ -146,9 +154,86 @@ test_durations = do
 -- values.
 test_documentedDefaults :: Assertion
 test_documentedDefaults = do
-  config <- either (assertFailure . unlines) pure =<< loadConfig ("doc" </> "config.yaml")
+  config <- either (assertFailure . unlines) pure =<< loadConfig docConfig
   assertEqual "the keymaps" (keymapsOf defaultConfig.keys) (keymapsOf config.keys)
   assertEqual "the other options" defaultConfig (config & #keys .~ defaultConfig.keys)
+
+-- | The config of the documentation lists every option and every binding,
+-- but those of the features that aren't built yet.
+test_documentedEverything :: Assertion
+test_documentedEverything = do
+  config <- either (assertFailure . unlines) pure =<< loadConfig docConfig
+  Tree tree <- either (assertFailure . show) pure =<< decodeFile docConfig
+  assertEqual
+    "the options left out"
+    [ "search_engine"
+    , "lists.inactive_cursor_style"
+    , "queue.album_separators"
+    , "search_engine.display"
+    , "styles.popup_border"
+    ]
+    [ T.intercalate "." (path <> [name])
+    | (path, names) <- sections
+    , name <- names
+    , name `notElem` keysAt path tree
+    ]
+  let documented =
+        Keymaps
+          { global = applyOverride config.keys.global emptyKeymap
+          , screens = applyOverride `flip` emptyKeymap <$> config.keys.screens
+          }
+  assertEqual
+    "the bindings left out"
+    [ (Nothing, [key "3"], Show SearchEngineScreen)
+    , (Nothing, [key "t", key "a"], Toggle ToggleAlbumSeparators)
+    ]
+    (bindingsOf defaultKeymaps L.\\ bindingsOf documented)
+  where
+    -- The paths of the sections of options, and the names of their options.
+    sections :: [([T.Text], [T.Text])]
+    sections =
+      [ ([], optionNames @Config)
+      , (["mpd"], optionNames @MpdConfig)
+      , (["songs"], optionNames @SongsConfig)
+      , (["songs", "classic"], optionNames @RowFormat)
+      , (["songs", "columns"], optionNames @ColumnsConfig)
+      , (["lists"], optionNames @ListsConfig)
+      , (["queue"], optionNames @QueueConfig)
+      , (["browser"], optionNames @BrowserConfig)
+      , (["browser", "sort"], optionNames @BrowserSort)
+      , (["search_engine"], optionNames @SearchEngineConfig)
+      , (["header"], optionNames @HeaderConfig)
+      , (["status_bar"], optionNames @StatusBarConfig)
+      , (["progress_bar"], optionNames @ProgressBarConfig)
+      , (["visualizer"], optionNames @VisualizerConfig)
+      , (["lyrics"], optionNames @LyricsConfig)
+      , (["editor"], optionNames @EditorConfig)
+      , (["styles"], optionNames @StylesConfig)
+      ]
+
+    -- The keys of the mapping at the path.
+    keysAt :: [T.Text] -> Node -> [T.Text]
+    keysAt path n = case (path, view n) of
+      ([], MappingView kvs) -> [k | (kn, _) <- kvs, StringView k <- [view kn]]
+      (p : ps, MappingView kvs) ->
+        concat [keysAt ps v | (kn, v) <- kvs, StringView k <- [view kn], k == p]
+      _ -> []
+
+    -- Each binding with its screen, or none for the global keymap, and the
+    -- keys that lead to it.
+    bindingsOf :: Keymaps -> [(Maybe ScreenName, [KeySpec], Action)]
+    bindingsOf keymaps =
+      [(Nothing, ks, a) | (ks, a) <- leaves keymaps.global]
+        <> [ (Just screen, ks, a)
+           | (screen, keymap) <- M.toList keymaps.screens
+           , (ks, a) <- leaves keymap
+           ]
+
+    leaves :: Keymap -> [([KeySpec], Action)]
+    leaves keymap =
+      M.toList keymap.bindings >>= \case
+        (k, BindAction a) -> [([k], a)]
+        (k, BindPrefix group) -> [(k : ks, a) | (ks, a) <- leaves group]
 
 test_visualizer :: Assertion
 test_visualizer = do
@@ -252,6 +337,35 @@ test_errors = do
 
 decode :: T.Text -> Either [String] Config
 decode = decodeConfig "config.yaml" . T.encodeUtf8
+
+docConfig :: FilePath
+docConfig = "doc" </> "config.yaml"
+
+-- | A YAML document as it is.
+newtype Tree = Tree Node
+
+instance FromYaml Tree where
+  parseYaml = pure . Tree
+
+-- | The names of the options of a section of the config.
+optionNames :: forall a. (GenericYamlOptions a, Selectors (Rep a)) => [T.Text]
+optionNames = map (T.pack . (yamlOptions @a).fieldLabelModifier) (selectors @(Rep a))
+
+-- | The names of the fields of a record.
+class Selectors (r :: Type -> Type) where
+  selectors :: [String]
+
+instance Selectors f => Selectors (D1 c f) where
+  selectors = selectors @f
+
+instance Selectors f => Selectors (C1 c f) where
+  selectors = selectors @f
+
+instance (Selectors f, Selectors g) => Selectors (f :*: g) where
+  selectors = selectors @f <> selectors @g
+
+instance KnownSymbol name => Selectors (S1 (MetaSel (Just name) u s d) f) where
+  selectors = [symbolVal (Proxy @name)]
 
 expectRight :: Either [String] a -> IO a
 expectRight = \case

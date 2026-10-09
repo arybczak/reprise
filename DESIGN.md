@@ -1656,7 +1656,8 @@ config file gives the client the author uses today.
 [doc/config.yaml](doc/config.yaml) lists the defaults, with what each
 option does, and leaves out the options and the keys of features that
 aren't built yet. A test decodes it and checks that what it lists has its
-default value.
+default value. Another test checks that it lists every option and binding,
+but those in its list of the features that aren't built.
 
 Options of later features get their defaults when the feature arrives,
 again from the author's ncmpcpp config where it sets them, and names in the
