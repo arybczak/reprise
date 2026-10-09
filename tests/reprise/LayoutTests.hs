@@ -259,7 +259,10 @@ test_queueTitleScrolls = do
 -- | As in ncmpcpp.
 test_flags :: Assertion
 test_flags = do
-  let st = statusOf Playing (Just 1) (length queue) & #repeat .~ True & #random .~ True
+  let st =
+        statusOf Playing (Just 1) (length queue)
+          & #repeat .~ True
+          & #random .~ True
   s <- testState (20, 6) st queue
   case imageLines (renderScreen testAppEnv s) of
     _ : flagsLine : _ -> assertEqual "line" "───────────────[rz]─" flagsLine

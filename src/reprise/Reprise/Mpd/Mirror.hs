@@ -98,7 +98,10 @@ forgetStatus = #status .~ Nothing
 -- | Move the current song to a point at a monotonic time, before MPD's
 -- status says that it moved.
 seekTo :: Double -> Seconds -> Mirror -> Mirror
-seekTo now target = (#status % _Just % #elapsed ?~ target) . (#statusTime .~ now)
+seekTo now target m =
+  m
+    & #status % _Just % #elapsed ?~ target
+    & #statusTime .~ now
 
 withQueue :: Seq.Seq Song -> Mirror -> Mirror
 withQueue q m =

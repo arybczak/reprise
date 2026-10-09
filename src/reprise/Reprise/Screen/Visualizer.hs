@@ -148,7 +148,10 @@ showFrame next =
   getsS (.visualizer.reading) >>= \case
     Just picture | Just picture' <- next picture -> do
       -- The failure of an earlier try can come after this try began.
-      modifyS $ #visualizer %~ (#reading ?~ picture') . (#failure .~ Nothing)
+      modifyS $ \s ->
+        s
+          & #visualizer % #reading ?~ picture'
+          & #visualizer % #failure .~ Nothing
       countDrawn
     _ -> keepScreen
 
@@ -168,7 +171,10 @@ visualizerStats stats = do
   now <- getsS (.now)
   if isNothing v.reading
     then keepScreen
-    else modifyS $ #visualizer %~ (#stats ?~ stats) . (#drawn %~ lastSecond now)
+    else modifyS $ \s ->
+      s
+        & #visualizer % #stats ?~ stats
+        & #visualizer % #drawn %~ lastSecond now
 
 -- | Count a frame that the screen draws, with @visualizer.debug@.
 countDrawn :: App es => Eff es ()

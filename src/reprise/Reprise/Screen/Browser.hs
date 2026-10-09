@@ -261,12 +261,12 @@ browserListed token entries = whenCurrent (.browser.listing) (.token) token $ \l
       selection
         | same = restrictTo (S.fromList (map itemKey (toList items))) s.browser.selection
         | otherwise = noSelection
-  modifyS $
-    #browser
-      %~ (#location ?~ l.location)
-      . (#entries .~ entries)
-      . (#selection .~ selection)
-      . (#listing .~ Nothing)
+  modifyS $ \st ->
+    st
+      & #browser % #location ?~ l.location
+      & #browser % #entries .~ entries
+      & #browser % #selection .~ selection
+      & #browser % #listing .~ Nothing
   modifyWithEnv $ setItems items
   modifyWithEnv $ placeCursor l.cursor
 

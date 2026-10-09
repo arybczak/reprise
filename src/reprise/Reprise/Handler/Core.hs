@@ -210,7 +210,10 @@ openChoice question options = openPrompt $ Prompt question (Choice options)
 -- | A prompt that an event opens, e.g. MPD's reply, can come in the middle
 -- of a key sequence, whose keys would complete it after the prompt closes.
 openPrompt :: Prompt -> AppState -> AppState
-openPrompt p = (#prompt ?~ p) . (#pendingKeys .~ Nothing)
+openPrompt p s =
+  s
+    & #prompt ?~ p
+    & #pendingKeys .~ Nothing
 
 -- | Ask a yes or no question, and send the event on yes.
 confirm :: T.Text -> AppEvent -> AppState -> AppState
@@ -354,7 +357,10 @@ moveListCursor t env s =
     -- The cursor stays on its row, as in ncmpcpp, unless the start or the
     -- end of the list stops the scrolling.
     paged :: Int -> View -> View
-    paged delta = (#cursor %~ (+ delta)) . (#offset %~ (+ delta))
+    paged delta v =
+      v
+        & #cursor %~ (+ delta)
+        & #offset %~ (+ delta)
 
 ----------------------------------------
 -- Selection
@@ -426,7 +432,10 @@ withFindPattern k =
 
 -- | Bring back a cursor and an offset, e.g. after a cancelled find.
 restoreView :: (Int, Int) -> AppEnv -> AppState -> AppState
-restoreView (c, o) = modifyView $ (#cursor .~ c) . (#offset .~ o)
+restoreView (c, o) = modifyView $ \v ->
+  v
+    & #cursor .~ c
+    & #offset .~ o
 
 -- | Change the focused view, then keep its cursor in the list and visible.
 -- A screen of text has no cursor, so only its offset is kept in the text.
@@ -445,7 +454,9 @@ modifyView f env s =
             | c < v'.offset = c
             | c >= v'.offset + h = c - h + 1
             | otherwise = v'.offset
-      in v' & #cursor .~ c & #offset .~ max 0 (min (n - h) o)
+      in v'
+           & #cursor .~ c
+           & #offset .~ max 0 (min (n - h) o)
 
 -- | Show another screen in the focused view.
 switchTo :: App es => ScreenName -> Eff es ()
@@ -480,7 +491,10 @@ showSongScreen target open = do
     Songs _
       | Just song <- songUnderCursor s -> do
           opened <- open song
-          when opened . modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen target
+          when opened . modifyWithEnv . modifyView $ \v ->
+            v
+              & switchScreen target
+              & #offset .~ 0
       | otherwise -> showMessage "There is no song under the cursor"
     _ -> screenHasNo screen "songs"
 

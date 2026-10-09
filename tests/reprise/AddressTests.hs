@@ -43,7 +43,11 @@ test_commandLine = do
   s <-
     settingsOf
       defaultConfig.mpd
-      (noSources & #cliHost ?~ "music" & #cliPort ?~ Port 7000 & #envHost ?~ "other")
+      ( noSources
+          & #cliHost ?~ "music"
+          & #cliPort ?~ Port 7000
+          & #envHost ?~ "other"
+      )
   assertEqual "address" (TcpAddress "music" 7000) s.address
 
 test_envPassword :: Assertion
@@ -51,7 +55,10 @@ test_envPassword = do
   s <-
     settingsOf
       defaultConfig.mpd
-      (noSources & #envHost ?~ "secret@music" & #envPort ?~ "6601")
+      ( noSources
+          & #envHost ?~ "secret@music"
+          & #envPort ?~ "6601"
+      )
   assertEqual "address" (TcpAddress "music" 6601) s.address
   assertEqual "password" (Just "secret") s.password
 
@@ -71,7 +78,10 @@ test_portOfAnotherSource = do
   s <-
     settingsOf
       (defaultConfig.mpd & #host ?~ "music")
-      (noSources & #envHost ?~ "other" & #envPort ?~ "6601")
+      ( noSources
+          & #envHost ?~ "other"
+          & #envPort ?~ "6601"
+      )
   assertEqual "address" (TcpAddress "music" 6601) s.address
 
 test_emptyVariables :: Assertion
@@ -79,9 +89,19 @@ test_emptyVariables = do
   s <-
     settingsOf
       defaultConfig.mpd
-      (noSources & #envHost ?~ "" & #envPort ?~ "" & #existingSockets .~ ["/run/mpd/socket"])
+      ( noSources
+          & #envHost ?~ ""
+          & #envPort ?~ ""
+          & #existingSockets .~ ["/run/mpd/socket"]
+      )
   assertEqual "the usual socket" (UnixAddress "/run/mpd/socket") s.address
-  tcp <- settingsOf defaultConfig.mpd (noSources & #envHost ?~ "music" & #envPort ?~ "")
+  tcp <-
+    settingsOf
+      defaultConfig.mpd
+      ( noSources
+          & #envHost ?~ "music"
+          & #envPort ?~ ""
+      )
   assertEqual "the default port" (TcpAddress "music" 6600) tcp.address
 
 test_socketPath :: Assertion
@@ -141,7 +161,12 @@ test_badEnvPort = do
   assertEqual
     "of a socket"
     (Right (UnixAddress "/run/mpd/socket"))
-    (address (noSources & #envHost ?~ "/run/mpd/socket" & #envPort ?~ "70000"))
+    ( address
+        ( noSources
+            & #envHost ?~ "/run/mpd/socket"
+            & #envPort ?~ "70000"
+        )
+    )
   where
     address :: Sources -> Either T.Text Address
     address = fmap ((.address) . NE.head) . resolveSettings defaultConfig.mpd
@@ -163,7 +188,11 @@ test_candidates = do
     =<< addresses
       (noSources & #existingSockets .~ ["/run/user/1000/mpd/socket", "/run/mpd/socket"])
   assertEqual "a host" [TcpAddress "music" 6600]
-    =<< addresses (noSources & #envHost ?~ "music" & #existingSockets .~ ["/run/mpd/socket"])
+    =<< addresses
+      ( noSources
+          & #envHost ?~ "music"
+          & #existingSockets .~ ["/run/mpd/socket"]
+      )
 
 -- | A socket that nothing listens on gives way to the next address.
 test_deadSocket :: IO TestServer -> Assertion

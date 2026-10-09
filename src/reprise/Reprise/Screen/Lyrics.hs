@@ -204,12 +204,12 @@ lyricsEdited file failure = do
 request :: App es => Song -> Bool -> Eff es ()
 request song refetch = do
   token <- newToken
-  modifyS $
-    #lyrics
-      %~ (#song ?~ song)
-      . (#token .~ token)
-      . (#status .~ ReadingLyrics)
-      . (#following .~ True)
+  modifyS $ \s ->
+    s
+      & #lyrics % #song ?~ song
+      & #lyrics % #token .~ token
+      & #lyrics % #status .~ ReadingLyrics
+      & #lyrics % #following .~ True
   modifyWithEnv $ setScreenPosition LyricsScreen (0, 0)
   fetchLyrics token (LyricsRequest song refetch)
 

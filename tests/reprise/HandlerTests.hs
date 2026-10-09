@@ -1113,7 +1113,10 @@ test_tick = do
 test_tickWithoutDuration :: Assertion
 test_tickWithoutDuration = do
   s <- testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
-  let stream = statusOf Playing (Just 0) 3 & #elapsed ?~ 10.25 & #duration .~ Nothing
+  let stream =
+        statusOf Playing (Just 0) 3
+          & #elapsed ?~ 10.25
+          & #duration .~ Nothing
   r <- runEvents 0 [StatusFetched stream] s
   let ticks = [d | After d (Tick _) <- r.commands]
   -- Without a progress bar to move, the next change is the next second.

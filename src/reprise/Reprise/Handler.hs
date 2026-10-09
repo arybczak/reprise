@@ -127,7 +127,10 @@ handleEvent = \case
   MouseWheel t col row -> handleWheel t col row
   MouseClick button col row -> handleClick button col row
   Resized w h -> do
-    modifyS $ layoutViews . (#terminalSize .~ (w, h))
+    modifyS $ \s ->
+      s
+        & #terminalSize .~ (w, h)
+        & layoutViews
     modifyWithEnv (modifyView id)
   -- The reply to an edit may be lost, e.g. with a restarted worker, and
   -- the input that waited for it was meant for the queue before the
@@ -145,10 +148,11 @@ handleEvent = \case
   -- The player's status would be stale, but the queue stays to look at
   -- until the connection is back.
   MpdDisconnected reason ->
-    modifyS $
-      (#connection .~ Disconnected reason)
-        . (#mirror %~ forgetStatus)
-        . (#seek .~ Nothing)
+    modifyS $ \s ->
+      s
+        & #connection .~ Disconnected reason
+        & #mirror %~ forgetStatus
+        & #seek .~ Nothing
   MpdChanged subsystems -> do
     -- The changes of the queue come with the status.
     if
@@ -738,7 +742,10 @@ findAsYouType f text = do
 acceptFind :: App es => Finding -> T.Text -> Eff es ()
 acceptFind f text
   | T.null text = do
-      modifyS $ (#findPattern .~ Nothing) . (#foundOn .~ Nothing)
+      modifyS $ \s ->
+        s
+          & #findPattern .~ Nothing
+          & #foundOn .~ Nothing
       showMessage "Find cleared"
   | otherwise = case compilePattern text of
       Left _ -> do
@@ -746,7 +753,10 @@ acceptFind f text
         showError $ "Invalid pattern: " <> text
       Right _ -> do
         screen <- getsS ((.screen) . focusedView)
-        modifyS $ (#findPattern ?~ text) . (#foundOn ?~ screen)
+        modifyS $ \s ->
+          s
+            & #findPattern ?~ text
+            & #foundOn ?~ screen
         forM_ f.note (showMessage . capitalize)
 
 -- | Move to the next or the previous match of the last pattern in rows of
