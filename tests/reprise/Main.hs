@@ -13,6 +13,7 @@ import FormatTests
 import HandlerTests
 import HelpTests
 import HistoryTests
+import HttpTests
 import KeymapTests
 import KeysTests
 import LayerTests
@@ -51,6 +52,7 @@ main = do
       , handlerTests
       , helpTests
       , historyTests
+      , httpTests
       , keymapTests
       , keysTests
       , layerTests

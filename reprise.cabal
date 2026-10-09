@@ -280,6 +280,8 @@ test-suite test
                     , directory
                     , effectful-core
                     , filepath
+                    , http-client
+                    , network
                     , optics-core
                     , QuickCheck
                     , reprise
@@ -316,6 +318,7 @@ test-suite test
                     HandlerTests
                     HelpTests
                     HistoryTests
+                    HttpTests
                     KeymapTests
                     KeysTests
                     LayerTests

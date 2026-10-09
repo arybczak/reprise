@@ -2,6 +2,7 @@
 module Reprise.Lyrics.Http
   ( Get
   , httpsGet
+  , getWithin
   , answeredWith
   ) where
 
@@ -12,6 +13,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Network.HTTP.Client
 import Network.HTTP.Types
+import System.Timeout
 
 -- | A GET of a path of a site with the parameters of its query: the status
 -- and the body of the reply, or why there is none. The tests replace it.
@@ -19,27 +21,37 @@ type Get = BS.ByteString -> [(T.Text, T.Text)] -> IO (Either T.Text (Int, BS.Byt
 
 -- | A GET of a site over HTTPS, with a manager that speaks TLS, by the
 -- site's name for the messages, its host and the user agent, by which the
--- sites ask clients to name themselves. A redirect isn't followed but
--- answered, as a fetcher knows what it means, e.g. tekstowo.pl redirects a
--- search that finds nothing to a page that bots must not read.
+-- sites ask clients to name themselves.
 httpsGet :: Manager -> T.Text -> T.Text -> BS.ByteString -> Get
-httpsGet manager userAgent site siteHost sitePath params = do
+httpsGet manager userAgent site siteHost =
+  getWithin
+    requestTimeout
+    manager
+    userAgent
+    site
+    defaultRequest {host = siteHost, port = 443, secure = True}
+
+-- | A GET of the site of a request, which gives up after a number of
+-- microseconds, with the body. http-client's own timeout ends with the
+-- headers, and a body that stalls would hold up the fetcher for good. A
+-- redirect isn't followed but answered, as a fetcher knows what it means,
+-- e.g. tekstowo.pl redirects a search that finds nothing to a page that
+-- bots must not read.
+getWithin :: Int -> Manager -> T.Text -> T.Text -> Request -> Get
+getWithin limit manager userAgent site base sitePath params = do
   let request =
         setQueryString [(T.encodeUtf8 k, Just (T.encodeUtf8 v)) | (k, v) <- params] $
-          defaultRequest
-            { host = siteHost
-            , port = 443
-            , secure = True
-            , path = sitePath
+          base
+            { path = sitePath
             , requestHeaders = [(hUserAgent, T.encodeUtf8 userAgent)]
-            , responseTimeout = responseTimeoutMicro timeout
+            , responseTimeout = responseTimeoutNone
             , redirectCount = 0
             }
-  try (httpLbs request manager) >>= \case
-    Right response ->
+  timeout limit (try (httpLbs request manager)) >>= \case
+    Nothing -> pure . Left $ site <> " didn't answer in time"
+    Just (Right response) ->
       pure $ Right (statusCode (responseStatus response), BL.toStrict (responseBody response))
-    Left err -> pure . Left $ case err of
-      HttpExceptionRequest _ ResponseTimeout -> site <> " didn't answer in time"
+    Just (Left err) -> pure . Left $ case err of
       HttpExceptionRequest _ ConnectionTimeout -> site <> " didn't answer in time"
       HttpExceptionRequest _ content -> site <> " can't be reached: " <> T.pack (show content)
       InvalidUrlException url why -> site <> "'s URL " <> T.pack url <> " is invalid: " <> T.pack why
@@ -53,5 +65,5 @@ answeredWith site status = site <> " answered with the status " <> T.pack (show 
 -- requests in 0.86 s at most on 2026-10-05. The worker serves one request
 -- at a time, so a request that hangs holds up the next ones, and it gives
 -- up after about ten times that.
-timeout :: Int
-timeout = 10 * 1000000
+requestTimeout :: Int
+requestTimeout = 10 * 1000000

@@ -637,9 +637,10 @@ ncmpcpp.
     have pulled in about 30 packages of cryptography in Haskell, and the
     distribution keeps OpenSSL patched. The requests name reprise in the
     user agent, as LRCLIB asks.
-  - **A request gives up after 10 seconds.** LRCLIB answered 30 requests in
-    0.86 s at most, and the worker serves one request at a time, so one
-    that hangs holds up the next.
+  - **A request gives up after 10 seconds,** with its body. LRCLIB answered
+    30 requests in 0.86 s at most, and the worker serves one request at a
+    time, so one that hangs holds up the next. http-client's own timeout
+    ends with the headers, so it covers the whole request from outside.
   - **The tests replay LRCLIB's answers** with other lyrics in them, through
     a fake of the HTTP request.
 - **The second fetcher is tekstowo.pl,** a site of lyrics that has some
