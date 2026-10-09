@@ -883,7 +883,7 @@ seekAction = \case
         token <- newToken
         modifyS $ #seek ?~ SeekState target started (s.mirror.status >>= (.currentId)) token
         after seekCommitDelay (SeekCommit token)
-      _ -> showError "The current song has no length"
+      _ -> noLength
   SeekToSecond n -> do
     dropSeek
     mutate . seekCur . SeekTo $ fromIntegral n
@@ -892,7 +892,14 @@ seekAction = \case
     s <- getS
     case currentDuration s of
       Just d -> mutate . seekCur . SeekTo $ d * fromIntegral p / 100
-      Nothing -> showError "The current song has no length"
+      Nothing -> noLength
+  where
+    -- MPD's status has no length while nothing plays, nor for a stream.
+    noLength :: App es => Eff es ()
+    noLength =
+      getsS (.mirror.status) >>= \case
+        Just st | st.state /= Stopped -> showError "The current song has no length"
+        _ -> showMessage "Nothing plays"
 
 -- | Send the seek that the keys moved, if its song still plays or pauses.
 commitSeek :: App es => Int -> Eff es ()

@@ -42,6 +42,7 @@ handlerTests =
     , testCase "clear asks first" test_clearConfirm
     , testCase "volume without a mixer" test_noMixer
     , testCase "seeking" test_seek
+    , testCase "seeking without a length" test_seekWithoutLength
     , testCase "a seek is of its song" test_seekOfItsSong
     , testCase "a stale seek timer" test_staleSeek
     , testCase "one timer hides the cursor" test_cursorTimer
@@ -976,6 +977,17 @@ test_noMixer = do
   r <- keys ["+"] s
   assertEqual "no request" [] r.requests
   assertEqual "error" (Just True) (isError r)
+
+-- | A seek needs a song that plays and its length: a stopped player has no
+-- song to seek in, and a stream has no length.
+test_seekWithoutLength :: Assertion
+test_seekWithoutLength = do
+  stopped <- testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
+  assertEqual "stopped" (Just "Nothing plays") . message =<< keys ["f"] stopped
+  let stream = statusOf Playing (Just 0) 3 & #duration .~ Nothing
+  playing <- testState (80, 24) stream (songs 3)
+  assertEqual "a stream" (Just "The current song has no length") . message
+    =<< keys ["f"] playing
 
 test_seek :: Assertion
 test_seek = do
