@@ -170,8 +170,7 @@ relistBrowser = do
   s <- getS
   case (s.browser.listing, s.browser.location) of
     (Just l, _) -> list l.location l.cursor
-    (Nothing, Just location) ->
-      list location . maybe AtTop (StayOn . itemKey) $ browserCursorItem s
+    (Nothing, Just location) -> list location (stayOnCursor s)
     (Nothing, Nothing) -> pure ()
 
 -- | List again after a change of the database, or of the stored playlists,
@@ -408,10 +407,16 @@ markedItems s =
   , item /= ParentItem
   ]
 
+-- | The item under the browser's cursor, with its index, also while the view
+-- shows another screen.
 cursorItem :: AppState -> Maybe (Int, BrowserItem)
 cursorItem s =
-  let c = (focusedView s).cursor
+  let c = fst (screenPosition BrowserScreen s)
   in (c,) <$> Seq.lookup c s.browser.items
+
+-- | Keep the cursor on its item in a new order or listing of the same.
+stayOnCursor :: AppState -> ListingCursor
+stayOnCursor = maybe AtTop (StayOn . itemKey . snd) . cursorItem
 
 -- | What the status bar says after an add.
 addedText :: AppEnv -> [(Int, BrowserItem)] -> T.Text
@@ -456,7 +461,7 @@ nextSortMode = do
   s <- getS
   forM_ s.browser.location $ \location -> do
     modifyWithEnv . setItems $ arrange env s.toggles.browserSort location s.browser.entries
-    modifyWithEnv . placeCursor $ maybe AtTop (StayOn . itemKey) (browserCursorItem s)
+    modifyWithEnv . placeCursor $ stayOnCursor s
   showMessage $ "Sort: " <> sortByName s.toggles.browserSort
 
 -- | The items of a listing: @..@ unless at the root, then the entries. The
@@ -529,11 +534,6 @@ placeCursor cursor env s = case cursor of
   where
     indexOf :: ItemKey -> Maybe Int
     indexOf k = Seq.findIndexL ((== k) . itemKey) s.browser.items
-
--- | The item under the browser's cursor, also while the view shows another
--- screen.
-browserCursorItem :: AppState -> Maybe BrowserItem
-browserCursorItem s = Seq.lookup (fst (screenPosition BrowserScreen s)) s.browser.items
 
 itemKey :: BrowserItem -> ItemKey
 itemKey = \case
