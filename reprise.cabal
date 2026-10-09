@@ -111,6 +111,7 @@ library
                     , text                 >= 2.0.2
                     , text-icu             >= 0.8
                     , time                 >= 1.12
+                    , unix                 >= 2.8.1
                     , vector               >= 0.13
                     , vty                  >= 6.2
                     , vty-unix             >= 0.2

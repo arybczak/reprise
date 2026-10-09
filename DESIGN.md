@@ -1464,6 +1464,12 @@ each hold few lines, and more prompts are coming, e.g. the search engine's.
     `SIGKILL`, leaves one, under a name of its own that reprise never
     reads. A fixed name would leave none for long, but two reprises that
     save at once would write the same temporary file.
+  - The temporary file is synced before the rename. XFS and Btrfs can
+    write the rename before the bytes, so a crash between them would leave
+    an empty history.
+  - A symbolic link stays a link: the file that it points to is replaced,
+    e.g. in a repository of dotfiles. A rename over the link would replace
+    the link with a file.
   - A file that can't be read or written goes to the log, and the prompts
     work without it.
 

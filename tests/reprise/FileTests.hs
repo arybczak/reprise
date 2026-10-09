@@ -14,7 +14,21 @@ fileTests =
   testGroup
     "File"
     [ testCase "write a file whole" test_writeFileAtomically
+    , testCase "write through a symbolic link" test_symlink
     ]
+
+-- | A link to a file, e.g. of a repository of dotfiles, stays a link, and
+-- the file that it points to gets the bytes.
+test_symlink :: Assertion
+test_symlink = withSystemTempDirectory "file" $ \dir -> do
+  createDirectory (dir </> "dotfiles")
+  let target = dir </> "dotfiles" </> "history"
+      link = dir </> "history"
+  BS.writeFile target "old"
+  createFileLink ("dotfiles" </> "history") link
+  writeFileAtomically link "new"
+  assertBool "still a link" =<< pathIsSymbolicLink link
+  assertEqual "the file that it points to" "new" =<< BS.readFile target
 
 test_writeFileAtomically :: Assertion
 test_writeFileAtomically = withSystemTempDirectory "file" $ \dir -> do
