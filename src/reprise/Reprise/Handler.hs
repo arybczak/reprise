@@ -675,8 +675,6 @@ toggle = \case
   ToggleCrossfade n -> withStatus $ \st ->
     mutate . setCrossfade $ if st.crossfade > 0 then 0 else n
   ToggleReplayGain -> request replayGainStatus ReplayGainFetched
-  -- Of the browser in the browser, as ncmpcpp toggles the display of the
-  -- screen that shows, and of the queue elsewhere.
   ToggleDisplay -> verb (Toggle ToggleDisplay) $ \case
     QueueScreen -> Just $ do
       modifyS $
