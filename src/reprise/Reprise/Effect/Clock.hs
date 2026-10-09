@@ -10,6 +10,9 @@ module Reprise.Effect.Clock
     -- ** Operations
   , monotonicTime
   , sleepUntil
+
+    -- * Plain IO
+  , delaySeconds
   ) where
 
 import Control.Concurrent
@@ -29,7 +32,14 @@ runClock = interpret_ $ \case
   MonotonicTime -> liftIO getMonotonicTime
   SleepUntil t -> liftIO $ do
     now <- getMonotonicTime
-    threadDelay (ceiling ((t - now) * 1000000))
+    delaySeconds (t - now)
+
+-- | Wait for a number of seconds, outside the effect.
+delaySeconds :: Double -> IO ()
+delaySeconds s = threadDelay (ceiling (s * microsecondsPerSecond))
+  where
+    microsecondsPerSecond :: Double
+    microsecondsPerSecond = 1000000
 
 -- | Seconds since a point in the past.
 monotonicTime :: Clock :> es => Eff es Double

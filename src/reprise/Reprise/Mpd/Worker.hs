@@ -8,13 +8,13 @@ module Reprise.Mpd.Worker
   , retryInterval
   ) where
 
-import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
 import Data.Text qualified as T
 import Effectful
 import Effectful.Exception
 
+import Reprise.Effect.Clock
 import Reprise.Effect.Mpd
 import Reprise.Effect.MpdRequest
 import Reprise.Event
@@ -33,8 +33,8 @@ data Workers = Workers
   }
 
 -- | How long to wait before connecting again, as ncmpcpp does.
-retryInterval :: Int
-retryInterval = 1000000
+retryInterval :: Double
+retryInterval = 1
 
 -- | Run @idle@ in a loop and send the changes. Reconnect after an error.
 idleWorker :: (Mpd :> es, IOE :> es) => Workers -> Eff es ()
@@ -51,7 +51,7 @@ idleWorker w = forever $ do
     disconnected :: IOE :> es => MpdError -> Eff es ()
     disconnected err = do
       liftIO . w.emit . MpdDisconnected $ exceptionText err
-      liftIO $ threadDelay retryInterval
+      liftIO $ delaySeconds retryInterval
 
 -- | Run the requests one at a time and send the events of their replies.
 --

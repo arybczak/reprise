@@ -14,10 +14,8 @@ module Reprise.Visualizer.Wave
 
 import Control.Monad
 import Data.ByteString qualified as BS
-import Data.ByteString.Unsafe qualified as BS
 import Data.Vector.Storable.Mutable qualified as VSM
 import Data.Word
-import Foreign.Marshal.Utils
 import Foreign.Ptr
 
 import Reprise.Config
@@ -42,21 +40,16 @@ newWaveWindow =
 pushWave :: WaveWindow -> BS.ByteString -> IO ()
 pushWave w pcm = do
   let count = BS.length pcm `div` frameBytes
-      kept = min count historySamples
-      pushed = BS.take (kept * frameBytes) (BS.drop ((count - kept) * frameBytes) pcm)
   pushBass w count $ \i ->
     sum [sampleAt pcm (i * channels + c) | c <- [0 .. channels - 1]] / fromIntegral channels
-  end <- pushOut w.bytes (kept * frameBytes)
-  VSM.unsafeWith end $ \dst ->
-    BS.unsafeUseAsCStringLen pushed $ \(src, n) -> copyBytes dst (castPtr src) n
+  pushBytes w.bytes (BS.take (count * frameBytes) pcm)
 
 -- | Push a number of bytes of silence into the wave.
 pushWaveSilence :: WaveWindow -> Int -> IO ()
 pushWaveSilence w n = do
   let count = n `div` frameBytes
   pushBass w count (const 0)
-  end <- pushOut w.bytes (min count historySamples * frameBytes)
-  VSM.set end 0
+  pushZeros w.bytes (count * frameBytes)
 
 -- | Push the bass of a number of samples of the mix, by their index. The
 -- filter goes through all of them, also those that don't fit.

@@ -26,23 +26,21 @@ tekstowo = Fetcher "tekstowo.pl" . tekstowoLyrics
 -- title in brackets. Another song's lyrics would be stored as the song's,
 -- so a result that is only close isn't taken.
 tekstowoLyrics :: Get -> Song -> IO FetchResult
-tekstowoLyrics get song = case (firstTag Artist song, firstTag Title song) of
-  (Just artist, Just title) -> do
-    let wanted = map (key . ((artist <> " - ") <>)) (L.nub [title, cleanTitle title])
-    get "/szukaj" [("search-query", artist <> " " <> cleanTitle title)] >>= \case
-      Right (200, body) ->
-        case [p | (p, t) <- searchResults (T.decodeUtf8Lenient body), key t `elem` wanted] of
-          songPath : _ ->
-            get (T.encodeUtf8 songPath) [] >>= \case
-              Right (200, page) ->
-                pure . maybe FetchedNothing (FetchedLyrics . plainLyrics) $
-                  songLyrics (T.decodeUtf8Lenient page)
-              other -> pure $ failure other
-          [] -> pure FetchedNothing
-      -- A search that finds nothing redirects to the advanced search.
-      Right (status, _) | status `div` 100 == 3 -> pure FetchedNothing
-      other -> pure $ failure other
-  _ -> pure FetchedNothing
+tekstowoLyrics get song = byArtistAndTitle song $ \artist title -> do
+  let wanted = map (key . ((artist <> " - ") <>)) (L.nub [title, cleanTitle title])
+  get "/szukaj" [("search-query", artist <> " " <> cleanTitle title)] >>= \case
+    Right (200, body) ->
+      case [p | (p, t) <- searchResults (T.decodeUtf8Lenient body), key t `elem` wanted] of
+        songPath : _ ->
+          get (T.encodeUtf8 songPath) [] >>= \case
+            Right (200, page) ->
+              pure . maybe FetchedNothing (FetchedLyrics . plainLyrics) $
+                songLyrics (T.decodeUtf8Lenient page)
+            other -> pure $ failure other
+        [] -> pure FetchedNothing
+    -- A search that finds nothing redirects to the advanced search.
+    Right (status, _) | status `div` 100 == 3 -> pure FetchedNothing
+    other -> pure $ failure other
   where
     -- What a song is matched by, without case and extra spaces.
     key :: T.Text -> T.Text
@@ -51,8 +49,7 @@ tekstowoLyrics get song = case (firstTag Artist song, firstTag Title song) of
     failure :: Either T.Text (Int, a) -> FetchResult
     failure = \case
       Left reason -> FetchFailed reason
-      Right (status, _) ->
-        FetchFailed $ "tekstowo.pl answered with the status " <> T.pack (show status)
+      Right (status, _) -> FetchFailed $ answeredWith "tekstowo.pl" status
 
 -- | The songs that a page of the search found: the path of each, and its
 -- artist and title, e.g. @/kult/arahja@ and @Kult - Arahja@. They are the

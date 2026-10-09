@@ -2,6 +2,7 @@
 module Reprise.Lyrics.Http
   ( Get
   , httpsGet
+  , answeredWith
   ) where
 
 import Control.Exception
@@ -42,6 +43,11 @@ httpsGet manager userAgent site siteHost sitePath params = do
       HttpExceptionRequest _ ConnectionTimeout -> site <> " didn't answer in time"
       HttpExceptionRequest _ content -> site <> " can't be reached: " <> T.pack (show content)
       InvalidUrlException url why -> site <> "'s URL " <> T.pack url <> " is invalid: " <> T.pack why
+
+-- | Why a site's reply has no lyrics, by its status, which the fetcher
+-- didn't expect.
+answeredWith :: T.Text -> Int -> T.Text
+answeredWith site status = site <> " answered with the status " <> T.pack (show status)
 
 -- | How long a site has to answer, in microseconds. LRCLIB answered 30
 -- requests in 0.86 s at most on 2026-10-05. The worker serves one request

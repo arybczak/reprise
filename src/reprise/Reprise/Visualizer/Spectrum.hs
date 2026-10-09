@@ -15,13 +15,11 @@ module Reprise.Visualizer.Spectrum
 import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
-import Data.ByteString.Unsafe qualified as BS
 import Data.Vector.Storable qualified as VS
 import Data.Vector.Storable.Mutable qualified as VSM
 import Data.Word
 import Foreign.C.Types
 import Foreign.ForeignPtr
-import Foreign.Marshal.Utils
 import Foreign.Ptr
 
 import Reprise.Visualizer.Samples
@@ -69,17 +67,11 @@ newSampleWindow = SampleWindow <$> VSM.replicate (windowSamples * frameBytes) 0
 
 -- | Push the samples of every channel into the window.
 pushSamples :: SampleWindow -> BS.ByteString -> IO ()
-pushSamples samples pcm = do
-  let pushed = BS.takeEnd (VSM.length samples.bytes) pcm
-  end <- pushOut samples.bytes (BS.length pushed)
-  VSM.unsafeWith end $ \dst ->
-    BS.unsafeUseAsCStringLen pushed $ \(src, n) -> copyBytes dst (castPtr src) n
+pushSamples samples = pushBytes samples.bytes
 
 -- | Push a number of bytes of silence into the window.
 pushSilence :: SampleWindow -> Int -> IO ()
-pushSilence samples n = do
-  end <- pushOut samples.bytes (min n (VSM.length samples.bytes))
-  VSM.set end 0
+pushSilence samples = pushZeros samples.bytes
 
 -- | The magnitudes of the spectrum of a channel of the window, one for each
 -- bin.

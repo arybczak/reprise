@@ -9,6 +9,8 @@ module Reprise.Visualizer.Samples
   , lowestFrequency
   , highestFrequency
   , pushOut
+  , pushBytes
+  , pushZeros
   ) where
 
 import Data.Bits
@@ -17,6 +19,8 @@ import Data.ByteString.Unsafe qualified as BS
 import Data.Int
 import Data.Vector.Storable.Mutable qualified as VSM
 import Data.Word
+import Foreign.Marshal.Utils
+import Foreign.Ptr
 import GHC.ByteOrder
 
 sampleRate :: Int
@@ -60,3 +64,18 @@ pushOut v n = do
   let kept = VSM.length v - n
   VSM.move (VSM.slice 0 kept v) (VSM.slice n kept v)
   pure $ VSM.slice kept n v
+
+-- | Push the last bytes that fit into a buffer of the last bytes.
+pushBytes :: VSM.IOVector Word8 -> BS.ByteString -> IO ()
+pushBytes v bytes = do
+  let pushed = BS.takeEnd (VSM.length v) bytes
+  end <- pushOut v (BS.length pushed)
+  VSM.unsafeWith end $ \dst ->
+    BS.unsafeUseAsCStringLen pushed $ \(src, n) -> copyBytes dst (castPtr src) n
+
+-- | Push a number of zero bytes, as many as fit, into a buffer of the last
+-- bytes.
+pushZeros :: VSM.IOVector Word8 -> Int -> IO ()
+pushZeros v n = do
+  end <- pushOut v (min n (VSM.length v))
+  VSM.set end 0

@@ -24,6 +24,7 @@ import System.FilePath
 import System.Process
 
 import Reprise.Config
+import Reprise.Effect.Clock
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
@@ -112,7 +113,7 @@ runApp env channels buildVty initial = do
           pure next
         After delay e -> do
           void . forkIO $ do
-            threadDelay (ceiling (delay * microsecondsPerSecond))
+            delaySeconds delay
             atomically $ writeTBQueue channels.events e
           pure next
         KeepScreen -> pure (Running s False)
@@ -152,9 +153,6 @@ runApp env channels buildVty initial = do
 
     displaySize :: V.Vty -> IO (Int, Int)
     displaySize = V.displayBounds . V.outputIface
-
-    microsecondsPerSecond :: Double
-    microsecondsPerSecond = 1000000
 
 -- | What the loop does after an event.
 data Next

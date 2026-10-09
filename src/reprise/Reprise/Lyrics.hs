@@ -16,6 +16,7 @@ module Reprise.Lyrics
   , lyricsFileName
   , timedLyricsFileName
   , cleanTitle
+  , byArtistAndTitle
   ) where
 
 import Data.Bits
@@ -206,6 +207,13 @@ lyricsBaseName song
 -- lyrics move to another one.
 nameLimit :: Int
 nameLimit = 255
+
+-- | Fetch the lyrics of a song by its artist and its title. A song without
+-- both has none to fetch.
+byArtistAndTitle :: Song -> (T.Text -> T.Text -> IO FetchResult) -> IO FetchResult
+byArtistAndTitle song fetch = case (firstTag Artist song, firstTag Title song) of
+  (Just artist, Just title) -> fetch artist title
+  _ -> pure FetchedNothing
 
 -- | A title without what follows it in brackets, e.g. @(Bonus Track)@ or
 -- @[Film Score]@, which a database of lyrics doesn't have. A title that is

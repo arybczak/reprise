@@ -4,7 +4,6 @@ module Main
   ) where
 
 import Control.Applicative
-import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.MVar.Strict qualified as S
 import Control.Concurrent.STM
@@ -168,10 +167,12 @@ main = withOpenSSL $ do
             , emit = emit
             , logLine = logLine
             }
+      -- A worker that failed starts again after the pause before a new
+      -- connection to MPD.
       restarted :: IO () -> IO ()
       restarted worker = forever $ do
         worker `catchSync` \e -> logLine $ "A worker failed: " <> exceptionText e
-        threadDelay retryInterval
+        delaySeconds retryInterval
   installWidthTable
   withAsync
     (mapConcurrently_ restarted (mpdWorkers <> toList visualizer <> [lyricsFetcher]))

@@ -27,14 +27,12 @@ lrclib = Fetcher "LRCLIB" . lrclibLyrics
 -- length, else by a search of its artist and title, and if neither has it,
 -- by its title without what follows in brackets.
 lrclibLyrics :: Get -> Song -> IO FetchResult
-lrclibLyrics get song = case (firstTag Artist song, firstTag Title song) of
-  (Just artist, Just title) -> do
-    found <- lookupTitle artist title
-    case found of
-      Right Nothing
-        | cleanTitle title /= title -> fromFound <$> lookupTitle artist (cleanTitle title)
-      _ -> pure $ fromFound found
-  _ -> pure FetchedNothing
+lrclibLyrics get song = byArtistAndTitle song $ \artist title -> do
+  found <- lookupTitle artist title
+  case found of
+    Right Nothing
+      | cleanTitle title /= title -> fromFound <$> lookupTitle artist (cleanTitle title)
+    _ -> pure $ fromFound found
   where
     lookupTitle :: T.Text -> T.Text -> IO (Either T.Text (Maybe LrclibTrack))
     lookupTitle artist title = do
@@ -70,7 +68,7 @@ lrclibLyrics get song = case (firstTag Artist song, firstTag Title song) of
       Left reason -> Left reason
       Right (status, body) -> Left $ case decode @LrclibError body of
         Right e -> "LRCLIB: " <> e.message
-        Left _ -> "LRCLIB answered with the status " <> T.pack (show status)
+        Left _ -> answeredWith "LRCLIB" status
 
     decoded :: FromYaml a => BS.ByteString -> Either T.Text a
     decoded = either (const (Left "LRCLIB's answer can't be read")) Right . decode
