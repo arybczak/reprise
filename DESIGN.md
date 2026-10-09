@@ -284,7 +284,11 @@ ncmpcpp.
 - **A left click on "Playing:" or "Paused:"** in the status bar pauses or
   plays again, as ncmpcpp's does. The release makes the click, because the
   terminal repeats the press while the mouse moves with it down, which
-  would pause and play again. Other clicks do nothing yet.
+  would pause and play again.
+- **A left click on the progress bar seeks** to where the cell under it
+  begins, while a song plays or pauses, as ncmpcpp's does. The bar then
+  shows its current cell where the click was.
+- Other clicks do nothing yet.
 
 **Other screens**
 - Outputs screen. It is small and used often.
@@ -758,8 +762,8 @@ tag editor, which needs the same two things.
 - Add random items: songs, or tags such as artists and albums.
 
 **Interaction**
-- Mouse support: seek on the progress bar, click to select or play. The
-  wheel works already.
+- Mouse support: click to select or play. The wheel, and the clicks on the
+  progress bar and on the player's state, work already.
 
 **External commands, hooks and command line**
 - Key bindings that run external programs (see

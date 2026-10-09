@@ -59,6 +59,7 @@ handlerTests =
     , testCase "the mouse wheel" test_wheel
     , testCase "the mouse wheel over the volume" test_wheelVolume
     , testCase "a click on the player's state pauses" test_clickPause
+    , testCase "a click on the progress bar seeks" test_clickSeek
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
     , testCase "back from the screens about a song or the keys" test_backKeys
     , testCase "the help screen scrolls" test_helpScrolls
@@ -532,6 +533,27 @@ test_wheel = do
 -- | "Volume: 50%" takes the last 11 columns of the title's row.
 -- | "Playing: " takes the first 9 columns of the status bar, and "Paused: "
 -- the first 8.
+-- | The progress bar of the 60 s song takes row 22, and each of its 80
+-- columns 0.75 s.
+test_clickSeek :: Assertion
+test_clickSeek = do
+  playing <- testState (80, 24) (statusOf Playing (Just 0) 1) (songs 1)
+  paused <- testState (80, 24) (statusOf Paused (Just 0) 1) (songs 1)
+  stopped <- testState (80, 24) (statusOf Stopped (Just 0) 1) (songs 1)
+  let click col row s = runEvents 0 [LeftClick col row] s
+  r <- click 20 22 playing
+  assertEqual "a quarter" [[Request "seekcur" ["15"]]] r.requests
+  assertEqual "shown at once" (Just 15) (displayedElapsed r.state)
+  assertEqual "the start" [[Request "seekcur" ["0"]]] . (.requests) =<< click 0 22 playing
+  assertEqual "paused" [[Request "seekcur" ["30"]]] . (.requests) =<< click 40 22 paused
+  assertEqual "stopped" [] . (.requests) =<< click 20 22 stopped
+  assertEqual "past the bar" [] . (.requests) =<< click 80 22 playing
+  seeking <- keys ["f"] playing
+  sought <- click 20 22 seeking.state
+  assertEqual "ends a seek of the keys" Nothing sought.state.seek
+  assertEqual "the keys' seek isn't sent after it" [] . (.requests)
+    =<< runEvents 0 [SeekCommit 0, SeekCommit 1] sought.state
+
 test_clickPause :: Assertion
 test_clickPause = do
   playing <- testState (80, 24) (statusOf Playing (Just 0) 1) (songs 1)
@@ -542,7 +564,7 @@ test_clickPause = do
   assertEqual "the label's end" [[Request "pause" ["1"]]] =<< click 8 23 playing
   assertEqual "resume" [[Request "pause" ["0"]]] =<< click 7 23 paused
   assertEqual "beside the label" [] =<< click 8 23 paused
-  assertEqual "another row" [] =<< click 0 22 playing
+  assertEqual "another row" [] =<< click 0 21 playing
   assertEqual "stopped" [] =<< click 0 23 stopped
   toggled <- keys ["t", "f"] playing
   assertBool "a message shows" (message toggled /= Nothing)

@@ -42,5 +42,5 @@ playerLabel s = case (s.mirror.status, currentSong s.mirror) of
 -- of the player that the status bar shows.
 onPlayerLabel :: AppState -> Int -> Int -> Bool
 onPlayerLabel s col row = case (statusContent s, playerLabel s) of
-  (StatusPlayer, Just label) -> row == snd s.terminalSize - 1 && col >= 0 && col < textWidth label
+  (StatusPlayer, Just label) -> row == statusBarRow s && col >= 0 && col < textWidth label
   _ -> False

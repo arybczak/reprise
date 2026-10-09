@@ -46,6 +46,8 @@ module Reprise.State
   , layoutViews
   , mainHeight
   , viewAt
+  , progressBarRow
+  , statusBarRow
   , listHeight
 
     -- * Screens
@@ -61,6 +63,8 @@ module Reprise.State
   , cursorVisible
   , cursorHideDelay
   , displayedElapsed
+  , progressDuration
+  , cellTime
   , progressCells
   , nextCellAt
   , lyricsRows
@@ -513,6 +517,14 @@ headerHeight = 2
 footerHeight :: Int
 footerHeight = 2
 
+-- | The row of the progress bar, at the top of the footer.
+progressBarRow :: AppState -> Int
+progressBarRow s = snd s.terminalSize - footerHeight
+
+-- | The row of the status bar, at the bottom of the terminal.
+statusBarRow :: AppState -> Int
+statusBarRow s = snd s.terminalSize - 1
+
 -- | The view that shows a cell of the terminal, at a column and a row.
 viewAt :: AppState -> Int -> Int -> Maybe ViewId
 viewAt s col row = case s.layout of
@@ -716,6 +728,21 @@ cursorVisible s = s.now - s.lastInput < cursorHideDelay
 -- default @playlist_disable_highlight_delay@.
 cursorHideDelay :: Double
 cursorHideDelay = 5
+
+-- | The length of the song whose progress the progress bar shows, while it
+-- plays or pauses.
+progressDuration :: AppState -> Maybe Seconds
+progressDuration s = do
+  st <- s.mirror.status
+  guard (st.state /= Stopped)
+  d <- st.duration
+  guard (d > 0)
+  pure d
+
+-- | The time in a song of a length where a cell of a progress bar of a
+-- width begins to fill.
+cellTime :: Int -> Int -> Seconds -> Seconds
+cellTime width cell duration = duration * fromIntegral cell / fromIntegral width
 
 -- | The cells of a progress bar of a width that the elapsed time of a song
 -- of a length fills.

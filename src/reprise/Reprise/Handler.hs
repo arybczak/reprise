@@ -307,11 +307,19 @@ handleWheel t col row = do
     | otherwise -> keepScreen
 
 -- | A click on the state of the player in the status bar pauses it, or plays
--- it again, as ncmpcpp's does.
+-- it again. A click on the progress bar, while a song plays or pauses,
+-- seeks to where its cell begins. Both are as in ncmpcpp.
 handleClick :: App es => Int -> Int -> Eff es ()
 handleClick col row = do
   s <- getS
-  if onPlayerLabel s col row then runAction Pause else keepScreen
+  let width = fst s.terminalSize
+  if
+    | onPlayerLabel s col row -> runAction Pause
+    | row == progressBarRow s
+    , col >= 0 && col < width
+    , Just d <- progressDuration s ->
+        seekNow (cellTime width col d)
+    | otherwise -> keepScreen
 
 -- | The user did something, which shows the cursor until it is idle again.
 noteInput :: App es => Eff es ()
@@ -744,12 +752,18 @@ seekAction = \case
 commitSeek :: App es => Int -> Eff es ()
 commitSeek token = whenCurrent (.seek) (.token) token $ \sk -> do
   s <- getS
-  modifyS $ #seek .~ Nothing
   case s.mirror.status of
-    Just st | st.state /= Stopped && st.currentId == sk.songId -> do
-      modifyS $ #mirror %~ seekTo s.now sk.target
-      mutate . seekCur $ SeekTo sk.target
-    _ -> pure ()
+    Just st | st.state /= Stopped && st.currentId == sk.songId -> seekNow sk.target
+    _ -> dropSeek
+
+-- | Seek in the current song, and show its new time at once. A seek that
+-- the keys moved ends.
+seekNow :: App es => Seconds -> Eff es ()
+seekNow target = do
+  dropSeek
+  now <- getsS (.now)
+  modifyS $ #mirror %~ seekTo now target
+  mutate . seekCur $ SeekTo target
 
 -- | Drop the seek that the keys moved, e.g. for a command that moves the
 -- song itself.

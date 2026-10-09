@@ -5,7 +5,6 @@ module Reprise.UI.Layout
   , promptCursor
   ) where
 
-import Control.Monad
 import Data.List qualified as L
 import Data.Maybe
 import Data.Text qualified as T
@@ -169,10 +168,7 @@ progressBar env s =
       remainingAttr = attr env cfg.style
       elapsedAttr = attr env cfg.elapsedStyle
       filled = do
-        st <- s.mirror.status
-        guard (st.state /= Stopped)
-        d <- st.duration
-        guard (d > 0)
+        d <- progressDuration s
         e <- displayedElapsed s
         pure $ progressCells w (realToFrac e) (realToFrac d)
   in case filled of
