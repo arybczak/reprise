@@ -30,6 +30,7 @@ import Data.Word
 import Network.Socket qualified as N
 import Network.Socket.ByteString qualified as N
 import Network.Socket.ByteString.Lazy qualified as NL
+import System.IO.Error
 import System.Timeout qualified as T
 
 import Reprise.Mpd.Protocol.Command
@@ -138,7 +139,7 @@ exchange conn request = do
   where
     go :: Bool -> [BS.ByteString] -> IO [[Field]]
     go first acc =
-      readLine conn.socket conn.chunkSize conn.buffer >>= \case
+      readReplyLine first >>= \case
         Nothing
           | first -> throwIO $ ConnectionError Closed
           | otherwise ->
@@ -146,6 +147,17 @@ exchange conn request = do
         Just l
           | isFinalLine l -> either throwIO pure . parseReply $ reverse (l : acc)
           | otherwise -> go False (l : acc)
+
+    -- A reset before any byte of the reply means that MPD closed the
+    -- connection with the request unread, e.g. as its close for an unused
+    -- connection crossed the request.
+    readReplyLine :: Bool -> IO (Maybe BS.ByteString)
+    readReplyLine first =
+      readLine conn.socket conn.chunkSize conn.buffer `catch` \(e :: IOException) -> do
+        received <- S.readIORef conn.buffer
+        if first && BS.null received && isResourceVanishedError e
+          then throwIO $ ConnectionError Closed
+          else throwIO e
 
 -- | Run a command without the timeout. Throws 'MpdError'.
 exchangeCommand :: Connection -> Command a -> IO a
