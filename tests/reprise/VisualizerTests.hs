@@ -87,6 +87,7 @@ visualizerTests =
     , testCase "the worker sends the samples of the fifo" test_worker
     , testCase "each frame sends the samples of its time" test_workerFrames
     , testCase "a late frame doesn't make the next ones late" test_workerLate
+    , testCase "a dropped frame counts in its own second" test_workerDropped
     , testCase "the worker sends the spectrum" test_workerSpectrum
     , testCase "the spectrum stays until its window is silent" test_workerSilence
     , testCase "the worker sends the wave" test_workerWave
@@ -581,14 +582,22 @@ test_workerLate = do
   assertEqual
     "what happened in the second"
     [ FrameStats
-        { frames = 58
+        { frames = 57
         , late = 2
         , empty = 2
         , dropped = 0
-        , bytes = 60 * BS.length (write 0)
+        , bytes = 59 * BS.length (write 0)
         }
     ]
     [st | (_, VisualizerStats st) <- events]
+
+test_workerDropped :: Assertion
+test_workerDropped = do
+  events <- runScene (scene Ellipse steadyWrites) {taken = False, debug = True, seconds = 1}
+  assertEqual
+    "frames and dropped"
+    [(59, 59)]
+    [(st.frames, st.dropped) | (_, VisualizerStats st) <- events]
 
 test_workerSpectrum :: Assertion
 test_workerSpectrum = do
@@ -692,17 +701,19 @@ test_debugLine = do
         first
     [] -> assertFailure "no main area"
 
+-- | A second has the frames that came in it. The 60th frame comes a second
+-- after the start, so it starts the next one.
 test_workerStats :: Assertion
 test_workerStats = do
   events <- runScene (scene Ellipse steadyWrites) {debug = True, seconds = 1}
   assertEqual
     "what happened in the second"
     [ FrameStats
-        { frames = 60
+        { frames = 59
         , late = 0
         , empty = 2
         , dropped = 0
-        , bytes = 60 * BS.length (write 0)
+        , bytes = 59 * BS.length (write 0)
         }
     ]
     [st | (_, VisualizerStats st) <- events]

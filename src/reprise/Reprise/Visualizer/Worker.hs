@@ -139,14 +139,16 @@ visualizerWorker src = do
           unless taken . S.modifyIORef second $ \(Second since st) ->
             Second since st {dropped = st.dropped + 1}
 
-        -- Count a frame, and send the frames of a second once it passed.
+        -- Count a frame. A frame a second after the start of a second
+        -- starts the next one, once the frames of the last are sent, so that
+        -- a frame that the UI drops counts in the second of the frame.
         count :: Double -> (FrameStats -> FrameStats) -> IO ()
         count now f = do
           Second since st <- S.readIORef second
           if now - since >= 1
             then do
-              when src.debug . void . src.emit $ VisualizerStats (f st)
-              S.writeIORef second (Second now noFrames)
+              when src.debug . void . src.emit $ VisualizerStats st
+              S.writeIORef second (Second now (f noFrames))
             else S.writeIORef second (Second since (f st))
 
     -- The samples from the start until a frame.
