@@ -40,7 +40,7 @@ resolveSettings config sources = do
     Settings
       { address = a
       , password = listToMaybe (catMaybes [config.password, hostPassword])
-      , timeout = let Duration t = config.timeout in Just t
+      , timeout = let Timeout (Duration t) = config.timeout in Just t
       }
   where
     (hostPassword, host) = case listToMaybe (catMaybes [sources.cliHost, config.host, sources.envHost]) of

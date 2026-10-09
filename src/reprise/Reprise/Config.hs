@@ -7,6 +7,7 @@ module Reprise.Config
   , MpdConfig (..)
   , Port (..)
   , parsePort
+  , Timeout (..)
   , Duration (..)
   , SongsConfig (..)
   , RowFormat (..)
@@ -98,10 +99,14 @@ data MpdConfig = MpdConfig
   -- ^ A host name, or the path of a unix socket.
   , port :: Maybe Port
   , password :: Maybe T.Text
-  , timeout :: Duration
+  , timeout :: Timeout
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml MpdConfig
+
+-- | How long MPD has to answer, which is longer than 0.
+newtype Timeout = Timeout Duration
+  deriving newtype (Eq, Ord, Show, Num, Fractional)
 
 -- | A TCP port, from 1.
 newtype Port = Port N.PortNumber
@@ -673,6 +678,11 @@ instance FromYaml Duration where
 
       number :: T.Text -> Maybe Seconds
       number = Response.readSeconds . T.encodeUtf8
+
+instance FromYaml Timeout where
+  parseYaml n = do
+    d <- parseYaml n
+    if d > 0 then pure (Timeout d) else failAt n "a timeout must be longer than 0"
 
 instance FromYaml Port where
   parseYaml n = case view n of

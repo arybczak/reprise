@@ -191,6 +191,15 @@ test_errors = do
   assertError "port too large" "a port is from 1 to 65535" (decode "mpd:\n  port: 70000\n")
   assertError "port 0" "a port is from 1 to 65535" (decode "mpd:\n  port: 0\n")
   assertError
+    "no timeout"
+    "a timeout must be longer than 0"
+    (decode "mpd:\n  timeout: 0s\n")
+  -- 'Seconds' counts milliseconds, so less than one is 0.
+  assertError
+    "a timeout too short"
+    "a timeout must be longer than 0"
+    (decode "mpd:\n  timeout: 0.1ms\n")
+  assertError
     "bad style"
     "unknown color or attribute purple"
     (decode "lists:\n  style: purple\n")

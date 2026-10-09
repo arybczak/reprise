@@ -157,8 +157,12 @@ withTimeout :: Maybe Seconds -> IO a -> IO a
 withTimeout = \case
   Nothing -> id
   Just s -> \action ->
-    T.timeout (ceiling (s * microsecondsPerSecond)) action
+    T.timeout (fromInteger (min (toInteger (maxBound @Int)) microseconds)) action
       >>= maybe (throwIO $ ConnectionError TimedOut) pure
+    where
+      -- A timeout too long for an Int waits as long as one can.
+      microseconds :: Integer
+      microseconds = ceiling (s * microsecondsPerSecond)
   where
     microsecondsPerSecond :: Seconds
     microsecondsPerSecond = 1000000
