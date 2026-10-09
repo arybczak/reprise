@@ -8,7 +8,6 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.MVar.Strict qualified as S
 import Control.Concurrent.STM
-import Control.Exception
 import Control.Monad
 import Data.Foldable
 import Data.Functor
@@ -103,7 +102,7 @@ main = withOpenSSL $ do
   historyFile <- getXdgDirectory XdgState ("reprise" </> "history")
   savedHistory <-
     readHistoryFile historyFile `catchSync` \e -> do
-      logLine $ "The history of the prompts can't be read: " <> T.pack (displayException e)
+      logLine $ "The history of the prompts can't be read: " <> exceptionText e
       pure []
   requests <- newTQueueIO
   password <- newTVarIO settings.password
@@ -165,7 +164,7 @@ main = withOpenSSL $ do
             }
       restarted :: IO () -> IO ()
       restarted worker = forever $ do
-        worker `catchSync` \e -> logLine $ "A worker failed: " <> T.pack (displayException e)
+        worker `catchSync` \e -> logLine $ "A worker failed: " <> exceptionText e
         threadDelay retryInterval
   installWidthTable
   withAsync
@@ -188,7 +187,7 @@ main = withOpenSSL $ do
           , lyricsInBackground = lyricsInBackground
           , saveToHistoryFile = \line ->
               saveToHistoryFile historyFile line `catchSync` \e ->
-                logLine $ "The history of the prompts can't be saved: " <> T.pack (displayException e)
+                logLine $ "The history of the prompts can't be saved: " <> exceptionText e
           }
         (V.mkVty V.defaultConfig)
         (initialState config) {history = savedHistory}

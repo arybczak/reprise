@@ -19,7 +19,6 @@ module Reprise.Screen.Browser
   , browserDirectory
   ) where
 
-import Control.Exception
 import Control.Monad
 import Data.Foldable
 import Data.List qualified as L
@@ -40,6 +39,7 @@ import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Exception
 import Reprise.Find
 import Reprise.Format
 import Reprise.Groups
@@ -252,7 +252,7 @@ browserFailed token err =
       (AckError ack, Just up) | ack.code == AckNoExist -> list up AtTop
       _ -> do
         modifyS $ #browser % #listing .~ Nothing
-        showError . T.pack $ displayException err
+        showError $ exceptionText err
     _ -> keepScreen
 
 -- | Show the entries of the latest listing. The reply to a listing that a
@@ -457,7 +457,7 @@ browserDirectory s = case s.browser.location of
 -- | Sort the entries by the next sort mode, with the cursor on the same item.
 nextSortMode :: App es => Eff es ()
 nextSortMode = do
-  modifyS $ #toggles % #browserSort %~ \by -> if by == maxBound then minBound else succ by
+  modifyS $ #toggles % #browserSort %~ cycleNext
   env <- getAppEnv
   s <- getS
   forM_ s.browser.location $ \location -> do

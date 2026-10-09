@@ -107,7 +107,7 @@ updateVisualizer = do
 
 nextVisualization :: App es => Eff es ()
 nextVisualization = do
-  modifyS $ #toggles % #visualization %~ \v -> if v == maxBound then minBound else succ v
+  modifyS $ #toggles % #visualization %~ cycleNext
   v <- getsS (.toggles.visualization)
   showMessage $ "Visualization: " <> visualizationName v
 

@@ -49,7 +49,6 @@ import Data.ByteString qualified as BS
 import Data.Char hiding (Space)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
-import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Void
 import Optics.Core hiding (view)
@@ -952,12 +951,3 @@ defaultKeymaps =
     bindings :: [(KeySpec, Binding)] -> M.Map KeySpec Binding
     bindings = M.fromListWithKey $ \k _ _ ->
       error $ "the default keymaps bind " <> T.unpack (renderKeySpec k) <> " twice"
-
-    plain :: Key -> KeySpec
-    plain = KeySpec S.empty
-
-    char :: Char -> KeySpec
-    char = plain . CharKey
-
-    shift :: Key -> KeySpec
-    shift = KeySpec (S.singleton Shift)

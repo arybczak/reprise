@@ -49,6 +49,10 @@ module Reprise.State
   , Content (..)
   , screenInfo
 
+    -- * Text
+  , countSongs
+  , countItems
+
     -- * Queries
   , cursorVisible
   , cursorHideDelay
@@ -613,7 +617,7 @@ screenInfo = \case
     noSongs _ _ = Nothing
 
     named :: ScreenName -> AppEnv -> AppState -> (T.Text, T.Text)
-    named screen _ _ = (T.toTitle (T.replace "_" " " (screenName screen)), "")
+    named screen _ _ = (screenLabel screen, "")
 
     queueTitle :: AppEnv -> AppState -> (T.Text, T.Text)
     queueTitle env s =
@@ -622,11 +626,10 @@ screenInfo = \case
           remaining = case currentPosition s.mirror of
             Just _ -> s.mirror.lengthFromCurrent - fromMaybe 0 (displayedElapsed s)
             Nothing -> total
-          count = T.pack (show (Seq.length q)) <> if Seq.length q == 1 then " song" else " songs"
           times =
             [formatTotal total | total > 0]
               <> [formatTotal remaining <> " left" | env.config.queue.showRemainingTime, remaining > 0]
-      in ("Queue ", "(" <> T.intercalate ", " (count : times) <> ")")
+      in ("Queue ", "(" <> T.intercalate ", " (countSongs (Seq.length q) : times) <> ")")
       where
         -- A short total, e.g. @1h 23m@.
         formatTotal :: Seconds -> T.Text
@@ -640,6 +643,15 @@ screenInfo = \case
           in case significant of
                [] -> "0s"
                _ -> T.unwords [T.pack (show n) <> unit | (n, unit) <- significant, n > 0]
+
+----------------------------------------
+-- Text
+
+countSongs :: Int -> T.Text
+countSongs n = T.pack (show n) <> if n == 1 then " song" else " songs"
+
+countItems :: Int -> T.Text
+countItems n = T.pack (show n) <> if n == 1 then " item" else " items"
 
 ----------------------------------------
 -- Queries

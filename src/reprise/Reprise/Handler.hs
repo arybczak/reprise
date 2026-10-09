@@ -7,7 +7,6 @@ module Reprise.Handler
   , runAction
   ) where
 
-import Control.Exception
 import Control.Monad
 import Data.Foldable
 import Data.Functor
@@ -25,6 +24,7 @@ import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Exception
 import Reprise.Find
 import Reprise.Format
 import Reprise.Groups
@@ -125,11 +125,7 @@ handleEvent = \case
   BrowserListed token entries -> browserListed token entries
   BrowserFailed token err -> browserFailed token err
   ReplayGainFetched mode -> do
-    let nextMode = case mode of
-          ReplayGainOff -> ReplayGainTrack
-          ReplayGainTrack -> ReplayGainAlbum
-          ReplayGainAlbum -> ReplayGainAuto
-          ReplayGainAuto -> ReplayGainOff
+    let nextMode = cycleNext mode
     mutate $ setReplayGainMode nextMode
     showMessage $
       "Replay gain: " <> case nextMode of
@@ -138,14 +134,14 @@ handleEvent = \case
         ReplayGainAlbum -> "album"
         ReplayGainAuto -> "auto"
   MpdDone -> keepScreen
-  MpdFailed _ err -> showError $ T.pack (displayException err)
+  MpdFailed _ err -> showError $ exceptionText err
   -- MPD's requests wait for the answer, so the prompt replaces any other.
   PasswordNeeded err -> do
     let reason = case err of
           AckError ack
             | ack.code == AckPassword -> "Wrong password"
             | otherwise -> "MPD refused " <> ack.command
-          _ -> T.pack (displayException err)
+          _ -> exceptionText err
     modifyS $
       (#pendingKeys .~ Nothing)
         . openLine (reason <> ". Password: ") emptyLineEdit ForPassword
@@ -301,17 +297,11 @@ handleKey k = do
 
 isCancel :: KeySpec -> Bool
 isCancel k = k `elem` [plain Escape, ctrl 'g']
-  where
-    plain :: Key -> KeySpec
-    plain = KeySpec mempty
-
-    ctrl :: Char -> KeySpec
-    ctrl c = KeySpec (S.singleton Ctrl) (CharKey c)
 
 handlePromptKey :: App es => Prompt -> KeySpec -> Eff es ()
 handlePromptKey p k = case p.input of
   Choice options
-    | Just o <- find (\o -> k == KeySpec mempty (CharKey o.letter)) options -> do
+    | Just o <- find (\o -> k == char o.letter) options -> do
         close
         maybe (showMessage "Cancelled") handleEvent o.event
     | isCancel k -> do
@@ -319,7 +309,7 @@ handlePromptKey p k = case p.input of
         showMessage "Cancelled"
     | otherwise -> pure ()
   Line edit purpose recall
-    | k == KeySpec mempty Enter -> do
+    | k == plain Enter -> do
         close
         let text = lineEditText edit
         when (purpose /= ForPassword) $ do
@@ -349,21 +339,18 @@ handlePromptKey p k = case p.input of
       :: [T.Text] -> LineEdit -> LinePurpose -> Maybe Recall -> Maybe (LineEdit, Maybe Recall)
     lineKey history edit purpose recall
       | purpose == ForPassword = edited
-      | k `elem` [KeySpec mempty ArrowUp, ctrl 'p'] =
+      | k `elem` [plain ArrowUp, ctrl 'p'] =
           fmap Just <$> recallOlder history edit recall
-      | k `elem` [KeySpec mempty ArrowDown, ctrl 'n'] =
+      | k `elem` [plain ArrowDown, ctrl 'n'] =
           recallNewer history <$> recall
-      | k == KeySpec mempty PageUp = fmap Just <$> recallOldest history edit recall
+      | k == plain PageUp = fmap Just <$> recallOldest history edit recall
       -- As bash's end-of-history, back to the typed line.
-      | k == KeySpec mempty PageDown = (\r -> (r.typed, Nothing)) <$> recall
+      | k == plain PageDown = (\r -> (r.typed, Nothing)) <$> recall
       | otherwise = edited
       where
         -- An edit makes the recalled line the typed one.
         edited :: Maybe (LineEdit, Maybe Recall)
         edited = (,Nothing) <$> editLine k edit
-
-    ctrl :: Char -> KeySpec
-    ctrl c = KeySpec (S.singleton Ctrl) (CharKey c)
 
 -- | Run what a line prompt asked for. An empty line of @:@ does nothing.
 answer :: App es => LinePurpose -> T.Text -> Eff es ()

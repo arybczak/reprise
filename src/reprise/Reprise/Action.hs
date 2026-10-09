@@ -19,6 +19,8 @@ module Reprise.Action
     -- * Screens
   , ScreenName (..)
   , screenName
+  , screenWords
+  , screenLabel
   , screenNames
   , numberedScreens
 
@@ -179,6 +181,14 @@ screenName = \case
   LyricsScreen -> "lyrics"
   SongInfoScreen -> "song_info"
   HelpScreen -> "help"
+
+-- | A screen's name in words, e.g. @song info@.
+screenWords :: ScreenName -> T.Text
+screenWords = T.replace "_" " " . screenName
+
+-- | A screen's name as a heading, e.g. @Song Info@.
+screenLabel :: ScreenName -> T.Text
+screenLabel = T.toTitle . screenWords
 
 screenNames :: [ScreenName]
 screenNames = [minBound .. maxBound]
@@ -593,7 +603,7 @@ describeAction = \case
     FindPrevious -> "find previous"
   Show LyricsScreen -> "show the lyrics of the song under the cursor"
   Show SongInfoScreen -> "show the info of the song under the cursor"
-  Show s -> "show " <> T.replace "_" " " (screenName s)
+  Show s -> "show " <> screenWords s
   NextScreen _ -> "next screen"
   PreviousScreen _ -> "previous screen"
   CommandPrompt t

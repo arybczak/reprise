@@ -6,6 +6,10 @@ module Reprise.Keys
   , Modifier (..)
   , parseKeySpec
   , renderKeySpec
+  , plain
+  , char
+  , ctrl
+  , shift
 
     -- * Conversion from vty
   , fromVtyKey
@@ -48,6 +52,22 @@ data Key
 
 data Modifier = Ctrl | Alt | Shift
   deriving stock (Eq, Ord, Show, Enum, Bounded)
+
+-- | A key without modifiers.
+plain :: Key -> KeySpec
+plain = KeySpec S.empty
+
+-- | A character without modifiers.
+char :: Char -> KeySpec
+char = plain . CharKey
+
+-- | A character with ctrl.
+ctrl :: Char -> KeySpec
+ctrl = KeySpec (S.singleton Ctrl) . CharKey
+
+-- | A key with shift. A character has its shift in itself, e.g. @A@.
+shift :: Key -> KeySpec
+shift = KeySpec (S.singleton Shift)
 
 -- | Parse a key spec: modifiers, each followed by @-@, then a key name or a
 -- character.

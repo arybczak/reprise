@@ -33,7 +33,6 @@ module Reprise.Keymap
 import Control.Monad
 import Data.Map.Strict qualified as M
 import Data.Maybe
-import Data.Set qualified as S
 import Data.Text qualified as T
 import Yamlet hiding (lookupKey)
 
@@ -69,7 +68,7 @@ emptyKeymap = Keymap Nothing M.empty
 -- prefix. No keymap can bind it, so that no keymap leaves reprise without a
 -- way out.
 alwaysQuit :: KeySpec
-alwaysQuit = KeySpec (S.singleton Ctrl) (CharKey 'q')
+alwaysQuit = ctrl 'q'
 
 screenKeymap :: ScreenName -> Keymaps -> Keymap
 screenKeymap s keymaps = M.findWithDefault emptyKeymap s keymaps.screens
@@ -237,7 +236,7 @@ helpLines keymaps =
   where
     screens :: [(T.Text, Keymap)]
     screens =
-      [ (T.toTitle (T.replace "_" " " (screenName s)), screenKeymap s keymaps)
+      [ (screenLabel s, screenKeymap s keymaps)
       | s <- screenNames
       ]
 

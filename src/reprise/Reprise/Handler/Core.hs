@@ -18,8 +18,6 @@ module Reprise.Handler.Core
   , showMessage
   , showError
   , notAvailable
-  , countSongs
-  , countItems
   , capitalize
   , screenText
   , onOff
@@ -27,6 +25,7 @@ module Reprise.Handler.Core
     -- * Toggles
   , toggleSetting
   , toggleDisplay
+  , cycleNext
 
     -- * Prompts
   , openLine
@@ -123,19 +122,13 @@ message isError text = do
     messageTimeout :: Double
     messageTimeout = 5
 
-countSongs :: Int -> T.Text
-countSongs n = T.pack (show n) <> if n == 1 then " song" else " songs"
-
-countItems :: Int -> T.Text
-countItems n = T.pack (show n) <> if n == 1 then " item" else " items"
-
 capitalize :: T.Text -> T.Text
 capitalize t = case T.uncons t of
   Just (c, rest) -> T.cons (toUpper c) rest
   Nothing -> t
 
 screenText :: ScreenName -> T.Text
-screenText screen = T.replace "_" " " (screenName screen) <> " screen"
+screenText screen = screenWords screen <> " screen"
 
 onOff :: Bool -> T.Text
 onOff b = if b then "on" else "off"
@@ -160,6 +153,10 @@ toggleDisplay field = do
   modifyWithEnv (modifyView id)
   d <- getsS (view (#toggles % field))
   showMessage $ "Display: " <> displayName d
+
+-- | The next value, after the last the first.
+cycleNext :: (Eq a, Bounded a, Enum a) => a -> a
+cycleNext a = if a == maxBound then minBound else succ a
 
 ----------------------------------------
 -- Prompts

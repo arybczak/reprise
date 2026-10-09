@@ -199,7 +199,7 @@ statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
   (Just (Prompt question (Line edit purpose _)), _, _) ->
     let p = promptLine s question edit purpose
     in line env s cfg.style [Span Nothing question, Span Nothing p.shown] [Span Nothing p.note]
-  (_, Just pending, _) -> plain (T.unwords (map renderKeySpec pending.keys) <> " -")
+  (_, Just pending, _) -> textLine (T.unwords (map renderKeySpec pending.keys) <> " -")
   (_, _, Just m) ->
     line env s cfg.style [Span (if m.isError then Just cfg.errorStyle else Nothing) m.text] []
   _ -> playerStatus env s
@@ -207,8 +207,8 @@ statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
     cfg :: StatusBarConfig
     cfg = env.config.statusBar
 
-    plain :: T.Text -> V.Image
-    plain t = line env s cfg.style [Span Nothing t] []
+    textLine :: T.Text -> V.Image
+    textLine t = line env s cfg.style [Span Nothing t] []
 
     -- The names of the options, with the letter that picks each in bold.
     choices :: [ChoiceOption] -> [Span Style]

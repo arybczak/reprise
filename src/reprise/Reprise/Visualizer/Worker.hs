@@ -18,12 +18,12 @@ import Control.Monad
 import Data.ByteString qualified as BS
 import Data.IORef.Strict qualified as S
 import Data.Maybe
-import Data.Text qualified as T
 import GHC.Clock
 import System.IO
 
 import Reprise.Config
 import Reprise.Event
+import Reprise.Exception
 import Reprise.Visualizer.Samples
 import Reprise.Visualizer.Spectrum
 import Reprise.Visualizer.Wave
@@ -52,7 +52,7 @@ visualizerWorker src = do
     try @IOException (openBinaryFile src.path ReadMode) >>= \case
       Left err -> do
         void . src.emit . VisualizerFailed $
-          "The visualizer can't read its data source: " <> T.pack (displayException err)
+          "The visualizer can't read its data source: " <> exceptionText err
         atomically $ readTVar src.reading >>= check . isNothing
       Right h -> (`finally` hClose h) $ do
         void (readAvailable h)

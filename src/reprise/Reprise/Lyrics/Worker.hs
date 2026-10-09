@@ -17,6 +17,7 @@ import System.FilePath
 import System.IO.Error
 
 import Reprise.Event
+import Reprise.Exception
 import Reprise.File
 import Reprise.Lyrics
 import Reprise.Mpd.Protocol.Types
@@ -102,7 +103,7 @@ lyricsWorker src = go Nothing Nothing
             removeFile (src.directory </> timedLyricsFileName song) `catch` \err ->
               unless (isDoesNotExistError err) (throwIO err)
       either
-        (src.logLine . ("The lyrics can't be stored: " <>) . T.pack . displayException)
+        (src.logLine . ("The lyrics can't be stored: " <>) . exceptionText)
         pure
         stored
 
@@ -121,7 +122,7 @@ storedLyrics dir song =
       readText (lyricsFileName song) <&> \case
         Right (Just text) -> LyricsFound Stored (plainLyrics text)
         Right Nothing -> LyricsMissing []
-        Left err -> LyricsFailed $ "The lyrics can't be read: " <> T.pack (displayException err)
+        Left err -> LyricsFailed $ "The lyrics can't be read: " <> exceptionText err
   where
     -- The text of a file, or Nothing without the file.
     readText :: FilePath -> IO (Either IOException (Maybe T.Text))

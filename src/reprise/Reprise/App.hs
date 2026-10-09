@@ -166,7 +166,7 @@ data Next
 runEditor :: T.Text -> FilePath -> IO (Maybe T.Text)
 runEditor command file =
   (failure <$> run) `catchSync` \err ->
-    pure . Just $ "The editor can't run: " <> T.pack (displayException err)
+    pure . Just $ "The editor can't run: " <> exceptionText err
   where
     failure :: ExitCode -> Maybe T.Text
     failure = \case
