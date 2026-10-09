@@ -5,6 +5,7 @@ module Reprise.Mpd.Address
   ) where
 
 import Control.Monad
+import Data.List.NonEmpty qualified as NE
 import Data.Maybe
 import Data.Text qualified as T
 import GHC.Generics
@@ -34,27 +35,29 @@ data Sources = Sources
 defaultPort :: Port
 defaultPort = Port 6600
 
--- | The connection settings: the host from the command line, the config or
--- @MPD_HOST@, else the first usual socket that exists, else @localhost@. A
--- TCP host takes the port from the same sources, whichever gave the host,
--- else 6600. Fails if the port from @MPD_PORT@ isn't one.
+-- | The connection settings to try in order: the host from the command line,
+-- the config or @MPD_HOST@, else the usual sockets that exist and then
+-- @localhost@, as a socket can stay after MPD stopped listening on it. A TCP
+-- host takes the port from the same sources, whichever gave the host, else
+-- 6600. Fails if the port from @MPD_PORT@ isn't one.
 --
 -- A password in the host of the command line comes before the one of the
 -- config, which comes before one in the host of the config or @MPD_HOST@.
-resolveSettings :: MpdConfig -> Sources -> Either T.Text Settings
-resolveSettings config sources = do
-  a <- address
-  pure
-    Settings
-      { address = a
-      , password =
-          listToMaybe . catMaybes $
-            if isJust sources.cliHost
-              then [hostPassword, config.password]
-              else [config.password, hostPassword]
-      , timeout = let Timeout (Duration t) = config.timeout in Just t
-      }
+resolveSettings :: MpdConfig -> Sources -> Either T.Text (NE.NonEmpty Settings)
+resolveSettings config sources = fmap settings <$> addresses
   where
+    settings :: Address -> Settings
+    settings a =
+      Settings
+        { address = a
+        , password =
+            listToMaybe . catMaybes $
+              if isJust sources.cliHost
+                then [hostPassword, config.password]
+                else [config.password, hostPassword]
+        , timeout = let Timeout (Duration t) = config.timeout in Just t
+        }
+
     (hostPassword, host) = case listToMaybe (catMaybes [sources.cliHost, config.host, envHost]) of
       Just h -> case T.breakOn "@" h of
         -- An abstract socket starts with @, so a password needs text before
@@ -79,17 +82,16 @@ resolveSettings config sources = do
     envPort :: Maybe T.Text
     envPort = mfilter (not . T.null) sources.envPort
 
-    address :: Either T.Text Address
-    address = case host of
+    addresses :: Either T.Text (NE.NonEmpty Address)
+    addresses = case host of
       Just h
-        | "/" `T.isPrefixOf` h -> Right $ UnixAddress (T.unpack h)
+        | "/" `T.isPrefixOf` h -> Right . pure $ UnixAddress (T.unpack h)
         | Just path <- T.stripPrefix "~/" h ->
-            Right $ UnixAddress (sources.home </> T.unpack path)
-        | Just name <- T.stripPrefix "@" h -> Right $ UnixAddress ('\0' : T.unpack name)
-        | otherwise -> tcp (T.unpack h)
-      Nothing -> case sources.existingSockets of
-        socket : _ -> Right $ UnixAddress socket
-        [] -> tcp "localhost"
+            Right . pure $ UnixAddress (sources.home </> T.unpack path)
+        | Just name <- T.stripPrefix "@" h -> Right . pure $ UnixAddress ('\0' : T.unpack name)
+        | otherwise -> pure <$> tcp (T.unpack h)
+      Nothing ->
+        NE.prependList (map UnixAddress sources.existingSockets) . pure <$> tcp "localhost"
 
     tcp :: String -> Either T.Text Address
     tcp h = (\(Port p) -> TcpAddress h p) <$> port

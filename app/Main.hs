@@ -12,6 +12,7 @@ import Control.Monad
 import Data.Foldable
 import Data.Functor
 import Data.List qualified as L
+import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Time
@@ -118,7 +119,7 @@ main = withOpenSSL $ do
       logLine $ "The history of the prompts can't be read: " <> exceptionText e
       pure []
   requests <- newTQueueIO
-  password <- newTVarIO settings.password
+  password <- newTVarIO (NE.head settings).password
   commandConnectionFailed <- newTVarIO False
   events <- newTBQueueIO eventQueueSize
   visualizing <- newTVarIO Nothing

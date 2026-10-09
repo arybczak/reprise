@@ -1815,6 +1815,11 @@ order:
    `/run/mpd/socket`;
 3. `localhost`.
 
+Of 2 and 3, each connection takes the first that MPD listens on, as
+libmpdclient does. A socket file stays after MPD stopped, or moved to TCP,
+and would hide `localhost` for good. The first that MPD answers on is the
+one, also when it refuses the password, so that the user is asked for it.
+
 The port is found on its own: `--port`, the config,
 `$MPD_PORT`, then 6600. So `$MPD_PORT` applies to a host from the config.
 

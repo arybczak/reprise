@@ -16,7 +16,9 @@ module Reprise.Effect.Mpd
 
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import Control.Exception qualified as E
 import Data.IORef.Strict qualified as S
+import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
 import Effectful
 import Effectful.Dispatch.Dynamic
@@ -38,13 +40,17 @@ type instance DispatchOf Mpd = Dynamic
 -- | Run the effect with one connection at a time. A command without a
 -- connection opens one first, with the password of the last connection
 -- that opened, or of the settings before the first.
-runMpd :: IOE :> es => Settings -> Eff (Mpd : es) a -> Eff es a
-runMpd settings action = do
+--
+-- A connection goes to the first of the settings whose address MPD listens
+-- on. The first that MPD answers on is the one, also when it refuses the
+-- password, so that the user is asked for it.
+runMpd :: IOE :> es => NE.NonEmpty Settings -> Eff (Mpd : es) a -> Eff es a
+runMpd candidates action = do
   ref <- liftIO $ S.newIORef Nothing
-  passwordRef <- liftIO $ S.newIORef settings.password
+  passwordRef <- liftIO $ S.newIORef (NE.head candidates).password
   let disconnect = S.readIORef ref >>= mapM_ close >> S.writeIORef ref Nothing
       connected p = do
-        conn <- connect settings {password = p}
+        conn <- connectFirst (fmap (\s -> s {password = p}) candidates)
         S.writeIORef ref (Just conn)
         S.writeIORef passwordRef p
         pure conn
@@ -60,6 +66,14 @@ runMpd settings action = do
             either (const Nothing) Just <$> race (atomically interrupted) (idle conn [])
         Disconnect -> liftIO disconnect
   handled `finally` liftIO disconnect
+  where
+    connectFirst :: NE.NonEmpty Settings -> IO Connection
+    connectFirst (s NE.:| rest) = case NE.nonEmpty rest of
+      Nothing -> connect s
+      Just others ->
+        connect s `E.catch` \case
+          ConnectionError (ConnectFailed _) -> connectFirst others
+          err -> E.throwIO err
 
 -- | Open a new connection, with a password or without one, closing the old
 -- one. If it opens, the connections that open by themselves for a command

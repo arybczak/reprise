@@ -1,13 +1,21 @@
 module AddressTests (addressTests) where
 
+import Control.Exception
+import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
+import Effectful
+import Network.Socket qualified as N
 import Optics.Core
+import System.FilePath
+import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import Reprise.Config
+import Reprise.Effect.Mpd
 import Reprise.Mpd.Address
 import Reprise.Mpd.Protocol.Connection
+import Reprise.Mpd.TestServer
 
 addressTests :: TestTree
 addressTests =
@@ -25,6 +33,9 @@ addressTests =
     , testCase "localhost" test_localhost
     , testCase "a port is from 1 to 65535" test_ports
     , testCase "MPD_PORT that isn't a port" test_badEnvPort
+    , testCase "the addresses to try" test_candidates
+    , withResource (startTestServer []) stopTestServer $ \getServer ->
+        testCase "a socket that nothing listens on" (test_deadSocket getServer)
     ]
 
 test_commandLine :: Assertion
@@ -133,7 +144,41 @@ test_badEnvPort = do
     (address (noSources & #envHost ?~ "/run/mpd/socket" & #envPort ?~ "70000"))
   where
     address :: Sources -> Either T.Text Address
-    address = fmap (.address) . resolveSettings defaultConfig.mpd
+    address = fmap ((.address) . NE.head) . resolveSettings defaultConfig.mpd
+
+-- | Without a host, the usual sockets that exist come first, then
+-- localhost, as a socket can stay after MPD stopped listening on it. A host
+-- that the user names is the only one.
+test_candidates :: Assertion
+test_candidates = do
+  let addresses sources =
+        either (assertFailure . T.unpack) (pure . map (.address) . NE.toList) $
+          resolveSettings defaultConfig.mpd sources
+  assertEqual
+    "the usual ones"
+    [ UnixAddress "/run/user/1000/mpd/socket"
+    , UnixAddress "/run/mpd/socket"
+    , TcpAddress "localhost" 6600
+    ]
+    =<< addresses
+      (noSources & #existingSockets .~ ["/run/user/1000/mpd/socket", "/run/mpd/socket"])
+  assertEqual "a host" [TcpAddress "music" 6600]
+    =<< addresses (noSources & #envHost ?~ "music" & #existingSockets .~ ["/run/mpd/socket"])
+
+-- | A socket that nothing listens on gives way to the next address.
+test_deadSocket :: IO TestServer -> Assertion
+test_deadSocket getServer = withSystemTempDirectory "mpd" $ \dir -> do
+  server <- getServer
+  let dead = dir </> "socket"
+      settings a = Settings {address = a, password = Nothing, timeout = Just 10}
+  -- A socket that was bound and closed, as MPD leaves it when it stops.
+  bracket (N.socket N.AF_UNIX N.Stream N.defaultProtocol) N.close $ \sock ->
+    N.bind sock (N.SockAddrUnix dead)
+  version <-
+    runEff
+      . runMpd (settings (UnixAddress dead) NE.:| [settings (UnixAddress server.socketPath)])
+      $ connectMpd Nothing
+  assertBool "connected" (version >= minimumVersion)
 
 ----------------------------------------
 -- Helpers
@@ -141,5 +186,6 @@ test_badEnvPort = do
 noSources :: Sources
 noSources = Sources Nothing Nothing Nothing Nothing [] "/home/user"
 
+-- | The settings that are tried first.
 settingsOf :: MpdConfig -> Sources -> IO Settings
-settingsOf config = either (assertFailure . T.unpack) pure . resolveSettings config
+settingsOf config = either (assertFailure . T.unpack) (pure . NE.head) . resolveSettings config
