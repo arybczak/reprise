@@ -97,7 +97,7 @@ test_formats = do
   assertEqual "DSD as it is" [InfoField "Format" (Just "dsd64:2")] (audio "dsd64:2")
 
 test_rows :: Assertion
-test_rows =
+test_rows = do
   assertEqual
     "aligned, wrapped"
     [ ("Title:  ", Just "a b")
@@ -106,6 +106,10 @@ test_rows =
     , ("Artist: ", Nothing)
     ]
     (infoRows 12 [InfoField "Title" (Just "a b c"), InfoBlank, InfoField "Artist" Nothing])
+  assertEqual
+    "a tab as a space"
+    [("Comment: ", Just "a b")]
+    (infoRows 20 [InfoField "Comment" (Just "a\tb")])
 
 test_show :: Assertion
 test_show = do

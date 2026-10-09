@@ -13,6 +13,7 @@ module Reprise.Width
   , ellipsis
   , wrapText
   , scrollText
+  , sanitize
 
     -- * The width table
   , installWidthTable
@@ -79,6 +80,11 @@ wrapText width t
       word : rest
         | textWidth line + 1 + textWidth word <= width -> fill (line <> " " <> word) rest
       rest -> (line, rest)
+
+-- | Text with a space for each control character, e.g. a tab, which would
+-- break the terminal's layout, and which has no width to measure.
+sanitize :: T.Text -> T.Text
+sanitize = T.map $ \c -> if c < ' ' then ' ' else c
 
 -- | Text that doesn't fit in the width, scrolled by a character for each
 -- step, e.g. each second. It goes round with a separator.

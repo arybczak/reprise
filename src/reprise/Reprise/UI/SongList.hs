@@ -34,6 +34,7 @@ import Reprise.LineEdit
 import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Style
+import Reprise.Width
 
 data RowContext = RowContext
   { colorMode :: ColorMode
@@ -189,10 +190,6 @@ spansImage attr base overlay = V.horizCat . map image
   where
     image :: Span Style -> V.Image
     image s = V.text' (attr (base <> fromMaybe mempty s.style <> overlay)) (sanitize s.text)
-
--- | Control characters would break the terminal's layout.
-sanitize :: T.Text -> T.Text
-sanitize = T.map $ \c -> if c < ' ' then ' ' else c
 
 -- | The widths of the columns for a row width. Fixed columns get their
 -- width, relative ones share the rest by their percentages, and a space

@@ -129,7 +129,9 @@ infoRows width ls = concatMap row ls
       InfoBlank -> [("", Just "")]
       InfoField label Nothing -> [(cell label, Nothing)]
       InfoField label (Just value) ->
-        zip (cell label : repeat (cell "")) (map Just (wrapText (width - labelWidth) value))
+        zip
+          (cell label : repeat (cell ""))
+          (map Just (wrapText (width - labelWidth) (sanitize value)))
 
     -- A label with its colon, padded to the column of the values.
     cell :: T.Text -> T.Text

@@ -689,7 +689,7 @@ lyricsRows width st = case (st.song, st.status) of
     LyricsFound _ lyrics -> case lyrics.timed of
       Just timed ->
         concat
-          [ map (Just i,) (wrapText width text)
+          [ map (Just i,) (wrapText width (sanitize text))
           | (i, (_, text)) <- zip [0 ..] timed.entries
           ]
       Nothing -> untimed (T.lines lyrics.plain)
@@ -706,7 +706,7 @@ lyricsRows width st = case (st.song, st.status) of
     LyricsFailed reason -> untimed [reason]
   where
     untimed :: [T.Text] -> [(Maybe Int, T.Text)]
-    untimed = concatMap (map (Nothing,) . wrapText width)
+    untimed = concatMap (map (Nothing,) . wrapText width . sanitize)
 
     -- E.g. @A, B or C@.
     alternatives :: [T.Text] -> T.Text

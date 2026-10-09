@@ -66,6 +66,7 @@ lyricsTests =
     , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
     , testCase "the lyrics follow the song that plays" test_followPlaying
     , testCase "the next song's lyrics show from their top" test_followFromTop
+    , testCase "a control character is a space" test_controlCharacters
     , testCase "the title scrolls from its start for the next song" test_followTitle
     , testCase "space turns following the song on and off" test_toggleFollowing
     , testCase "e edits the lyrics" test_edit
@@ -550,6 +551,14 @@ test_followFromTop = do
   where
     numbered :: Int -> T.Text
     numbered n = T.unlines ["line " <> T.pack (show i) | i <- [1 .. n]]
+
+-- | A tab doesn't move the rest of the line out of the screen.
+test_controlCharacters :: Assertion
+test_controlCharacters = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  token <- requestToken r
+  shown <- runEvents 0 [LyricsLoaded token (stored "a\tb\nc")] r.state
+  assertEqual "the lines" ["a b", "c"] (take 2 (mainLines shown.state))
 
 test_followTitle :: Assertion
 test_followTitle = do
