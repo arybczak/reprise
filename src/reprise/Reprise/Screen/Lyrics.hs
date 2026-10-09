@@ -108,7 +108,7 @@ scrollLyrics t = do
 
 -- | Show the lyrics of the song under the cursor, from the top.
 showLyrics :: App es => Eff es ()
-showLyrics = showSongScreen LyricsScreen $ \song -> request song False
+showLyrics = showSongScreen LyricsScreen $ \song -> True <$ request song False
 
 -- | Fetch the lyrics of the song on the screen again, and store them anew.
 refetchLyrics :: App es => Eff es ()

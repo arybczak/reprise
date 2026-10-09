@@ -385,6 +385,7 @@ test_jumpWithStream = do
   r <- press ["g", "b"] =<< testState (80, 12) (statusOf Stopped Nothing 1) [stream]
   assertEqual "no listing" [] r.requests
   assertEqual "the error" (Just True) ((.isError) <$> r.state.message)
+  assertEqual "the queue stays" QueueScreen (focusedView r.state).screen
 
 -- | Nothing plays, and the title scrolls all the same.
 test_longPath :: Assertion

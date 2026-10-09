@@ -124,7 +124,7 @@ browserVerb = \case
     Just $
       getsS (currentSong . (.mirror)) >>= \case
         Nothing -> showMessage "No song is playing"
-        Just song -> locateSong song
+        Just song -> void $ locateSong song
   Activate -> Just activateItem
   Parent -> Just leave
   Save -> Just $ askSaveName =<< getsS browserToSave
@@ -208,12 +208,15 @@ goUp location =
     InPlaylist path -> PlaylistKey path
 
 -- | List the directory of a song, with the cursor on the song, as ncmpcpp's
--- @jump_to_browser@ does. A stream isn't in the database.
-locateSong :: App es => Song -> Eff es ()
+-- @jump_to_browser@ does. A stream isn't in the database, and fails.
+locateSong :: App es => Song -> Eff es Bool
 locateSong song
-  | isStream song = showError "The song isn't in MPD's database"
-  | otherwise =
+  | isStream song = do
+      showError "The song isn't in MPD's database"
+      pure False
+  | otherwise = do
       list (InDirectory (directoryOf song.file)) (JumpTo (SongKey song.file song.range))
+      pure True
 
 -- | The directory that a directory or a playlist is in.
 parentOf :: Location -> Maybe Location

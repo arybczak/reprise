@@ -409,16 +409,16 @@ scrollLines t = do
     scroll delta = modifyWithEnv . modifyView $ #offset %~ (+ delta)
 
 -- | Show a screen of a song, e.g. its lyrics, for the song under the cursor,
--- from the top, after an action that opens it for the song.
-showSongScreen :: App es => ScreenName -> (Song -> Eff es ()) -> Eff es ()
+-- from the top, after an action that opens it for the song, if it can.
+showSongScreen :: App es => ScreenName -> (Song -> Eff es Bool) -> Eff es ()
 showSongScreen target open = do
   s <- getS
   let screen = (focusedView s).screen
   case (screenInfo screen).content of
     Songs _
       | Just song <- songUnderCursor s -> do
-          open song
-          modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen target
+          opened <- open song
+          when opened . modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen target
       | otherwise -> showMessage "There is no song under the cursor"
     _ -> screenHasNo screen "songs"
 
