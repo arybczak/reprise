@@ -16,6 +16,7 @@ addressTests =
     [ testCase "the command line first" test_commandLine
     , testCase "MPD_HOST with a password" test_envPassword
     , testCase "the order of the passwords" test_passwordOrder
+    , testCase "an empty variable is unset" test_emptyVariables
     , testCase "the port of another source than the host" test_portOfAnotherSource
     , testCase "a socket path" test_socketPath
     , testCase "an abstract socket" test_abstractSocket
@@ -60,6 +61,16 @@ test_portOfAnotherSource = do
       (defaultConfig.mpd & #host ?~ "music")
       (noSources & #envHost ?~ "other" & #envPort ?~ "6601")
   assertEqual "address" (TcpAddress "music" 6601) s.address
+
+test_emptyVariables :: Assertion
+test_emptyVariables = do
+  s <-
+    settingsOf
+      defaultConfig.mpd
+      (noSources & #envHost ?~ "" & #envPort ?~ "" & #existingSockets .~ ["/run/mpd/socket"])
+  assertEqual "the usual socket" (UnixAddress "/run/mpd/socket") s.address
+  tcp <- settingsOf defaultConfig.mpd (noSources & #envHost ?~ "music" & #envPort ?~ "")
+  assertEqual "the default port" (TcpAddress "music" 6600) tcp.address
 
 test_socketPath :: Assertion
 test_socketPath = do

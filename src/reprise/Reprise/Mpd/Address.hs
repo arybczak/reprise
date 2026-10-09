@@ -4,6 +4,7 @@ module Reprise.Mpd.Address
   , resolveSettings
   ) where
 
+import Control.Monad
 import Data.Maybe
 import Data.Text qualified as T
 import GHC.Generics
@@ -50,7 +51,7 @@ resolveSettings config sources = do
       , timeout = let Timeout (Duration t) = config.timeout in Just t
       }
   where
-    (hostPassword, host) = case listToMaybe (catMaybes [sources.cliHost, config.host, sources.envHost]) of
+    (hostPassword, host) = case listToMaybe (catMaybes [sources.cliHost, config.host, envHost]) of
       Just h -> case T.breakOn "@" h of
         -- An abstract socket starts with @, so a password needs text before
         -- the first @.
@@ -62,9 +63,17 @@ resolveSettings config sources = do
     port :: Either T.Text Port
     port = case listToMaybe (catMaybes [sources.cliPort, config.port]) of
       Just p -> Right p
-      Nothing -> case sources.envPort of
+      Nothing -> case envPort of
         Just t -> either (Left . ("MPD_PORT: " <>)) Right (parsePort t)
         Nothing -> Right defaultPort
+
+    -- An empty variable is unset, as an empty @NO_COLOR@ or @EDITOR@ is, so
+    -- that @MPD_HOST= reprise@ leaves it out.
+    envHost :: Maybe T.Text
+    envHost = mfilter (not . T.null) sources.envHost
+
+    envPort :: Maybe T.Text
+    envPort = mfilter (not . T.null) sources.envPort
 
     address :: Either T.Text Address
     address = case host of

@@ -60,7 +60,7 @@ installs the `reprise` executable into cabal's `installdir`, by default
 the configuration and `$MPD_HOST`. Without one, it tries the sockets
 `$XDG_RUNTIME_DIR/mpd/socket` and `/run/mpd/socket`, then `localhost`. The
 port comes from the first of `--port`, `mpd.port` and `$MPD_PORT`, else it is
-6600. A host can be a socket path, and `password@host` gives the password
+6600. An empty variable counts as unset. A host can be a socket path, and `password@host` gives the password
 too. A password in `--host` comes before `mpd.password`, and that one before
 a password in another host.
 Without a password, or with a wrong one, reprise asks for it when MPD
