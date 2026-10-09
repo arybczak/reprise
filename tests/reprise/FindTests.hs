@@ -66,6 +66,16 @@ test_search = case compilePattern "a" of
       (search p Forward 0 (folded ["a", "b"]))
     assertEqual "nothing" (Right Nothing) (search p Forward 0 (folded ["b", "c"]))
     assertEqual "empty" (Right Nothing) (search p Backward 0 Seq.empty)
+    -- The list shrank since the search's start was the cursor.
+    assertEqual
+      "backward from past the end"
+      (Right (Just (Found 2 False)))
+      (search p Backward 6 items)
+    assertEqual
+      "forward from past the end"
+      (Right (Just (Found 0 True)))
+      (search p Forward 6 items)
+    assertEqual "backward in an empty list" (Right Nothing) (search p Backward 5 Seq.empty)
   where
     folded :: [T.Text] -> Seq.Seq Folded
     folded = Seq.fromList . map foldText

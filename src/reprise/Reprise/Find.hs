@@ -67,12 +67,16 @@ data Found = Found
   deriving stock (Eq, Show)
 
 -- | The first item after the given index that matches, in the direction,
--- going around the end of the list. The item at the index comes last.
+-- going around the end of the list. The item at the index comes last. An
+-- index past the end, e.g. of a list that shrank, is the end.
 search :: Pattern -> Direction -> Int -> Seq.Seq Folded -> Either T.Text (Maybe Found)
-search p direction start items = withMatcher p $ \match -> go match order
+search p direction from items = withMatcher p $ \match -> go match order
   where
     n :: Int
     n = Seq.length items
+
+    start :: Int
+    start = min from n
 
     order :: [(Int, Bool)]
     order = case direction of
