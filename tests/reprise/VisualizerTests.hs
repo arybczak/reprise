@@ -93,6 +93,7 @@ visualizerTests =
     , testCase "the spectrum stays until its window is silent" test_workerSilence
     , testCase "the worker sends the wave" test_workerWave
     , testCase "the worker reports a data source that it can't read" test_workerFails
+    , testCase "a data source that isn't a fifo" test_workerRegularFile
     , testCase "the screen says why it can't read the data source" test_failureShows
     , testCase "the debug line shows what happened to the frames" test_debugLine
     , testCase "the worker sends what happened to its frames" test_workerStats
@@ -713,6 +714,20 @@ test_workerFails = withSystemTempDirectory "visualizer" $ \dir -> do
     threadDelay 100000
     atomically $ writeTVar reading (Just Spectrum)
     failed "shown again"
+
+-- | A regular file, e.g. an audio file named by mistake, would be read whole
+-- on every frame.
+test_workerRegularFile :: Assertion
+test_workerRegularFile = withSystemTempDirectory "visualizer" $ \dir -> do
+  events <- newTQueueIO
+  reading <- newTVarIO (Just Ellipse)
+  let file = dir </> "song.flac"
+  BS.writeFile file (BS.replicate 1000 0)
+  bracket (forkIO . realWorker file $ source reading events) killThread $ \_ ->
+    expectWithin (atomically (readTQueue events)) >>= \case
+      VisualizerFailed reason ->
+        assertBool ("the reason: " <> T.unpack reason) ("not a fifo" `T.isInfixOf` reason)
+      e -> assertFailure $ "not a failure: " <> show e
 
 -- | The screen says why, until the next try.
 test_failureShows :: Assertion

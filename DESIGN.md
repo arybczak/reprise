@@ -322,7 +322,9 @@ ncmpcpp.
 - **A fifo that doesn't open shows why** in place of the picture, until
   the next try: when the visualizer shows again, or the visualization
   changes. There is no retry on a timer, which would go on forever with a
-  wrong path.
+  wrong path. A file that isn't a fifo, e.g. an audio file named by
+  mistake, doesn't open either, as a frame reads what the file holds, and
+  so it would read the whole file on every frame.
 - It has three visualizations, the spectrum, the ellipse and the wave. It
   starts with `visualizer.visualization`, the spectrum as in ncmpcpp, and
   `toggle visualization` goes to the next, on space in the visualizer as in

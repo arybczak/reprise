@@ -13,12 +13,16 @@ module Reprise.Effect.Fifo
   , closeFifo
   ) where
 
+import Control.Monad
 import Data.ByteString qualified as BS
 import Data.IORef.Strict qualified as S
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Exception
+import GHC.IO.Exception qualified as GHC
 import System.IO
+import System.IO.Error
+import System.Posix.Files
 
 data Fifo :: Effect where
   OpenFifo :: Fifo m ()
@@ -34,9 +38,13 @@ runFifo path action = do
   let close = S.readIORef ref >>= mapM_ hClose >> S.writeIORef ref Nothing
       handled = interpretWith_ action $ \case
         -- A fifo opens at once without a writer, as GHC opens it
-        -- non-blocking.
+        -- non-blocking. Another file, e.g. an audio file named by mistake,
+        -- would be read whole on every frame.
         OpenFifo -> liftIO $ do
           close
+          fifo <- isNamedPipe <$> getFileStatus path
+          unless fifo . ioError $
+            mkIOError GHC.InappropriateType "" Nothing (Just path) `ioeSetErrorString` "not a fifo"
           h <- openBinaryFile path ReadMode
           S.writeIORef ref (Just h)
         ReadFifo -> liftIO $ S.readIORef ref >>= maybe (pure BS.empty) readAvailable
