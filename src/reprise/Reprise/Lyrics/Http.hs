@@ -62,8 +62,8 @@ answeredWith :: T.Text -> Int -> T.Text
 answeredWith site status = site <> " answered with the status " <> T.pack (show status)
 
 -- | How long a site has to answer, in microseconds. LRCLIB answered 30
--- requests in 0.86 s at most on 2026-10-05. The worker serves one request
--- at a time, so a request that hangs holds up the next ones, and it gives
--- up after about ten times that.
+-- requests in 0.86 s at most on 2026-10-05. A request that hangs holds up
+-- the fetches in the background after it, so it gives up after about ten
+-- times that.
 requestTimeout :: Int
 requestTimeout = 10 * 1000000

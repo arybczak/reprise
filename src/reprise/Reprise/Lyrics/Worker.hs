@@ -5,11 +5,16 @@ module Reprise.Lyrics.Worker
   , lyricsWorker
   ) where
 
+import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
+import Data.Foldable
 import Data.Functor
+import Data.IORef.Strict qualified as S
+import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import System.Directory
@@ -37,44 +42,102 @@ data LyricsSource = LyricsSource
   , logLine :: T.Text -> IO ()
   }
 
+-- | A load of lyrics that runs in a thread of its own, so that a newer
+-- request of the screen doesn't wait for it.
+data Job = Job
+  { result :: Async LyricsResult
+  , song :: Song
+  , answers :: TVar (Maybe Int)
+  -- ^ The token of the request of the screen that the job answers, if any.
+  -- A job in the background answers one that asks for its song.
+  , fetcher :: TVar (Maybe T.Text)
+  -- ^ The fetcher that the job asks now.
+  }
+
+-- | What the worker waits for.
+data Next
+  = Finished Job (Either SomeException LyricsResult)
+  | -- | A new request of the screen, with its token.
+    Requested Int LyricsRequest
+  | -- | A new song to fetch the lyrics of in the background.
+    InBackground Song
+
 -- | Load the lyrics of each new request, and fetch the lyrics of each new
--- song in the background.
+-- song in the background. A request of the screen goes first: it takes
+-- over the job that loads its song already, else it stops the job that
+-- runs, whose song the screen left.
 lyricsWorker :: LyricsSource -> IO ()
-lyricsWorker src = go Nothing Nothing
+lyricsWorker src = do
+  running <- S.newIORef Nothing
+  loop running Nothing Nothing `finally` (S.readIORef running >>= traverse_ stop)
   where
-    -- The token of the request served last, and the song fetched in the
-    -- background last.
-    go :: Maybe Int -> Maybe Song -> IO ()
-    go served fetched = do
+    -- The token of the request of the screen taken last, and the song
+    -- taken in the background last.
+    loop :: S.IORef (Maybe Job) -> Maybe Int -> Maybe Song -> IO ()
+    loop running served fetched = do
+      job <- S.readIORef running
       next <-
         atomically $
-          ( readTVar src.requested >>= \case
-              Just (token, request) | Just token /= served -> pure $ Left (token, request)
-              _ -> retry
-          )
+          maybe retry (\j -> Finished j <$> waitCatchSTM j.result) job
+            `orElse` ( readTVar src.requested >>= \case
+                         Just (token, request) | Just token /= served -> pure $ Requested token request
+                         _ -> retry
+                     )
             `orElse` ( readTVar src.background >>= \case
-                         Just song | Just song /= fetched -> pure $ Right song
+                         Just song | Just song /= fetched && isNothing job -> pure $ InBackground song
                          _ -> retry
                      )
       case next of
-        Left (token, request) -> do
-          result <- load (src.emit . LyricsFetching token) request.refetch request.song
-          src.emit $ LyricsLoaded token result
-          go (Just token) fetched
-        Right song -> do
-          result <- load (\_ -> pure ()) False song
-          case result of
-            LyricsMissing asked ->
-              forM_ [(n, r) | (n, Just r) <- asked] $ \(fetcher, reason) ->
-                src.logLine $
-                  "The lyrics of "
-                    <> songName song
-                    <> " can't be fetched from "
-                    <> fetcher
-                    <> ": "
-                    <> reason
-            _ -> pure ()
-          go served (Just song)
+        Finished j outcome -> do
+          S.writeIORef running Nothing
+          finished j outcome
+          loop running served fetched
+        Requested token request
+          | Just j <- job
+          , not request.refetch && sameSong j.song request.song -> do
+              name <- atomically $ writeTVar j.answers (Just token) >> readTVar j.fetcher
+              traverse_ (src.emit . LyricsFetching token) name
+              loop running (Just token) fetched
+          | otherwise -> do
+              -- A fetch in the background that this stops starts again
+              -- after the request.
+              stopped <- maybe (pure False) (fmap isNothing . readTVarIO . (.answers)) job
+              start running (Just token) request
+              loop running (Just token) (if stopped then Nothing else fetched)
+        InBackground song -> do
+          start running Nothing (LyricsRequest song False)
+          loop running served (Just song)
+
+    -- Start a job, for a request of the screen with its token or in the
+    -- background, instead of the one that runs.
+    start :: S.IORef (Maybe Job) -> Maybe Int -> LyricsRequest -> IO ()
+    start running token request = do
+      S.readIORef running >>= traverse_ stop
+      answers <- newTVarIO token
+      fetcher <- newTVarIO Nothing
+      let fetching name = do
+            t <- atomically $ writeTVar fetcher (Just name) >> readTVar answers
+            traverse_ (\t' -> src.emit (LyricsFetching t' name)) t
+      result <- async $ load fetching request.refetch request.song
+      S.writeIORef running . Just $ Job result request.song answers fetcher
+
+    -- Stop a job without waiting for it, as it may wait for a site. Its
+    -- reply would be stale.
+    stop :: Job -> IO ()
+    stop = void . forkIO . cancel . (.result)
+
+    finished :: Job -> Either SomeException LyricsResult -> IO ()
+    finished j outcome = do
+      let result = either (LyricsFailed . ("The lyrics can't be loaded: " <>) . exceptionText) id outcome
+      atomically (readTVar j.answers) >>= \case
+        Just token -> src.emit $ LyricsLoaded token result
+        Nothing -> case result of
+          LyricsMissing asked ->
+            forM_ [(n, r) | (n, Just r) <- asked] $ \(name, reason) ->
+              src.logLine $
+                "The lyrics of " <> songName j.song <> " can't be fetched from " <> name <> ": " <> reason
+          LyricsFailed reason -> src.logLine reason
+          _ -> pure ()
 
     -- The lyrics of a song: stored, or else fetched and stored, after an
     -- action. What the fetchers didn't have isn't remembered, as they may
@@ -98,7 +161,9 @@ lyricsWorker src = go Nothing Nothing
         fetchAndStore = do
           fetchedLyrics <- fetchFrom fetching [] src.fetchers song
           case fetchedLyrics of
-            LyricsFound _ lyrics -> store song lyrics
+            -- A job that stops while it stores would leave the text of the
+            -- new lyrics with the times of the old ones.
+            LyricsFound _ lyrics -> uninterruptibleMask_ $ store song lyrics
             _ -> pure ()
           pure fetchedLyrics
 

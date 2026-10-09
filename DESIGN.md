@@ -638,9 +638,10 @@ ncmpcpp.
     distribution keeps OpenSSL patched. The requests name reprise in the
     user agent, as LRCLIB asks.
   - **A request gives up after 10 seconds,** with its body. LRCLIB answered
-    30 requests in 0.86 s at most, and the worker serves one request at a
-    time, so one that hangs holds up the next. http-client's own timeout
-    ends with the headers, so it covers the whole request from outside.
+    30 requests in 0.86 s at most, and the worker loads one song at a time,
+    so one that hangs holds up the fetches in the background after it.
+    http-client's own timeout ends with the headers, so it covers the whole
+    request from outside.
   - **The tests replay LRCLIB's answers** with other lyrics in them, through
     a fake of the HTTP request.
 - **The second fetcher is tekstowo.pl,** a site of lyrics that has some
@@ -683,9 +684,17 @@ ncmpcpp.
     it is drawn, so following the song needs no events of its own.
 - **`lyrics.fetch_in_background` fetches the lyrics of each song that
   plays,** as ncmpcpp's `fetch_lyrics_for_current_song_in_background`
-  does, so that they are stored when the screen shows them. The worker
-  takes a request of the screen first, so the screen doesn't wait for the
-  background. A failure in the background goes to the log.
+  does, so that they are stored when the screen shows them. A failure in
+  the background goes to the log.
+  - **A request of the screen never waits for another load.** A fetch in
+    the background of the same song becomes the screen's, so that it isn't
+    fetched twice, e.g. with `l` soon after a song starts. Any other load
+    stops, as the screen left its song, and a fetch in the background that
+    stops starts again after the request. Each load runs in a thread of its
+    own for this, so that it can stop while it waits for a site.
+  - **A load that stops while it stores the lyrics finishes storing them,**
+    as the text of new lyrics with the times of the old ones would show
+    the wrong lines.
 - **`lyrics.follow_playing` shows the lyrics of each song that plays** while
   the lyrics screen shows, as ncmpcpp's `follow_now_playing_lyrics` does.
   Only a new song moves the screen, so `l` still shows the lyrics of

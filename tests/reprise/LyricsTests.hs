@@ -67,6 +67,8 @@ lyricsTests =
     , testCase "o on another song's lyrics" test_jumpToPlayingLyrics
     , testCase "a redraw when the next line is sung" test_nextLine
     , testCase "the worker fetches in the background" test_workerInBackground
+    , testCase "a request of the screen doesn't wait" test_workerTakesTurns
+    , testCase "a request of the screen takes over its song's fetch" test_workerTakesOver
     , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
     , testCase "the lyrics follow the song that plays" test_followPlaying
     , testCase "a stream has no lyrics" test_stream
@@ -604,6 +606,85 @@ test_workerInBackground = withSystemTempDirectory "lyrics" $ \dir -> do
     untilJust :: IO (Maybe b) -> IO b
     untilJust act = act >>= maybe (untilJust act) pure
 
+-- | A request of the screen doesn't wait for a fetch in the background, nor
+-- for an older request, whose songs it left. The fetch in the background
+-- starts again after it.
+test_workerTakesTurns :: Assertion
+test_workerTakesTurns = withSlowOne $ \src started release next -> do
+  atomically . writeTVar src.background $ Just (titled "One")
+  takeMVar started
+  atomically . writeTVar src.requested $ Just (1, LyricsRequest (titled "Two") False)
+  assertEqual "Two" [LyricsFetching 1 "LRCLIB", LyricsLoaded 1 (fromLrclib "Two")]
+    =<< sequence [next, next]
+  takeMVar started
+  atomically . writeTVar src.requested $ Just (2, LyricsRequest (titled "One") True)
+  takeMVar started
+  atomically . writeTVar src.requested $ Just (3, LyricsRequest (titled "Three") False)
+  assertEqual
+    "Three after a newer request"
+    [ LyricsFetching 2 "LRCLIB"
+    , LyricsFetching 3 "LRCLIB"
+    , LyricsLoaded 3 (fromLrclib "Three")
+    ]
+    =<< sequence [next, next, next]
+  putMVar release ()
+  assertEqual "One in the background" "One\n"
+    =<< expectWithin (untilStored (src.directory </> "A - One.txt"))
+
+-- | A request of the screen for the song that a fetch in the background
+-- fetches takes over the fetch.
+test_workerTakesOver :: Assertion
+test_workerTakesOver = withSlowOne $ \src started release next -> do
+  atomically . writeTVar src.background $ Just (titled "One")
+  takeMVar started
+  atomically . writeTVar src.requested $ Just (1, LyricsRequest (titled "One") False)
+  assertEqual "the fetcher that it asks" (LyricsFetching 1 "LRCLIB") =<< next
+  putMVar release ()
+  assertEqual "the lyrics" (LyricsLoaded 1 (fromLrclib "One")) =<< next
+  assertBool "one fetch" . isNothing =<< tryTakeMVar started
+
+-- | A worker whose fetcher has the lyrics of a song at once, but those of
+-- One only after a release, with a signal for each start of their fetch and
+-- the next event.
+withSlowOne
+  :: (LyricsSource -> MVar () -> MVar () -> IO AppEvent -> IO a) -> IO a
+withSlowOne k = withSystemTempDirectory "lyrics" $ \dir -> do
+  requested <- newTVarIO Nothing
+  background <- newTVarIO Nothing
+  events <- newTQueueIO
+  started <- newEmptyMVar
+  release <- newEmptyMVar
+  let fetch s = do
+        let title = fromMaybe "" (firstTag Title s)
+        when (title == "One") $ putMVar started () >> readMVar release
+        pure . FetchedLyrics $ plainLyrics title
+      source =
+        LyricsSource
+          { directory = dir
+          , fetchers = [Fetcher "LRCLIB" fetch]
+          , requested = requested
+          , background = background
+          , emit = atomically . writeTQueue events
+          , logLine = \_ -> pure ()
+          }
+  bracket (forkIO (lyricsWorker source)) killThread $ \_ ->
+    k source started release (expectWithin (atomically (readTQueue events)))
+
+-- | A song of its own file, as the worker tells songs apart by their files.
+titled :: T.Text -> Song
+titled t = song 0 [(Artist, ["A"]), (Title, [t])] 60 & #file .~ ("dir/" <> t <> ".flac")
+
+fromLrclib :: T.Text -> LyricsResult
+fromLrclib = LyricsFound (Fetched "LRCLIB") . plainLyrics
+
+-- | The text of a file once it has some. The file is empty for a moment
+-- after the worker creates it, and while the worker writes it, GHC's lock
+-- of the file in this process fails a read.
+untilStored :: FilePath -> IO BS.ByteString
+untilStored file = do
+  text <- either (const BS.empty) id <$> try @IOException (BS.readFile file)
+  if BS.null text then threadDelay 1000 >> untilStored file else pure text
+
 -- | While One plays, the lyrics of Two show, until Three plays.
 test_followPlaying :: Assertion
 test_followPlaying = do
@@ -854,8 +935,10 @@ withWorker dir fetchers k = do
         LyricsLoaded _ _ -> pure [e]
         _ -> (e :) <$> untilLoaded events
 
-    expectWithin :: IO b -> IO b
-    expectWithin act = timeout (5 * 1000000) act >>= maybe (assertFailure "nothing came") pure
+-- | What the worker does at once, failing instead of hanging if it never
+-- comes.
+expectWithin :: IO b -> IO b
+expectWithin act = timeout (5 * 1000000) act >>= maybe (assertFailure "nothing came") pure
 
 -- | A fetcher with a name that counts its calls.
 counted :: T.Text -> IO FetchResult -> IO (S.IORef Int, Fetcher)
