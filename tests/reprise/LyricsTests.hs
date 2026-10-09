@@ -66,6 +66,7 @@ lyricsTests =
     , testCase "the worker fetches in the background" test_workerInBackground
     , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
     , testCase "the lyrics follow the song that plays" test_followPlaying
+    , testCase "a stream has no lyrics" test_stream
     , testCase "the next song's lyrics show from their top" test_followFromTop
     , testCase "a control character is a space" test_controlCharacters
     , testCase "the title scrolls from its start for the next song" test_followTitle
@@ -652,6 +653,28 @@ threeSongs =
 -- | The songs whose lyrics the screen asked for.
 askedFor :: Result -> [T.Text]
 askedFor r = [songName q.song | FetchLyrics _ q <- r.commands]
+
+-- | A stream has no lyrics: the songs that it plays would share one file.
+test_stream :: Assertion
+test_stream = do
+  let stream = song 1 [(Title, ["A - Two"])] 60 & #file .~ "http://example.com/radio.mp3"
+      songs = [song 0 [(Artist, ["A"]), (Title, ["One"])] 60, stream]
+  s <- testState (40, 10) (statusOf Playing (Just 0) 2) songs
+  shown <- runEvents 0 [key "down", key "l"] s
+  assertEqual "not asked for" [] (askedFor shown)
+  assertEqual "the error" (Just True) ((.isError) <$> shown.state.message)
+  assertEqual "the queue stays" QueueScreen (focusedView shown.state).screen
+  onFirst <- runEvents 0 [key "l"] (s & #toggles % #lyricsFollowPlaying .~ True)
+  followed <- runEvents 0 [StatusFetched (statusOf Playing (Just 1) 2)] onFirst.state
+  assertEqual "not followed" [] (askedFor followed)
+  assertEqual "the screen stays" (Just "A - One") (songName <$> followed.state.lyrics.song)
+  let env = testAppEnv & #config % #lyrics % #fetchInBackground .~ True
+  streaming <- testState (40, 10) (statusOf Playing (Just 1) 2) songs
+  background <- runEventsWith env 0 [Tick 0] streaming
+  assertEqual
+    "not in the background"
+    []
+    [() | FetchLyricsInBackground _ <- background.commands]
 
 test_fetchInBackground :: Assertion
 test_fetchInBackground = do

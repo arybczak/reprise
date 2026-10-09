@@ -514,6 +514,12 @@ ncmpcpp.
   ncmpcpp's `show_lyrics` does. A screen without songs says so, rather
   than showing the lyrics of another song, e.g. the playing one, so that
   `l` always means the song that the user points at.
+- **A stream has no lyrics.** Its tags rarely hold an artist, so its
+  lyrics would be named after its URL, and every song of a station would
+  share them. Its file stays while its title changes, so the screen
+  wouldn't follow the songs either. Neither `l` nor following the song
+  that plays shows the lyrics of a stream, and they aren't fetched in the
+  background.
 - **Showing and going back are two actions,** `show lyrics` and `back`,
   bound to one key in two keymaps. ncmpcpp's `show_lyrics` did both, so
   `:show lyrics` on the lyrics screen would have left them.

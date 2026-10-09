@@ -108,7 +108,14 @@ scrollLyrics t = do
 
 -- | Show the lyrics of the song under the cursor, from the top.
 showLyrics :: App es => Eff es ()
-showLyrics = showSongScreen LyricsScreen $ \song -> True <$ request song False
+showLyrics = showSongScreen LyricsScreen showSongLyrics
+
+-- | Show the lyrics of a song, if it can have any. A stream can't: the
+-- songs that it plays would share one file of lyrics, named after its URL.
+showSongLyrics :: App es => Song -> Eff es Bool
+showSongLyrics song
+  | isStream song = False <$ showError "A stream has no lyrics"
+  | otherwise = True <$ request song False
 
 -- | Fetch the lyrics of the song on the screen again, and store them anew.
 refetchLyrics :: App es => Eff es ()
@@ -193,7 +200,7 @@ jumpToPlayingLyrics = do
     Nothing -> showMessage "No song is playing"
     Just playing
       | maybe False (sameSong playing) s.lyrics.song -> modifyS $ #lyrics % #following .~ True
-      | otherwise -> request playing False
+      | otherwise -> void $ showSongLyrics playing
 
 -- | Turn following the song that plays on or off. On, the screen shows the
 -- lyrics of the song that plays at once.
@@ -203,7 +210,7 @@ toggleLyricsFollowing = do
   s <- getS
   forM_ (currentSong s.mirror) $ \playing ->
     when (s.toggles.lyricsFollowPlaying && not (maybe False (sameSong playing) s.lyrics.song)) $
-      request playing False
+      void (showSongLyrics playing)
 
 -- | Fetch the lyrics of each new song that plays in the background, if the
 -- config says so, and show them on the lyrics screen while it follows the
@@ -216,7 +223,7 @@ updateLyrics = do
       changed = not (sameAs playing s.lyrics.playing)
   when (env.config.lyrics.fetchInBackground && not (null env.config.lyrics.fetchers)) $
     forM_ playing $ \p ->
-      unless (sameAs (Just p) s.lyrics.inBackground) $ do
+      unless (isStream p || sameAs (Just p) s.lyrics.inBackground) $ do
         modifyS $ #lyrics % #inBackground ?~ p
         fetchLyricsInBackground p
   when changed $ do
@@ -228,7 +235,7 @@ updateLyrics = do
             && (focusedView s).screen == LyricsScreen
             && not (sameAs (Just p) s.lyrics.song)
         )
-        $ request p False
+        $ void (showSongLyrics p)
   where
     sameAs :: Maybe Song -> Maybe Song -> Bool
     sameAs a b = case (a, b) of
