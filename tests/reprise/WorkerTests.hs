@@ -10,6 +10,7 @@ import Data.Text qualified as T
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Exception
+import System.Timeout
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -35,6 +36,7 @@ workerTests =
     , testCase "a cancelled password fails the refused command" test_passwordCancelled
     , testCase "the idle connection sends the password" test_idlePassword
     , testCase "a refused idle connection waits for the password" test_idleRefused
+    , testCase "a wrong password at the start asks for another" test_idleWrongPassword
     , testCase "a failed command connection reopens the idle one" test_idleAfterCommandFailed
     ]
 
@@ -102,12 +104,15 @@ test_idlePassword = withIdleWorker [] (Just "secret") $ \events callsRef _ -> do
   assertEqual "calls" ["connect secret"] =<< S.readIORef callsRef
 
 -- | An idle connection that MPD refuses for its password waits for the
--- next password, instead of connecting again and again.
+-- next password, instead of connecting again and again. A command makes the
+-- command worker ask for it.
 test_idleRefused :: Assertion
 test_idleRefused = withIdleWorker [Right (), Left refusal] Nothing $ \events callsRef workers -> do
   let nextEvent = atomically $ readTQueue events
   assertEqual "connected" (MpdConnected (Version 0 24 0)) =<< nextEvent
   assertEqual "refused" (MpdDisconnected (exceptionText refusal)) =<< nextEvent
+  assertEqual "a command that asks" [Request "status" []] . pendingRequestLines
+    =<< expectWithin (atomically (readTQueue workers.requests))
   -- Ten times the retry delay of the tests.
   threadDelay 100000
   assertEqual "not again" ["connect", "disconnect"] . reverse =<< S.readIORef callsRef
@@ -118,6 +123,42 @@ test_idleRefused = withIdleWorker [Right (), Left refusal] Nothing $ \events cal
     ["connect", "disconnect", "connect secret"]
     . reverse
     =<< S.readIORef callsRef
+
+-- | A wrong password at the start, e.g. in the config, asks for another
+-- one, though the user sent no command yet.
+test_idleWrongPassword :: Assertion
+test_idleWrongPassword = do
+  events <- newTQueueIO
+  passwordVar <- newTVarIO (Just "wrong")
+  workers <- testWorkers events passwordVar
+  -- MPD refuses the password of every connection but the right one's. A
+  -- command without a connection opens one with the password of the last
+  -- one that opened, as 'runMpd' does.
+  let mpd :: IOE :> es => S.IORef (Maybe T.Text) -> Eff (Mpd : es) a -> Eff es a
+      mpd passwordRef = interpret_ $ \case
+        Connect p -> liftIO $ connected p <* S.writeIORef passwordRef p
+        RunCommand cmd -> do
+          _ <- liftIO $ connected =<< S.readIORef passwordRef
+          either throwIO pure $ parseCommandReply cmd [[] | _ <- commandRequests cmd]
+        WaitIdle interrupted -> Nothing <$ liftIO (atomically interrupted)
+        Disconnect -> pure ()
+        where
+          connected :: Maybe T.Text -> IO Version
+          connected = \case
+            Just "secret" -> pure $ Version 0 24 0
+            _ -> E.throwIO wrongPassword
+      start worker = do
+        passwordRef <- S.newIORef (Just "wrong")
+        forkIO . runEff $ mpd passwordRef worker
+  E.bracket (mapM start [idleWorker workers, commandWorker workers]) (mapM_ killThread) $ \_ -> do
+    let nextEvent = atomically $ readTQueue events
+        untilEvent :: (AppEvent -> Bool) -> IO AppEvent
+        untilEvent p = nextEvent >>= \e -> if p e then pure e else untilEvent p
+    asked <- expectWithin . untilEvent $ \case PasswordNeeded _ -> True; _ -> False
+    assertEqual "asked" (PasswordNeeded wrongPassword) asked
+    atomically . writeTQueue workers.requests $ PasswordAnswer (Just "secret")
+    assertEqual "connected" (MpdConnected (Version 0 24 0))
+      =<< expectWithin (untilEvent (\case MpdConnected _ -> True; _ -> False))
 
 -- | The idle connection opens anew after the connection of the commands
 -- failed, since it may wait for a peer that is gone.
@@ -139,6 +180,11 @@ refusal = AckError $ Ack AckPermission 0 "stop" "you don't have permission for \
 
 wrongPassword :: MpdError
 wrongPassword = AckError $ Ack AckPassword 0 "password" "incorrect password"
+
+-- | Wait for what the workers do at once, failing instead of hanging if it
+-- never comes.
+expectWithin :: IO a -> IO a
+expectWithin act = timeout (5 * 1000000) act >>= maybe (assertFailure "nothing came") pure
 
 data WorkerRun = WorkerRun
   { events :: [AppEvent]

@@ -70,13 +70,19 @@ idleWorker w = forever $ do
           watch
         Nothing -> disconnectMpd
 
-    -- After the password that the connection sent.
+    -- After the password that the connection sent. Only the command worker
+    -- asks for a password, so a refused connection sends it a command that
+    -- needs what @idle@ needs, which MPD refuses too, e.g. at the start with
+    -- a wrong password, before any command of the user.
     disconnected :: IOE :> es => Maybe T.Text -> MpdError -> Eff es ()
     disconnected sent err = do
       emitEvent w . MpdDisconnected $ exceptionText err
       liftIO $
         if refused err
-          then atomically $ readTVar w.password >>= check . (/= sent)
+          then do
+            atomically . writeTQueue w.requests $
+              PendingRequest status (const MpdDone) (const MpdDone)
+            atomically $ readTVar w.password >>= check . (/= sent)
           else delaySeconds w.retryDelay
 
 -- | Run the requests one at a time and send the events of their replies.
