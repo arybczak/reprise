@@ -638,7 +638,9 @@ ncmpcpp.
     the most common ending, but those are part of the title, so they stay.
   - **The replies decode with yamlet,** with types derived generically. Each
     of 52 songs in five replies had the same keys, and only the lyrics
-    could be null. Unknown keys are allowed, as LRCLIB adds some.
+    could be null. Unknown keys are allowed, as LRCLIB adds some. The types
+    have only the keys that reprise reads, so a null in another, e.g. a
+    track without an album, doesn't fail the whole reply.
   - **LRCLIB is HTTPS only,** so reprise needs TLS. It uses the system's
     OpenSSL through `http-client-openssl`, which checks the certificate
     against the system's store and the host name. `http-client-tls` would

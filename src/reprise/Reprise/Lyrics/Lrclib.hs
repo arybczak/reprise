@@ -73,12 +73,10 @@ lrclibLyrics get song = byArtistAndTitle song $ \artist title -> do
     decoded :: FromYaml a => BS.ByteString -> Either T.Text a
     decoded = either (const (Left "LRCLIB's answer can't be read")) Right . decode
 
--- | A track of LRCLIB, of the keys that reprise reads.
+-- | A track of LRCLIB, of the keys that reprise reads. Any other key may be
+-- null, e.g. the name of the album.
 data LrclibTrack = LrclibTrack
-  { trackName :: T.Text
-  , artistName :: T.Text
-  , albumName :: T.Text
-  , duration :: Double
+  { duration :: Double
   , instrumental :: Bool
   , plainLyrics :: Maybe T.Text
   , syncedLyrics :: Maybe T.Text

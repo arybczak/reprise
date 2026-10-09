@@ -4,6 +4,7 @@ import Data.ByteString qualified as BS
 import Data.IORef.Strict qualified as S
 import Data.Maybe
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import System.FilePath
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -43,13 +44,17 @@ test_cleanTitle = do
 test_decode :: Assertion
 test_decode = do
   track <- either (assertFailure . show) pure . decode @LrclibTrack =<< answer "get.json"
-  assertEqual "the track" "Karma Police" track.trackName
   assertEqual "the length" 264 track.duration
   assertEqual "the lyrics" (Just "First line\nSecond line") track.plainLyrics
   tracks <-
     either (assertFailure . show) pure . decode @[LrclibTrack] =<< answer "search.json"
   assertEqual "the results" 4 (length tracks)
   assertEqual "instrumentals" [False, True, True, True] (map (.instrumental) tracks)
+  -- A null of a key that reprise doesn't read, e.g. of a track without an
+  -- album.
+  noAlbum <-
+    T.encodeUtf8 . T.replace "\"OK Computer\"" "null" . T.decodeUtf8 <$> answer "get.json"
+  assertEqual "a null album" (Right 264) ((.duration) <$> decode @LrclibTrack noAlbum)
 
 -- | Of the results of a search for Alex Theme, of 295 s: the one with
 -- lyrics, and three instrumentals, of 300 s and 295 s.
