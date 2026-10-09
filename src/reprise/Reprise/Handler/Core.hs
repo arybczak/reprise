@@ -22,9 +22,18 @@ module Reprise.Handler.Core
   , countItems
   , capitalize
   , screenText
+  , onOff
+
+    -- * Toggles
+  , toggleSetting
 
     -- * Prompts
   , openLine
+
+    -- * Saving
+  , askSaveName
+  , describeSave
+  , nothingToSave
 
     -- * Views
   , modifyView
@@ -60,6 +69,7 @@ import Reprise.Find
 import Reprise.Groups
 import Reprise.LineEdit
 import Reprise.Mpd.Protocol.Types
+import Reprise.Save
 import Reprise.Selection
 import Reprise.State
 
@@ -126,6 +136,19 @@ capitalize t = case T.uncons t of
 screenText :: ScreenName -> T.Text
 screenText screen = T.replace "_" " " (screenName screen) <> " screen"
 
+onOff :: Bool -> T.Text
+onOff b = if b then "on" else "off"
+
+----------------------------------------
+-- Toggles
+
+-- | Turn a setting of reprise on or off, and say which it is now.
+toggleSetting :: App es => T.Text -> Lens' Toggles Bool -> Eff es ()
+toggleSetting name field = do
+  modifyS $ #toggles % field %~ not
+  v <- getsS (view (#toggles % field))
+  showMessage $ name <> ": " <> onOff v
+
 ----------------------------------------
 -- Prompts
 
@@ -133,6 +156,45 @@ screenText screen = T.replace "_" " " (screenName screen) <> " screen"
 -- answer.
 openLine :: T.Text -> LineEdit -> LinePurpose -> AppState -> AppState
 openLine question edit purpose = #prompt ?~ Prompt question (Line edit purpose Nothing)
+
+----------------------------------------
+-- Saving
+
+-- | Ask for the name of the stored playlist to save to, which
+-- "Reprise.Handler" saves to.
+askSaveName :: App es => SaveSource -> Eff es ()
+askSaveName source
+  | Just why <- nothingToSave source = showMessage why
+  | otherwise =
+      modifyS $
+        openLine ("Save " <> describeSave source <> " as: ") (LineEdit "" "") (ForSave source)
+
+-- | What a save saves, as the status bar says it.
+describeSave :: SaveSource -> T.Text
+describeSave = \case
+  SaveQueue -> "the queue"
+  SaveItems items
+    | all isSong saved -> countSongs (length saved)
+    | otherwise -> countItems (length saved)
+    where
+      saved :: [SaveItem]
+      saved = savedItems items
+
+      isSong :: SaveItem -> Bool
+      isSong = \case
+        SaveSong _ -> True
+        _ -> False
+
+-- | Why a save has nothing to save, if it hasn't.
+nothingToSave :: SaveSource -> Maybe T.Text
+nothingToSave = \case
+  SaveItems items
+    | null (savedItems items) ->
+        Just $
+          if null items
+            then "There is nothing to save"
+            else "Parts of files, e.g. the tracks of a cue sheet, can't be saved"
+  _ -> Nothing
 
 ----------------------------------------
 -- Views

@@ -4,20 +4,14 @@ module Reprise.Screen.Queue
   ( -- * Drawing
     queueView
 
+    -- * Verbs
+  , queueVerb
+
     -- * Moving
-  , moveQueueCursor
   , jumpToPlaying
 
     -- * Selection
-  , select
   , selectedSongPositions
-  , queueToSave
-
-    -- * Changes
-  , activate
-  , deleteMarked
-  , prioritize
-  , moveSongs
 
     -- * Finding
   , queueRows
@@ -92,6 +86,43 @@ queueView env s v =
             }
           song
   in V.vertCat $ titles <> zipWith row (zip [v.offset ..] found) (toList visible)
+
+----------------------------------------
+-- Verbs
+
+-- | How the queue does a verb, if it does it.
+queueVerb :: App es => Action -> Maybe (Eff es ())
+queueVerb = \case
+  Move t -> Just $ modifyWithEnv (moveQueueCursor t)
+  JumpToPlaying -> Just $ modifyWithEnv jumpToPlaying
+  Activate -> Just activate
+  Save -> Just $ getsS queueToSave >>= maybe (showMessage "The queue is empty") askSaveName
+  Select t -> Just $ select t
+  Delete -> Just deleteMarked
+  Priority p -> Just $ prioritize p
+  MoveSongs t -> Just $ moveSongs t
+  Toggle ToggleDisplay -> Just toggleDisplay
+  Toggle ToggleFollowPlaying -> Just toggleFollowPlaying
+  _ -> Nothing
+
+toggleDisplay :: App es => Eff es ()
+toggleDisplay = do
+  modifyS $
+    #toggles % #queueDisplay %~ \case
+      Classic -> Columns
+      Columns -> Classic
+  modifyWithEnv (modifyView id)
+  d <- getsS (.toggles.queueDisplay)
+  showMessage $
+    "Display: " <> case d of
+      Classic -> "classic"
+      Columns -> "columns"
+
+toggleFollowPlaying :: App es => Eff es ()
+toggleFollowPlaying = do
+  toggleSetting "Follow playing" #followPlaying
+  follow <- getsS (.toggles.followPlaying)
+  when follow (modifyWithEnv jumpToPlaying)
 
 ----------------------------------------
 -- Moving

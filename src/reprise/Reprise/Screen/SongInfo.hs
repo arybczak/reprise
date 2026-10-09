@@ -2,6 +2,7 @@
 -- of a song, as text that scrolls.
 module Reprise.Screen.SongInfo
   ( songInfoView
+  , songInfoVerb
   , showSongInfo
   , songCommentsFetched
   ) where
@@ -42,6 +43,12 @@ songInfoView env s v =
                 )
                 env.config.lists.missingTag
         ]
+
+-- | How the song info screen does a verb, if it does it.
+songInfoVerb :: App es => Action -> Maybe (Eff es ())
+songInfoVerb = \case
+  Move t -> Just $ scrollLines t
+  _ -> Nothing
 
 -- | Show the info of the song under the cursor, from the top.
 showSongInfo :: App es => Eff es ()

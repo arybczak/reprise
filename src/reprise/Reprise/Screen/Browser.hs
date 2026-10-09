@@ -3,10 +3,9 @@
 module Reprise.Screen.Browser
   ( -- * Drawing
     browserView
-  , toggleBrowserDisplay
 
-    -- * Moving
-  , moveBrowserCursor
+    -- * Verbs
+  , browserVerb
 
     -- * Listing
   , openBrowser
@@ -14,22 +13,10 @@ module Reprise.Screen.Browser
   , browserChanged
   , browserListed
   , browserFailed
-  , leave
   , locateSong
 
-    -- * Adding
-  , activateItem
-  , addMarked
-  , addAndPlay
-  , addOrRemove
-  , browserToSave
+    -- * Updating
   , browserDirectory
-
-    -- * Selection
-  , selectInBrowser
-
-    -- * Sorting
-  , nextSortMode
   ) where
 
 import Control.Exception
@@ -141,6 +128,29 @@ itemRows :: AppEnv -> Display -> Seq.Seq BrowserItem -> Seq.Seq Folded
 itemRows env display = fmap $ \item -> foldText $ case rowContent env item of
   SongRow song -> rowText env.config.lists env.config.songs display song
   OtherRow spans -> spansText spans
+
+----------------------------------------
+-- Verbs
+
+-- | How the browser does a verb, if it does it.
+browserVerb :: App es => Action -> Maybe (Eff es ())
+browserVerb = \case
+  Move t -> Just $ modifyWithEnv (moveBrowserCursor t)
+  JumpToPlaying ->
+    Just $
+      getsS (currentSong . (.mirror)) >>= \case
+        Nothing -> showMessage "No song is playing"
+        Just song -> locateSong song
+  Activate -> Just activateItem
+  Parent -> Just leave
+  Save -> Just $ askSaveName =<< getsS browserToSave
+  NextSortMode -> Just nextSortMode
+  Add p -> Just $ addMarked p
+  AddAndPlay -> Just addAndPlay
+  AddOrRemove -> Just addOrRemove
+  Select t -> Just $ selectInBrowser t
+  Toggle ToggleDisplay -> Just toggleBrowserDisplay
+  _ -> Nothing
 
 -- | Show the songs in the other display.
 toggleBrowserDisplay :: App es => Eff es ()

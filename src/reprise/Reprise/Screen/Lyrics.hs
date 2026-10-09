@@ -2,17 +2,13 @@
 -- worker reads from the directory of lyrics, or fetches.
 module Reprise.Screen.Lyrics
   ( lyricsView
-  , scrollLyrics
+  , lyricsVerb
   , showLyrics
-  , refetchLyrics
-  , editLyrics
   , editLyricsFile
   , lyricsEdited
   , lyricsFetching
   , lyricsLoaded
   , updateLyrics
-  , jumpToPlayingLyrics
-  , toggleLyricsFollowing
   ) where
 
 import Control.Monad
@@ -47,6 +43,16 @@ lyricsView env s v =
 
     sung :: Maybe Int
     sung = sungLine s
+
+-- | How the lyrics screen does a verb, if it does it.
+lyricsVerb :: App es => Action -> Maybe (Eff es ())
+lyricsVerb = \case
+  Move t -> Just $ scrollLyrics t
+  JumpToPlaying -> Just jumpToPlayingLyrics
+  EditLyrics -> Just editLyrics
+  RefetchLyrics -> Just refetchLyrics
+  Toggle ToggleFollowPlaying -> Just toggleLyricsFollowing
+  _ -> Nothing
 
 -- | Scroll the lyrics from where they show, which stops following the song.
 scrollLyrics :: App es => MoveTarget -> Eff es ()
@@ -150,10 +156,8 @@ jumpToPlayingLyrics = do
 -- lyrics of the song that plays at once.
 toggleLyricsFollowing :: App es => Eff es ()
 toggleLyricsFollowing = do
-  modifyS $ #toggles % #lyricsFollowPlaying %~ not
+  toggleSetting "Lyrics follow playing" #lyricsFollowPlaying
   s <- getS
-  showMessage $
-    "Lyrics follow playing: " <> if s.toggles.lyricsFollowPlaying then "on" else "off"
   forM_ (currentSong s.mirror) $ \playing ->
     when (s.toggles.lyricsFollowPlaying && not (maybe False (sameSong playing) s.lyrics.song)) $
       request playing False

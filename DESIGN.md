@@ -1117,10 +1117,17 @@ thread by hand.
 
 ### Screens and views
 
-Each screen module holds its state record, its render function, and its
-actions. There is no shared class hierarchy. A screen is a record of functions
-where polymorphism is needed, e.g. the "has songs" operations that bulk actions
-use, and the [verbs](#key-bindings). A screen can leave a verb unimplemented.
+Each screen module holds its drawing and its actions, and its state is a
+record of `AppState`. There is no shared class hierarchy. What the code needs
+of every screen is in a table of each layer, which names every screen, so the
+compiler names each table that a new screen must join:
+- `screenInfo` in `Reprise.State` has what the code under the screens needs,
+  e.g. a screen's length, its songs and its title.
+- `Reprise.UI.Layout` draws the main view of each screen.
+- `Reprise.Handler` passes the [verbs](#key-bindings) to a function of each
+  screen, which does the ones that the screen implements. A screen can leave
+  a verb unimplemented. A screen finds if the table of the rows to find in
+  has rows for it.
 
 Split screens are dropped. If they come back, it will be as a general window
 framework with the basics of what Emacs does:

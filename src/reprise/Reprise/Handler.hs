@@ -38,6 +38,7 @@ import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
 import Reprise.Save
 import Reprise.Screen.Browser
+import Reprise.Screen.Help
 import Reprise.Screen.Lyrics
 import Reprise.Screen.Outputs
 import Reprise.Screen.Queue
@@ -266,9 +267,6 @@ reportOptions a b =
     changed :: Eq a => (Status -> a) -> T.Text -> Maybe T.Text
     changed field msg = if field a /= field b then Just msg else Nothing
 
-onOff :: Bool -> T.Text
-onOff b = if b then "on" else "off"
-
 ----------------------------------------
 -- Keys
 
@@ -379,76 +377,30 @@ answer purpose text = case purpose of
 ----------------------------------------
 -- Actions
 
+-- | Run an action. A verb, e.g. activate, goes to the focused screen, which
+-- does it its own way.
 runAction :: App es => Action -> Eff es ()
-runAction = \case
-  action@(Move t) -> verb action $ \case
-    QueueScreen -> Just $ modifyWithEnv (moveQueueCursor t)
-    BrowserScreen -> Just $ modifyWithEnv (moveBrowserCursor t)
-    OutputsScreen -> Just $ modifyWithEnv (moveOutputsCursor t)
-    LyricsScreen -> Just $ scrollLyrics t
-    SongInfoScreen -> Just $ scrollLines t
-    HelpScreen -> Just $ scrollLines t
-    _ -> Nothing
-  action@JumpToPlaying -> verb action $ \case
-    QueueScreen -> Just $ modifyWithEnv jumpToPlaying
-    BrowserScreen ->
-      Just $
-        getsS (currentSong . (.mirror)) >>= \case
-          Nothing -> showMessage "No song is playing"
-          Just song -> locateSong song
-    LyricsScreen -> Just jumpToPlayingLyrics
-    _ -> Nothing
+runAction action = case action of
+  Move _ -> verb action
+  JumpToPlaying -> verb action
   Back -> goBack
   JumpToBrowser -> showSongScreen BrowserScreen locateSong
-  action@Activate -> verb action $ \case
-    QueueScreen -> Just activate
-    BrowserScreen -> Just activateItem
-    OutputsScreen -> Just toggleOutput
-    _ -> Nothing
-  action@Parent -> verb action $ \case
-    BrowserScreen -> Just leave
-    _ -> Nothing
-  action@Save -> verb action $ \case
-    QueueScreen -> Just $ getsS queueToSave >>= maybe (showMessage "The queue is empty") askSaveName
-    BrowserScreen -> Just $ askSaveName =<< getsS browserToSave
-    _ -> Nothing
-  action@EditLyrics -> verb action $ \case
-    LyricsScreen -> Just editLyrics
-    _ -> Nothing
-  action@RefetchLyrics -> verb action $ \case
-    LyricsScreen -> Just refetchLyrics
-    _ -> Nothing
-  action@NextSortMode -> verb action $ \case
-    BrowserScreen -> Just nextSortMode
-    _ -> Nothing
-  action@(Add p) -> verb action $ \case
-    BrowserScreen -> Just $ addMarked p
-    _ -> Nothing
-  action@AddAndPlay -> verb action $ \case
-    BrowserScreen -> Just addAndPlay
-    _ -> Nothing
-  action@AddOrRemove -> verb action $ \case
-    BrowserScreen -> Just addOrRemove
-    _ -> Nothing
-  action@(Select t) -> verb action $ \case
-    QueueScreen -> Just $ select t
-    BrowserScreen -> Just $ selectInBrowser t
-    _ -> Nothing
-  action@Delete -> verb action $ \case
-    QueueScreen -> Just deleteMarked
-    _ -> Nothing
-  action@(Priority p) -> verb action $ \case
-    QueueScreen -> Just $ prioritize p
-    _ -> Nothing
-  action@(MoveSongs t) -> verb action $ \case
-    QueueScreen -> Just $ moveSongs t
-    _ -> Nothing
-  action@(Find t) -> verb action $ \screen ->
-    screenRows screen <&> \rows -> case t of
-      FindForward -> modifyS (startFind Forward)
-      FindBackward -> modifyS (startFind Backward)
-      FindNext -> findAgain rows Forward
-      FindPrevious -> findAgain rows Backward
+  Activate -> verb action
+  Parent -> verb action
+  Save -> verb action
+  EditLyrics -> verb action
+  RefetchLyrics -> verb action
+  NextSortMode -> verb action
+  Add _ -> verb action
+  AddAndPlay -> verb action
+  AddOrRemove -> verb action
+  Select _ -> verb action
+  Delete -> verb action
+  Priority _ -> verb action
+  MoveSongs _ -> verb action
+  Find _ -> verb action
+  NextColumn -> notAvailable $ "The action " <> renderAction action
+  PreviousColumn -> notAvailable $ "The action " <> renderAction action
   Crossfade n -> mutate $ setCrossfade n
   AddPath path -> mutate $ add path Nothing
   CommandPrompt start ->
@@ -509,16 +461,37 @@ runAction = \case
           | otherwise = Nothing
     mutate . void $ update path
     showMessage $ "Updating " <> maybe "the database" ("/" <>) path
-  action -> notAvailable $ "The action " <> renderAction action
 
 -- | Run a verb the way the focused screen implements it. A screen that
 -- doesn't implement it says so, instead of acting on another screen.
-verb :: App es => Action -> (ScreenName -> Maybe (Eff es ())) -> Eff es ()
-verb action implementation = do
+verb :: App es => Action -> Eff es ()
+verb action = do
   screen <- getsS ((.screen) . focusedView)
-  case implementation screen of
-    Just k -> k
-    Nothing -> showMessage $ "The " <> screenText screen <> " has no " <> renderAction action
+  fromMaybe
+    (showMessage $ "The " <> screenText screen <> " has no " <> renderAction action)
+    (screenVerb screen action)
+
+-- | How a screen does a verb, if it does it. A screen finds if it has rows
+-- to find in.
+screenVerb :: App es => ScreenName -> Action -> Maybe (Eff es ())
+screenVerb screen = \case
+  Find t ->
+    screenRows screen <&> \rows -> case t of
+      FindForward -> modifyS (startFind Forward)
+      FindBackward -> modifyS (startFind Backward)
+      FindNext -> findAgain rows Forward
+      FindPrevious -> findAgain rows Backward
+  action -> case screen of
+    QueueScreen -> queueVerb action
+    BrowserScreen -> browserVerb action
+    SearchEngineScreen -> Nothing
+    MediaLibraryScreen -> Nothing
+    PlaylistEditorScreen -> Nothing
+    OutputsScreen -> outputsVerb action
+    VisualizerScreen -> Nothing
+    LyricsScreen -> lyricsVerb action
+    SongInfoScreen -> songInfoVerb action
+    HelpScreen -> helpVerb action
 
 -- | Show the screen after the focused one in a list, or the first one if the
 -- focused one isn't in the list. Screens that aren't built yet are skipped,
@@ -541,14 +514,6 @@ runConfirmed = \case
 
 ----------------------------------------
 -- Saving as a stored playlist
-
--- | Ask for the name of the stored playlist to save to.
-askSaveName :: App es => SaveSource -> Eff es ()
-askSaveName source
-  | Just why <- nothingToSave source = showMessage why
-  | otherwise =
-      modifyS $
-        openLine ("Save " <> describeSave source <> " as: ") (LineEdit "" "") (ForSave source)
 
 -- | Ask MPD which stored playlists there are, with the songs of those to
 -- save, before a save to the one of a name. An empty name saves nothing.
@@ -619,33 +584,6 @@ saveTo name source mode = do
       SavePlaylist _ -> pure ()
       SavePart -> pure ()
 
--- | What a save saves, as the status bar says it.
-describeSave :: SaveSource -> T.Text
-describeSave = \case
-  SaveQueue -> "the queue"
-  SaveItems items
-    | all isSong saved -> countSongs (length saved)
-    | otherwise -> countItems (length saved)
-    where
-      saved :: [SaveItem]
-      saved = savedItems items
-
-      isSong :: SaveItem -> Bool
-      isSong = \case
-        SaveSong _ -> True
-        _ -> False
-
--- | Why a save has nothing to save, if it hasn't.
-nothingToSave :: SaveSource -> Maybe T.Text
-nothingToSave = \case
-  SaveItems items
-    | null (savedItems items) ->
-        Just $
-          if null items
-            then "There is nothing to save"
-            else "Parts of files, e.g. the tracks of a cue sheet, can't be saved"
-  _ -> Nothing
-
 confirm :: T.Text -> AppEvent -> AppState -> AppState
 confirm question onYes =
   #prompt
@@ -670,36 +608,11 @@ toggle = \case
   ToggleCrossfade n -> withStatus $ \st ->
     mutate . setCrossfade $ if st.crossfade > 0 then 0 else n
   ToggleReplayGain -> request replayGainStatus ReplayGainFetched
-  ToggleDisplay -> verb (Toggle ToggleDisplay) $ \case
-    QueueScreen -> Just $ do
-      modifyS $
-        #toggles % #queueDisplay %~ \case
-          Classic -> Columns
-          Columns -> Classic
-      modifyWithEnv (modifyView id)
-      d <- getsS (.toggles.queueDisplay)
-      showMessage $
-        "Display: " <> case d of
-          Classic -> "classic"
-          Columns -> "columns"
-    BrowserScreen -> Just toggleBrowserDisplay
-    _ -> Nothing
+  ToggleDisplay -> verb (Toggle ToggleDisplay)
   ToggleAlbumSeparators -> notAvailable "Album separators"
-  ToggleFollowPlaying -> verb (Toggle ToggleFollowPlaying) $ \case
-    QueueScreen -> Just $ do
-      localToggle "Follow playing" #followPlaying
-      follow <- getsS (.toggles.followPlaying)
-      when follow (modifyWithEnv jumpToPlaying)
-    LyricsScreen -> Just toggleLyricsFollowing
-    _ -> Nothing
-  ToggleBitrate -> localToggle "Bitrate" #showBitrate
+  ToggleFollowPlaying -> verb (Toggle ToggleFollowPlaying)
+  ToggleBitrate -> toggleSetting "Bitrate" #showBitrate
   ToggleVisualization -> nextVisualization
-  where
-    localToggle :: App es => T.Text -> Lens' Toggles Bool -> Eff es ()
-    localToggle name field = do
-      modifyS $ #toggles % field %~ not
-      v <- getsS (view (#toggles % field))
-      showMessage $ name <> ": " <> onOff v
 
 ----------------------------------------
 -- Finding

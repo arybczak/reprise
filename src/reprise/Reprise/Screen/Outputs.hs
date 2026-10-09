@@ -3,11 +3,10 @@
 -- ncmpcpp shows it bold.
 module Reprise.Screen.Outputs
   ( outputsView
+  , outputsVerb
   , showOutputs
   , refreshOutputs
   , outputsFetched
-  , moveOutputsCursor
-  , toggleOutput
   ) where
 
 import Control.Monad
@@ -53,6 +52,13 @@ outputsView env s v =
           [Span Nothing o.name]
   in V.vertCat . zipWith row [v.offset ..] . toList $
        Seq.take v.height (Seq.drop v.offset (fromMaybe Seq.empty s.outputs))
+
+-- | How the outputs screen does a verb, if it does it.
+outputsVerb :: App es => Action -> Maybe (Eff es ())
+outputsVerb = \case
+  Move t -> Just $ modifyWithEnv (moveOutputsCursor t)
+  Activate -> Just toggleOutput
+  _ -> Nothing
 
 -- | Show the outputs, which are fetched the first time.
 showOutputs :: App es => Eff es ()

@@ -2,16 +2,20 @@
 -- keymap, as text that scrolls.
 module Reprise.Screen.Help
   ( helpView
+  , helpVerb
   , keyColumnWidth
   ) where
 
 import Data.Set qualified as S
 import Data.Text qualified as T
+import Effectful
 import Graphics.Vty qualified as V
 import Optics.Core
 
+import Reprise.Action
 import Reprise.Config
 import Reprise.Format
+import Reprise.Handler.Core
 import Reprise.Keymap
 import Reprise.State
 import Reprise.Style
@@ -23,6 +27,12 @@ helpView env v =
   let ls = helpLines env.keymaps
       render = renderHelpLine env.colorMode env.config.styles (keyColumnWidth ls) v.width
   in V.vertCat . map render . take v.height $ drop v.offset ls
+
+-- | How the help screen does a verb, if it does it.
+helpVerb :: App es => Action -> Maybe (Eff es ())
+helpVerb = \case
+  Move t -> Just $ scrollLines t
+  _ -> Nothing
 
 -- | A line of the given width. The keys of all entries, after their
 -- indentation, share a column as wide as the widest.
