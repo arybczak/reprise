@@ -19,6 +19,7 @@ module Reprise.Screen.Visualizer
   , visualizerSpectrum
   , visualizerWave
   , visualizerStats
+  , visualizerFailed
   , nextVisualization
   , updateVisualizer
   ) where
@@ -54,7 +55,16 @@ visualizerView env s v = case env.config.visualizer.dataSource of
     | otherwise -> picture v.height
   where
     picture :: Int -> V.Image
-    picture h = case s.visualizer.reading of
+    picture h = case s.visualizer.failure of
+      Just reason ->
+        V.cropBottom h . V.vertCat . map (V.text' (toAttr env.colorMode mempty)) $
+          concatMap
+            (wrapText v.width)
+            [reason, "Show the visualizer again, or switch the visualization, to try again."]
+      Nothing -> frame h
+
+    frame :: Int -> V.Image
+    frame h = case s.visualizer.reading of
       Just (SpectrumFrame spectrum) ->
         bars env.colorMode env.config.visualizer v.width h spectrum
       Just (EllipseFrames frames) ->
@@ -137,9 +147,19 @@ showFrame :: App es => (VisualizerPicture -> Maybe VisualizerPicture) -> Eff es 
 showFrame next =
   getsS (.visualizer.reading) >>= \case
     Just picture | Just picture' <- next picture -> do
-      modifyS $ #visualizer % #reading ?~ picture'
+      -- The failure of an earlier try can come after this try began.
+      modifyS $ #visualizer %~ (#reading ?~ picture') . (#failure .~ Nothing)
       countDrawn
     _ -> keepScreen
+
+-- | Show why the worker can't read the samples, while the visualizer
+-- shows.
+visualizerFailed :: App es => T.Text -> Eff es ()
+visualizerFailed reason = do
+  reading <- getsS (.visualizer.reading)
+  if isNothing reading
+    then keepScreen
+    else modifyS $ #visualizer % #failure ?~ reason
 
 -- | Show what happened to the worker's frames in the last second.
 visualizerStats :: App es => FrameStats -> Eff es ()

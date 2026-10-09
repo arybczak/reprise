@@ -46,12 +46,13 @@ visualizerWorker :: (Clock :> es, Fifo :> es, IOE :> es) => VisualizerSource -> 
 visualizerWorker src = do
   transform <- liftIO newTransform
   forever $ do
-    liftIO . atomically $ readTVar src.reading >>= check . isJust
+    wanted <- liftIO . atomically $ readTVar src.reading >>= maybe retry pure
     try @IOException openFifo >>= \case
+      -- The next try comes with the next wish, e.g. another visualization.
       Left err -> liftIO $ do
         void . src.emit . VisualizerFailed $
           "The visualizer can't read its data source: " <> exceptionText err
-        atomically $ readTVar src.reading >>= check . isNothing
+        atomically $ readTVar src.reading >>= check . (/= Just wanted)
       Right () -> (`finally` closeFifo) $ do
         void readFifo
         start <- monotonicTime

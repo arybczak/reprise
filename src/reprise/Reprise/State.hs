@@ -320,6 +320,8 @@ data VisualizerState = VisualizerState
   -- @visualizer.debug@.
   , stats :: Maybe FrameStats
   -- ^ What the worker last sent, with @visualizer.debug@.
+  , failure :: Maybe T.Text
+  -- ^ Why the worker can't read the samples, until it tries again.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -338,7 +340,7 @@ data VisualizerPicture
 -- | The visualizer reading the samples for a visualization, or not, before
 -- the first frame.
 newVisualizer :: Maybe Visualization -> VisualizerState
-newVisualizer v = VisualizerState (empty <$> v) Seq.empty Nothing
+newVisualizer v = VisualizerState (empty <$> v) Seq.empty Nothing Nothing
   where
     empty :: Visualization -> VisualizerPicture
     empty = \case

@@ -92,6 +92,7 @@ visualizerTests =
     , testCase "the spectrum stays until its window is silent" test_workerSilence
     , testCase "the worker sends the wave" test_workerWave
     , testCase "the worker reports a data source that it can't read" test_workerFails
+    , testCase "the screen says why it can't read the data source" test_failureShows
     , testCase "the debug line shows what happened to the frames" test_debugLine
     , testCase "the worker sends what happened to its frames" test_workerStats
     ]
@@ -665,14 +666,43 @@ withWriting path pcm act = do
     writeInterval :: Int
     writeInterval = 1000000 `div` 600
 
+-- | It tries again for another visualization, or when the visualizer shows
+-- again.
 test_workerFails :: Assertion
 test_workerFails = withSystemTempDirectory "visualizer" $ \dir -> do
   events <- newTQueueIO
   reading <- newTVarIO (Just Ellipse)
-  bracket (forkIO . realWorker (dir </> "missing") $ source reading events) killThread $ \_ ->
-    expectWithin (atomically (readTQueue events)) >>= \case
-      VisualizerFailed _ -> pure ()
-      e -> assertFailure $ "event: " <> show e
+  let failed :: String -> Assertion
+      failed what =
+        expectWithin (atomically (readTQueue events)) >>= \case
+          VisualizerFailed _ -> pure ()
+          e -> assertFailure $ what <> ": " <> show e
+  bracket (forkIO . realWorker (dir </> "missing") $ source reading events) killThread $ \_ -> do
+    failed "the first try"
+    atomically $ writeTVar reading (Just Spectrum)
+    failed "another visualization"
+    -- The key that shows the visualizer again comes long after the worker
+    -- saw it leave.
+    atomically $ writeTVar reading Nothing
+    threadDelay 100000
+    atomically $ writeTVar reading (Just Spectrum)
+    failed "shown again"
+
+-- | The screen says why, until the next try.
+test_failureShows :: Assertion
+test_failureShows = do
+  s <- testState (80, 12) (statusOf Stopped Nothing 0) []
+  let reason = "The visualizer can't read its data source: no such file"
+  r <- runEventsWith visualizing 0 [key "8", VisualizerFailed reason] s
+  case imageLines (renderScreen visualizing r.state) of
+    _ : _ : first : second : _ -> do
+      assertEqual "the reason" reason first
+      assertBool ("how to try again: " <> T.unpack second) ("try again" `T.isInfixOf` second)
+    ls -> assertFailure $ "too few lines: " <> show ls
+  switched <- runEventsWith visualizing 0 [key "space"] r.state
+  assertEqual "gone with the next try" Nothing switched.state.visualizer.failure
+  left <- runEventsWith visualizing 0 [key "1", VisualizerFailed reason] s
+  assertEqual "not after leaving" Nothing left.state.visualizer.failure
 
 -- | The line takes the top row, and the picture the rest.
 test_debugLine :: Assertion

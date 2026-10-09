@@ -285,6 +285,10 @@ ncmpcpp.
   only. `visualizer.data_source` is the path of the fifo, and the
   visualizer says how to set it when it is missing. A worker thread opens
   the fifo while the visualizer shows, and only then.
+- **A fifo that doesn't open shows why** in place of the picture, until
+  the next try: when the visualizer shows again, or the visualization
+  changes. There is no retry on a timer, which would go on forever with a
+  wrong path.
 - It has three visualizations, the spectrum, the ellipse and the wave. It
   starts with `visualizer.visualization`, the spectrum as in ncmpcpp, and
   `toggle visualization` goes to the next, on space in the visualizer as in
