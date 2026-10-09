@@ -199,4 +199,9 @@ matchOptions = [ICU.CaseInsensitive, ICU.WorkLimit workLimit]
 -- again, so that a syllable of Hangul, which decomposes into its letters,
 -- stays one character.
 foldDiacritics :: T.Text -> T.Text
-foldDiacritics = ICU.nfc . T.filter ((/= NonSpacingMark) . generalCategory) . ICU.nfd
+foldDiacritics t
+  -- Text of ASCII has no marks, and the forms leave it as it is. Leaving
+  -- it alone took the first key of a find that matches nothing in 4254
+  -- songs from 8.4 ms to 4.7 ms, in reprise:bench.
+  | T.all isAscii t = t
+  | otherwise = ICU.nfc . T.filter ((/= NonSpacingMark) . generalCategory) $ ICU.nfd t

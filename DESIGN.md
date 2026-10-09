@@ -1696,6 +1696,8 @@ Details for incremental find:
   songs, this took a key that finds nothing from 6.9 ms to 1.8 ms. The
   browser keeps the rows of each listing the same way, from the listing
   until the next one or a new sort.
+- **Text of ASCII isn't folded,** as it has no marks to drop. That took the
+  first key of a find, which folds the rows, from 8.4 ms to 4.7 ms.
 
 There is no plain-text mode. To match a literal string with special
 characters, escape them (`AC/DC \(Live\)`) or quote it with ICU's `\Q...\E`.
