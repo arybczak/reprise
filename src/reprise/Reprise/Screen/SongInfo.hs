@@ -49,7 +49,7 @@ songInfoSpans env s width = map row (songInfoRows env s width)
           Just text -> Span (Just env.config.styles.value) text
           Nothing ->
             Span
-              (Just (fromMaybe env.config.styles.value env.config.lists.missingTagStyle))
+              (Just (fromMaybe env.config.styles.value env.config.styles.missingTag))
               env.config.lists.missingTag
       ]
 

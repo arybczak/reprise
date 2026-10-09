@@ -50,16 +50,9 @@ songs:                           # how a song looks in a list
     - {width: 5, style: 203, format: '[%{length}|-:--]', align: right}
 
 lists:                           # every list
-  style: yellow
-  cursor_style: yellow reverse
-  selected_style: yellow on 24
-  found_style: underline         # what a find matches
-  playing_style: bold            # the song that plays, and the enabled outputs
-  queued_style: bold             # songs that are in the queue, in the browser
   keep_cursor_centered: false
   ignore_leading_the: false      # sort "The Beatles" under B
   missing_tag: —                 # what a tag without a value shows
-  missing_tag_style: ~           # e.g. cyan; without it, the style around it
   tag_separator: ' | '           # between the values of a tag
 
 queue:
@@ -74,28 +67,13 @@ browser:
     format: '%{artist} - %{title}'   # for format
   playlist_prefix: '<red>playlist</> '
 
-header:
-  style: default
-  title_style: bold
-  volume_style: default
-  # The flags: r repeat, z random, s single, c consume, x crossfade, U updating
-  # the database.
-  flags_style: bold
-  line_style: default
-
 status_bar:
   song: '[[%{artist}[ "%{album}"[ (%{year})]] - ]%{title}|%{filename}]'
-  style: default
-  state_style: bold
-  time_style: bold
-  error_style: 9                 # the terminal's bright red
   show_remaining_time: false
   show_bitrate: false
 
 progress_bar:
   chars: ▅▅▅                     # elapsed, the current position, remaining
-  style: 236
-  elapsed_style: 28
 
 visualizer:
   data_source: ~                 # the fifo of an MPD output; see the README
@@ -120,10 +98,38 @@ mouse:
   scroll_lines: 4                # a step of the wheel moves a list or text
   volume_step: 2                 # a step of the wheel over the volume
 
+# The styles of every part of the screen, which make a theme. A column of the
+# songs has its own style above, and the visualizer its colors.
 styles:
   label: white                   # names of fields, e.g. in the song info
   value: green                   # values of fields
-  text: yellow                   # the lyrics and the descriptions of the help
+  missing_tag: ~                 # e.g. cyan; without it, the style around it
+  text:                          # the help, the lyrics and the song info
+    normal: yellow
+    found: reverse               # what a find matches
+  list:                          # every list
+    normal: yellow
+    cursor: yellow reverse
+    selected: yellow on 24
+    found: underline             # what a find matches
+    playing: bold                # the song that plays, and the enabled outputs
+    queued: bold                 # songs that are in the queue, in the browser
+  header:
+    normal: default
+    title: bold
+    volume: default
+    # The flags: r repeat, z random, s single, c consume, x crossfade, U
+    # updating the database.
+    flags: bold
+    line: default
+  status_bar:
+    normal: default
+    state: bold
+    time: bold
+    error: 9                     # the terminal's bright red
+  progress_bar:
+    normal: 236
+    elapsed: 28
 
 # The keys, as a key sequence: a key binds an action, or opens a group of more
 # keys, which the which-key panel shows. A screen's keys come first, and its

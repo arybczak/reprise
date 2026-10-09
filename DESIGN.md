@@ -232,7 +232,7 @@ ncmpcpp.
   in one screen can be found again in another. ncmpcpp keeps one for each
   screen.
 - Find always ignores diacritics.
-- Songs that are in the queue have `lists.queued_style` in the other
+- Songs that are in the queue have `styles.list.queued` in the other
   screens, bold by default, which ncmpcpp hardcodes. A song is in the queue
   if the queue has its file, and for a track of a cue sheet, the same part
   of the file. The style lies over the row's like the other states of a
@@ -298,7 +298,7 @@ ncmpcpp.
 - Outputs screen. It is small and used often.
   - **`activate` enables the output under the cursor, or disables it,** and
     the status bar says which. The new state comes back through idle.
-  - **An enabled output has `lists.playing_style`,** bold by default, as
+  - **An enabled output has `styles.list.playing`,** bold by default, as
     ncmpcpp shows it bold.
   - **The outputs are fetched when the screen first shows.** After that, an
     idle `output` event and a new connection fetch them again, so that the
@@ -664,7 +664,7 @@ ncmpcpp.
   - **The tests read trimmed copies** of a search, a song's page and the
     redirect, saved once, with other lyrics in them.
 - **Timed lyrics show the line being sung** while their song plays, also in
-  `lists.playing_style`, as the song that plays shows in a list. The screen
+  `styles.list.playing`, as the song that plays shows in a list. The screen
   keeps that line in its middle, until the user scrolls, and follows again
   for the next lyrics that it shows, or after `o`, as `jump_to_playing`
   does in the lists. On another song's lyrics, `o` shows the lyrics of the
@@ -1324,7 +1324,7 @@ From top to bottom, as in ncmpcpp's classic design:
   song count and times or the browser's path, as in ncmpcpp. It scrolls from
   its start whenever the title shows another screen, or the browser lists
   another directory or playlist. ncmpcpp always bolds the title, and
-  `header.title_style` makes that a style.
+  `styles.header.title` makes that a style.
 - **Header, line 2:** a horizontal line with the mode flags on the right:
   repeat, random, single, consume, crossfade, and "updating the database".
 - **The main view.**
@@ -1420,7 +1420,7 @@ Find (`/`, `?`):
 - **On every key,** the cursor moves to the first match after where the find
   started, so the result doesn't depend on how the pattern was typed, e.g.
   with corrections. A match centers the cursor, as every jump does.
-- **The visible matches** have `lists.found_style` while the prompt is open.
+- **The visible matches** have `styles.list.found` while the prompt is open.
 - **The status bar notes** that the find wrapped around, found nothing, or
   that the pattern is incomplete.
 - **Cancelling** goes back to where the find started. ncmpcpp stays at the
@@ -1437,9 +1437,11 @@ Find (`/`, `?`):
   - **Text has no cursor,** so the row of a match stands for one. It shows
     in the middle, and the next find starts after it. Once it scrolls out of
     view, a find starts at the edge of the view instead.
-  - **The matched text has `lists.found_style`,** as ncmpcpp highlights it,
-    also after the prompt closes, until a find on another screen: without
-    a cursor, nothing else shows where the find went.
+  - **The matched text has `styles.text.found`,** reverse by default, as
+    ncmpcpp highlights it, also after the prompt closes, until a find on
+    another screen: without a cursor, nothing else shows where the find
+    went. Lists keep `styles.list.found`, an underline, since the cursor of
+    a list is reverse, and a reverse match would look like it.
   - **A find stops the lyrics following the song,** as a scroll does.
 
 ### Seeking
@@ -1614,7 +1616,7 @@ Rendering returns either "missing" or a list of styled text spans.
 - `[...]` tries its alternatives in order. It renders the first one that is not
   missing, or nothing.
 - A missing tag outside any `[...]` renders as `lists.missing_tag`, with
-  `lists.missing_tag_style` if it is set. In the columns display, the marker
+  `styles.missing_tag` if it is set. In the columns display, the marker
   takes the column's style instead, so that it looks like the rest of the
   column.
   - **The marker is an em dash** by default, the usual mark of no value in a
@@ -1681,10 +1683,14 @@ changes; everything else has a default.
 - **Options are grouped by the part of the UI they affect,** and named by what
   they do, not by how ncmpcpp implemented them.
 - **Formats are strings** in the [format language](#format-language).
-- **Every style option ends in `_style` or sits in `styles`.** A style is a
-  space-separated list: an optional foreground color, attributes (`bold`,
-  `underline`, `italic`, `reverse`), and `on <color>` for a background, e.g.
-  `yellow on 24` or `black bold`. `default` means the terminal's own colors.
+- **Every style sits in `styles`,** grouped by the part of the screen, e.g.
+  `styles.list.cursor`, with `normal` for a part's own style. So a theme is
+  one section, and the other sections only say how things work. A column
+  of the songs, the visualizer's colors and the styles in formats stay with
+  what they style. A style is a space-separated list: an optional
+  foreground color, attributes (`bold`, `underline`, `italic`, `reverse`),
+  and `on <color>` for a background, e.g. `yellow on 24` or `black bold`.
+  `default` means the terminal's own colors.
 - **Colors** are names (`red`, `cyan`, ...) or numbers 0–255, the standard
   numbering of terminal color charts. ncmpcpp numbers them from 1.
 - **A color can be `#rrggbb`,** of red, green and blue, which a terminal
@@ -1941,7 +1947,7 @@ options, `allow_for_physical_item_deletion`,
 - **Named, for features that aren't built:** `playlist_separate_albums` →
   `queue.album_separators`, `search_engine_display_mode` →
   `search_engine.display`, `current_item_inactive_column_prefix`/`suffix` →
-  `lists.inactive_cursor_style`, `window_border_color` →
+  `styles.list.inactive_cursor`, `window_border_color` →
   `styles.popup_border`. doc/ncmpcpp.md lists them when they work.
 - **The options of other later features:**
   `mouse_list_scroll_whole_page`, `mpd_music_dir` and the tag editor's

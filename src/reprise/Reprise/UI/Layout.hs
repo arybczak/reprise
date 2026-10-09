@@ -51,18 +51,18 @@ renderScreen env s
 -- Header
 
 headerTitle :: AppEnv -> AppState -> V.Image
-headerTitle env s = line env s env.config.header.style left right
+headerTitle env s = line env s env.config.styles.header.normal left right
   where
     left :: [Span Style]
-    left = [Span (Just env.config.header.titleStyle) (shownTitle env s)]
+    left = [Span (Just env.config.styles.header.title) (shownTitle env s)]
 
     right :: [Span Style]
-    right = [Span (Just env.config.header.volumeStyle) (headerRight s)]
+    right = [Span (Just env.config.styles.header.volume) (headerRight s)]
 
 headerLine :: AppEnv -> AppState -> V.Image
 headerLine env s =
   let (w, _) = s.terminalSize
-      lineAttr = attr env env.config.header.lineStyle
+      lineAttr = attr env env.config.styles.header.line
       flagsText = flags s
       rule n = V.charFill lineAttr '─' n 1
   in if T.null flagsText
@@ -73,7 +73,7 @@ headerLine env s =
          let flagsImage =
                V.horizCat
                  [ V.text' lineAttr "["
-                 , V.text' (attr env env.config.header.flagsStyle) flagsText
+                 , V.text' (attr env env.config.styles.header.flags) flagsText
                  , V.text' lineAttr "]"
                  ]
              margin = 1
@@ -165,8 +165,8 @@ progressBar :: AppEnv -> AppState -> V.Image
 progressBar env s =
   let (w, _) = s.terminalSize
       cfg = env.config.progressBar
-      remainingAttr = attr env cfg.style
-      elapsedAttr = attr env cfg.elapsedStyle
+      remainingAttr = attr env env.config.styles.progressBar.normal
+      elapsedAttr = attr env env.config.styles.progressBar.elapsed
       filled = do
         d <- progressDuration s
         e <- displayedElapsed s
@@ -190,22 +190,32 @@ statusBar env s = case statusContent s of
     line
       env
       s
-      cfg.style
+      styles.normal
       (Span Nothing (question <> " [") : choices options <> [Span Nothing "]"])
       []
   StatusPrompt (Prompt question (Line edit purpose _)) ->
     let p = promptLine s question edit purpose
-    in line env s cfg.style [Span Nothing question, Span Nothing p.shown] [Span Nothing p.note]
+    in line
+         env
+         s
+         styles.normal
+         [Span Nothing question, Span Nothing p.shown]
+         [Span Nothing p.note]
   StatusPending pending -> textLine (T.unwords (map renderKeySpec pending.keys) <> " -")
   StatusMessage m ->
-    line env s cfg.style [Span (if m.isError then Just cfg.errorStyle else Nothing) m.text] []
+    line
+      env
+      s
+      styles.normal
+      [Span (if m.isError then Just styles.error else Nothing) m.text]
+      []
   StatusPlayer -> playerStatus env s
   where
-    cfg :: StatusBarConfig
-    cfg = env.config.statusBar
+    styles :: StatusBarStyles
+    styles = env.config.styles.statusBar
 
     textLine :: T.Text -> V.Image
-    textLine t = line env s cfg.style [Span Nothing t] []
+    textLine t = line env s styles.normal [Span Nothing t] []
 
     -- The names of the options, with the letter that picks each in bold.
     choices :: [ChoiceOption] -> [Span Style]
@@ -271,17 +281,20 @@ playerStatus env s = case (s.mirror.status, currentSong s.mirror, playerLabel s)
         bitrate = case st.bitrate of
           Just b | s.toggles.showBitrate && b > 0 -> T.pack (show b) <> " kbps "
           _ -> ""
-        right = [Span Nothing bitrate, Span (Just cfg.timeStyle) time]
+        right = [Span Nothing bitrate, Span (Just styles.time) time]
         room = max 0 (fst s.terminalSize - textWidth label - spansWidth right - 1)
-        songSpans = renderFormat (renderContext env.config.lists) song cfg.song
+        songSpans = renderFormat (renderContext env.config.lists env.config.styles) song cfg.song
         shown
           | spansWidth songSpans <= room = songSpans
           | otherwise = [Span Nothing (scrollText room (floor e) (spansText songSpans))]
-    in line env s cfg.style (Span (Just cfg.stateStyle) label : shown) right
-  _ -> line env s cfg.style [] []
+    in line env s styles.normal (Span (Just styles.state) label : shown) right
+  _ -> line env s styles.normal [] []
   where
     cfg :: StatusBarConfig
     cfg = env.config.statusBar
+
+    styles :: StatusBarStyles
+    styles = env.config.styles.statusBar
 
 ----------------------------------------
 -- Helpers

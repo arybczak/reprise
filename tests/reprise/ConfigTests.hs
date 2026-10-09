@@ -51,12 +51,11 @@ test_emptyFile = do
 
 test_sectionDefaults :: Assertion
 test_sectionDefaults = do
-  config <- expectRight $ decode "lists:\n  style: red\n"
-  assertEqual "changed" (style "red") config.lists.style
-  assertEqual "default" (style "yellow reverse") config.lists.cursorStyle
-  header <- expectRight $ decode "header:\n  title_style: red\n"
-  assertEqual "title style" (style "red") header.header.titleStyle
-  assertEqual "bold by default" (style "bold") defaultConfig.header.titleStyle
+  config <- expectRight $ decode "styles:\n  list:\n    normal: red\n"
+  assertEqual "changed" (style "red") config.styles.list.normal
+  assertEqual "default" (style "yellow reverse") config.styles.list.cursor
+  assertEqual "another part" (style "bold") config.styles.header.title
+  assertEqual "a shared style" (style "green") config.styles.value
 
 test_defaultKeymaps :: Assertion
 test_defaultKeymaps = do
@@ -167,10 +166,10 @@ test_documentedEverything = do
   assertEqual
     "the options left out"
     [ "search_engine"
-    , "lists.inactive_cursor_style"
     , "queue.album_separators"
     , "search_engine.display"
     , "styles.popup_border"
+    , "styles.list.inactive_cursor"
     ]
     [ T.intercalate "." (path <> [name])
     | (path, names) <- sections
@@ -202,7 +201,6 @@ test_documentedEverything = do
       , (["browser"], optionNames @BrowserConfig)
       , (["browser", "sort"], optionNames @BrowserSort)
       , (["search_engine"], optionNames @SearchEngineConfig)
-      , (["header"], optionNames @HeaderConfig)
       , (["status_bar"], optionNames @StatusBarConfig)
       , (["progress_bar"], optionNames @ProgressBarConfig)
       , (["visualizer"], optionNames @VisualizerConfig)
@@ -210,6 +208,11 @@ test_documentedEverything = do
       , (["editor"], optionNames @EditorConfig)
       , (["mouse"], optionNames @MouseConfig)
       , (["styles"], optionNames @StylesConfig)
+      , (["styles", "text"], optionNames @TextStyles)
+      , (["styles", "list"], optionNames @ListStyles)
+      , (["styles", "header"], optionNames @HeaderStyles)
+      , (["styles", "status_bar"], optionNames @StatusBarStyles)
+      , (["styles", "progress_bar"], optionNames @ProgressBarStyles)
       ]
 
     -- The keys of the mapping at the path.
@@ -294,7 +297,7 @@ test_errors = do
   assertError
     "bad style"
     "unknown color or attribute purple"
-    (decode "lists:\n  style: purple\n")
+    (decode "styles:\n  list:\n    normal: purple\n")
   assertError
     "style in a plain format"
     "this format can't contain styles"
@@ -323,7 +326,10 @@ test_errors = do
     "missing column format"
     "missing key \"format\""
     (decode "songs:\n  columns:\n    list:\n    - {width: 5}\n")
-  assertError "line and column" "config.yaml:2:10" (decode "lists:\n  style: purple\n")
+  assertError
+    "line and column"
+    "config.yaml:3:13"
+    (decode "styles:\n  list:\n    normal: purple\n")
   assertError
     "no frames"
     "expected at least 1 frame per second"

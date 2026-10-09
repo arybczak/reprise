@@ -49,7 +49,7 @@ helpLineSpans styles keyWidth = \case
   Entry depth keys description ->
     let keys' = indent depth <> keys
     in [ Span (Just styles.value) (keys' <> T.replicate (keyWidth + gap - textWidth keys') " ")
-       , Span (Just styles.text) description
+       , Span (Just styles.text.normal) description
        ]
   Blank -> []
   where

@@ -202,7 +202,7 @@ marked :: Maybe Style -> AppEnv
 marked markerStyle =
   testAppEnv
     & #config % #lists % #missingTag .~ "<empty>"
-    & #config % #lists % #missingTagStyle .~ markerStyle
+    & #config % #styles % #missingTag .~ markerStyle
 
 cyan :: Style
 cyan = Style (Just (Color 6)) Nothing mempty
@@ -225,7 +225,8 @@ test_titleStyle = do
   s <- playing (80, 12)
   let titleAttrs = [a | (a, t) <- imageSpans (renderScreen testAppEnv s), "Queue (" `T.isPrefixOf` t]
   assertEqual "bold by default" [V.SetTo V.bold] (map V.attrStyle titleAttrs)
-  let red = testAppEnv & #config % #header % #titleStyle .~ Style (Just (Color 1)) Nothing mempty
+  let red =
+        testAppEnv & #config % #styles % #header % #title .~ Style (Just (Color 1)) Nothing mempty
       redAttrs = [a | (a, t) <- imageSpans (renderScreen red s), "Queue (" `T.isPrefixOf` t]
   assertEqual "configured" [V.SetTo (V.ISOColor 1)] (map V.attrForeColor redAttrs)
 

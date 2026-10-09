@@ -192,8 +192,9 @@ the defaults of later versions.
 queue:
   display: classic               # one line for each song instead of columns
 
-lists:
-  cursor_style: black on yellow
+styles:
+  list:
+    cursor: black on yellow
 
 keys:
   global:

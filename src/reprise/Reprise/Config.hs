@@ -24,7 +24,6 @@ module Reprise.Config
   , SortBy (..)
   , sortByName
   , SearchEngineConfig (..)
-  , HeaderConfig (..)
   , StatusBarConfig (..)
   , ProgressBarConfig (..)
   , ProgressChars (..)
@@ -39,6 +38,11 @@ module Reprise.Config
   , visualizationName
   , FrameRate (..)
   , StylesConfig (..)
+  , TextStyles (..)
+  , ListStyles (..)
+  , HeaderStyles (..)
+  , StatusBarStyles (..)
+  , ProgressBarStyles (..)
   , KeysConfig (..)
   , defaultConfig
 
@@ -85,7 +89,6 @@ data Config = Config
   , queue :: QueueConfig
   , browser :: BrowserConfig
   , searchEngine :: SearchEngineConfig
-  , header :: HeaderConfig
   , statusBar :: StatusBarConfig
   , progressBar :: ProgressBarConfig
   , visualizer :: VisualizerConfig
@@ -171,25 +174,9 @@ data Align = AlignLeft | AlignRight
   deriving stock (Eq, Show)
 
 data ListsConfig = ListsConfig
-  { style :: Style
-  , cursorStyle :: Style
-  , inactiveCursorStyle :: Style
-  , selectedStyle :: Style
-  , foundStyle :: Style
-  -- ^ The items that match an unfinished find, and the text that a find
-  -- matches in a screen of text.
-  , playingStyle :: Style
-  , queuedStyle :: Style
-  -- ^ The songs that are in the queue, in the other screens. ncmpcpp
-  -- always makes them bold.
-  , keepCursorCentered :: Bool
+  { keepCursorCentered :: Bool
   , ignoreLeadingThe :: Bool
   , missingTag :: T.Text
-  , missingTagStyle :: Maybe Style
-  -- ^ Without it, the marker has the style around it. Not in the columns
-  -- display, where the marker has the column's style. The song info screen
-  -- shows its empty fields with it, and the search engine's form will, as
-  -- ncmpcpp does.
   , tagSeparator :: T.Text
   }
   deriving stock (Eq, Show, Generic)
@@ -247,33 +234,16 @@ newtype SearchEngineConfig = SearchEngineConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml SearchEngineConfig
 
-data HeaderConfig = HeaderConfig
-  { style :: Style
-  , titleStyle :: Style
-  -- ^ The title of the screen, laid over 'style'.
-  , volumeStyle :: Style
-  , flagsStyle :: Style
-  , lineStyle :: Style
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (FromYaml) via GenericYaml HeaderConfig
-
 data StatusBarConfig = StatusBarConfig
   { song :: Format Style
-  , style :: Style
-  , stateStyle :: Style
-  , timeStyle :: Style
-  , errorStyle :: Style
   , showRemainingTime :: Bool
   , showBitrate :: Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml StatusBarConfig
 
-data ProgressBarConfig = ProgressBarConfig
+newtype ProgressBarConfig = ProgressBarConfig
   { chars :: ProgressChars
-  , style :: Style
-  , elapsedStyle :: Style
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml ProgressBarConfig
@@ -380,16 +350,81 @@ visualizationName = \case
 newtype FrameRate = FrameRate Int
   deriving newtype (Eq, Show)
 
+-- | The styles of every part of the screen, which make a theme.
 data StylesConfig = StylesConfig
   { label :: Style
+  -- ^ Names of fields, e.g. in the song info and the help.
   , value :: Style
+  -- ^ Values of fields, e.g. the keys in the which-key panel.
+  , missingTag :: Maybe Style
+  -- ^ The marker of a tag without a value. Without it, the marker has the
+  -- style around it. Not in the columns display, where the marker has the
+  -- column's style. The song info screen shows its empty fields with it,
+  -- and the search engine's form will, as ncmpcpp does.
   , popupBorder :: Style
-  , text :: Style
-  -- ^ The text of the screens of text: the lyrics and the descriptions of
-  -- the help.
+  , text :: TextStyles
+  , list :: ListStyles
+  , header :: HeaderStyles
+  , statusBar :: StatusBarStyles
+  , progressBar :: ProgressBarStyles
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml StylesConfig
+
+-- | The styles of the screens of text: the help, the lyrics and the song
+-- info.
+data TextStyles = TextStyles
+  { normal :: Style
+  -- ^ The lyrics and the descriptions of the help.
+  , found :: Style
+  -- ^ What a find matches.
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromYaml) via GenericYaml TextStyles
+
+-- | The styles of every list. The states of an item lay their styles over
+-- 'normal'.
+data ListStyles = ListStyles
+  { normal :: Style
+  , cursor :: Style
+  , inactiveCursor :: Style
+  , selected :: Style
+  , found :: Style
+  -- ^ The items that match an unfinished find.
+  , playing :: Style
+  , queued :: Style
+  -- ^ The songs that are in the queue, in the other screens. ncmpcpp
+  -- always makes them bold.
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromYaml) via GenericYaml ListStyles
+
+data HeaderStyles = HeaderStyles
+  { normal :: Style
+  , title :: Style
+  -- ^ The title of the screen, laid over 'normal'.
+  , volume :: Style
+  , flags :: Style
+  , line :: Style
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromYaml) via GenericYaml HeaderStyles
+
+data StatusBarStyles = StatusBarStyles
+  { normal :: Style
+  , state :: Style
+  , time :: Style
+  , error :: Style
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromYaml) via GenericYaml StatusBarStyles
+
+data ProgressBarStyles = ProgressBarStyles
+  { normal :: Style
+  , elapsed :: Style
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromYaml) via GenericYaml ProgressBarStyles
 
 -- | The user's changes to the default keymaps.
 data KeysConfig = KeysConfig
@@ -414,7 +449,6 @@ defaultConfig =
     , queue = defaultQueue
     , browser = defaultBrowser
     , searchEngine = defaultSearchEngine
-    , header = defaultHeader
     , statusBar = defaultStatusBar
     , progressBar = defaultProgressBar
     , visualizer = defaultVisualizer
@@ -472,17 +506,9 @@ defaultColumn =
 defaultLists :: ListsConfig
 defaultLists =
   ListsConfig
-    { style = style "yellow"
-    , cursorStyle = style "yellow reverse"
-    , inactiveCursorStyle = style "yellow on 237"
-    , selectedStyle = style "yellow on 24"
-    , foundStyle = style "underline"
-    , playingStyle = style "bold"
-    , queuedStyle = style "bold"
-    , keepCursorCentered = False
+    { keepCursorCentered = False
     , ignoreLeadingThe = False
     , missingTag = "—"
-    , missingTagStyle = Nothing
     , tagSeparator = " | "
     }
 
@@ -509,24 +535,10 @@ defaultBrowserSort = BrowserSort {by = SortByType, format = plainFormat "%{artis
 defaultSearchEngine :: SearchEngineConfig
 defaultSearchEngine = SearchEngineConfig {display = Classic}
 
-defaultHeader :: HeaderConfig
-defaultHeader =
-  HeaderConfig
-    { style = style "default"
-    , titleStyle = style "bold"
-    , volumeStyle = style "default"
-    , flagsStyle = style "bold"
-    , lineStyle = style "default"
-    }
-
 defaultStatusBar :: StatusBarConfig
 defaultStatusBar =
   StatusBarConfig
     { song = styledFormat "[[%{artist}[ \"%{album}\"[ (%{year})]] - ]%{title}|%{filename}]"
-    , style = style "default"
-    , stateStyle = style "bold"
-    , timeStyle = style "bold"
-    , errorStyle = style "9"
     , showRemainingTime = False
     , showBitrate = False
     }
@@ -535,8 +547,6 @@ defaultProgressBar :: ProgressBarConfig
 defaultProgressBar =
   ProgressBarConfig
     { chars = ProgressChars '▅' '▅' '▅'
-    , style = style "236"
-    , elapsedStyle = style "28"
     }
 
 defaultVisualizer :: VisualizerConfig
@@ -577,10 +587,58 @@ defaultStyles =
   StylesConfig
     { label = style "white"
     , value = style "green"
+    , missingTag = Nothing
     , popupBorder = style "green"
-    , -- As ncmpcpp's main_window_color.
-      text = style "yellow"
+    , text = defaultTextStyles
+    , list = defaultListStyles
+    , header = defaultHeaderStyles
+    , statusBar = defaultStatusBarStyles
+    , progressBar = defaultProgressBarStyles
     }
+
+defaultTextStyles :: TextStyles
+defaultTextStyles =
+  TextStyles
+    { -- As ncmpcpp's main_window_color.
+      normal = style "yellow"
+    , -- As ncmpcpp's find in text. Text has no cursor, whose reverse it
+      -- would look like in a list.
+      found = style "reverse"
+    }
+
+defaultListStyles :: ListStyles
+defaultListStyles =
+  ListStyles
+    { normal = style "yellow"
+    , cursor = style "yellow reverse"
+    , inactiveCursor = style "yellow on 237"
+    , selected = style "yellow on 24"
+    , found = style "underline"
+    , playing = style "bold"
+    , queued = style "bold"
+    }
+
+defaultHeaderStyles :: HeaderStyles
+defaultHeaderStyles =
+  HeaderStyles
+    { normal = style "default"
+    , title = style "bold"
+    , volume = style "default"
+    , flags = style "bold"
+    , line = style "default"
+    }
+
+defaultStatusBarStyles :: StatusBarStyles
+defaultStatusBarStyles =
+  StatusBarStyles
+    { normal = style "default"
+    , state = style "bold"
+    , time = style "bold"
+    , error = style "9"
+    }
+
+defaultProgressBarStyles :: ProgressBarStyles
+defaultProgressBarStyles = ProgressBarStyles {normal = style "236", elapsed = style "28"}
 
 defaultKeys :: KeysConfig
 defaultKeys =
@@ -654,9 +712,25 @@ instance GenericYamlOptions SearchEngineConfig where
   yamlOptions = options
   yamlDefault = Just defaultSearchEngine
 
-instance GenericYamlOptions HeaderConfig where
+instance GenericYamlOptions TextStyles where
   yamlOptions = options
-  yamlDefault = Just defaultHeader
+  yamlDefault = Just defaultTextStyles
+
+instance GenericYamlOptions ListStyles where
+  yamlOptions = options
+  yamlDefault = Just defaultListStyles
+
+instance GenericYamlOptions HeaderStyles where
+  yamlOptions = options
+  yamlDefault = Just defaultHeaderStyles
+
+instance GenericYamlOptions StatusBarStyles where
+  yamlOptions = options
+  yamlDefault = Just defaultStatusBarStyles
+
+instance GenericYamlOptions ProgressBarStyles where
+  yamlOptions = options
+  yamlDefault = Just defaultProgressBarStyles
 
 instance GenericYamlOptions StatusBarConfig where
   yamlOptions = options

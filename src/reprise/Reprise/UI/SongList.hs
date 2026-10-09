@@ -43,6 +43,7 @@ import Reprise.Width
 data RowContext = RowContext
   { colorMode :: ColorMode
   , lists :: ListsConfig
+  , styles :: StylesConfig
   , songs :: SongsConfig
   , display :: Display
   , width :: Int
@@ -54,6 +55,7 @@ rowContext env display width =
   RowContext
     { colorMode = env.colorMode
     , lists = env.config.lists
+    , styles = env.config.styles
     , songs = env.config.songs
     , display = display
     , width = width
@@ -91,41 +93,41 @@ renderRow ctx flags song = case ctx.display of
     attr = toAttr ctx.colorMode
 
     render :: Format Style -> [Span Style]
-    render = renderFormat (renderContext ctx.lists) song
+    render = renderFormat (renderContext ctx.lists ctx.styles) song
 
     -- A column's color tells what the column is, so the marker of a
     -- missing tag takes the column's style rather than its own.
     column :: Column -> Int -> V.Image
     column c w =
-      let base = ctx.lists.style <> c.style
+      let base = ctx.styles.list.normal <> c.style
       in padded attr (base, overlay) c.align w . fitSpans w $
            renderFormat (unstyledContext ctx.lists) song c.format
 
     styles :: (Style, Style)
-    styles = (ctx.lists.style, overlay)
+    styles = (ctx.styles.list.normal, overlay)
 
     overlay :: Style
-    overlay = overlayStyle ctx.lists flags
+    overlay = overlayStyle ctx.styles.list flags
 
 -- | A row of an item that isn't a song, e.g. a directory.
 renderOtherRow :: RowContext -> RowFlags -> [Span Style] -> V.Image
 renderOtherRow ctx flags =
   padded
     (toAttr ctx.colorMode)
-    (ctx.lists.style, overlayStyle ctx.lists flags)
+    (ctx.styles.list.normal, overlayStyle ctx.styles.list flags)
     AlignLeft
     ctx.width
     . fitSpans ctx.width
 
 -- | The styles that a row's state lays over its own.
-overlayStyle :: ListsConfig -> RowFlags -> Style
-overlayStyle lists flags =
+overlayStyle :: ListStyles -> RowFlags -> Style
+overlayStyle list flags =
   mconcat
-    [ if flags.queued then lists.queuedStyle else mempty
-    , if flags.playing then lists.playingStyle else mempty
-    , if flags.selected then lists.selectedStyle else mempty
-    , if flags.found then lists.foundStyle else mempty
-    , if flags.cursor then lists.cursorStyle else mempty
+    [ if flags.queued then list.queued else mempty
+    , if flags.playing then list.playing else mempty
+    , if flags.selected then list.selected else mempty
+    , if flags.found then list.found else mempty
+    , if flags.cursor then list.cursor else mempty
     ]
 
 -- | The text of a song's row without styles, which find matches. A missing
@@ -157,13 +159,13 @@ textRow :: ColorMode -> Int -> [Span Style] -> V.Image
 textRow colorMode width spans =
   padded (toAttr colorMode) (mempty, mempty) AlignLeft width (fitSpans width spans)
 
--- | The rows of a screen of text with the matches of a find in the style of
--- found items: of the find that the user types on the screen, else of the
--- last find on it.
+-- | The rows of a screen of text with the matches of a find in
+-- @styles.text.found@: of the find that the user types on the screen, else
+-- of the last find on it.
 highlightFound :: AppEnv -> AppState -> ScreenName -> [[Span Style]] -> [[Span Style]]
 highlightFound env s screen = case pattern of
   Just p -> map $ \spans ->
-    either (const spans) (\ranges -> highlightSpans env.config.lists.foundStyle ranges spans) $
+    either (const spans) (\ranges -> highlightSpans env.config.styles.text.found ranges spans) $
       matchRanges p (spansText spans)
   Nothing -> id
   where
@@ -184,7 +186,7 @@ titleRow env s v ctx = [titles | listHeight env s v < v.height]
   where
     titles :: V.Image
     titles =
-      V.horizCat . L.intersperse (padded attr (ctx.lists.style, mempty) AlignLeft 1 []) $
+      V.horizCat . L.intersperse (padded attr (ctx.styles.list.normal, mempty) AlignLeft 1 []) $
         zipWith title ctx.songs.columns.list (columnWidths ctx.width ctx.songs.columns.list)
 
     attr :: Style -> V.Attr
@@ -192,12 +194,13 @@ titleRow env s v ctx = [titles | listHeight env s v < v.height]
 
     title :: Column -> Int -> V.Image
     title c w =
-      padded attr (ctx.lists.style <> c.style, mempty) c.align w $
+      padded attr (ctx.styles.list.normal <> c.style, mempty) c.align w $
         fitSpans w [Span Nothing c.title]
 
 -- | A missing tag is its marker, in the marker's style.
-renderContext :: ListsConfig -> RenderContext Style
-renderContext lists = RenderContext lists.tagSeparator [Span lists.missingTagStyle lists.missingTag]
+renderContext :: ListsConfig -> StylesConfig -> RenderContext Style
+renderContext lists styles =
+  RenderContext lists.tagSeparator [Span styles.missingTag lists.missingTag]
 
 -- | A missing tag is its marker, in the style around it.
 unstyledContext :: ListsConfig -> RenderContext s

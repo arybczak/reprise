@@ -53,8 +53,8 @@ lyricsSpans env s width = map row (lyricsRows width s.lyrics)
   where
     row :: (Maybe Int, T.Text) -> [Span Style]
     row (line, text) =
-      let playing = if isJust line && line == sung then env.config.lists.playingStyle else mempty
-      in [Span (Just (env.config.styles.text <> playing)) text]
+      let playing = if isJust line && line == sung then env.config.styles.list.playing else mempty
+      in [Span (Just (env.config.styles.text.normal <> playing)) text]
 
     sung :: Maybe Int
     sung = sungLine s

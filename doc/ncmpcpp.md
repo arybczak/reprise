@@ -64,13 +64,13 @@ Crop (`C`) and reversing the queue (`ctrl-r`) are gone.
 | `song_list_format` | `songs.classic.left`, `songs.classic.right` |
 | `song_columns_list_format` | `songs.columns.list` |
 | `titles_visibility` | `songs.columns.show_titles` |
-| `main_window_color` | `lists.style`, `styles.text` |
-| `current_item_prefix`, `current_item_suffix` | `lists.cursor_style` |
-| `selected_item_prefix`, `selected_item_suffix` | `lists.selected_style` |
-| `now_playing_prefix`, `now_playing_suffix` | `lists.playing_style` |
+| `main_window_color` | `styles.list.normal`, `styles.text.normal` |
+| `current_item_prefix`, `current_item_suffix` | `styles.list.cursor` |
+| `selected_item_prefix`, `selected_item_suffix` | `styles.list.selected` |
+| `now_playing_prefix`, `now_playing_suffix` | `styles.list.playing` |
 | `centered_cursor` | `lists.keep_cursor_centered` |
 | `ignore_leading_the` | `lists.ignore_leading_the` |
-| `empty_tag_marker`, `empty_tag_color` | `lists.missing_tag`, `lists.missing_tag_style` |
+| `empty_tag_marker`, `empty_tag_color` | `lists.missing_tag`, `styles.missing_tag` |
 | `tags_separator` | `lists.tag_separator` |
 | `playlist_display_mode` | `queue.display` |
 | `autocenter_mode` | `queue.follow_playing` |
@@ -78,11 +78,11 @@ Crop (`C`) and reversing the queue (`ctrl-r`) are gone.
 | `browser_display_mode` | `browser.display` |
 | `browser_sort_mode`, `browser_sort_format` | `browser.sort.by`, `browser.sort.format` |
 | `browser_playlist_prefix` | `browser.playlist_prefix` |
-| `header_window_color`, `volume_color`, `state_flags_color`, `state_line_color` | `header.style`, `header.volume_style`, `header.flags_style`, `header.line_style` |
+| `header_window_color`, `volume_color`, `state_flags_color`, `state_line_color` | `styles.header.normal`, `styles.header.volume`, `styles.header.flags`, `styles.header.line` |
 | `song_status_format` | `status_bar.song` |
-| `statusbar_color`, `player_state_color`, `statusbar_time_color` | `status_bar.style`, `status_bar.state_style`, `status_bar.time_style` |
+| `statusbar_color`, `player_state_color`, `statusbar_time_color` | `styles.status_bar.normal`, `styles.status_bar.state`, `styles.status_bar.time` |
 | `display_remaining_time`, `display_bitrate` | `status_bar.show_remaining_time`, `status_bar.show_bitrate` |
-| `progressbar_look`, `progressbar_color`, `progressbar_elapsed_color` | `progress_bar.chars`, `progress_bar.style`, `progress_bar.elapsed_style` |
+| `progressbar_look`, `progressbar_color`, `progressbar_elapsed_color` | `progress_bar.chars`, `styles.progress_bar.normal`, `styles.progress_bar.elapsed` |
 | `color1`, `color2` | `styles.label`, `styles.value` |
 | `visualizer_data_source`, `visualizer_type`, `visualizer_fps`, `visualizer_color` | `visualizer.data_source`, `visualizer.visualization`, `visualizer.fps`, `visualizer.colors` |
 | `lyrics_directory` | `lyrics.directory` |
@@ -97,9 +97,11 @@ Crop (`C`) and reversing the queue (`ctrl-r`) are gone.
 
 What changed in how they are written:
 
-- **Styles replace prefixes and suffixes,** e.g. `cursor_style: yellow
-  reverse` instead of `$(yellow)$r` and `$/r$9`. A style is a color,
-  attributes and a background: `yellow on 24`, `bold`, `"#ff8700"`.
+- **Styles replace prefixes and suffixes,** e.g. `cursor: yellow reverse`
+  in `styles.list` instead of `$(yellow)$r` and `$/r$9`. A style is a
+  color, attributes and a background: `yellow on 24`, `bold`, `"#ff8700"`.
+- **Every style is in `styles`,** grouped by the part of the screen, so a
+  theme is one section.
 - **Colors are numbered from 0,** as terminals number them. ncmpcpp
   numbers them from 1, so ncmpcpp's 222 is reprise's 221.
 - **Formats use names:** `%{artist}` instead of `%a`, `<red>...</>` for a
