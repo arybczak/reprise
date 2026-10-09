@@ -2,7 +2,7 @@
 -- items of a list, e.g. directories.
 module Reprise.UI.SongList
   ( -- * Rows
-    RowContext (..)
+    RowContext
   , rowContext
   , RowFlags (..)
   , renderRow
