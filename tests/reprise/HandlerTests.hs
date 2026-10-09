@@ -519,8 +519,12 @@ test_shuffleConfirm = do
 -- | Outside the browser, there is no current directory.
 test_updateCurrentElsewhere :: Assertion
 test_updateCurrentElsewhere = do
-  r <- keys ["d", "u"] =<< testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
+  r <- keys ["u"] =<< testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
   assertEqual "the whole database" [[Request "update" []]] r.requests
+  assertBool "the whole database, also in the browser"
+    . elem [Request "update" []]
+    . (.requests)
+    =<< keys ["2", "U"] r.state
 
 test_disconnectClears :: Assertion
 test_disconnectClears = do

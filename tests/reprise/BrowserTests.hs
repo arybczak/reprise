@@ -275,10 +275,10 @@ test_addFromPlaylist = do
 test_updateCurrent :: Assertion
 test_updateCurrent = do
   assertEqual "here" [[Request "update" ["b"]]] . (.requests)
-    =<< press ["d", "u"]
+    =<< press ["u"]
     =<< onY
   assertEqual "at the root" [[Request "update" []]] . (.requests)
-    =<< press ["d", "u"]
+    =<< press ["u"]
     =<< root
 
 -- | In their order at the end. At a position, each goes before the ones

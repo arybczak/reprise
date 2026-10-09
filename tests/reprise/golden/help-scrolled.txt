@@ -1,11 +1,13 @@
 Help                                                                 Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
+  b           seek -1s
   f           seek +1s
   i           show the info of the song under the cursor
   l           show the lyrics of the song under the cursor
   p           pause or resume
   q           quit
   s           stop
+  u           update the database here
   {           move previous artist
   }           move next artist
   space       add or remove
@@ -18,7 +20,5 @@ Help                                                                 Volume: 50%
   right       change volume by +2
   home        move first
   end         move last
-  page_up     move page up
-  page_down   move page down
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
 Playing: Some Artist "Great Album" (2001) - Second Song              [0:10/1:00]

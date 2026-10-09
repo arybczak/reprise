@@ -1001,12 +1001,9 @@ defaultKeymaps =
               , -- ncmpcpp's g.
                 char 's' ~> CommandPrompt "seek"
               ]
-          , group
-              (char 'd')
-              "database"
-              [ char 'u' ~> Update UpdateCurrent
-              , char 'U' ~> Update UpdateAll
-              ]
+          , -- As ncmpcpp's u.
+            char 'u' ~> Update UpdateCurrent
+          , char 'U' ~> Update UpdateAll
           ]
     , screens =
         M.fromList
