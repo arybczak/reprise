@@ -33,6 +33,9 @@ data Workers = Workers
   , retryDelay :: Double
   -- ^ How long to wait before connecting again, 'retryInterval' but in
   -- the tests.
+  , commandConnectionFailed :: TVar Bool
+  -- ^ Whether the connection of the commands failed since the idle
+  -- connection opened.
   }
 
 -- | How long to wait before connecting again, as ncmpcpp does.
@@ -42,18 +45,31 @@ retryInterval = 1
 -- | Run @idle@ in a loop and send the changes. Reconnect after an error.
 -- A connection that MPD refuses for its password connects again with the
 -- next password, which the command worker gets from the user.
+--
+-- A peer that is gone, e.g. after a change of the network, never ends
+-- @idle@. When the connection of the commands fails, the idle connection
+-- opens anew too, since it may wait for such a peer.
 idleWorker :: (Mpd :> es, IOE :> es) => Workers -> Eff es ()
 idleWorker w = forever $ do
   sent <- liftIO $ readTVarIO w.password
+  liftIO . atomically $ writeTVar w.commandConnectionFailed False
   try @MpdError (connectMpd sent) >>= \case
     Left err -> disconnected sent err
     Right version -> do
       liftIO . w.emit $ MpdConnected version
-      forever (waitIdle >>= liftIO . w.emit . MpdChanged) `catch` \err -> do
+      watch `catch` \err -> do
         logError w err
         disconnectMpd
         disconnected sent err
   where
+    watch :: (Mpd :> es, IOE :> es) => Eff es ()
+    watch =
+      waitIdle (readTVar w.commandConnectionFailed >>= check) >>= \case
+        Just changed -> do
+          liftIO . w.emit $ MpdChanged changed
+          watch
+        Nothing -> disconnectMpd
+
     -- After the password that the connection sent.
     disconnected :: IOE :> es => Maybe T.Text -> MpdError -> Eff es ()
     disconnected sent err = do
@@ -132,6 +148,7 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
         ConnectionError _ -> do
           logError w err
           disconnectMpd
+          liftIO . atomically $ writeTVar w.commandConnectionFailed True
         ProtocolError _ -> logError w err
         AckError _ -> pure ()
       liftIO . w.emit $ onFailure err

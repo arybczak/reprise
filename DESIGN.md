@@ -1098,6 +1098,12 @@ never use it directly; they go through `MpdRequest`.
   hang, and MPD may not be playing at all. So the status bar, the progress
   bar and the mode flags are empty, and actions that need the status say
   that reprise isn't connected.
+  - A peer that is gone without a reset, e.g. after a change of the
+    network, never ends `idle`. So when the command connection fails, the
+    idle connection opens anew too. reprise doesn't set TCP keepalive:
+    Linux probes only after two idle hours, and shorter times would be
+    arbitrary constants. Until the user does something, a gone peer stays
+    unnoticed.
 - **MPD errors** (`ACK` replies) appear in the status bar, with the command
   that failed.
 - **Permission errors** (`ACK [4@...]`), and a wrong password (`ACK

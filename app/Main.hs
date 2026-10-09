@@ -112,6 +112,7 @@ main = withOpenSSL $ do
       pure []
   requests <- newTQueueIO
   password <- newTVarIO settings.password
+  commandConnectionFailed <- newTVarIO False
   events <- newTBQueueIO eventQueueSize
   visualizing <- newTVarIO Nothing
   let emit = atomically . writeTBQueue events
@@ -122,6 +123,7 @@ main = withOpenSSL $ do
           , requests = requests
           , password = password
           , retryDelay = retryInterval
+          , commandConnectionFailed = commandConnectionFailed
           }
       mpdWorkers =
         [ runEff . runMpd settings $ worker workers

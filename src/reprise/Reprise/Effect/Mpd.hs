@@ -14,6 +14,8 @@ module Reprise.Effect.Mpd
   , disconnectMpd
   ) where
 
+import Control.Concurrent.Async
+import Control.Concurrent.STM
 import Data.IORef.Strict qualified as S
 import Data.Text qualified as T
 import Effectful
@@ -28,7 +30,7 @@ import Reprise.Mpd.Protocol.Types
 data Mpd :: Effect where
   Connect :: Maybe T.Text -> Mpd m Version
   RunCommand :: Command a -> Mpd m a
-  WaitIdle :: Mpd m [Subsystem]
+  WaitIdle :: STM () -> Mpd m (Maybe [Subsystem])
   Disconnect :: Mpd m ()
 
 type instance DispatchOf Mpd = Dynamic
@@ -53,7 +55,9 @@ runMpd settings action = do
           disconnect
           serverVersion <$> connected p
         RunCommand cmd -> liftIO $ withConnection' (`run` cmd)
-        WaitIdle -> liftIO $ withConnection' (`idle` [])
+        WaitIdle interrupted ->
+          liftIO . withConnection' $ \conn ->
+            either (const Nothing) Just <$> race (atomically interrupted) (idle conn [])
         Disconnect -> liftIO disconnect
   handled `finally` liftIO disconnect
 
@@ -66,9 +70,10 @@ connectMpd = send . Connect
 runCommand :: Mpd :> es => Command a -> Eff es a
 runCommand = send . RunCommand
 
--- | Wait for changes of any subsystem.
-waitIdle :: Mpd :> es => Eff es [Subsystem]
-waitIdle = send WaitIdle
+-- | Wait for changes of any subsystem, or until the transaction returns.
+-- After it returned, the connection is unusable.
+waitIdle :: Mpd :> es => STM () -> Eff es (Maybe [Subsystem])
+waitIdle = send . WaitIdle
 
 disconnectMpd :: Mpd :> es => Eff es ()
 disconnectMpd = send Disconnect

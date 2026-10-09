@@ -35,6 +35,7 @@ workerTests =
     , testCase "a cancelled password fails the refused command" test_passwordCancelled
     , testCase "the idle connection sends the password" test_idlePassword
     , testCase "a refused idle connection waits for the password" test_idleRefused
+    , testCase "a failed command connection reopens the idle one" test_idleAfterCommandFailed
     ]
 
 test_retryClosed :: Assertion
@@ -49,6 +50,7 @@ test_failed = do
   r <- runWorker [Left (AckError ack)] [play (Just 99)] []
   assertEqual "events" [MpdFailed [Request "play" ["99"]] (AckError ack)] r.events
   assertEqual "the connection stays" ["run play"] r.calls
+  assertEqual "the idle connection stays" False r.connectionFailed
 
 test_broken :: Assertion
 test_broken = do
@@ -56,6 +58,7 @@ test_broken = do
   r <- runWorker [Left err, Right ()] [stop, stop] []
   assertEqual "events" [MpdFailed [Request "stop" []] err, MpdDone] r.events
   assertEqual "calls" ["run stop", "disconnect", "run stop"] r.calls
+  assertEqual "the idle connection opens anew" True r.connectionFailed
 
 test_password :: Assertion
 test_password = do
@@ -101,20 +104,32 @@ test_idlePassword = withIdleWorker [] (Just "secret") $ \events callsRef _ -> do
 -- | An idle connection that MPD refuses for its password waits for the
 -- next password, instead of connecting again and again.
 test_idleRefused :: Assertion
-test_idleRefused = withIdleWorker [Right (), Left refusal] Nothing $ \events callsRef passwordVar -> do
+test_idleRefused = withIdleWorker [Right (), Left refusal] Nothing $ \events callsRef workers -> do
   let nextEvent = atomically $ readTQueue events
   assertEqual "connected" (MpdConnected (Version 0 24 0)) =<< nextEvent
   assertEqual "refused" (MpdDisconnected (exceptionText refusal)) =<< nextEvent
   -- Ten times the retry delay of the tests.
   threadDelay 100000
   assertEqual "not again" ["connect", "disconnect"] . reverse =<< S.readIORef callsRef
-  atomically $ writeTVar passwordVar (Just "secret")
+  atomically $ writeTVar workers.password (Just "secret")
   assertEqual "with the password" (MpdConnected (Version 0 24 0)) =<< nextEvent
   assertEqual
     "connected again"
     ["connect", "disconnect", "connect secret"]
     . reverse
     =<< S.readIORef callsRef
+
+-- | The idle connection opens anew after the connection of the commands
+-- failed, since it may wait for a peer that is gone.
+test_idleAfterCommandFailed :: Assertion
+test_idleAfterCommandFailed = withIdleWorker [] Nothing $ \events callsRef workers -> do
+  let nextEvent = atomically $ readTQueue events
+  assertEqual "connected" (MpdConnected (Version 0 24 0)) =<< nextEvent
+  atomically $ writeTVar workers.commandConnectionFailed True
+  assertEqual "connected again" (MpdConnected (Version 0 24 0)) =<< nextEvent
+  assertEqual "calls" ["connect", "disconnect", "connect"] . reverse
+    =<< S.readIORef callsRef
+  assertEqual "not failed any more" False =<< readTVarIO workers.commandConnectionFailed
 
 ----------------------------------------
 -- Helpers
@@ -130,6 +145,7 @@ data WorkerRun = WorkerRun
   , calls :: [String]
   , password :: Maybe T.Text
   -- ^ The password for the next connections.
+  , connectionFailed :: Bool
   }
 
 -- | Run the command worker for the commands, with an MPD that replies to
@@ -165,7 +181,8 @@ runWorker outcomes commands answers = do
         received <- collect answers (length commands + length answers)
         calls <- S.readIORef callsRef
         p <- readTVarIO passwordVar
-        pure $ WorkerRun received (reverse calls) p
+        failed <- readTVarIO workers.commandConnectionFailed
+        pure $ WorkerRun received (reverse calls) p failed
   E.bracket worker killThread (const run)
 
 -- | Run the idle worker with an MPD that replies to each connection and to
@@ -173,7 +190,7 @@ runWorker outcomes commands answers = do
 withIdleWorker
   :: [Either MpdError ()]
   -> Maybe T.Text
-  -> (TQueue AppEvent -> S.IORef [String] -> TVar (Maybe T.Text) -> IO a)
+  -> (TQueue AppEvent -> S.IORef [String] -> Workers -> IO a)
   -> IO a
 withIdleWorker outcomes firstPassword k = do
   outcomesRef <- S.newIORef outcomes
@@ -182,12 +199,13 @@ withIdleWorker outcomes firstPassword k = do
   passwordVar <- newTVarIO firstPassword
   workers <- testWorkers events passwordVar
   let worker = forkIO . runEff . runScripted outcomesRef callsRef $ idleWorker workers
-  E.bracket worker killThread $ \_ -> k events callsRef passwordVar
+  E.bracket worker killThread $ \_ -> k events callsRef workers
 
 -- | What the workers need, with a short retry delay.
 testWorkers :: TQueue AppEvent -> TVar (Maybe T.Text) -> IO Workers
 testWorkers events passwordVar = do
   requests <- newTQueueIO
+  failed <- newTVarIO False
   pure
     Workers
       { emit = atomically . writeTQueue events
@@ -195,10 +213,12 @@ testWorkers events passwordVar = do
       , requests = requests
       , password = passwordVar
       , retryDelay = 0.01
+      , commandConnectionFailed = failed
       }
 
 -- | An MPD that replies to each command, each connection and each @idle@
--- with the next outcome. Without outcomes, it replies, and @idle@ waits.
+-- with the next outcome. Without outcomes, it replies, and @idle@ waits
+-- until it is stopped.
 runScripted
   :: IOE :> es
   => S.IORef [Either MpdError ()]
@@ -214,7 +234,8 @@ runScripted outcomesRef callsRef = interpret_ $ \case
     nextOutcome >>= \case
       Left err -> throwIO err
       Right () -> either throwIO pure $ parseCommandReply cmd [[] | _ <- commandRequests cmd]
-  WaitIdle -> nextOutcome >>= either throwIO (\() -> liftIO . forever $ threadDelay maxBound)
+  WaitIdle interrupted ->
+    nextOutcome >>= either throwIO (\() -> Nothing <$ liftIO (atomically interrupted))
   Disconnect -> call "disconnect"
   where
     call :: IOE :> es => String -> Eff es ()
