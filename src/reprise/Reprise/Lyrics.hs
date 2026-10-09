@@ -9,6 +9,7 @@ module Reprise.Lyrics
   , FetchResult (..)
   , Lyrics (..)
   , TimedLyrics (..)
+  , missingLines
   , plainLyrics
   , timedLyrics
   , parseLrc
@@ -70,10 +71,31 @@ data FetchResult
   deriving stock (Eq, Show)
 
 data LyricsOrigin
-  = Stored
+  = -- | From the file with the name in the directory of lyrics.
+    Stored FilePath
   | -- | From a fetcher with the name.
     Fetched T.Text
+  | -- | From the file with the name, as the fetchers that were asked
+    -- again had none: each with why it failed, if it did.
+    Kept FilePath [(T.Text, Maybe T.Text)]
   deriving stock (Eq, Show)
+
+-- | Why the fetchers that were asked had no lyrics, from 'LyricsMissing' or
+-- 'Kept': a line for those that didn't have them, and the line of each
+-- failure, which names its fetcher.
+missingLines :: [(T.Text, Maybe T.Text)] -> [T.Text]
+missingLines asked =
+  [ "No lyrics found on " <> alternatives notThere
+  | let notThere = [f | (f, Nothing) <- asked]
+  , not (null notThere)
+  ]
+    <> [reason | (_, Just reason) <- asked]
+  where
+    -- E.g. @A, B or C@.
+    alternatives :: [T.Text] -> T.Text
+    alternatives names = case reverse names of
+      lastName : rest@(_ : _) -> T.intercalate ", " (reverse rest) <> " or " <> lastName
+      _ -> T.concat names
 
 -- | The text of lyrics, and the times of its lines if they are known.
 data Lyrics = Lyrics

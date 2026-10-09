@@ -56,6 +56,8 @@ lyricsTests =
     , testCase "the worker asks again for what wasn't there" test_workerAsksAgain
     , testCase "the worker asks the fetchers in order" test_workerFetchers
     , testCase "the worker fetches the lyrics again" test_workerRefetches
+    , testCase "a refetch that finds nothing keeps the stored lyrics" test_workerKeepsStored
+    , testCase "LRC without times is stored lyrics" test_workerUntimedLrc
     , testCase "the worker without fetchers" test_workerWithoutFetchers
     , testCase "timed lyrics from LRC" test_parseLrc
     , testCase "the worker stores and reads the times" test_workerTimes
@@ -290,6 +292,23 @@ test_refetch = do
   let withoutFetchers = testAppEnv & #config % #lyrics % #fetchers .~ []
   nowhere <- runEventsWith withoutFetchers 0 [key "`"] loaded.state
   assertEqual "no request without fetchers" [] [() | FetchLyrics _ _ <- nowhere.commands]
+  againToken <- requestToken again
+  kept <-
+    runEvents
+      0
+      [ LyricsLoaded
+          againToken
+          ( LyricsFound
+              (Kept "A - One.txt" [("LRCLIB", Nothing), ("B", Just "B is down")])
+              (plainLyrics "old")
+          )
+      ]
+      again.state
+  assertEqual "the stored lyrics" ["old"] (filter (not . T.null) (mainLines kept.state))
+  assertEqual
+    "why they stay"
+    (Just "No lyrics found on LRCLIB. B is down. The stored lyrics stay")
+    (messageOf kept)
 
 test_worker :: Assertion
 test_worker = withSystemTempDirectory "lyrics" $ \dir -> do
@@ -311,7 +330,9 @@ test_workerFetches = withSystemTempDirectory "lyrics" $ \dir -> do
     assertEqual "fetched" [LyricsFetching 1 "LRCLIB", LyricsLoaded 1 fetched]
       =<< ask 1 "Two" False
     assertEqual "stored" "Fetched\n" =<< BS.readFile (dir </> "new" </> "A - Two.txt")
-    assertEqual "read the second time" [LyricsLoaded 2 (stored "Fetched")]
+    assertEqual
+      "read the second time"
+      [LyricsLoaded 2 (LyricsFound (Stored "A - Two.txt") (plainLyrics "Fetched"))]
       =<< ask 2 "Two" False
   assertEqual "one fetch" 1 =<< S.readIORef calls
 
@@ -363,6 +384,44 @@ test_workerRefetches = withSystemTempDirectory "lyrics" $ \dir -> do
     assertEqual "stored anew" "New\n" =<< BS.readFile (dir </> "A - One.txt")
   assertEqual "one fetch" 1 =<< S.readIORef calls
 
+-- | A refetch that finds nothing leaves the stored lyrics on the screen and
+-- on disk.
+test_workerKeepsStored :: Assertion
+test_workerKeepsStored = withSystemTempDirectory "lyrics" $ \dir -> do
+  BS.writeFile (dir </> "A - One.txt") "Old"
+  (_, down) <- counted "LRCLIB" (pure (FetchFailed "LRCLIB is down"))
+  withWorker dir [down] $ \ask -> do
+    assertEqual
+      "kept"
+      [ LyricsFetching 1 "LRCLIB"
+      , LyricsLoaded
+          1
+          (LyricsFound (Kept "A - One.txt" [("LRCLIB", Just "LRCLIB is down")]) (plainLyrics "Old"))
+      ]
+      =<< ask 1 "One" True
+    assertEqual
+      "nothing stored"
+      [ LyricsFetching 2 "LRCLIB"
+      , LyricsLoaded 2 (LyricsMissing [("LRCLIB", Just "LRCLIB is down")])
+      ]
+      =<< ask 2 "Two" True
+  assertEqual "the file" "Old" =<< BS.readFile (dir </> "A - One.txt")
+
+-- | Lyrics pasted into a new file of synced ones, without times, are stored
+-- lyrics, not missing ones that a fetch replaces.
+test_workerUntimedLrc :: Assertion
+test_workerUntimedLrc = withSystemTempDirectory "lyrics" $ \dir -> do
+  BS.writeFile (dir </> "A - One.lrc") "Pasted\nwords\n"
+  (calls, fetcher) <- counted "LRCLIB" (pure (FetchedLyrics (plainLyrics "Fetched")))
+  withWorker dir [fetcher] $ \ask ->
+    assertEqual
+      "the text"
+      [LyricsLoaded 1 (LyricsFound (Stored "A - One.lrc") (plainLyrics "Pasted\nwords"))]
+      =<< ask 1 "One" False
+  assertEqual "no fetch" 0 =<< S.readIORef calls
+  assertEqual "the file" "Pasted\nwords\n" =<< BS.readFile (dir </> "A - One.lrc")
+  assertBool "no text file" . not =<< doesFileExist (dir </> "A - One.txt")
+
 test_workerWithoutFetchers :: Assertion
 test_workerWithoutFetchers = withSystemTempDirectory "lyrics" $ \dir ->
   withWorker dir [] $ \ask ->
@@ -402,7 +461,7 @@ test_workerTimes = withSystemTempDirectory "lyrics" $ \dir -> do
     assertEqual "the text" "Plain words\n" =<< BS.readFile (dir </> "A - One.txt")
     assertEqual "the times" "[00:01.00]Sung\n" =<< BS.readFile (dir </> "A - One.lrc")
     ask 2 "One" False >>= \case
-      [LyricsLoaded 2 (LyricsFound Stored lyrics)] ->
+      [LyricsLoaded 2 (LyricsFound (Stored "A - One.lrc") lyrics)] ->
         assertEqual "timed" (Just [(1, "Sung")]) ((.entries) <$> lyrics.timed)
       other -> assertFailure $ "stored lyrics, not " <> show other
   (_, untimed) <-
@@ -431,7 +490,11 @@ test_sung = do
     )
   other <- runEvents 0 [key "1", key "down", key "l"] shown
   token <- requestToken other
-  loaded <- runEvents 0 [LyricsLoaded token (LyricsFound Stored timedTwenty)] other.state
+  loaded <-
+    runEvents
+      0
+      [LyricsLoaded token (LyricsFound (Stored "A - One.lrc") timedTwenty)]
+      other.state
   assertEqual "not of a song that doesn't play" Nothing (sungLine loaded.state)
   assertEqual "from the top" ["line 0"] (take 1 (mainLines loaded.state))
   where
@@ -630,9 +693,21 @@ test_edit = do
   timed <-
     runEvents
       0
-      [LyricsLoaded token (LyricsFound Stored timedTwenty), key "e", key "e"]
+      [LyricsLoaded token (LyricsFound (Stored "A - One.lrc") timedTwenty), key "e", key "e"]
       r.state
   assertEqual "the times" [Edit "edit" ("lyrics" </> "A - One.lrc")] (edits timed)
+  untimedLrc <-
+    runEvents
+      0
+      [ LyricsLoaded token (LyricsFound (Stored "A - One.lrc") (plainLyrics "Words"))
+      , key "e"
+      , key "e"
+      ]
+      r.state
+  assertEqual
+    "the file they came from"
+    [Edit "edit" ("lyrics" </> "A - One.lrc")]
+    (edits untimedLrc)
   noEditor <-
     runEventsWith (testAppEnv & #editor .~ Nothing) 0 [key "e", key "e"] missing.state
   assertEqual "no editor" [] (edits noEditor)
@@ -731,7 +806,8 @@ timedShown st = do
       ]
   r <- runEvents 0 [key "l"] s
   token <- requestToken r
-  (.state) <$> runEvents 0 [LyricsLoaded token (LyricsFound Stored timedTwenty)] r.state
+  (.state)
+    <$> runEvents 0 [LyricsLoaded token (LyricsFound (Stored "A - One.lrc") timedTwenty)] r.state
 
 -- | 20 lines, @line 0@ to @line 19@, a second apart.
 timedTwenty :: Lyrics
@@ -793,8 +869,9 @@ requestToken r = case [t | FetchLyrics t _ <- r.commands] of
   [t] -> pure t
   other -> assertFailure $ "one request of lyrics, not " <> show (length other)
 
+-- | Plain lyrics stored for the song A - One.
 stored :: T.Text -> LyricsResult
-stored = LyricsFound Stored . plainLyrics
+stored = LyricsFound (Stored "A - One.txt") . plainLyrics
 
 messageOf :: Result -> Maybe T.Text
 messageOf r = (.text) <$> r.state.message

@@ -78,18 +78,29 @@ lyricsWorker src = go Nothing Nothing
 
     -- The lyrics of a song: stored, or else fetched and stored, after an
     -- action. What the fetchers didn't have isn't remembered, as they may
-    -- have it later, or the config may name other fetchers.
+    -- have it later, or the config may name other fetchers. A refetch that
+    -- finds nothing keeps the stored lyrics.
     load :: (T.Text -> IO ()) -> Bool -> Song -> IO LyricsResult
-    load fetching refetch song = do
-      stored <- if refetch then pure (LyricsMissing []) else storedLyrics src.directory song
-      case stored of
-        LyricsMissing _ -> do
+    load fetching refetch song
+      | refetch =
+          fetchAndStore >>= \case
+            LyricsMissing asked ->
+              storedLyrics src.directory song <&> \case
+                LyricsFound (Stored file) lyrics -> LyricsFound (Kept file asked) lyrics
+                _ -> LyricsMissing asked
+            other -> pure other
+      | otherwise =
+          storedLyrics src.directory song >>= \case
+            LyricsMissing _ -> fetchAndStore
+            other -> pure other
+      where
+        fetchAndStore :: IO LyricsResult
+        fetchAndStore = do
           fetchedLyrics <- fetchFrom fetching [] src.fetchers song
           case fetchedLyrics of
             LyricsFound _ lyrics -> store song lyrics
             _ -> pure ()
           pure fetchedLyrics
-        other -> pure other
 
     -- The lyrics show even if they can't be stored.
     store :: Song -> Lyrics -> IO ()
@@ -113,18 +124,31 @@ lyricsWorker src = go Nothing Nothing
       writeFileAtomically (src.directory </> file) (T.encodeUtf8 (T.stripEnd text <> "\n"))
 
 -- | The stored lyrics of a song in the directory: timed if the times are
--- stored, else plain. A file that isn't UTF-8 shows, with its bytes that
--- aren't as replacement characters.
+-- stored, else plain. LRC without times is plain too, e.g. lyrics pasted
+-- into a new file of synced ones. A file that isn't UTF-8 shows, with its
+-- bytes that aren't as replacement characters.
 storedLyrics :: FilePath -> Song -> IO LyricsResult
 storedLyrics dir song =
-  readText (timedLyricsFileName song) >>= \case
-    Right (Just lrc) | Just lyrics <- timedLyrics lrc -> pure $ LyricsFound Stored lyrics
-    _ ->
-      readText (lyricsFileName song) <&> \case
-        Right (Just text) -> LyricsFound Stored (plainLyrics text)
-        Right Nothing -> LyricsMissing []
-        Left err -> LyricsFailed $ "The lyrics can't be read: " <> exceptionText err
+  readText timedFile >>= \case
+    Right (Just lrc) | Just lyrics <- timedLyrics lrc -> pure $ LyricsFound (Stored timedFile) lyrics
+    timedRead ->
+      readText textFile <&> \case
+        Right (Just text) -> LyricsFound (Stored textFile) (plainLyrics text)
+        Right Nothing -> case timedRead of
+          Right (Just lrc) -> LyricsFound (Stored timedFile) (plainLyrics lrc)
+          Right Nothing -> LyricsMissing []
+          Left err -> unreadable err
+        Left err -> unreadable err
   where
+    timedFile :: FilePath
+    timedFile = timedLyricsFileName song
+
+    textFile :: FilePath
+    textFile = lyricsFileName song
+
+    unreadable :: IOException -> LyricsResult
+    unreadable err = LyricsFailed $ "The lyrics can't be read: " <> exceptionText err
+
     -- The text of a file, or Nothing without the file.
     readText :: FilePath -> IO (Either IOException (Maybe T.Text))
     readText file =

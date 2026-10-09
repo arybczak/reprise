@@ -785,25 +785,12 @@ lyricsRows width st = case (st.song, st.status) of
           ]
       Nothing -> untimed (T.lines lyrics.plain)
     LyricsInstrumental -> untimed ["Instrumental"]
-    -- The fetchers' failures name them.
     LyricsMissing [] -> untimed ["No lyrics stored"]
-    LyricsMissing asked ->
-      untimed $
-        [ "No lyrics found on " <> alternatives notThere
-        | let notThere = [f | (f, Nothing) <- asked]
-        , not (null notThere)
-        ]
-          <> [reason | (_, Just reason) <- asked]
+    LyricsMissing asked -> untimed (missingLines asked)
     LyricsFailed reason -> untimed [reason]
   where
     untimed :: [T.Text] -> [(Maybe Int, T.Text)]
     untimed = concatMap (map (Nothing,) . wrapText width . sanitize)
-
-    -- E.g. @A, B or C@.
-    alternatives :: [T.Text] -> T.Text
-    alternatives names = case reverse names of
-      lastName : rest@(_ : _) -> T.intercalate ", " (reverse rest) <> " or " <> lastName
-      _ -> T.concat names
 
 -- | The rows of the song info screen at a width: a label and a value, which
 -- the song can be without.

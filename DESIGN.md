@@ -607,7 +607,8 @@ ncmpcpp.
   - **A failure isn't stored,** e.g. no network, or a busy server: LRCLIB
     answers 503 at times. The next fetcher is asked meanwhile.
   - **`` ` `` fetches the lyrics again,** as in ncmpcpp, and stores them
-    anew, e.g. over wrong ones.
+    anew, e.g. over wrong ones. When the fetchers have none, e.g. without
+    a network, the stored lyrics stay, and the status bar says why.
   - **A file is written in place.** A write cut short leaves part of the
     lyrics, which `` ` `` replaces. They are a few KiB, so the time for that
     is short, and they can be fetched again.
@@ -692,9 +693,12 @@ ncmpcpp.
   the queue's in the queue. Turned on, it shows the lyrics of the song that
   plays at once. The other screens have no such toggle, so `t f` is bound
   only on these two, and the which-key panel marks it as theirs.
-- **`e e` edits the stored lyrics,** as ncmpcpp's `e` does: the `.lrc` if
-  the times show, else the `.txt`. The lyrics show again when the editor
-  exits.
+- **`e e` edits the stored lyrics,** as ncmpcpp's `e` does: the file that
+  they came from, or for fetched ones the `.lrc` if the times show, else
+  the `.txt`. The lyrics show again when the editor exits.
+  - **An `.lrc` without times shows as plain text,** e.g. lyrics pasted
+    into a new file of synced ones. It counts as stored, so no fetch
+    replaces it, and `e e` edits it again.
   - **Without stored lyrics, a choice asks which to make,**
     `[synced/unsynced]`, the `.lrc` or the `.txt`, e.g. for lyrics pasted
     from elsewhere. Found lyrics are always stored, so the screen tells

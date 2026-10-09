@@ -147,10 +147,10 @@ refetchLyrics = do
           showMessage "There is nowhere to fetch the lyrics from: lyrics.fetchers is empty"
       | otherwise -> request song True
 
--- | Edit the stored lyrics of the song on the screen: the times if they
--- show, else the text. Without stored lyrics, a choice asks which file to
--- make. Lyrics on their way would be stored over the file, so they are
--- waited for.
+-- | Edit the stored lyrics of the song on the screen: the file that they
+-- came from, or for fetched ones the times if they show, else the text.
+-- Without stored lyrics, a choice asks which file to make. Lyrics on their
+-- way would be stored over the file, so they are waited for.
 editLyrics :: App es => Eff es ()
 editLyrics = do
   env <- getAppEnv
@@ -159,9 +159,13 @@ editLyrics = do
     (Nothing, _) -> showMessage "There are no lyrics to edit"
     (_, Nothing) -> showMessage noEditor
     (Just song, Just command) -> case s.lyrics.status of
-      ShowingLyrics (LyricsFound _ lyrics) ->
-        editFile command . (env.lyricsDirectory </>) $
-          if isJust lyrics.timed then timedLyricsFileName song else lyricsFileName song
+      ShowingLyrics (LyricsFound origin lyrics) ->
+        editFile command . (env.lyricsDirectory </>) $ case origin of
+          Stored file -> file
+          Kept file _ -> file
+          Fetched _
+            | isJust lyrics.timed -> timedLyricsFileName song
+            | otherwise -> lyricsFileName song
       ShowingLyrics _ ->
         let option :: Char -> T.Text -> (Song -> FilePath) -> ChoiceOption
             option letter name file =
@@ -274,6 +278,8 @@ lyricsLoaded token result = forRequest token $ do
   modifyS $ #lyrics % #status .~ ShowingLyrics result
   case result of
     LyricsFound (Fetched fetcher) _ -> showMessage $ "Fetched the lyrics from " <> fetcher
+    LyricsFound (Kept _ asked) _ ->
+      showMessage . T.intercalate ". " $ missingLines asked <> ["The stored lyrics stay"]
     _ -> pure ()
 
 -- | Run what a reply of the worker does, if it is of the newest request.
