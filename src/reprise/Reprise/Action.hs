@@ -39,6 +39,7 @@ import Data.Maybe
 import Data.Text qualified as T
 import Yamlet
 
+import Reprise.Format
 import Reprise.Mpd.Protocol.Types
 import Reprise.Number
 
@@ -255,7 +256,7 @@ registry =
   , spec "previous" "" $ none Previous
   , spec "next" "" $ none Next
   , spec "replay" "" $ none Replay
-  , spec "seek" "+Ns | -Ns | m:ss | N%" $ one (fmap Seek . seekStep)
+  , spec "seek" "+Ns | -Ns | [h:]m:ss | N%" $ one (fmap Seek . seekStep)
   , spec "volume" "+N | -N | N" $ one (fmap Volume . volumeChange)
   , spec "crossfade" "SECONDS" $ one (fmap Crossfade . natural)
   , namedSpec "find" "direction" findName Find
@@ -393,7 +394,7 @@ registry =
         | length parts <= 3 -> do
             ns <- traverse natural parts
             Right $ foldl (\acc n -> acc * 60 + n) 0 ns
-      _ -> Left "expected +Ns, -Ns, m:ss or N%"
+      _ -> Left "expected +Ns, -Ns, [h:]m:ss or N%"
 
     priority :: T.Text -> Either T.Text Int
     priority w = do
@@ -504,8 +505,9 @@ renderAction = \case
     screenList :: [ScreenName] -> T.Text
     screenList ss = "[" <> T.intercalate ", " (map screenName ss) <> "]"
 
+-- | As the status bar shows a time.
 clock :: Int -> T.Text
-clock n = T.pack (show (n `div` 60)) <> ":" <> T.justifyRight 2 '0' (T.pack (show (n `mod` 60)))
+clock = formatDuration . fromIntegral
 
 -- | The names of the arguments of actions, which 'parseAction' reads and
 -- 'renderAction' writes.

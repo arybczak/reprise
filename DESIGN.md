@@ -112,7 +112,7 @@ ncmpcpp.
 **Playback controls**
 - Play, pause, stop, next, previous, replay song.
 - Seeking: hold the key to move a target on the progress bar, faster the
-  longer it's held, then seek once. Also jump to a position (`m:ss`, `N%`,
+  longer it's held, then seek once. Also jump to a position (`[h:]m:ss`, `N%`,
   ...).
 - Volume up/down and set volume.
 - Toggles: repeat, random, single, consume, crossfade, replay gain mode.
@@ -1382,7 +1382,7 @@ parsers serve every action with arguments, instead of a prompt action for
 each, such as ncmpcpp's `set_volume`. Any action with arguments can become
 an "ask me" binding without new code.
 - **A hint** on the right of the line tells how to go on: the usage of the
-  action that the line names, e.g. `seek +Ns | -Ns | m:ss | N%`, and, once
+  action that the line names, e.g. `seek +Ns | -Ns | [h:]m:ss | N%`, and, once
   the line parses, what `enter` will do, e.g. "seek to 1:30". The line comes
   first; the hint gets the room that is left.
 - **An answer that doesn't parse** shows the registry's error with the usage.

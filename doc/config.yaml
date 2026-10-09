@@ -216,7 +216,7 @@ keys:
     g:
       name: go
       b: jump_to_browser         # the directory of the song under the cursor
-      s: command seek            # asks for m:ss, N% or ±Ns
+      s: command seek            # asks for [h:]m:ss, N% or ±Ns
     d:
       name: database
       u: update current
