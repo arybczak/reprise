@@ -15,7 +15,7 @@ import Reprise.Mpd.Protocol.Types
 -- list, and return the subsystems that changed. There is no timeout.
 idle :: Connection -> [Subsystem] -> IO [Subsystem]
 idle conn subsystems =
-  exchange conn (renderRequest $ Request "idle" (map subsystemName subsystems)) >>= \case
+  exchange Nothing conn (renderRequest $ Request "idle" (map subsystemName subsystems)) >>= \case
     [fields] -> either (throwIO . ProtocolError . ("idle: " <>)) pure $ parseSubsystems fields
     _ -> throwIO $ ProtocolError "idle: the reply has more than one part"
 

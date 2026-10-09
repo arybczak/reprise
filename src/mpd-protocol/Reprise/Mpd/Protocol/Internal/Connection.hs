@@ -59,8 +59,9 @@ data Settings = Settings
   { address :: Address
   , password :: Maybe T.Text
   , timeout :: Maybe Seconds
-  -- ^ How long to wait for a connection or a reply. 'Nothing' waits
-  -- forever. @idle@ always waits forever.
+  -- ^ How long to wait for a connection, and for each part of a request
+  -- or a reply that the socket sends or receives. 'Nothing' waits forever.
+  -- @idle@ always waits forever.
   }
   deriving stock (Eq, Show)
 
@@ -72,7 +73,7 @@ connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
     buffer <- S.newIORef BS.empty
     -- A receive never returns more than the socket's buffer holds.
     chunkSize <- N.getSocketOption sock N.RecvBuffer
-    greeting <- readLine sock chunkSize buffer
+    greeting <- readLine Nothing sock chunkSize buffer
     case parseGreeting =<< greeting of
       Nothing ->
         throwIO . ConnectionError . ConnectFailed $
@@ -127,14 +128,19 @@ connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
 close :: Connection -> IO ()
 close conn = N.close conn.socket
 
--- | Send requests and read the reply, without a timeout. Throws 'MpdError'.
-exchange :: Connection -> B.Builder -> IO [[Field]]
-exchange conn request = do
+-- | Send requests and read the reply. The timeout is for each part of it
+-- that the socket sends or receives, not for the whole, so that a long
+-- reply on a slow connection doesn't run out of time while it comes.
+-- Throws 'MpdError'.
+exchange :: Maybe Seconds -> Connection -> B.Builder -> IO [[Field]]
+exchange timeout conn request = do
   -- MPD runs a request only once its last line break arrives, so it ran
   -- nothing of a request that failed to send. On a unix socket that MPD
   -- closed, the send fails rather than the read.
-  NL.sendAll conn.socket (B.toLazyByteString request) `catch` \(_ :: IOException) ->
-    throwIO $ ConnectionError Closed
+  for_
+    (BL.toChunks (B.toLazyByteString request))
+    (withTimeout timeout . N.sendAll conn.socket)
+    `catch` \(_ :: IOException) -> throwIO $ ConnectionError Closed
   convertIO broken $ go True []
   where
     go :: Bool -> [BS.ByteString] -> IO [[Field]]
@@ -153,13 +159,14 @@ exchange conn request = do
     -- connection crossed the request.
     readReplyLine :: Bool -> IO (Maybe BS.ByteString)
     readReplyLine first =
-      readLine conn.socket conn.chunkSize conn.buffer `catch` \(e :: IOException) -> do
+      readLine timeout conn.socket conn.chunkSize conn.buffer `catch` \(e :: IOException) -> do
         received <- S.readIORef conn.buffer
         if first && BS.null received && isResourceVanishedError e
           then throwIO $ ConnectionError Closed
           else throwIO e
 
--- | Run a command without the timeout. Throws 'MpdError'.
+-- | Run a command, with the connection's timeout for each part of it.
+-- Throws 'MpdError'.
 exchangeCommand :: Connection -> Command a -> IO a
 exchangeCommand conn cmd = do
   parts <- case commandRequests cmd of
@@ -174,7 +181,7 @@ exchangeCommand conn cmd = do
           | BL.length (B.toLazyByteString (renderRequest r)) > maxLineLength ->
               throwIO . ProtocolError $ r.command <> ": the request is longer than MPD reads"
           | otherwise -> pure ()
-      exchange conn (renderRequests requests)
+      exchange conn.timeout conn (renderRequests requests)
   either throwIO pure $ parseCommandReply cmd parts
   where
     -- The longest line that MPD reads, with its line break: the size of
@@ -203,20 +210,21 @@ withTimeout = \case
     microsecondsPerSecond = 1000000
 
 -- | Read a line without its newline. 'Nothing' if the connection closed.
-readLine :: N.Socket -> Int -> S.IORef BS.ByteString -> IO (Maybe BS.ByteString)
-readLine sock chunkSize buffer = do
+readLine
+  :: Maybe Seconds -> N.Socket -> Int -> S.IORef BS.ByteString -> IO (Maybe BS.ByteString)
+readLine timeout sock chunkSize buffer = do
   buf <- S.readIORef buffer
   case BS.elemIndex newline buf of
     Just i -> do
       S.writeIORef buffer (BS.drop (i + 1) buf)
       pure . Just $ BS.take i buf
     Nothing -> do
-      chunk <- N.recv sock chunkSize
+      chunk <- withTimeout timeout $ N.recv sock chunkSize
       if BS.null chunk
         then pure Nothing
         else do
           S.writeIORef buffer (buf <> chunk)
-          readLine sock chunkSize buffer
+          readLine timeout sock chunkSize buffer
   where
     newline :: Word8
     newline = 10

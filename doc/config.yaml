@@ -23,7 +23,7 @@ mpd:
   host: ~
   port: ~                        # 6600 without it
   password: ~
-  timeout: 5s
+  timeout: 5s                    # for each part of a reply, not the whole
   # --host and --port come before these, and $MPD_HOST and $MPD_PORT after them,
   # each on its own. Without a host, reprise tries the sockets
   # $XDG_RUNTIME_DIR/mpd/socket and /run/mpd/socket, then localhost. A password

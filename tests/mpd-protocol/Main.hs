@@ -16,6 +16,7 @@ main =
       [ commandTests
       , connectionTests
       , closedTests
+      , timeoutTests
       , requestTests
       , responseTests
       ]

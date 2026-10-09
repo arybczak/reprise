@@ -35,4 +35,4 @@ serverVersion conn = conn.version
 -- After a 'ConnectionError', the connection is unusable: close it and
 -- connect again.
 run :: Connection -> Command a -> IO a
-run conn = withTimeout conn.timeout . exchangeCommand conn
+run = exchangeCommand

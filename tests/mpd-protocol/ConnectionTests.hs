@@ -1,8 +1,9 @@
-module ConnectionTests (connectionTests, closedTests) where
+module ConnectionTests (connectionTests, closedTests, timeoutTests) where
 
 import Control.Concurrent
 import Control.Concurrent.MVar.Strict qualified as S
 import Control.Exception
+import Control.Monad
 import Data.ByteString.Char8 qualified as BS8
 import Data.Foldable
 import Data.List qualified as L
@@ -64,34 +65,87 @@ closedTests =
     "Connection (closed by the server)"
     [ testCase "a closed unix socket" . withSystemTempDirectory "reprise" $ \dir -> do
         let path = dir </> "socket"
-        assertClosed N.AF_UNIX (N.SockAddrUnix path) (\_ -> pure $ UnixAddress path)
-    , testCase "a closed TCP connection" $
-        assertClosed
-          N.AF_INET
-          (N.SockAddrInet 0 (N.tupleToHostAddress (127, 0, 0, 1)))
-          (fmap (TcpAddress "127.0.0.1") . N.socketPort)
+        assertClosed $ FakeServer N.AF_UNIX (N.SockAddrUnix path) (\_ -> pure $ UnixAddress path)
+    , testCase "a closed TCP connection" $ assertClosed localTcp
     ]
   where
-    -- A server that greets and closes, with the address that it listens on
-    -- and the address that a client connects to.
-    assertClosed :: N.Family -> N.SockAddr -> (N.Socket -> IO Address) -> Assertion
-    assertClosed family listenAt addressOf =
-      bracket (N.socket family N.Stream N.defaultProtocol) N.close $ \listener -> do
-        N.bind listener listenAt
-        N.listen listener 1
-        address <- addressOf listener
-        closed <- newEmptyMVar
-        _ <- forkIO $ do
-          (sock, _) <- N.accept listener
-          N.sendAll sock $ "OK MPD " <> BS8.pack (showVersion minimumVersion) <> "\n"
-          N.close sock
-          putMVar closed ()
+    -- A server that greets and closes.
+    assertClosed :: FakeServer -> Assertion
+    assertClosed server = do
+      closed <- newEmptyMVar
+      withFakeServer server (\sock -> N.close sock >> putMVar closed ()) $ \address -> do
         conn <-
           connect Settings {address = address, password = Nothing, timeout = Just testTimeout}
         takeMVar closed
         r <- try @MpdError (run conn ping) `finally` close conn
         assertEqual "the error" (Left (ConnectionError Closed)) r
 
+-- | The timeout is for each part of a reply, so that a long reply on a slow
+-- connection gets the time that it needs while it comes.
+timeoutTests :: TestTree
+timeoutTests =
+  testGroup
+    "Connection (timeouts)"
+    [ testCase "a reply that comes slowly" $ do
+        r <- withFakeServer localTcp (reply 5) (`withShortTimeout` (`run` fields))
+        assertEqual "the reply" (Right 5) r
+    , testCase "a reply that stops" $ do
+        r <- withFakeServer localTcp stall (`withShortTimeout` (`run` fields))
+        assertEqual "the error" (Left (ConnectionError TimedOut)) r
+    ]
+  where
+    -- Each part comes well within the timeout, and all of them after it.
+    timeout' :: Seconds
+    timeout' = 0.5
+
+    gap :: Int
+    gap = 150000
+
+    withShortTimeout :: Address -> (Connection -> IO a) -> IO (Either MpdError a)
+    withShortTimeout address =
+      try
+        . withConnection Settings {address = address, password = Nothing, timeout = Just timeout'}
+
+    fields :: Command Int
+    fields = command "fields" [] (Right . length)
+
+    reply :: Int -> N.Socket -> IO ()
+    reply n sock = do
+      _ <- N.recv sock 4096
+      replicateM_ n $ threadDelay gap >> N.sendAll sock "key: value\n"
+      N.sendAll sock "OK\n"
+
+    stall :: N.Socket -> IO ()
+    stall sock = do
+      _ <- N.recv sock 4096
+      N.sendAll sock "key: value\n"
+      threadDelay maxBound
+
+-- | Where a fake server listens: the family and the address of its socket,
+-- and the address that a client connects to, from the socket.
+data FakeServer = FakeServer N.Family N.SockAddr (N.Socket -> IO Address)
+
+localTcp :: FakeServer
+localTcp =
+  FakeServer
+    N.AF_INET
+    (N.SockAddrInet 0 (N.tupleToHostAddress (127, 0, 0, 1)))
+    (fmap (TcpAddress "127.0.0.1") . N.socketPort)
+
+-- | Run a fake server that greets as MPD does and then serves one
+-- connection, while an action runs with the address to connect to.
+withFakeServer :: FakeServer -> (N.Socket -> IO ()) -> (Address -> IO a) -> IO a
+withFakeServer (FakeServer family listenAt addressOf) serve k =
+  bracket (N.socket family N.Stream N.defaultProtocol) N.close $ \listener -> do
+    N.bind listener listenAt
+    N.listen listener 1
+    address <- addressOf listener
+    let server = do
+          (sock, _) <- N.accept listener
+          N.sendAll sock ("OK MPD " <> BS8.pack (showVersion minimumVersion) <> "\n")
+          serve sock `finally` N.close sock
+    bracket (forkIO server) killThread $ \_ -> k address
+  where
     showVersion :: Version -> String
     showVersion (Version major minor patch) = L.intercalate "." $ map show [major, minor, patch]
 

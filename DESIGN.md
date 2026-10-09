@@ -1044,6 +1044,12 @@ often unused that long. MPD closes it before it reads the next command, so a
 command that finds the connection closed before any reply runs once more on a
 new connection.
 
+The timeout of a command, `mpd.timeout`, is for each read and write of the
+socket, as libmpdclient's is, not for the whole reply. A long reply, e.g.
+`playlistinfo` of a large queue from a slow server, takes as long as it keeps
+coming. A timeout for the whole would fail it every time, and the reconnect
+that follows would fetch it again.
+
 A key runs exactly one action, so there are no chains to keep in order. When
 one operation needs a reply before its next step, it is a single action that
 continues inside its continuation. An example is toggling the replay gain
