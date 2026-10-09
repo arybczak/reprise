@@ -200,8 +200,9 @@ readSeconds s = case BS8.break (== '.') s of
     f <- case BS.uncons frac of
       Nothing -> Just 0
       Just (_, digits)
-        | BS.null digits -> Nothing
-        | otherwise -> readDigits (BS.take precision (digits <> BS8.replicate precision '0'))
+        | allDigits digits ->
+            readDigits (BS.take precision (digits <> BS8.replicate precision '0'))
+        | otherwise -> Nothing
     pure . Seconds . MkFixed $ w * scale + f
   where
     scale :: Integer
@@ -212,8 +213,11 @@ readSeconds s = case BS8.break (== '.') s of
 
     readDigits :: BS.ByteString -> Maybe Integer
     readDigits d
-      | not (BS.null d) && BS8.all (\c -> c >= '0' && c <= '9') d = fst <$> BS8.readInteger d
+      | allDigits d = fst <$> BS8.readInteger d
       | otherwise = Nothing
+
+    allDigits :: BS.ByteString -> Bool
+    allDigits d = not (BS.null d) && BS8.all (\c -> c >= '0' && c <= '9') d
 
 -- | A part of a song's file, e.g. @0.000-2.000@, or @2.000-@ up to the end.
 readRange :: BS.ByteString -> Maybe SongRange

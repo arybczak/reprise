@@ -104,6 +104,7 @@ test_readSeconds = do
   assertEqual "long fraction" (Just 2.345) (readSeconds "2.3456")
   assertEqual "empty" Nothing (readSeconds "")
   assertEqual "no digits after the dot" Nothing (readSeconds "2.")
+  assertEqual "junk past the precision" Nothing (readSeconds "2.3456x")
   assertEqual "negative" Nothing (readSeconds "-2")
 
 test_readRange :: Assertion
