@@ -22,11 +22,14 @@ data InfoLine
     InfoField T.Text (Maybe T.Text)
   deriving stock (Eq, Show)
 
--- | The lines of a song, by the separator of a tag's values, the bitrate if
--- the song plays, as MPD has it of no other song, and the comments of its
--- file.
-songInfoLines :: T.Text -> Maybe Int -> [(T.Text, T.Text)] -> Song -> [InfoLine]
-songInfoLines separator bitrate comments song =
+-- | The lines of a song, by the separator of a tag's values and the
+-- comments of its file.
+--
+-- They have no bitrate: MPD has it only of the song that plays, as its
+-- decoder's rate at the moment, which changes as the song plays. The status
+-- bar shows it.
+songInfoLines :: T.Text -> [(T.Text, T.Text)] -> Song -> [InfoLine]
+songInfoLines separator comments song =
   L.intercalate [InfoBlank] . filter (not . null) $ [file, audio, replayGain, tags]
   where
     file :: [InfoLine]
@@ -42,7 +45,6 @@ songInfoLines separator bitrate comments song =
     audio :: [InfoLine]
     audio =
       [InfoField "Length" (formatDuration <$> song.duration)]
-        <> [InfoField "Bitrate" (Just (T.pack (show b) <> " kbps")) | Just b <- [bitrate]]
         <> maybe [] audioFormat song.format
         <> [ InfoField
                "Last modified"

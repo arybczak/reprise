@@ -25,7 +25,7 @@ songInfoTests =
     , testCase "i shows the song under the cursor" test_show
     , testCase "the comments of a song that the screen left are dropped" test_stale
     , testCase "a stream has no comments to ask for" test_stream
-    , testCase "the bitrate of the song that plays" test_bitrate
+    , testCase "no bitrate, also of the song that plays" test_bitrate
     ]
 
 test_lines :: Assertion
@@ -45,7 +45,6 @@ test_lines = do
     , InfoField "Part" (Just "1:00 to 1:30")
     , InfoBlank
     , InfoField "Length" (Just "2:05")
-    , InfoField "Bitrate" (Just "320 kbps")
     , InfoField "Sample rate" (Just "44100 Hz")
     , InfoField "Sample format" (Just "16 bit")
     , InfoField "Channels" (Just "Stereo")
@@ -66,7 +65,7 @@ test_lines = do
     , InfoField "Comment" Nothing
     , InfoField (tagName MusicBrainzTrackId) (Just "id")
     ]
-    (songInfoLines " | " (Just 320) comments s)
+    (songInfoLines " | " comments s)
   let bare = (song 0 [] 10) {file = "t.flac", duration = Nothing}
   assertEqual
     "without a directory, a length, ReplayGain and the rest"
@@ -75,13 +74,13 @@ test_lines = do
     , InfoBlank
     , InfoField "Length" Nothing
     ]
-    (take 4 (songInfoLines " | " Nothing [] bare))
+    (take 4 (songInfoLines " | " [] bare))
 
 test_formats :: Assertion
 test_formats = do
   let audio f =
         [ l
-        | l@(InfoField label _) <- songInfoLines "" Nothing [] ((song 0 [] 1) {format = Just f})
+        | l@(InfoField label _) <- songInfoLines "" [] ((song 0 [] 1) {format = Just f})
         , label `elem` ["Sample format", "Channels", "Format"]
         ]
   assertEqual
@@ -153,21 +152,14 @@ test_stream = do
   assertEqual "the screen" SongInfoScreen (focusedView r.state).screen
   assertEqual "no request" [] r.requests
 
+-- | MPD has the bitrate only of the song that plays, and it changes as the
+-- song plays, so the song info has none, also of the song that plays.
 test_bitrate :: Assertion
 test_bitrate = do
   let playing = (statusOf Playing (Just 0) 2) {bitrate = Just 320}
   s <- testState (40, 30) playing songs
-  first <- runEvents 0 [key "i"] s
-  assertBool
-    "of the song that plays"
-    ( any
-        (\l -> "Bitrate:" `T.isPrefixOf` l && "320 kbps" `T.isSuffixOf` l)
-        (screenLines first.state)
-    )
-  second <- runEvents 0 [key "i", key "down", key "i"] first.state
-  assertBool
-    "not of another"
-    (not (any ("Bitrate" `T.isPrefixOf`) (screenLines second.state)))
+  shown <- runEvents 0 [key "i"] s
+  assertBool "no bitrate" (not (any ("Bitrate" `T.isPrefixOf`) (screenLines shown.state)))
 
 songs :: [Song]
 songs =

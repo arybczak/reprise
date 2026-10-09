@@ -812,12 +812,4 @@ songInfoRows :: AppEnv -> AppState -> Int -> [(T.Text, Maybe T.Text)]
 songInfoRows env s width = case s.songInfo.song of
   Nothing -> []
   Just song ->
-    infoRows width $
-      songInfoLines env.config.songs.tagSeparator (bitrateOf song) s.songInfo.comments song
-  where
-    -- MPD has the bitrate of the song that plays only.
-    bitrateOf :: Song -> Maybe Int
-    bitrateOf song = do
-      playing <- currentSong s.mirror
-      guard $ sameSong playing song
-      s.mirror.status >>= (.bitrate)
+    infoRows width $ songInfoLines env.config.songs.tagSeparator s.songInfo.comments song

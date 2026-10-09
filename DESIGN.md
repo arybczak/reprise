@@ -544,8 +544,9 @@ ncmpcpp.
     channels from MPD's format of the song, e.g. `44100:16:2`, and the
     last change of the file. ncmpcpp reads these with TagLib, which needs
     the music directory; MPD has them. Another format, e.g. of DSD, shows
-    as MPD has it. The bitrate shows only for the song that plays, as MPD
-    has it of no other;
+    as MPD has it. There is no bitrate: MPD has it only of the song that
+    plays, as the rate of its decoder at the moment, which changes as the
+    song plays. The status bar shows it, with `status_bar.show_bitrate`;
   - **ReplayGain,** from the comments of the file, `readcomments`: the
     reference loudness, and the gain and the peak of the track and of the
     album. MPD reads them of some formats only, e.g. FLAC and Ogg, not
