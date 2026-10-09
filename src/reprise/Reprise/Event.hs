@@ -3,6 +3,7 @@
 -- compare them and run them.
 module Reprise.Event
   ( AppEvent (..)
+  , Confirmation (..)
   , FrameStats (..)
   ) where
 
@@ -10,7 +11,6 @@ import Data.ByteString qualified as BS
 import Data.Text qualified as T
 import Data.Vector.Storable qualified as VS
 
-import Reprise.Action
 import Reprise.Keys
 import Reprise.Lyrics
 import Reprise.Mpd.Protocol.Command
@@ -82,13 +82,21 @@ data AppEvent
   | -- | Edit the file of lyrics, which the user chose as there were none.
     EditLyricsFile FilePath
   | -- | The user confirmed a destructive action.
-    Confirmed Action
+    Confirmed Confirmation
   | -- | MPD's reply before a save to the stored playlist of the name: what
     -- to save, with the songs of its stored playlists, and whether a stored
     -- playlist of the name exists.
     SaveChecked T.Text SaveSource Bool
   | -- | Save to the stored playlist of the name.
     SaveTo T.Text SaveSource SaveMode
+  deriving stock (Eq, Show)
+
+-- | A destructive action that asks before it runs.
+data Confirmation
+  = -- | Clear the queue.
+    ConfirmClear
+  | -- | Shuffle the whole queue.
+    ConfirmShuffle
   deriving stock (Eq, Show)
 
 -- | What happened to the visualizer worker's frames in a second.

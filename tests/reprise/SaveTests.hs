@@ -49,6 +49,7 @@ test_existing = do
     "the choice"
     (Just "The playlist mix exists. [replace/append]")
     (statusLine asked.state)
+  assertEqual "nothing yet" [] asked.requests
   replaced <- press ["r"] asked.state
   assertEqual "replaced" [[Request "save" ["mix", "replace"]]] replaced.requests
   assertEqual "the message" (Just "Replaced mix with the queue") (message replaced.state)

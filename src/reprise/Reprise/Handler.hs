@@ -420,7 +420,9 @@ runAction action = case action of
     n <- getsS (queueLength . (.mirror))
     if n == 0
       then showMessage "The queue is empty"
-      else modifyS $ confirm ("Clear " <> countSongs n <> " from the queue?") (Confirmed Clear)
+      else
+        modifyS $
+          confirm ("Clear " <> countSongs n <> " from the queue?") (Confirmed ConfirmClear)
   -- Shuffling the selected songs loses nothing the user didn't point at, so
   -- only shuffling the whole queue asks first.
   Shuffle -> do
@@ -432,7 +434,8 @@ runAction action = case action of
             if n < 2
               then showMessage "There is nothing to shuffle"
               else
-                modifyS $ confirm ("Shuffle " <> countSongs n <> " in the queue?") (Confirmed Shuffle)
+                modifyS $
+                  confirm ("Shuffle " <> countSongs n <> " in the queue?") (Confirmed ConfirmShuffle)
       [(a, b)] -> do
         mutate . shuffle . Just $ Range (SongPos a) (Just (SongPos (b + 1)))
         showMessage $ "Shuffled " <> countSongs (b - a + 1)
@@ -489,11 +492,10 @@ cycleScreens screens = do
       _ -> first
 
 -- | Run a destructive action that the user confirmed.
-runConfirmed :: App es => Action -> Eff es ()
+runConfirmed :: App es => Confirmation -> Eff es ()
 runConfirmed = \case
-  Clear -> mutate clear
-  Shuffle -> mutate $ shuffle Nothing
-  _ -> pure ()
+  ConfirmClear -> mutate clear
+  ConfirmShuffle -> mutate $ shuffle Nothing
 
 ----------------------------------------
 -- Saving as a stored playlist

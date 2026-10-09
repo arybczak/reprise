@@ -872,7 +872,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Style` | Parsing styles into vty `Attr` |
 | `Reprise.Keys` | Key spec parsing (`ctrl-x`, `alt-shift-tab`, ...) |
 | `Reprise.Keymap` | Keymaps, key sequences and lookup, and the listings of keymaps: the which-key entries and the lines of the help screen |
-| `Reprise.Action` | The action registry: actions as data, with their names, argument parsers, descriptions, and whether they are destructive |
+| `Reprise.Action` | The action registry: actions as data, with their names, argument parsers and descriptions |
 | `Reprise.Handler` | The handlers of events, keys, prompts and the actions of every screen, e.g. playback and toggles. It passes the actions of a screen on to the screen's module |
 | `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
 | `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors, the order of text, the directory of lyrics and the editor. What the code under the screens knows of each screen, e.g. its length, its songs and its title, in one table. Queries of the state that both the handlers and the layout need, such as whether the cursor shows, or the header's title and whether it scrolls |
@@ -1455,10 +1455,12 @@ Not destructive:
 - moving songs;
 - playback controls.
 
-Whether an action is destructive is part of its entry in the registry. The
-confirmation is a choice in the status bar that names what will be lost, e.g.
-"Clear 1243 songs from the queue? [yes/no]". A test checks the pending
-confirmation in the new state and runs its continuation to answer it.
+The handler of each destructive action decides when it asks, since that
+depends on the state, e.g. on a selection or on whether a stored playlist
+exists. The confirmation is a choice in the status bar that names what will
+be lost, e.g. "Clear 1243 songs from the queue? [yes/no]". For each
+destructive action, a test checks the pending confirmation in the new state,
+and that nothing is sent before the answer.
 
 **A choice** lists its options in brackets, as ncmpcpp's prompts do, e.g.
 `[replace/append]`. A letter of each option picks it, and shows in bold:

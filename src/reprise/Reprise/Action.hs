@@ -29,7 +29,6 @@ module Reprise.Action
   , actionHint
   , renderAction
   , describeAction
-  , isDestructive
   ) where
 
 import Control.Monad
@@ -639,16 +638,6 @@ describeAction = \case
   NextSortMode -> "next sort mode"
   RefetchLyrics -> "fetch the lyrics again"
   EditLyrics -> "edit the lyrics"
-
--- | Whether the action may throw away something the user didn't point at,
--- so that it asks for confirmation. Its handler decides whether it does,
--- e.g. shuffling only the selected songs doesn't ask.
-isDestructive :: Action -> Bool
-isDestructive = \case
-  Clear -> True
-  Shuffle -> True
-  Save -> True
-  _ -> False
 
 ----------------------------------------
 -- Helpers

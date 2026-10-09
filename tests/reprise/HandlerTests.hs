@@ -79,6 +79,7 @@ handlerTests =
     , testCase "move the marked songs up and down" test_moveSongs
     , testCase "move songs to a place" test_moveSongsTo
     , testCase "shuffle the selection" test_shuffleSelection
+    , testCase "shuffling the whole queue asks first" test_shuffleConfirm
     ]
 
 test_selectItem :: Assertion
@@ -437,6 +438,18 @@ test_shuffleSelection = do
   apart <- keys ["space", "down", "space", "e", "s"] s
   assertEqual "apart" [] apart.requests
   assertEqual "error" (Just True) (isError apart)
+
+test_shuffleConfirm :: Assertion
+test_shuffleConfirm = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  asked <- keys ["e", "s"] s
+  assertEqual
+    "question"
+    (Just "Shuffle 5 songs in the queue?")
+    ((.question) <$> asked.state.prompt)
+  assertEqual "nothing yet" [] asked.requests
+  assertEqual "yes" [[Request "shuffle" []]] . (.requests) =<< keys ["y"] asked.state
+  assertEqual "no" [] . (.requests) =<< keys ["n"] asked.state
 
 test_disconnectClears :: Assertion
 test_disconnectClears = do
