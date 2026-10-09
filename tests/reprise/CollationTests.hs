@@ -14,7 +14,21 @@ collationTests =
     [ testCase "case doesn't come first" test_case
     , testCase "a leading the" test_leadingThe
     , testCase "the locale of the order" test_locale
+    , testCase "numbers by their values" test_numbers
     ]
+
+-- | A number sorts by its value, e.g. of a track without a leading 0 in an
+-- album of more than 9.
+test_numbers :: Assertion
+test_numbers = do
+  assertEqual
+    "tracks"
+    ["1 - a.flac", "2 - b.flac", "10 - c.flac"]
+    (sortBy False ["10 - c.flac", "2 - b.flac", "1 - a.flac"])
+  assertEqual
+    "leading zeros"
+    ["01 a", "02 b", "10 c"]
+    (sortBy False ["10 c", "02 b", "01 a"])
 
 -- | Swedish puts ä after z. The locale is of LC_ALL, else LC_COLLATE, else
 -- LANG, without its codeset.

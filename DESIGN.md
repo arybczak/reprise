@@ -165,6 +165,9 @@ ncmpcpp.
     `LC_COLLATE` and `LANG`, as the C library takes it. ICU's own default
     locale reads `LC_MESSAGES` instead of `LC_COLLATE`, so a Swedish
     `LC_COLLATE` with an English `LANG` sorted in English.
+  - Numbers sort by their values, e.g. `10 - …` after `2 - …` in an album
+    of more than 9 tracks without leading zeros, as file managers sort
+    them. There is no option for it, as no one wants `10` before `2`.
   - The songs of a playlist keep its order.
 - Add, add and play, add or remove. A directory is added with its
   subdirectories, and a playlist is loaded.

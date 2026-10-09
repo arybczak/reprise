@@ -11,6 +11,7 @@ module Reprise.Collation
 import Data.ByteString qualified as BS
 import Data.Text qualified as T
 import Data.Text.ICU qualified as ICU
+import Data.Text.ICU.Collate qualified as Collate
 import System.Environment
 
 -- | The rules of a locale, with the locale for 'Show'.
@@ -42,8 +43,10 @@ localeCollator values = case [v | Just v <- values, not (null v)] of
 rootCollator :: Collator
 rootCollator = collator ICU.Root
 
+-- | The rules of a locale, with numbers by their values, e.g. a track 10
+-- after a track 2, as file managers sort them.
 collator :: ICU.LocaleName -> Collator
-collator locale = Collator locale (ICU.collator locale)
+collator locale = Collator locale (ICU.collatorWith locale [Collate.Numeric True])
 
 -- | A key that orders text as a collator does.
 newtype CollationKey = CollationKey BS.ByteString
