@@ -67,6 +67,17 @@ closedTests =
         let path = dir </> "socket"
         assertClosed $ FakeServer N.AF_UNIX (N.SockAddrUnix path) (\_ -> pure $ UnixAddress path)
     , testCase "a closed TCP connection" $ assertClosed localTcp
+    , testCase "a reply cut off in its first line" $ do
+        -- MPD began the reply, so it ran the command, which mustn't run again.
+        let cutOff sock = N.recv sock 4096 >> N.sendAll sock "key: va"
+        r <- withFakeServer localTcp cutOff $ \address ->
+          try @MpdError
+            . withConnection
+              Settings {address = address, password = Nothing, timeout = Just testTimeout}
+            $ (`run` ping)
+        case r of
+          Left (ConnectionError (Broken _)) -> pure ()
+          _ -> assertFailure $ "not broken: " <> show r
     ]
   where
     -- A server that greets and closes.

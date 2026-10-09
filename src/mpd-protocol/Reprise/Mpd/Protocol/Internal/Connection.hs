@@ -146,10 +146,13 @@ exchange timeout conn request = do
     go :: Bool -> [BS.ByteString] -> IO [[Field]]
     go first acc =
       readReplyLine first >>= \case
-        Nothing
-          | first -> throwIO $ ConnectionError Closed
-          | otherwise ->
-              throwIO . ConnectionError $ Broken "the connection closed in the middle of a reply"
+        Nothing -> do
+          -- A part of the first line means that MPD ran the command.
+          received <- S.readIORef conn.buffer
+          throwIO . ConnectionError $
+            if first && BS.null received
+              then Closed
+              else Broken "the connection closed in the middle of a reply"
         Just l
           | isFinalLine l -> either throwIO pure . parseReply $ reverse (l : acc)
           | otherwise -> go False (l : acc)
