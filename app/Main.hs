@@ -50,7 +50,7 @@ import Reprise.Width
 
 data Options = Options
   { host :: Maybe T.Text
-  , port :: Maybe Int
+  , port :: Maybe Port
   , config :: Maybe FilePath
   }
 
@@ -66,7 +66,7 @@ options =
       )
     <*> optional
       ( option
-          auto
+          (eitherReader (either (Left . T.unpack) Right . parsePort . T.pack))
           ( long "port"
               <> metavar "PORT"
               <> help "The port of MPD"
@@ -99,7 +99,12 @@ main = withOpenSSL $ do
     lookupEnv "NO_COLOR" <&> \case
       Just v | not (null v) -> NoColors
       _ -> WithColors
-  settings <- resolveSettings config.mpd <$> sources opts
+  settings <-
+    resolveSettings config.mpd <$> sources opts >>= \case
+      Right s -> pure s
+      Left err -> do
+        T.hPutStrLn stderr err
+        exitFailure
   logLine <- openLog
   historyFile <- getXdgDirectory XdgState ("reprise" </> "history")
   savedHistory <-

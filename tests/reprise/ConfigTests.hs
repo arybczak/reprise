@@ -188,6 +188,8 @@ test_errors :: Assertion
 test_errors = do
   assertError "unknown key with a hint" "window_titel" (decode "window_titel: x\n")
   assertError "unknown fetcher" "genius" (decode "lyrics:\n  fetchers: [genius]\n")
+  assertError "port too large" "a port is from 1 to 65535" (decode "mpd:\n  port: 70000\n")
+  assertError "port 0" "a port is from 1 to 65535" (decode "mpd:\n  port: 0\n")
   assertError
     "bad style"
     "unknown color or attribute purple"

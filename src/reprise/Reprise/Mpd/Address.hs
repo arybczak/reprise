@@ -7,7 +7,6 @@ module Reprise.Mpd.Address
 import Data.Maybe
 import Data.Text qualified as T
 import GHC.Generics
-import Network.Socket qualified as N
 
 import Reprise.Config
 import Reprise.Mpd.Protocol.Connection
@@ -16,7 +15,7 @@ import Reprise.Mpd.Protocol.Connection
 -- the command line and the config.
 data Sources = Sources
   { cliHost :: Maybe T.Text
-  , cliPort :: Maybe Int
+  , cliPort :: Maybe Port
   , envHost :: Maybe T.Text
   -- ^ @MPD_HOST@, which may start with @password\@@.
   , envPort :: Maybe T.Text
@@ -27,19 +26,22 @@ data Sources = Sources
   deriving stock (Generic)
 
 -- | MPD's default port.
-defaultPort :: Int
-defaultPort = 6600
+defaultPort :: Port
+defaultPort = Port 6600
 
 -- | The connection settings: the host from the command line, the config or
 -- @MPD_HOST@, else the first usual socket that exists, else
--- @localhost:6600@.
-resolveSettings :: MpdConfig -> Sources -> Settings
-resolveSettings config sources =
-  Settings
-    { address = address
-    , password = listToMaybe (catMaybes [config.password, hostPassword])
-    , timeout = let Duration t = config.timeout in Just t
-    }
+-- @localhost:6600@. Fails if the port that a TCP address takes from
+-- @MPD_PORT@ isn't one.
+resolveSettings :: MpdConfig -> Sources -> Either T.Text Settings
+resolveSettings config sources = do
+  a <- address
+  pure
+    Settings
+      { address = a
+      , password = listToMaybe (catMaybes [config.password, hostPassword])
+      , timeout = let Duration t = config.timeout in Just t
+      }
   where
     (hostPassword, host) = case listToMaybe (catMaybes [sources.cliHost, config.host, sources.envHost]) of
       Just h -> case T.breakOn "@" h of
@@ -50,22 +52,22 @@ resolveSettings config sources =
         _ -> (Nothing, Just h)
       Nothing -> (Nothing, Nothing)
 
-    port :: Int
-    port =
-      fromMaybe defaultPort . listToMaybe $
-        catMaybes [sources.cliPort, config.port, sources.envPort >>= readPort]
+    port :: Either T.Text Port
+    port = case listToMaybe (catMaybes [sources.cliPort, config.port]) of
+      Just p -> Right p
+      Nothing -> case sources.envPort of
+        Just t -> either (Left . ("MPD_PORT: " <>)) Right (parsePort t)
+        Nothing -> Right defaultPort
 
-    address :: Address
+    address :: Either T.Text Address
     address = case host of
       Just h
-        | "/" `T.isPrefixOf` h -> UnixAddress (T.unpack h)
-        | Just name <- T.stripPrefix "@" h -> UnixAddress ('\0' : T.unpack name)
-        | otherwise -> TcpAddress (T.unpack h) (fromIntegral port)
+        | "/" `T.isPrefixOf` h -> Right $ UnixAddress (T.unpack h)
+        | Just name <- T.stripPrefix "@" h -> Right $ UnixAddress ('\0' : T.unpack name)
+        | otherwise -> tcp (T.unpack h)
       Nothing -> case sources.existingSockets of
-        socket : _ -> UnixAddress socket
-        [] -> TcpAddress "localhost" (fromIntegral port)
+        socket : _ -> Right $ UnixAddress socket
+        [] -> tcp "localhost"
 
-    readPort :: T.Text -> Maybe Int
-    readPort t = case reads (T.unpack t) of
-      [(p, "")] | p > 0 && p <= toInteger (maxBound @N.PortNumber) -> Just (fromInteger p)
-      _ -> Nothing
+    tcp :: String -> Either T.Text Address
+    tcp h = (\(Port p) -> TcpAddress h p) <$> port

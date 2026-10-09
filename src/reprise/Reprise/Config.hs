@@ -5,6 +5,8 @@ module Reprise.Config
   ( -- * Configuration
     Config (..)
   , MpdConfig (..)
+  , Port (..)
+  , parsePort
   , Duration (..)
   , SongsConfig (..)
   , RowFormat (..)
@@ -52,6 +54,7 @@ import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Void
+import Network.Socket qualified as N
 import Optics.Core hiding (view)
 import System.Directory
 import Yamlet
@@ -93,12 +96,25 @@ data Config = Config
 data MpdConfig = MpdConfig
   { host :: Maybe T.Text
   -- ^ A host name, or the path of a unix socket.
-  , port :: Maybe Int
+  , port :: Maybe Port
   , password :: Maybe T.Text
   , timeout :: Duration
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml MpdConfig
+
+-- | A TCP port, from 1.
+newtype Port = Port N.PortNumber
+  deriving newtype (Eq, Show)
+
+-- | A port from the command line, the config or the environment.
+parsePort :: T.Text -> Either T.Text Port
+parsePort t =
+  maybe (Left $ "a port is from 1 to " <> T.pack (show highest) <> ", not " <> t) Right $
+    Port . fromIntegral <$> decimalIn 1 (fromIntegral highest) t
+  where
+    highest :: N.PortNumber
+    highest = maxBound
 
 -- | A duration, written with a unit, e.g. @5s@ or @500ms@.
 newtype Duration = Duration Seconds
@@ -657,6 +673,11 @@ instance FromYaml Duration where
 
       number :: T.Text -> Maybe Seconds
       number = Response.readSeconds . T.encodeUtf8
+
+instance FromYaml Port where
+  parseYaml n = case view n of
+    IntView i -> either (failAt n . T.unpack) pure . parsePort . T.pack $ show i
+    _ -> typeMismatch "a port, e.g. 6600" n
 
 instance FromYaml ColumnWidth where
   parseYaml n = case view n of
