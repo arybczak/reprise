@@ -56,7 +56,7 @@ idleWorker w = forever $ do
   try @MpdError (connectMpd sent) >>= \case
     Left err -> disconnected sent err
     Right version -> do
-      liftIO . w.emit $ MpdConnected version
+      emitEvent w $ MpdConnected version
       watch `catch` \err -> do
         logError w err
         disconnectMpd
@@ -66,14 +66,14 @@ idleWorker w = forever $ do
     watch =
       waitIdle (readTVar w.commandConnectionFailed >>= check) >>= \case
         Just changed -> do
-          liftIO . w.emit $ MpdChanged changed
+          emitEvent w $ MpdChanged changed
           watch
         Nothing -> disconnectMpd
 
     -- After the password that the connection sent.
     disconnected :: IOE :> es => Maybe T.Text -> MpdError -> Eff es ()
     disconnected sent err = do
-      liftIO . w.emit . MpdDisconnected $ exceptionText err
+      emitEvent w . MpdDisconnected $ exceptionText err
       liftIO $
         if refused err
           then atomically $ readTVar w.password >>= check . (/= sent)
@@ -99,7 +99,7 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
       r@(PendingRequest cmd onFailure k) : rs ->
         try (runCommand cmd `catch` retryClosed cmd) >>= \case
           Right a -> do
-            liftIO . w.emit $ k a
+            emitEvent w $ k a
             runRequests rs
           Left err
             | refused err -> askPassword err onFailure r rs
@@ -113,14 +113,14 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
       :: (Mpd :> es, IOE :> es)
       => MpdError -> (MpdError -> AppEvent) -> PendingRequest -> [PendingRequest] -> Eff es ()
     askPassword err onFailure r held = do
-      liftIO . w.emit $ PasswordNeeded err
+      emitEvent w $ PasswordNeeded err
       waitForAnswer held
       where
         waitForAnswer :: (Mpd :> es, IOE :> es) => [PendingRequest] -> Eff es ()
         waitForAnswer rs =
           nextRequest >>= \case
             PasswordAnswer Nothing -> do
-              liftIO . w.emit $ onFailure err
+              emitEvent w $ onFailure err
               runRequests rs
             PasswordAnswer (Just p) ->
               authenticate p >>= \case
@@ -151,7 +151,7 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
           liftIO . atomically $ writeTVar w.commandConnectionFailed True
         ProtocolError _ -> logError w err
         AckError _ -> pure ()
-      liftIO . w.emit $ onFailure err
+      emitEvent w $ onFailure err
 
     -- MPD closes a connection that was unused for a while, before it runs
     -- the command, so the command runs again on a new connection.
@@ -161,6 +161,9 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
         disconnectMpd
         runCommand cmd
       err -> throwIO err
+
+emitEvent :: IOE :> es => Workers -> AppEvent -> Eff es ()
+emitEvent w = liftIO . w.emit
 
 logError :: IOE :> es => Workers -> MpdError -> Eff es ()
 logError w = liftIO . w.logLine . exceptionText
