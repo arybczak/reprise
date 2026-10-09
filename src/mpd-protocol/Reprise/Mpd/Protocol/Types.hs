@@ -5,6 +5,7 @@ module Reprise.Mpd.Protocol.Types
   , SongId (..)
   , SongPos (..)
   , SongRange (..)
+  , maxPriority
   , Seconds (..)
   , songKey
   , sameSong
@@ -27,6 +28,7 @@ module Reprise.Mpd.Protocol.Types
 
     -- * Status
   , Status (..)
+  , maxVolume
   , PlayerState (..)
   , SingleMode (..)
   , singleModeName
@@ -90,10 +92,14 @@ data Song = Song
   , songId :: Maybe SongId
   -- ^ The id in the queue, for a song in the queue.
   , priority :: Int
-  -- ^ The priority in the queue, 0 unless set.
+  -- ^ The priority in the queue, from 0, unless set, to 'maxPriority'.
   }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
+
+-- | The highest priority of a song in the queue.
+maxPriority :: Int
+maxPriority = 255
 
 -- | A part of a file, from a point up to another one or to the end.
 data SongRange = SongRange
@@ -272,7 +278,7 @@ data Playlist = Playlist
 -- | The reply to @status@.
 data Status = Status
   { volume :: Maybe Int
-  -- ^ 'Nothing' if MPD has no mixer.
+  -- ^ From 0 to 'maxVolume', or 'Nothing' if MPD has no mixer.
   , repeat :: Bool
   , random :: Bool
   , single :: SingleMode
@@ -298,6 +304,10 @@ data Status = Status
   }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)
+
+-- | The loudest volume, in percent.
+maxVolume :: Int
+maxVolume = 100
 
 data PlayerState = Playing | Paused | Stopped
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)

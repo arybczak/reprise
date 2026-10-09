@@ -386,17 +386,7 @@ playlistAdd name uri = command "playlistadd" [name, uri] noReply
 -- exist.
 playlistAddDirectory :: T.Text -> T.Text -> Command ()
 playlistAddDirectory name path =
-  command "searchaddpl" [name, "(base " <> filterString path <> ")"] noReply
-  where
-    -- A string of a filter expression is quoted, with a backslash before a
-    -- quote or a backslash in it.
-    filterString :: T.Text -> T.Text
-    filterString t = "\"" <> T.concatMap escape t <> "\""
-
-    escape :: Char -> T.Text
-    escape c
-      | c == '"' || c == '\\' = T.pack ['\\', c]
-      | otherwise = T.singleton c
+  command "searchaddpl" [name, "(base " <> quoteText path <> ")"] noReply
 
 -- | Remove the songs of a stored playlist.
 playlistClear :: T.Text -> Command ()

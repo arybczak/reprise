@@ -39,6 +39,7 @@ import Data.Maybe
 import Data.Text qualified as T
 import Yamlet
 
+import Reprise.Mpd.Protocol.Types
 import Reprise.Number
 
 ----------------------------------------
@@ -277,7 +278,7 @@ registry =
       _ -> Left "expected an option"
   , namedSpec "update" "scope" updateName Update
   , namedSpec "move_songs" "target" moveSongsName MoveSongs
-  , spec "priority" "0-255" $ one (fmap Priority . priority)
+  , spec "priority" ("0-" <> priorityText) $ one (fmap Priority . priority)
   , spec "next_sort_mode" "" $ none NextSortMode
   , spec "refetch_lyrics" "" $ none RefetchLyrics
   , spec "edit_lyrics" "" $ none EditLyrics
@@ -363,7 +364,9 @@ registry =
       Just ('-', n) -> VolumeBy . negate <$> natural n
       _ -> do
         v <- natural w
-        if v <= maxVolume then Right (VolumeTo v) else Left "a volume is from 0 to 100"
+        if v <= maxVolume
+          then Right (VolumeTo v)
+          else Left ("a volume is from 0 to " <> volumeText)
 
     seekStep :: T.Text -> Either T.Text SeekStep
     seekStep w
@@ -387,14 +390,13 @@ registry =
     priority :: T.Text -> Either T.Text Int
     priority w = do
       p <- natural w
-      if p <= maxPriority then Right p else Left "a priority is from 0 to 255"
+      if p <= maxPriority then Right p else Left ("a priority is from 0 to " <> priorityText)
 
-    maxVolume :: Int
-    maxVolume = 100
+    volumeText :: T.Text
+    volumeText = T.pack (show maxVolume)
 
-    -- MPD's priorities are from 0 to 255.
-    maxPriority :: Int
-    maxPriority = 255
+    priorityText :: T.Text
+    priorityText = T.pack (show maxPriority)
 
 -- | Parse an action with its arguments, e.g. @volume +2@ or
 -- @next_screen [browser, media_library]@.

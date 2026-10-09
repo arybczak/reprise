@@ -8,6 +8,7 @@ module Reprise.Mpd.Protocol.Request
     -- * Arguments
   , Argument (..)
   , quote
+  , quoteText
   ) where
 
 import Data.ByteString.Builder qualified as B
@@ -41,7 +42,12 @@ renderRequests = \case
 -- | Quote an argument. MPD accepts any argument in double quotes, with
 -- backslashes before double quotes and backslashes.
 quote :: T.Text -> B.Builder
-quote t = B.char7 '"' <> T.encodeUtf8Builder (T.concatMap escape t) <> B.char7 '"'
+quote = T.encodeUtf8Builder . quoteText
+
+-- | 'quote' as text, e.g. for a string in a filter expression, which MPD
+-- quotes in the same way.
+quoteText :: T.Text -> T.Text
+quoteText t = "\"" <> T.concatMap escape t <> "\""
   where
     escape :: Char -> T.Text
     escape c
