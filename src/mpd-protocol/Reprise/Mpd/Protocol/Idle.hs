@@ -14,8 +14,10 @@ import Reprise.Mpd.Protocol.Types
 -- | Wait until one of the subsystems changes, or any subsystem for an empty
 -- list, and return the subsystems that changed. There is no timeout.
 idle :: Connection -> [Subsystem] -> IO [Subsystem]
-idle conn subsystems =
-  exchange Nothing conn (renderRequest $ Request "idle" (map subsystemName subsystems)) >>= \case
+idle conn subsystems = do
+  let request = Request "idle" (map subsystemName subsystems)
+  checkRequest request
+  exchange Nothing conn (renderRequest request) >>= \case
     [fields] -> either (throwIO . ProtocolError . ("idle: " <>)) pure $ parseSubsystems fields
     _ -> throwIO $ ProtocolError "idle: the reply has more than one part"
 

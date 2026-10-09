@@ -55,6 +55,7 @@ connectionTests =
         , ("readcomments", test_readComments)
         , ("idle", test_idle)
         , ("noidle", test_noidle)
+        , ("a line break in a subsystem of idle", test_idleLineBreak)
         ]
 
 -- | A connection that MPD closed for being unused fails differently on each
@@ -475,6 +476,15 @@ test_idle server = withConn server $ \idleConn -> do
   withConn server $ \conn -> run conn $ setRepeat True
   r <- S.takeMVar result
   assertEqual "changed" [OptionsSubsystem] r
+
+-- | A line break in the name of a subsystem would send a second command.
+test_idleLineBreak :: TestServer -> Assertion
+test_idleLineBreak server = withConn server $ \conn -> do
+  r <- try @MpdError $ idle conn [OtherSubsystem "player\nclear"]
+  case r of
+    Left (ProtocolError _) -> pure ()
+    _ -> assertFailure $ "unexpected result: " <> show r
+  run conn ping
 
 test_noidle :: TestServer -> Assertion
 test_noidle server = withConn server $ \conn -> do

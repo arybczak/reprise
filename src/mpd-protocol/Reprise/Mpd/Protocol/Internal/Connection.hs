@@ -13,6 +13,7 @@ module Reprise.Mpd.Protocol.Internal.Connection
     -- * Round trips
   , exchange
   , exchangeCommand
+  , checkRequest
   , withTimeout
   , sendRaw
   ) where
@@ -178,17 +179,22 @@ exchangeCommand conn cmd = do
   parts <- case commandRequests cmd of
     [] -> pure []
     requests -> do
-      for_ requests $ \r ->
-        if
-          -- MPD would read a second command after the line break, and send
-          -- a reply that no request reads.
-          | any (T.elem '\n') r.arguments ->
-              throwIO . ProtocolError $ r.command <> ": an argument has a line break"
-          | BL.length (B.toLazyByteString (renderRequest r)) > maxLineLength ->
-              throwIO . ProtocolError $ r.command <> ": the request is longer than MPD reads"
-          | otherwise -> pure ()
+      traverse_ checkRequest requests
       exchange conn.timeout conn (renderRequests requests)
   either throwIO pure $ parseCommandReply cmd parts
+
+-- | Throw 'ProtocolError' for a request that MPD would read as something
+-- else.
+checkRequest :: Request -> IO ()
+checkRequest r
+  -- MPD would read a second command after the line break, and send a
+  -- reply that no request reads.
+  | any (T.elem '\n') (r.command : r.arguments) =
+      throwIO . ProtocolError $
+        T.takeWhile (/= '\n') r.command <> ": the request has a line break"
+  | BL.length (B.toLazyByteString (renderRequest r)) > maxLineLength =
+      throwIO . ProtocolError $ r.command <> ": the request is longer than MPD reads"
+  | otherwise = pure ()
   where
     -- The longest line that MPD reads, with its line break: the size of
     -- the input buffer of MPD's @src/event/BufferedSocket.hxx@. MPD closes
