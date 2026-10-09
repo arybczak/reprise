@@ -10,6 +10,7 @@ module Reprise.Handler
 import Control.Exception
 import Control.Monad
 import Data.Foldable
+import Data.Functor
 import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
@@ -443,13 +444,11 @@ runAction = \case
     QueueScreen -> Just $ moveSongs t
     _ -> Nothing
   action@(Find t) -> verb action $ \screen ->
-    if screen `elem` [QueueScreen, BrowserScreen]
-      then Just $ case t of
-        FindForward -> modifyS (startFind Forward)
-        FindBackward -> modifyS (startFind Backward)
-        FindNext -> findAgain Forward
-        FindPrevious -> findAgain Backward
-      else Nothing
+    screenRows screen <&> \rows -> case t of
+      FindForward -> modifyS (startFind Forward)
+      FindBackward -> modifyS (startFind Backward)
+      FindNext -> findAgain rows Forward
+      FindPrevious -> findAgain rows Backward
   Crossfade n -> mutate $ setCrossfade n
   AddPath path -> mutate $ add path Nothing
   CommandPrompt start ->
@@ -743,7 +742,7 @@ findAsYouType f text = do
 -- An empty pattern finds the last pattern again, as in Vim.
 acceptFind :: App es => Finding -> T.Text -> Eff es ()
 acceptFind f text
-  | T.null text = findAgain f.direction
+  | T.null text = findAgain focusedRows f.direction
   | otherwise = case compilePattern text of
       Left _ -> do
         modifyWithEnv (restoreView f.origin)
@@ -752,10 +751,11 @@ acceptFind f text
         modifyS $ #findPattern ?~ text
         forM_ f.note (showMessage . capitalize)
 
--- | Move to the next or the previous match of the last pattern.
-findAgain :: App es => Direction -> Eff es ()
-findAgain direction = do
-  rows <- focusedRows
+-- | Move to the next or the previous match of the last pattern in rows of
+-- the focused list.
+findAgain :: App es => Eff es (Seq.Seq Folded) -> Direction -> Eff es ()
+findAgain getRows direction = do
+  rows <- getRows
   s <- getS
   case s.findPattern of
     Nothing -> showMessage "Nothing was found yet"
@@ -775,13 +775,27 @@ wrapNote direction found
       Backward -> "wrapped around to the bottom"
   | otherwise = Nothing
 
--- | The rows of the focused list as finds match them.
+-- | The rows of the focused list as finds match them. A find opens only on
+-- a screen with rows, and its prompt keeps the screen until it closes.
 focusedRows :: App es => Eff es (Seq.Seq Folded)
-focusedRows =
-  getsS ((.screen) . focusedView) >>= \case
-    QueueScreen -> queueRows
-    BrowserScreen -> getsS (.browser.rows)
-    _ -> pure Seq.empty
+focusedRows = do
+  screen <- getsS ((.screen) . focusedView)
+  fromMaybe (pure Seq.empty) (screenRows screen)
+
+-- | The rows of a screen's list as finds match them, on the screens that
+-- find.
+screenRows :: App es => ScreenName -> Maybe (Eff es (Seq.Seq Folded))
+screenRows = \case
+  QueueScreen -> Just queueRows
+  BrowserScreen -> Just $ getsS (.browser.rows)
+  SearchEngineScreen -> Nothing
+  MediaLibraryScreen -> Nothing
+  PlaylistEditorScreen -> Nothing
+  OutputsScreen -> Nothing
+  VisualizerScreen -> Nothing
+  LyricsScreen -> Nothing
+  SongInfoScreen -> Nothing
+  HelpScreen -> Nothing
 
 ----------------------------------------
 -- Seeking
