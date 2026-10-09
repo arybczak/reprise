@@ -93,12 +93,15 @@ sanitize :: T.Text -> T.Text
 sanitize = T.map $ \c -> if isControl c then ' ' else c
 
 -- | Text that doesn't fit in the width, scrolled by a character for each
--- step, e.g. each second. It goes round with a separator.
+-- step, e.g. each second. It goes round with a separator. Text that fits
+-- stays.
 scrollText :: Int -> Int -> T.Text -> T.Text
-scrollText width steps t =
-  let looped = t <> separator
-      start = steps `mod` max 1 (T.length looped)
-  in takeWidth width (T.drop start looped <> looped)
+scrollText width steps t
+  | textWidth t <= width = t
+  | otherwise =
+      let looped = t <> separator
+          start = steps `mod` max 1 (T.length looped)
+      in takeWidth width (T.drop start looped <> looped)
   where
     separator :: T.Text
     separator = " ** "

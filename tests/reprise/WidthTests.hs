@@ -20,6 +20,7 @@ widthTests =
     "Width"
     [ testCase "truncation" test_truncate
     , testCase "wrapping" test_wrap
+    , testCase "scrolling" test_scroll
     , testCase "an emoji is wide" test_emoji
     , testCase "a row with an emoji fits the terminal" test_emojiRowFits
     , testCase "a row with control characters fits the terminal" test_controlRowFits
@@ -43,6 +44,14 @@ test_wrap = do
   assertEqual "a character wider than the width" ["日", "本"] (wrapText 1 "日本")
   assertEqual "an empty line" [""] (wrapText 4 "")
   assertEqual "no width" ["abc"] (wrapText 0 "abc")
+
+test_scroll :: Assertion
+test_scroll = do
+  assertEqual "fits" "abc" (scrollText 3 1 "abc")
+  assertEqual "the start" "abc" (scrollText 3 0 "abcd")
+  assertEqual "a step" "bcd" (scrollText 3 1 "abcd")
+  assertEqual "round" "d *" (scrollText 3 3 "abcd")
+  assertEqual "again" "abc" (scrollText 3 8 "abcd")
 
 test_sameRanges :: Assertion
 test_sameRanges = do

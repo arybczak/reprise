@@ -59,9 +59,8 @@ browserView :: AppEnv -> AppState -> View -> V.Image
 browserView env s v =
   let ctx = rowContext env s.toggles.browserDisplay v.width
       titles = titleRow env s v ctx
-      h = listHeight env s v
-      visible = Seq.take h (Seq.drop v.offset s.browser.items)
-      found = typedMatches s $ Seq.take h (Seq.drop v.offset s.browser.rows)
+      visible = visibleItems env s v s.browser.items
+      found = typedMatches s $ visibleItems env s v s.browser.rows
       row (i, isFound) item =
         let flags =
               RowFlags
@@ -109,9 +108,9 @@ rowContent env = \case
 
 -- | The text of each item as finds match it, in a display.
 itemRows :: AppEnv -> Display -> Seq.Seq BrowserItem -> Seq.Seq Folded
-itemRows env display = fmap $ \item -> foldText $ case rowContent env item of
-  SongRow song -> rowText env.config.lists env.config.songs display song
-  OtherRow spans -> spansText spans
+itemRows env display = fmap $ \item -> case rowContent env item of
+  SongRow song -> songFindText env display song
+  OtherRow spans -> foldText (spansText spans)
 
 ----------------------------------------
 -- Verbs

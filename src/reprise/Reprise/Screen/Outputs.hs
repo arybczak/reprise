@@ -44,7 +44,7 @@ outputsView env s v =
             }
           [Span Nothing o.name]
   in V.vertCat . zipWith row [v.offset ..] . toList $
-       Seq.take v.height (Seq.drop v.offset (fromMaybe Seq.empty s.outputs))
+       visibleItems env s v (fromMaybe Seq.empty s.outputs)
 
 -- | How the outputs screen does a verb, if it does it.
 outputsVerb :: App es => Action -> Maybe (Eff es ())

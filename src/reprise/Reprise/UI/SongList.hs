@@ -8,7 +8,8 @@ module Reprise.UI.SongList
   , renderRow
   , renderOtherRow
   , titleRow
-  , rowText
+  , songFindText
+  , visibleItems
   , typedMatches
 
     -- * Rendering contexts
@@ -126,13 +127,17 @@ overlayStyle lists flags =
 
 -- | The text of a song's row without styles, which find matches. A missing
 -- tag is empty rather than its marker.
-rowText :: ListsConfig -> SongsConfig -> Display -> Song -> T.Text
-rowText lists songs display song = T.unwords . map render $ case display of
-  Classic -> [songs.classic.left, songs.classic.right]
-  Columns -> map (.format) songs.columns.list
+songFindText :: AppEnv -> Display -> Song -> Folded
+songFindText env display song = foldText . T.unwords . map render $ case display of
+  Classic -> [env.config.songs.classic.left, env.config.songs.classic.right]
+  Columns -> map (.format) env.config.songs.columns.list
   where
     render :: Format Style -> T.Text
-    render = spansText . renderFormat (plainContext lists) song
+    render = spansText . renderFormat (plainContext env.config.lists) song
+
+-- | The items of the list in a view that it shows, from its offset.
+visibleItems :: AppEnv -> AppState -> View -> Seq.Seq a -> Seq.Seq a
+visibleItems env s v = Seq.take (listHeight env s v) . Seq.drop v.offset
 
 -- | Which rows the pattern of a find matches while the user types it. The
 -- rows are made only during a find.

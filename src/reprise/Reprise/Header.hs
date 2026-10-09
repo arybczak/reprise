@@ -30,10 +30,7 @@ titleSubject s =
 shownTitle :: AppEnv -> AppState -> T.Text
 shownTitle env s =
   let (stays, rest) = (screenInfo (focusedView s).screen).title env s
-      room = titleRoom s stays
-  in if textWidth rest <= room
-       then stays <> rest
-       else stays <> scrollText room (floor (s.now - titleSince s)) rest
+  in stays <> scrollText (titleRoom s stays) (floor (s.now - titleSince s)) rest
 
 -- | When the title began to show its subject.
 titleSince :: AppState -> Double

@@ -25,7 +25,6 @@ import Graphics.Vty qualified as V
 import Optics.Core
 
 import Reprise.Action
-import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Event
 import Reprise.Find
@@ -51,10 +50,8 @@ queueView env s v =
         st <- s.mirror.status
         guard $ st.state /= Stopped
         st.currentId
-      visible = Seq.take (listHeight env s v) (Seq.drop v.offset s.mirror.queue)
-      found =
-        typedMatches s $
-          foldText . rowText env.config.lists env.config.songs s.toggles.queueDisplay <$> visible
+      visible = visibleItems env s v s.mirror.queue
+      found = typedMatches s $ songFindText env s.toggles.queueDisplay <$> visible
       row (i, isFound) song =
         renderRow
           ctx
@@ -225,6 +222,6 @@ queueRows = do
       | r.version == s.mirror.queueVersion && r.display == s.toggles.queueDisplay -> pure r.rows
     _ -> do
       let display = s.toggles.queueDisplay
-          rows = foldText . rowText env.config.lists env.config.songs display <$> s.mirror.queue
+          rows = songFindText env display <$> s.mirror.queue
       modifyS $ #queueState % #findRows ?~ FindRows s.mirror.queueVersion display rows
       pure rows
