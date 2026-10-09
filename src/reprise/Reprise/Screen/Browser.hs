@@ -235,11 +235,14 @@ list location cursor = do
         (BrowserListed token)
 
 -- | Go up from a directory or a playlist that is gone, until one exists, as
--- ncmpcpp does. Another error shows, and the browser stays as it was.
+-- ncmpcpp does. Another error shows, and the browser stays as it was. A
+-- listing that a lost connection failed stays, so that the next connection
+-- lists it again.
 browserFailed :: App es => Int -> MpdError -> Eff es ()
 browserFailed token err = whenCurrent (.browser.listing) (.token) token $ \l ->
   case (err, parentOf l.location) of
     (AckError ack, Just up) | ack.code == AckNoExist -> list up AtTop
+    (ConnectionError _, _) -> showError $ exceptionText err
     _ -> do
       modifyS $ #browser % #listing .~ Nothing
       showError $ exceptionText err

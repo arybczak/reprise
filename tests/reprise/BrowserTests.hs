@@ -34,6 +34,7 @@ browserTests =
     , testCase "a new connection lists again" test_reconnect
     , testCase "the browser goes up from a directory that is gone" test_gone
     , testCase "another error of a listing shows" test_listingError
+    , testCase "a new connection lists what a lost one failed" test_listingLost
     , testCase "a change of the database lists again" test_databaseChanged
     , testCase "the cursor stays where its song was" test_songGone
     , testCase "stored playlists show at the root" test_storedPlaylistsChanged
@@ -147,6 +148,15 @@ test_listingError = do
   assertEqual "the root stays" ["directory a", "directory b", "playlist p"] (items r.state)
   -- Not up from b, which failed.
   assertEqual "keys go on from the root" [] . (.requests) =<< press ["backspace"] r.state
+
+-- | The first listing, which a lost connection failed, comes with the next
+-- connection.
+test_listingLost :: Assertion
+test_listingLost = do
+  lost <- failLast (ConnectionError (Broken "reset")) =<< press ["2"] =<< queueShown
+  assertEqual "the error" (Just True) ((.isError) <$> lost.state.message)
+  r <- runEvents 0 [MpdDisconnected "reset", MpdConnected (Version 0 24 0)] lost.state
+  assertBool "the listing of the root" ([Request "lsinfo" []] `elem` r.requests)
 
 test_databaseChanged :: Assertion
 test_databaseChanged = do

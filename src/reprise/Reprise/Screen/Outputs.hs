@@ -53,12 +53,16 @@ outputsVerb = \case
   Activate -> Just toggleOutput
   _ -> Nothing
 
--- | Show the outputs, which are fetched the first time.
+-- | Show the outputs, which are fetched the first time. They count as
+-- shown before they come, so that a new connection fetches them again
+-- after a failed fetch.
 showOutputs :: App es => Eff es ()
 showOutputs = do
   modifyWithEnv . modifyView $ switchScreen OutputsScreen
   loaded <- getsS (isJust . (.outputs))
-  unless loaded $ request outputs OutputsFetched
+  unless loaded $ do
+    modifyS $ #outputs ?~ Seq.empty
+    request outputs OutputsFetched
 
 -- | Fetch the outputs again, once the screen showed them, e.g. after a
 -- change of them or a new connection.

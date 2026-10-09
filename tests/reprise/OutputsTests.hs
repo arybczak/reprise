@@ -22,6 +22,7 @@ outputsTests =
     [ testCase "showing the outputs fetches them once" test_shown
     , testCase "enter enables or disables an output" test_toggle
     , testCase "changes fetch the outputs once they showed" test_changes
+    , testCase "a new connection fetches what a lost one failed" test_fetchLost
     , testCase "fewer outputs keep the cursor on one" test_fewer
     ]
 
@@ -66,6 +67,15 @@ test_changes = do
   assertEqual "a change" [[Request "outputs" []]] . (.requests) =<< changed shown
   assertBool "a new connection" . elem [Request "outputs" []] . (.requests)
     =<< runEvents 0 [MpdConnected (Version 0 24 0)] shown
+
+test_fetchLost :: Assertion
+test_fetchLost = do
+  r <- press ["7"] =<< queueShown
+  lost <- case r.pending of
+    [p] -> runEvents 0 [failureOf (ConnectionError (Broken "reset")) p] r.state
+    _ -> assertFailure "not one request"
+  again <- runEvents 0 [MpdDisconnected "reset", MpdConnected (Version 0 24 0)] lost.state
+  assertBool "fetched again" (elem [Request "outputs" []] again.requests)
 
 test_fewer :: Assertion
 test_fewer = do
