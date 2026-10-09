@@ -26,7 +26,6 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Word
 import Numeric
-import System.FilePath
 
 import Reprise.Format
 import Reprise.Mpd.Protocol.Response qualified as Response
