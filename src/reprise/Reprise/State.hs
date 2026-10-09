@@ -57,6 +57,8 @@ module Reprise.State
   , cursorVisible
   , cursorHideDelay
   , displayedElapsed
+  , progressCells
+  , nextCellAt
   , lyricsRows
   , songInfoRows
   ) where
@@ -670,6 +672,18 @@ cursorVisible s = s.now - s.lastInput < cursorHideDelay
 -- default @playlist_disable_highlight_delay@.
 cursorHideDelay :: Double
 cursorHideDelay = 5
+
+-- | The cells of a progress bar of a width that the elapsed time of a song
+-- of a length fills.
+progressCells :: Int -> Double -> Double -> Int
+progressCells width elapsed duration =
+  min width (floor (min elapsed duration / duration * fromIntegral width))
+
+-- | The elapsed time at which the next cell of a progress bar of a width
+-- fills, for a redraw.
+nextCellAt :: Int -> Double -> Double -> Double
+nextCellAt width elapsed duration =
+  fromIntegral (progressCells width elapsed duration + 1) * duration / fromIntegral width
 
 -- | The elapsed time to show: the target of a seek in progress, or the
 -- interpolated elapsed time.

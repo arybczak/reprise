@@ -167,18 +167,17 @@ progressBar env s =
       cfg = env.config.progressBar
       remainingAttr = attr env cfg.style
       elapsedAttr = attr env cfg.elapsedStyle
-      fraction = do
+      filled = do
         st <- s.mirror.status
         guard (st.state /= Stopped)
         d <- st.duration
         guard (d > 0)
         e <- displayedElapsed s
-        pure (realToFrac (min e d / d) :: Double)
-  in case fraction of
+        pure $ progressCells w (realToFrac e) (realToFrac d)
+  in case filled of
        Nothing -> V.charFill remainingAttr cfg.chars.remaining w 1
-       Just f ->
-         let done = min w (floor (f * fromIntegral w))
-             current = if done < w then 1 else 0
+       Just done ->
+         let current = if done < w then 1 else 0
          in V.horizCat
               [ V.charFill elapsedAttr cfg.chars.elapsed done 1
               , V.charFill elapsedAttr cfg.chars.current current 1

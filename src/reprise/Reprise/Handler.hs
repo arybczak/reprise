@@ -777,16 +777,14 @@ elapsedRedraw s = do
   st <- s.mirror.status
   guard $ st.state == Playing && isNothing s.seek
   e <- realToFrac <$> elapsedAt s.now s.mirror
-  let width = fromIntegral (fst s.terminalSize)
+  let width = fst s.terminalSize
       nextSecond = fromIntegral (floor @Double @Int e + 1) - e
   delay <- case realToFrac <$> st.duration of
     -- A stream has no length, so it has no progress bar to move.
     Nothing -> Just nextSecond
     Just d
       | e >= d -> Nothing
-      | width > 0 ->
-          Just . min nextSecond $
-            (fromIntegral (floor @Double @Int (e / d * width) + 1) * d / width) - e
+      | width > 0 -> Just . min nextSecond $ nextCellAt width e d - e
       | otherwise -> Just nextSecond
   pure $ s.now + delay
 
