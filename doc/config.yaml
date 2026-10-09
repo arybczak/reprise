@@ -146,10 +146,10 @@ keys:
     page_down: move page_down
     home: move first
     end: move last
-    "[": move previous_album
-    "]": move next_album
-    "{": move previous_artist
-    "}": move next_artist
+    '[': move previous_album
+    ']': move next_album
+    '{': move previous_artist
+    '}': move next_artist
 
     # selecting
     shift-up: select up          # toggle the selection, then move
@@ -165,21 +165,21 @@ keys:
     # playback
     p: pause
     s: stop
-    "<": previous
-    ">": next
+    '<': previous
+    '>': next
     backspace: replay
     f: seek +1s                  # hold it to go further
     b: seek -1s
-    "+": volume +2
-    "-": volume -2
+    '+': volume +2
+    '-': volume -2
     right: volume +2
     left: volume -2
 
     # finding
     /: find forward
-    "?": find backward
+    '?': find backward
     .: find next
-    ",": find previous
+    ',': find previous
 
     # screens
     1: show queue
@@ -191,7 +191,7 @@ keys:
     tab: next_screen             # the screens with numbers, in their order
     shift-tab: previous_screen   # [browser, outputs] limits them to some
     f1: show help
-    ":": command                 # type an action, e.g. "volume 50"
+    ':': command                 # type an action, e.g. "volume 50"
     q: quit
 
     a:
@@ -258,7 +258,7 @@ keys:
     space: toggle visualization
 
   lyrics:
-    "`": refetch_lyrics
+    '`': refetch_lyrics
     e:
       e: edit_lyrics
     t:
