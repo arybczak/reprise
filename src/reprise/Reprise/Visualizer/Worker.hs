@@ -11,17 +11,17 @@ module Reprise.Visualizer.Worker
   , playout
   ) where
 
-import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
 import Data.IORef.Strict qualified as S
 import Data.Maybe
-import GHC.Clock
-import System.IO
+import Effectful
+import Effectful.Exception
 
 import Reprise.Config
+import Reprise.Effect.Clock
+import Reprise.Effect.Fifo
 import Reprise.Event
 import Reprise.Exception
 import Reprise.Visualizer.Samples
@@ -29,8 +29,7 @@ import Reprise.Visualizer.Spectrum
 import Reprise.Visualizer.Wave
 
 data VisualizerSource = VisualizerSource
-  { path :: FilePath
-  , fps :: Int
+  { fps :: Int
   , reading :: TVar (Maybe Visualization)
   -- ^ What the visualizer wants the samples for.
   , emit :: AppEvent -> IO Bool
@@ -43,62 +42,63 @@ data VisualizerSource = VisualizerSource
 -- | Wait until the visualizer wants the samples, and send what each frame
 -- shows until it doesn't. The samples that the fifo held before are old,
 -- so they are dropped.
-visualizerWorker :: VisualizerSource -> IO ()
+visualizerWorker :: (Clock :> es, Fifo :> es, IOE :> es) => VisualizerSource -> Eff es ()
 visualizerWorker src = do
-  transform <- newTransform
+  transform <- liftIO newTransform
   forever $ do
-    atomically $ readTVar src.reading >>= check . isJust
-    -- A fifo opens at once without a writer, as GHC opens it non-blocking.
-    try @IOException (openBinaryFile src.path ReadMode) >>= \case
-      Left err -> do
+    liftIO . atomically $ readTVar src.reading >>= check . isJust
+    try @IOException openFifo >>= \case
+      Left err -> liftIO $ do
         void . src.emit . VisualizerFailed $
           "The visualizer can't read its data source: " <> exceptionText err
         atomically $ readTVar src.reading >>= check . isNothing
-      Right h -> (`finally` hClose h) $ do
-        void (readAvailable h)
-        start <- getMonotonicTime
-        window <- newSampleWindow
-        wave <- newWaveWindow
-        second <- S.newIORef (Second start noFrames)
-        frames transform window wave h second start 1 0 (newPlayout start) 0
+      Right () -> (`finally` closeFifo) $ do
+        void readFifo
+        start <- monotonicTime
+        window <- liftIO newSampleWindow
+        wave <- liftIO newWaveWindow
+        second <- liftIO $ S.newIORef (Second start noFrames)
+        frames transform window wave second start 1 0 (newPlayout start) 0
   where
     -- The frames of silence since the last samples.
     frames
-      :: Transform
+      :: forall es
+       . (Clock :> es, Fifo :> es, IOE :> es)
+      => Transform
       -> SampleWindow
       -> WaveWindow
-      -> Handle
       -> S.IORef Second
       -> Double
       -> Int
       -> Int
       -> Playout
       -> Int
-      -> IO ()
-    frames transform window wave h second start n previous p quiet = do
+      -> Eff es ()
+    frames transform window wave second start n previous p quiet = do
       sleepUntil $ start + fromIntegral n / fromIntegral src.fps
-      visualization <- readTVarIO src.reading
+      visualization <- liftIO $ readTVarIO src.reading
       forM_ visualization $ \v -> do
-        new <- readAvailable h
-        arrival <- getMonotonicTime
+        new <- readFifo
+        arrival <- monotonicTime
         let shown = frameBytes * (samplesUntil n - samplesUntil previous)
             (frame, stopped, p') = playout shown arrival new p
             continue = frames' arrival p'
 
             -- What the last samples show falls through silence, and stays
             -- once the samples, of a number, are silent.
-            lastSamples :: (BS.ByteString -> IO ()) -> (Int -> IO ()) -> Int -> IO () -> IO ()
+            lastSamples
+              :: (BS.ByteString -> IO ()) -> (Int -> IO ()) -> Int -> IO () -> Eff es ()
             lastSamples push pushSilent kept draw
               | not (BS.null frame) = do
-                  push frame
-                  draw
+                  liftIO $ push frame >> draw
                   continue 0
               | stopped = do
-                  pushSilent shown
-                  when (quiet < silentFrames kept) draw
+                  liftIO $ do
+                    pushSilent shown
+                    when (quiet < silentFrames kept) draw
                   continue (quiet + 1)
               | otherwise = continue quiet
-        count arrival $ \st ->
+        liftIO . count arrival $ \st ->
           st
             { frames = st.frames + 1
             , late = st.late + n - previous - 1
@@ -107,7 +107,7 @@ visualizerWorker src = do
             }
         case v of
           Ellipse -> do
-            send $ VisualizerSamples frame
+            liftIO . send $ VisualizerSamples frame
             continue 0
           Spectrum -> lastSamples (pushSamples window) (pushSilence window) windowSamples spectrum
           Wave ->
@@ -115,13 +115,12 @@ visualizerWorker src = do
               send . VisualizerWave =<< waveOf wave
       where
         -- A frame that came late doesn't make the next ones late.
-        frames' :: Double -> Playout -> Int -> IO ()
+        frames' :: (Clock :> es, Fifo :> es, IOE :> es) => Double -> Playout -> Int -> Eff es ()
         frames' sent =
           frames
             transform
             window
             wave
-            h
             second
             start
             (max (n + 1) (ceiling ((sent - start) * fromIntegral src.fps)))
@@ -149,11 +148,6 @@ visualizerWorker src = do
               when src.debug . void . src.emit $ VisualizerStats (f st)
               S.writeIORef second (Second now noFrames)
             else S.writeIORef second (Second since (f st))
-
-    sleepUntil :: Double -> IO ()
-    sleepUntil t = do
-      now <- getMonotonicTime
-      threadDelay (ceiling ((t - now) * 1000000))
 
     -- The samples from the start until a frame.
     samplesUntil :: Int -> Int
@@ -225,17 +219,3 @@ playout shown arrival new p =
 -- second.
 writesAhead :: Int
 writesAhead = 2
-
--- | Read what the fifo holds, without waiting for more.
-readAvailable :: Handle -> IO BS.ByteString
-readAvailable h = BS.concat <$> go
-  where
-    go :: IO [BS.ByteString]
-    go = do
-      chunk <- BS.hGetNonBlocking h pipeCapacity
-      if BS.length chunk < pipeCapacity then pure [chunk] else (chunk :) <$> go
-
--- | The capacity of a pipe on Linux, so that a read usually takes all that
--- the fifo holds.
-pipeCapacity :: Int
-pipeCapacity = 65536

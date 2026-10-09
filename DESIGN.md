@@ -866,7 +866,7 @@ modules are under `Reprise.Mpd.Protocol`.
 |---|---|
 | `Main` (`app/Main.hs`) | CLI options (optparse-applicative), loading the config, starting the workers and the event loop |
 | `Reprise.App` | The event loop: a thin adapter between vty, the queue of events and the handlers |
-| `Reprise.Effect.*` | The app's own effects (`MpdRequest`, `UiRequest`, `Mpd`), one module each |
+| `Reprise.Effect.*` | The app's own effects (`MpdRequest`, `UiRequest`, `Mpd`, `Clock`, `Fifo`), one module each |
 | `Reprise.Config` | Config types, yamlet decoders, defaults, the default keymaps |
 | `Reprise.Format` | The format language: parser and renderer to styled spans. Pure, with golden tests |
 | `Reprise.Style` | Parsing styles into vty `Attr` |
@@ -1043,11 +1043,19 @@ places:
      benchmarks run events in `IO` too.
    - Tests run the same events with pure handlers, without MPD or a terminal.
      This is the main payoff.
-2. **Worker threads are ordinary `Eff` programs** with IO-backed effects (the
-   MPD connection, and later HTTP, processes and logging). Each thread runs
-   its own `runEff`. The workers are cancelled when the loop ends, so their
-   cleanups run, e.g. the MPD connections close. A worker that fails is
-   logged and starts again a second later.
+2. **A worker thread is an `Eff` program when a test replaces its
+   handlers,** and plain IO otherwise.
+   - The MPD workers use the `Mpd` effect, which the tests replace with a
+     scripted MPD that refuses, drops connections and asks for passwords.
+   - The visualizer's worker uses `Clock` and `Fifo`. The tests replace them
+     with a clock that only a sleep moves and a fifo of writes at given
+     times, so a test of its frames is exact and runs at once.
+   - The lyrics worker is plain IO. Its fetchers are functions, which the
+     tests replace, and its files are real, in a temporary directory.
+
+   Each thread runs its own `runEff`. The workers are cancelled when the
+   loop ends, so their cleanups run, e.g. the MPD connections close. A
+   worker that fails is logged and starts again a second later.
 
 Actions are data, in `Reprise.Action`, and their handlers are in
 `Reprise.Handler` and the modules of the screens. The config holds actions in
@@ -1073,7 +1081,7 @@ next cell of the progress bar, and sets a timer for then. A stream without a
 length has no progress bar, so only the seconds count. The same timer
 scrolls the header's title, also while nothing plays.
 
-The worker threads use `mpd-protocol` through a small `Mpd` effect. Actions
+The MPD workers use `mpd-protocol` through a small `Mpd` effect. Actions
 never use it directly; they go through `MpdRequest`.
 
 ### Errors and logging

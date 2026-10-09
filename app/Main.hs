@@ -31,6 +31,8 @@ import Paths_reprise qualified as Paths
 import Reprise.App
 import Reprise.Collation
 import Reprise.Config
+import Reprise.Effect.Clock
+import Reprise.Effect.Fifo
 import Reprise.Effect.Mpd
 import Reprise.Exception
 import Reprise.History
@@ -123,10 +125,9 @@ main = withOpenSSL $ do
   visualizer <- forM config.visualizer.dataSource $ \source -> do
     path <- expandHome source
     let FrameRate fps = config.visualizer.fps
-    pure . visualizerWorker $
+    pure . runEff . runClock . runFifo path . visualizerWorker $
       VisualizerSource
-        { path = path
-        , fps = fps
+        { fps = fps
         , reading = visualizing
         , emit = \e -> atomically $ do
             full <- isFullTBQueue events

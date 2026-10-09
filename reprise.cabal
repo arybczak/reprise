@@ -121,6 +121,8 @@ library
                      Reprise.App
                      Reprise.Collation
                      Reprise.Config
+                     Reprise.Effect.Clock
+                     Reprise.Effect.Fifo
                      Reprise.Effect.Mpd
                      Reprise.Effect.MpdRequest
                      Reprise.Effect.UiRequest
