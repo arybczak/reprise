@@ -394,7 +394,6 @@ data LyricsStatus
 -- the config.
 data Toggles = Toggles
   { queueDisplay :: Display
-  , albumSeparators :: Bool
   , followPlaying :: Bool
   , lyricsFollowPlaying :: Bool
   , showBitrate :: Bool
@@ -463,7 +462,6 @@ initialState config =
     , toggles =
         Toggles
           { queueDisplay = config.queue.display
-          , albumSeparators = config.queue.albumSeparators
           , followPlaying = config.queue.followPlaying
           , lyricsFollowPlaying = config.lyrics.followPlaying
           , showBitrate = config.statusBar.showBitrate
