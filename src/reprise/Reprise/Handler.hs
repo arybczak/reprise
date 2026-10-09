@@ -407,13 +407,7 @@ runAction action = case action of
       VolumeBy n -> changeVolume n
       VolumeTo n -> setVolume n
   Toggle t -> toggle t
-  Show screen | not (screenInfo screen).built -> notAvailable $ "The " <> screenText screen
-  Show LyricsScreen -> showLyrics
-  Show SongInfoScreen -> showSongInfo
-  Show OutputsScreen -> showOutputs
-  Show screen -> do
-    modifyWithEnv . modifyView $ switchScreen screen
-    when (screen == BrowserScreen) openBrowser
+  Show screen -> showScreen screen
   NextScreen screens -> cycleScreens screens
   PreviousScreen screens -> cycleScreens (reverse screens)
   Quit -> halt
@@ -479,6 +473,27 @@ screenVerb screen = \case
     LyricsScreen -> lyricsVerb action
     SongInfoScreen -> songInfoVerb action
     HelpScreen -> helpVerb action
+
+-- | Show a screen in the focused view, with what the screen does when it
+-- shows, e.g. load the lyrics of the song under the cursor.
+showScreen :: App es => ScreenName -> Eff es ()
+showScreen = \case
+  QueueScreen -> switchTo QueueScreen
+  BrowserScreen -> switchTo BrowserScreen >> openBrowser
+  SearchEngineScreen -> notBuilt SearchEngineScreen
+  MediaLibraryScreen -> notBuilt MediaLibraryScreen
+  PlaylistEditorScreen -> notBuilt PlaylistEditorScreen
+  OutputsScreen -> showOutputs
+  VisualizerScreen -> switchTo VisualizerScreen
+  LyricsScreen -> showLyrics
+  SongInfoScreen -> showSongInfo
+  HelpScreen -> switchTo HelpScreen
+  where
+    switchTo :: App es => ScreenName -> Eff es ()
+    switchTo = modifyWithEnv . modifyView . switchScreen
+
+    notBuilt :: App es => ScreenName -> Eff es ()
+    notBuilt screen = notAvailable $ "The " <> screenText screen
 
 -- | Show the screen after the focused one in a list, or the first one if the
 -- focused one isn't in the list. Screens that aren't built yet are skipped,
