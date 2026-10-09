@@ -157,7 +157,7 @@ data RowFormat = RowFormat
   deriving (FromYaml) via GenericYaml RowFormat
 
 data ColumnsConfig = ColumnsConfig
-  { showTitles :: Bool
+  { titles :: Bool
   , list :: [Column]
   }
   deriving stock (Eq, Show, Generic)
@@ -488,13 +488,13 @@ defaultRowFormat =
 defaultColumns :: ColumnsConfig
 defaultColumns =
   ColumnsConfig
-    { showTitles = False
+    { titles = False
     , list =
-        [ column (RelativeWidth 20) "221" "%{artist}" "" AlignLeft
-        , column (FixedWidth 6) "77" "[%{track_raw}]" "" AlignLeft
+        [ column (RelativeWidth 20) "221" "%{artist}" "Artist" AlignLeft
+        , column (FixedWidth 6) "77" "[%{track_raw}]" "Track" AlignLeft
         , column (RelativeWidth 50) "white" "[%{title}|%{filename}]" "Title" AlignLeft
-        , column (RelativeWidth 20) "75" "%{album}" "" AlignLeft
-        , column (FixedWidth 5) "203" "[%{length}|-:--]" "" AlignRight
+        , column (RelativeWidth 20) "75" "%{album}" "Album" AlignLeft
+        , column (FixedWidth 5) "203" "[%{length}|-:--]" "Time" AlignRight
         ]
     }
   where

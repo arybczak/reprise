@@ -572,7 +572,7 @@ layoutViews s = case s.layout of
 listHeight :: AppEnv -> AppState -> View -> Int
 listHeight env s v = case (screenInfo v.screen).content of
   Songs display
-    | env.config.songs.columns.showTitles && display s == Columns -> max 0 (v.height - 1)
+    | env.config.songs.columns.titles && display s == Columns -> max 0 (v.height - 1)
   _ -> v.height
 
 ----------------------------------------

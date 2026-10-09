@@ -63,7 +63,7 @@ Crop (`C`) and reversing the queue (`ctrl-r`) are gone.
 | `song_window_title_format`, `enable_window_title` | `window_title` |
 | `song_list_format` | `songs.classic.left`, `songs.classic.right` |
 | `song_columns_list_format` | `songs.columns.list` |
-| `titles_visibility` | `songs.columns.show_titles` |
+| `titles_visibility` | `songs.columns.titles` |
 | `main_window_color` | `styles.list.normal`, `styles.text.normal` |
 | `current_item_prefix`, `current_item_suffix` | `styles.list.cursor` |
 | `selected_item_prefix`, `selected_item_suffix` | `styles.list.selected` |

@@ -42,14 +42,30 @@ songs:                           # how a song looks
   classic:                       # in a list
     left: '[%{artist} - ][%{title}|<white>%{filename}</>]'
     right: '<green>[%{length}|-:--]</>'
-  columns:                       # a width with % is a share of the screen
-    show_titles: false
+  columns:
+    titles: false                # a row of the titles above the songs
     list:
-    - {width: 20%, style: 221, format: '%{artist}'}
-    - {width: 6, style: 77, format: '[%{track_raw}]'}
-    - {width: 50%, style: white, format: '[%{title}|%{filename}]', title: Title}
-    - {width: 20%, style: 75, format: '%{album}'}
-    - {width: 5, style: 203, format: '[%{length}|-:--]', align: right}
+      - title: Artist
+        format: '%{artist}'
+        width: 20%               # a share of the screen
+        style: 221
+      - title: Track
+        format: '[%{track_raw}]'
+        width: 6
+        style: 77
+      - title: Title
+        format: '[%{title}|%{filename}]'
+        width: 50%
+        style: white
+      - title: Album
+        format: '%{album}'
+        width: 20%
+        style: 75
+      - title: Time
+        format: '[%{length}|-:--]'
+        width: 5
+        style: 203
+        align: right             # or left
 
 lists:                           # every list
   keep_cursor_centered: false

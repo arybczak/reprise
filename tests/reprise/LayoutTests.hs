@@ -320,12 +320,15 @@ albums =
 
 test_browserTitles :: Assertion
 test_browserTitles = do
-  let env = testAppEnv & #config % #songs % #columns % #showTitles .~ True
+  let env = testAppEnv & #config % #songs % #columns % #titles .~ True
   inAlbums <- albums
   columns <- press ["t", "d"] inAlbums
   case imageLines (renderScreen env columns) of
     _ : _ : titles : parent : _ -> do
-      assertBool ("titles: " <> T.unpack titles) ("Title" `T.isInfixOf` titles)
+      assertEqual
+        "titles"
+        ["Artist", "Track", "Title", "Album", "Time"]
+        (T.words titles)
       assertEqual "the first item" ".." parent
     ls -> assertFailure $ "too few lines: " <> show ls
   case imageLines (renderScreen env inAlbums) of

@@ -779,7 +779,7 @@ test_clickList = do
   assertEqual "and plays" [[Request "playid" ["2"]]] right.requests
   few <- testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
   assertEqual "below the last item" (0, 0) . position =<< click LeftButton 10 10 few
-  let titles = testAppEnv & #config % #songs % #columns % #showTitles .~ True
+  let titles = testAppEnv & #config % #songs % #columns % #titles .~ True
   assertEqual "not the titles" (0, 0) . position
     =<< runEventsWith titles 0 [MouseClick LeftButton 10 2] s
   assertEqual "the first item under them" (2, 0) . position
