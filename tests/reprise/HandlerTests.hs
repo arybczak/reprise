@@ -33,6 +33,7 @@ handlerTests =
     , testCase "cancel a key sequence" test_cancelSequence
     , testCase "an unbound next key" test_unboundNextKey
     , testCase "next and previous screen" test_nextScreen
+    , testCase "the startup screen shows as a key shows it" test_startupScreen
     , testCase "clear asks first" test_clearConfirm
     , testCase "volume without a mixer" test_noMixer
     , testCase "seeking" test_seek
@@ -584,6 +585,28 @@ test_nextScreen = do
     =<< traverse (\n -> screenAfter (replicate n "tab")) [1 .. 4]
   assertEqual "back" VisualizerScreen =<< screenAfter ["shift-tab"]
   assertEqual "from a screen outside the list" QueueScreen =<< screenAfter ["f1", "tab"]
+
+test_startupScreen :: Assertion
+test_startupScreen = do
+  browser <- started BrowserScreen
+  assertEqual "the browser" BrowserScreen (focusedView browser.state).screen
+  assertEqual "its root listed" [[Request "lsinfo" []]] browser.requests
+  outputs <- started OutputsScreen
+  assertEqual "the outputs fetched" [[Request "outputs" []]] outputs.requests
+  unbuilt <- started MediaLibraryScreen
+  assertEqual "not a screen to come" QueueScreen (focusedView unbuilt.state).screen
+  assertEqual
+    "why not"
+    (Just "The media library screen isn't available yet")
+    ((.text) <$> unbuilt.state.message)
+  where
+    started :: ScreenName -> IO Result
+    started screen =
+      runEventsWith
+        (testAppEnv & #config % #startupScreen .~ screen)
+        0
+        [Resized 80 24, Started]
+        (initialState defaultConfig)
 
 test_clearConfirm :: Assertion
 test_clearConfirm = do

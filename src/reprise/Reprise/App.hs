@@ -67,7 +67,10 @@ runApp env channels buildVty initial = do
         V.restoreInputState (V.inputIface first)
   flip finally finish $ do
     (w, h) <- displaySize first
-    loop current =<< dispatch current initial (Resized w h)
+    sized <- dispatch current initial (Resized w h)
+    loop current =<< case sized of
+      Halted -> pure Halted
+      Running s _ -> dispatch current s Started
   where
     loop :: S.IORef V.Vty -> Next -> IO ()
     loop current next = case next of

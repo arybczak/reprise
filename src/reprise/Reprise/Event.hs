@@ -19,7 +19,9 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.Save
 
 data AppEvent
-  = -- | A key that the user pressed.
+  = -- | The loop started, after the terminal's first size.
+    Started
+  | -- | A key that the user pressed.
     KeyPressed KeySpec
   | -- | The terminal's new width and height.
     Resized Int Int

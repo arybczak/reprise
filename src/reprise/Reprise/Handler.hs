@@ -86,6 +86,7 @@ seekAccelerationPeriod = 2
 
 handleEvent :: App es => AppEvent -> Eff es ()
 handleEvent = \case
+  Started -> showScreen . (.config.startupScreen) =<< getAppEnv
   KeyPressed k -> handleKey k
   Resized w h -> do
     modifyS $ layoutViews . (#terminalSize .~ (w, h))

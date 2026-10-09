@@ -169,8 +169,8 @@ openBrowser = do
 
 -- | List again what the browser lists, with the cursor on the same item,
 -- e.g. after a new connection. A listing on its way is requested again, as
--- its reply may be lost or out of date. Before its first listing, only a
--- browser that shows lists the root.
+-- its reply may be lost or out of date. A browser that never showed lists
+-- nothing.
 relistBrowser :: App es => Eff es ()
 relistBrowser = do
   s <- getS
@@ -179,9 +179,7 @@ relistBrowser = do
     (Nothing, Just location) ->
       list location . maybe AtTop (StayOn . itemKey) $
         Seq.lookup (fst (screenPosition BrowserScreen s)) s.browser.items
-    (Nothing, Nothing)
-      | (focusedView s).screen == BrowserScreen -> list (InDirectory "") AtTop
-      | otherwise -> pure ()
+    (Nothing, Nothing) -> pure ()
 
 -- | List again after a change of the database, or of the stored playlists,
 -- which show at the root and open as playlists.

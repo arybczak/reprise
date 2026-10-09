@@ -204,12 +204,15 @@ test_back = do
   back <- runEvents 0 [key "l", key "l"] listed.state
   assertEqual "the browser" BrowserScreen (focusedView back.state).screen
 
--- | The lyrics are the first screen, so no screen was before them.
+-- | The queue is the first screen, so no screen was before it.
 test_nowhereBack :: Assertion
 test_nowhereBack = do
-  let s0 = initialState (defaultConfig & #startupScreen .~ LyricsScreen)
-  r <- runEvents 0 [Resized 40 10, key "l"] s0
-  assertEqual "the lyrics" LyricsScreen (focusedView r.state).screen
+  r <-
+    runEvents
+      0
+      (Resized 40 10 : map key [":", "b", "a", "c", "k", "enter"])
+      (initialState defaultConfig)
+  assertEqual "the queue" QueueScreen (focusedView r.state).screen
   assertEqual
     "the message"
     (Just "There is no screen to go back to")

@@ -28,6 +28,8 @@ mpd:
   # $MPD_HOST and $MPD_PORT, then the sockets $XDG_RUNTIME_DIR/mpd/socket and
   # /run/mpd/socket, then localhost:6600.
 
+# Shows as its key shows it, after the queue. A screen of a song, e.g. lyrics,
+# has no song yet, so the queue stays.
 startup_screen: queue
 
 # The title of the terminal's window; ~ leaves it alone.

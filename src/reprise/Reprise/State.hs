@@ -443,7 +443,8 @@ initialState config =
           , browserSort = config.browser.sort.by
           , visualization = config.visualizer.visualization
           }
-    , views = M.singleton mainView (newView config.startupScreen)
+    , -- 'Reprise.Event.Started' shows the startup screen, as a key would.
+      views = M.singleton mainView (newView QueueScreen)
     , layout = Single mainView
     , focus = mainView
     , terminalSize = (0, 0)
