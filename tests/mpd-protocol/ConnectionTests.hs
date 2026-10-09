@@ -1,12 +1,17 @@
-module ConnectionTests (connectionTests) where
+module ConnectionTests (connectionTests, closedTests) where
 
 import Control.Concurrent
 import Control.Concurrent.MVar.Strict qualified as S
 import Control.Exception
+import Data.ByteString.Char8 qualified as BS8
 import Data.Foldable
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
+import Network.Socket qualified as N
+import Network.Socket.ByteString qualified as N
+import System.FilePath
+import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -48,6 +53,46 @@ connectionTests =
         , ("idle", test_idle)
         , ("noidle", test_noidle)
         ]
+
+-- | A connection that MPD closed for being unused fails differently on each
+-- transport. On a unix socket the send fails, over TCP the read finds the
+-- end. Either way MPD ran nothing, so the command can run again.
+closedTests :: TestTree
+closedTests =
+  testGroup
+    "Connection (closed by the server)"
+    [ testCase "a closed unix socket" . withSystemTempDirectory "reprise" $ \dir -> do
+        let path = dir </> "socket"
+        assertClosed N.AF_UNIX (N.SockAddrUnix path) (\_ -> pure $ UnixAddress path)
+    , testCase "a closed TCP connection" $
+        assertClosed
+          N.AF_INET
+          (N.SockAddrInet 0 (N.tupleToHostAddress (127, 0, 0, 1)))
+          (fmap (TcpAddress "127.0.0.1") . N.socketPort)
+    ]
+  where
+    -- A server that greets and closes, with the address that it listens on
+    -- and the address that a client connects to.
+    assertClosed :: N.Family -> N.SockAddr -> (N.Socket -> IO Address) -> Assertion
+    assertClosed family listenAt addressOf =
+      bracket (N.socket family N.Stream N.defaultProtocol) N.close $ \listener -> do
+        N.bind listener listenAt
+        N.listen listener 1
+        address <- addressOf listener
+        closed <- newEmptyMVar
+        _ <- forkIO $ do
+          (sock, _) <- N.accept listener
+          N.sendAll sock $ "OK MPD " <> BS8.pack (showVersion minimumVersion) <> "\n"
+          N.close sock
+          putMVar closed ()
+        conn <-
+          connect Settings {address = address, password = Nothing, timeout = Just testTimeout}
+        takeMVar closed
+        r <- try @MpdError (run conn ping) `finally` close conn
+        assertEqual "the error" (Left (ConnectionError Closed)) r
+
+    showVersion :: Version -> String
+    showVersion (Version major minor patch) = L.intercalate "." $ map show [major, minor, patch]
 
 -- | The songs play in real time, so a song that ended during a test would
 -- change the current song under it, e.g. on a busy machine. Each lasts long

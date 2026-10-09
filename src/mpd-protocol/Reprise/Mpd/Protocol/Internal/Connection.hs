@@ -125,9 +125,13 @@ close conn = N.close conn.socket
 
 -- | Send requests and read the reply, without a timeout. Throws 'MpdError'.
 exchange :: Connection -> B.Builder -> IO [[Field]]
-exchange conn request = convertIO broken $ do
-  NL.sendAll conn.socket (B.toLazyByteString request)
-  go True []
+exchange conn request = do
+  -- MPD runs a request only once its last line break arrives, so it ran
+  -- nothing of a request that failed to send. On a unix socket that MPD
+  -- closed, the send fails rather than the read.
+  NL.sendAll conn.socket (B.toLazyByteString request) `catch` \(_ :: IOException) ->
+    throwIO $ ConnectionError Closed
+  convertIO broken $ go True []
   where
     go :: Bool -> [BS.ByteString] -> IO [[Field]]
     go first acc =

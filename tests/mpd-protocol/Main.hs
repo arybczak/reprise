@@ -15,6 +15,7 @@ main =
       "mpd-protocol"
       [ commandTests
       , connectionTests
+      , closedTests
       , requestTests
       , responseTests
       ]

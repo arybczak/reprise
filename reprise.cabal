@@ -242,6 +242,7 @@ test-suite mpd-protocol-test
                     , containers
                     , filepath
                     , ghc-heap
+                    , network
                     , pretty-simple
                     , reprise:mpd-protocol
                     , reprise:mpd-test-server
@@ -249,6 +250,7 @@ test-suite mpd-protocol-test
                     , tasty
                     , tasty-golden
                     , tasty-hunit
+                    , temporary
                     , text
                     , time
 

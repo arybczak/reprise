@@ -541,9 +541,10 @@ data ConnectionError
     ConnectFailed T.Text
   | -- | MPD is older than 'minimumVersion'.
     UnsupportedVersion Version
-  | -- | MPD closed the connection before it began a reply. MPD closes a
-    -- connection that was unused for longer than its @connection_timeout@,
-    -- without running the command that arrives after that.
+  | -- | MPD closed the connection before it read the request or began a
+    -- reply. MPD closes a connection that was unused for longer than its
+    -- @connection_timeout@, without running the command that arrives after
+    -- that.
     Closed
   | -- | An I/O error, or the connection closed in the middle of a reply.
     Broken T.Text
