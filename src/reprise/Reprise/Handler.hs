@@ -85,6 +85,7 @@ handleEvent :: App es => AppEvent -> Eff es ()
 handleEvent = \case
   Started -> showScreen . (.config.startupScreen) =<< getAppEnv
   KeyPressed k -> handleKey k
+  MouseWheel t -> handleWheel t
   Resized w h -> do
     modifyS $ layoutViews . (#terminalSize .~ (w, h))
     modifyWithEnv (modifyView id)
@@ -262,10 +263,7 @@ handleKey :: App es => KeySpec -> Eff es ()
 handleKey k = do
   env <- getAppEnv
   s <- getS
-  modifyS $ #lastInput .~ s.now
-  unless s.cursorTimer $ do
-    modifyS $ #cursorTimer .~ True
-    after cursorHideDelay HideCursor
+  noteInput
   case s.prompt of
     _ | k == alwaysQuit -> halt
     Just p -> handlePromptKey p k
@@ -285,6 +283,29 @@ handleKey k = do
         modifyS $ #pendingKeys .~ Nothing
         when (length keys > 1) . showMessage $
           T.unwords (map renderKeySpec keys) <> " is not bound"
+
+-- | Move the cursor of a list, or scroll text, by the lines of a step of the
+-- wheel, as the screen's moves do. A prompt, and a screen without moves,
+-- leave the wheel alone.
+handleWheel :: App es => MoveTarget -> Eff es ()
+handleWheel t = do
+  env <- getAppEnv
+  s <- getS
+  let ScrollLines n = env.config.mouse.scrollLines
+  case (s.prompt, screenVerb (focusedView s).screen (Move t)) of
+    (Nothing, Just step) -> do
+      noteInput
+      replicateM_ n step
+    _ -> keepScreen
+
+-- | The user did something, which shows the cursor until it is idle again.
+noteInput :: App es => Eff es ()
+noteInput = do
+  s <- getS
+  modifyS $ #lastInput .~ s.now
+  unless s.cursorTimer $ do
+    modifyS $ #cursorTimer .~ True
+    after cursorHideDelay HideCursor
 
 isCancel :: KeySpec -> Bool
 isCancel k = k `elem` [plain Escape, ctrl 'g']

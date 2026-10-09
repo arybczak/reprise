@@ -56,6 +56,7 @@ handlerTests =
     , testCase "a redraw for a stream without a length" test_tickWithoutDuration
     , testCase "a lost connection clears the player status" test_disconnectClears
     , testCase "jump to playing centers the cursor" test_jumpCenters
+    , testCase "the mouse wheel" test_wheel
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
     , testCase "back from the screens about a song or the keys" test_backKeys
     , testCase "the help screen scrolls" test_helpScrolls
@@ -494,6 +495,29 @@ test_jumpCenters = do
   none <- keys ["end", "o"] =<< testState (80, 24) (statusOf Stopped Nothing 50) (songs 50)
   assertEqual "no current song" (49, 30) (position none)
   assertEqual "its message" (Just "There is no current song") (message none)
+
+-- | As ncmpcpp's, a step of the wheel moves the cursor of a list by
+-- @mouse.scroll_lines@, and scrolls text by them.
+test_wheel :: Assertion
+test_wheel = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 50) (songs 50)
+  let wheel ts = runEvents 0 (map MouseWheel ts)
+  assertEqual "down" (8, 0) . position =<< wheel [MoveDown, MoveDown] s
+  assertEqual "up" (4, 0) . position =<< wheel [MoveDown, MoveDown, MoveUp] s
+  assertEqual "the cursor shows" 3 . (.state.lastInput)
+    =<< runEvents 3 [MouseWheel MoveDown] s
+  let two = testAppEnv & #config % #mouse % #scrollLines .~ ScrollLines 2
+  assertEqual "the config's lines" (2, 0) . position
+    =<< runEventsWith two 0 [MouseWheel MoveDown] s
+  help <- keys ["f1"] s
+  assertEqual "text scrolls" 4 . (.offset) . focusedView . (.state)
+    =<< runEvents 0 [MouseWheel MoveDown] help.state
+  prompt <- keys [":"] s
+  assertEqual "not in a prompt" (0, 0) . position =<< wheel [MoveDown] prompt.state
+  visualizer <- keys ["8"] s
+  r <- wheel [MoveDown] visualizer.state
+  assertEqual "nothing on a screen without moves" Nothing (message r)
+  assertEqual "nor a redraw" [KeepScreen] r.commands
 
 test_backKeys :: Assertion
 test_backKeys = do

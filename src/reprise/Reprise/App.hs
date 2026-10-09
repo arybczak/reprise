@@ -23,6 +23,7 @@ import System.Exit
 import System.FilePath
 import System.Process
 
+import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.Clock
 import Reprise.Effect.MpdRequest
@@ -61,7 +62,7 @@ eventQueueSize = 20
 -- a new vty from the builder after the editor had it.
 runApp :: AppEnv -> Channels -> IO V.Vty -> AppState -> IO ()
 runApp env channels buildVty initial = do
-  first <- buildVty
+  first <- newVty
   current <- S.newIORef first
   let finish = do
         V.shutdown =<< S.readIORef current
@@ -86,6 +87,8 @@ runApp env channels buildVty initial = do
               `orElse` (Right <$> readTBQueue channels.events)
         event <- case received of
           Left (V.InputEvent (V.EvKey k mods)) -> pure (KeyPressed <$> fromVtyKey k mods)
+          Left (V.InputEvent (V.EvMouseDown _ _ V.BScrollUp _)) -> pure . Just $ MouseWheel MoveUp
+          Left (V.InputEvent (V.EvMouseDown _ _ V.BScrollDown _)) -> pure . Just $ MouseWheel MoveDown
           Left (V.InputEvent (V.EvResize w h)) -> pure . Just $ Resized w h
           -- vty-unix sends it after the terminal changed its size.
           Left V.ResumeAfterInterrupt -> Just . uncurry Resized <$> displaySize vty
@@ -132,7 +135,7 @@ runApp env channels buildVty initial = do
         Edit cmd file -> do
           V.shutdown =<< S.readIORef current
           failure <- runEditor cmd file
-          vty <- buildVty
+          vty <- newVty
           S.writeIORef current vty
           (w, h) <- displaySize vty
           resized <- dispatch current s (Resized w h)
@@ -143,6 +146,16 @@ runApp env channels buildVty initial = do
               dispatch current s' (Edited file failure) <&> \case
                 Halted -> Halted
                 Running s'' _ -> Running s'' True
+
+    -- With the mouse's events, for the wheel. The terminal then leaves the
+    -- wheel to reprise, which would get arrow keys else. vty turns them off
+    -- when it shuts down.
+    newVty :: IO V.Vty
+    newVty = do
+      vty <- buildVty
+      let output = V.outputIface vty
+      when (V.supportsMode output V.Mouse) $ V.setMode output V.Mouse True
+      pure vty
 
     draw :: V.Vty -> AppState -> IO ()
     draw vty s =

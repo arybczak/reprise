@@ -690,7 +690,7 @@ countItems n = T.pack (show n) <> if n == 1 then " item" else " items"
 -- Queries
 
 -- | Whether the queue shows its cursor: it hides it a while after the last
--- key.
+-- key or step of the wheel.
 cursorVisible :: AppState -> Bool
 cursorVisible s = s.now - s.lastInput < cursorHideDelay
 

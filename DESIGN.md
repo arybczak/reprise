@@ -266,6 +266,17 @@ ncmpcpp.
   - **A screen that isn't built yet is skipped,** so that a list can name
     it ahead, and it joins once it is built.
 
+**Mouse wheel**
+- A step of the wheel moves the cursor of a list by `mouse.scroll_lines`,
+  4 as the author's ncmpcpp sets `lines_scrolled`, and scrolls text by
+  them. A screen does
+  it with its moves, so the lyrics stop following the song as for the keys.
+  A screen without moves, and a prompt, leave the wheel alone.
+- **reprise turns on the terminal's mouse events.** Without them, a terminal
+  sends the wheel as arrow keys on its alternate screen, one line a step.
+  With them, selecting text in the terminal takes `shift`, as in ncmpcpp.
+  The other buttons do nothing yet.
+
 **Other screens**
 - Outputs screen. It is small and used often.
   - **`activate` enables the output under the cursor, or disables it,** and
@@ -738,7 +749,8 @@ tag editor, which needs the same two things.
 - Add random items: songs, or tags such as artists and albums.
 
 **Interaction**
-- Mouse support: seek on the progress bar, scroll, click to select or play.
+- Mouse support: seek on the progress bar, click to select or play. The
+  wheel works already.
 
 **External commands, hooks and command line**
 - Key bindings that run external programs (see
@@ -1675,7 +1687,7 @@ but those in its list of the features that aren't built.
 Options of later features get their defaults when the feature arrives,
 again from the author's ncmpcpp config where it sets them, and names in the
 same spirit, e.g. `media_library.primary_tag`, `hooks.on_song_change`,
-`mouse.scroll_lines`, `header.design`.
+`header.design`.
 
 ### MPD connection defaults
 
@@ -1906,7 +1918,7 @@ options, `allow_for_physical_item_deletion`,
   `search_engine.display`, `current_item_inactive_column_prefix`/`suffix` →
   `lists.inactive_cursor_style`, `window_border_color` →
   `styles.popup_border`. doc/ncmpcpp.md lists them when they work.
-- **The options of other later features:** `lines_scrolled`,
+- **The options of other later features:**
   `mouse_list_scroll_whole_page`, `mpd_music_dir` and the tag editor's
   options.
 

@@ -11,6 +11,7 @@ import Data.ByteString qualified as BS
 import Data.Text qualified as T
 import Data.Vector.Storable qualified as VS
 
+import Reprise.Action
 import Reprise.Keys
 import Reprise.Lyrics
 import Reprise.Mpd.Protocol.Command
@@ -23,6 +24,8 @@ data AppEvent
     Started
   | -- | A key that the user pressed.
     KeyPressed KeySpec
+  | -- | A step of the mouse wheel, up or down.
+    MouseWheel MoveTarget
   | -- | The terminal's new width and height.
     Resized Int Int
   | -- | The idle connection is up.

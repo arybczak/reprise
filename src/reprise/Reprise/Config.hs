@@ -32,6 +32,8 @@ module Reprise.Config
   , LyricsConfig (..)
   , LyricsFetcher (..)
   , EditorConfig (..)
+  , MouseConfig (..)
+  , ScrollLines (..)
   , Visualization (..)
   , visualizationName
   , FrameRate (..)
@@ -88,6 +90,7 @@ data Config = Config
   , visualizer :: VisualizerConfig
   , lyrics :: LyricsConfig
   , editor :: EditorConfig
+  , mouse :: MouseConfig
   , styles :: StylesConfig
   , keys :: KeysConfig
   }
@@ -326,6 +329,18 @@ newtype EditorConfig = EditorConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml EditorConfig
 
+newtype MouseConfig = MouseConfig
+  { scrollLines :: ScrollLines
+  -- ^ How far a step of the wheel moves the cursor of a list, or scrolls
+  -- text.
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromYaml) via GenericYaml MouseConfig
+
+-- | Lines, at least one.
+newtype ScrollLines = ScrollLines Int
+  deriving newtype (Eq, Show)
+
 data LyricsFetcher
   = -- | lrclib.net.
     Lrclib
@@ -397,6 +412,7 @@ defaultConfig =
     , visualizer = defaultVisualizer
     , lyrics = defaultLyrics
     , editor = defaultEditor
+    , mouse = defaultMouse
     , styles = defaultStyles
     , keys = defaultKeys
     }
@@ -534,6 +550,10 @@ defaultVisualizer =
 defaultEditor :: EditorConfig
 defaultEditor = EditorConfig {command = Nothing}
 
+-- | The author's ncmpcpp sets @lines_scrolled@ to 4.
+defaultMouse :: MouseConfig
+defaultMouse = MouseConfig {scrollLines = ScrollLines 4}
+
 defaultLyrics :: LyricsConfig
 defaultLyrics =
   LyricsConfig
@@ -649,6 +669,10 @@ instance GenericYamlOptions LyricsConfig where
   yamlOptions = options
   yamlDefault = Just defaultLyrics
 
+instance GenericYamlOptions MouseConfig where
+  yamlOptions = options
+  yamlDefault = Just defaultMouse
+
 instance GenericYamlOptions StylesConfig where
   yamlOptions = options
   yamlDefault = Just defaultStyles
@@ -721,6 +745,13 @@ instance FromYaml FrameRate where
     if rate >= 1
       then pure (FrameRate rate)
       else failAt n "expected at least 1 frame per second"
+
+instance FromYaml ScrollLines where
+  parseYaml n = do
+    lines' <- parseYaml @Int n
+    if lines' >= 1
+      then pure (ScrollLines lines')
+      else failAt n "expected at least 1 line"
 
 instance FromYaml ProgressChars where
   parseYaml n = withText chars n

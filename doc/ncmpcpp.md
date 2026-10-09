@@ -90,6 +90,7 @@ Crop (`C`) and reversing the queue (`ctrl-r`) are gone.
 | `fetch_lyrics_for_current_song_in_background` | `lyrics.fetch_in_background` |
 | `follow_now_playing_lyrics` | `lyrics.follow_playing` |
 | `external_editor` | `editor.command`, else `$VISUAL` or `$EDITOR` |
+| `lines_scrolled` | `mouse.scroll_lines` |
 | `volume_change_step`, `seek_time`, `mpd_crossfade_time` | the arguments of the keys: `volume +2`, `seek +1s`, `toggle crossfade 5` |
 | `screen_switcher_mode` | `tab: next_screen [queue, browser]`, with the screens to go through |
 | `space_add_mode` | `add` and `add_or_remove` are two actions; `space` adds or removes |
@@ -120,8 +121,8 @@ Options whose choice is fixed in reprise:
 ## Not available yet
 
 The search engine, the media library, the playlist editor, the tag editors,
-album separators in the queue, the server info, mouse support, and
-commands that run on song change. The browser already opens stored
+album separators in the queue, the server info, the mouse but for its
+wheel, and commands that run on song change. The browser already opens stored
 playlists and loads them, and `e w` saves them.
 
 The clock screen and split screens are gone.

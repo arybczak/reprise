@@ -116,6 +116,9 @@ lyrics:
 editor:
   command: ~                     # for lyrics; $VISUAL, else $EDITOR without it
 
+mouse:
+  scroll_lines: 4                # a step of the wheel moves a list or text
+
 styles:
   label: white                   # names of fields, e.g. in the song info
   value: green                   # values of fields
