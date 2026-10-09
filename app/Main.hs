@@ -220,6 +220,7 @@ sources opts = do
   runtimeDir <- lookupEnv "XDG_RUNTIME_DIR"
   let candidates = maybe [] (\d -> [d </> "mpd" </> "socket"]) runtimeDir <> ["/run/mpd/socket"]
   existing <- filterM doesPathExist candidates
+  home <- getHomeDirectory
   pure
     Sources
       { cliHost = opts.host
@@ -227,6 +228,7 @@ sources opts = do
       , envHost = envHost
       , envPort = envPort
       , existingSockets = existing
+      , home = home
       }
 
 -- | A leading @~/@ is the home directory.

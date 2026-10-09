@@ -18,8 +18,8 @@
 # have values, and [a|b] for the first of a and b that does.
 
 mpd:
-  # A host is a host name, a socket path, or @name for an abstract socket, and
-  # password@host gives the password too.
+  # A host is a host name, a socket path, where ~/ is the home directory, or
+  # @name for an abstract socket, and password@host gives the password too.
   host: ~
   port: ~                        # 6600 without it
   password: ~

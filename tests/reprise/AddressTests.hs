@@ -19,6 +19,7 @@ addressTests =
     , testCase "an empty variable is unset" test_emptyVariables
     , testCase "the port of another source than the host" test_portOfAnotherSource
     , testCase "a socket path" test_socketPath
+    , testCase "a socket in the home directory" test_homeSocket
     , testCase "an abstract socket" test_abstractSocket
     , testCase "the usual socket" test_usualSocket
     , testCase "localhost" test_localhost
@@ -77,6 +78,19 @@ test_socketPath = do
   s <- settingsOf defaultConfig.mpd (noSources & #envHost ?~ "/run/user/1000/mpd/socket")
   assertEqual "address" (UnixAddress "/run/user/1000/mpd/socket") s.address
 
+-- | @~/@ is the home directory, from any source of the host, also after a
+-- password.
+test_homeSocket :: Assertion
+test_homeSocket = do
+  let config = defaultConfig.mpd & #host ?~ "~/.config/mpd/socket"
+  s <- settingsOf config noSources
+  assertEqual "address" (UnixAddress "/home/user/.config/mpd/socket") s.address
+  fromEnv <- settingsOf defaultConfig.mpd (noSources & #envHost ?~ "secret@~/mpd/socket")
+  assertEqual "after a password" (UnixAddress "/home/user/mpd/socket") fromEnv.address
+  assertEqual "the password" (Just "secret") fromEnv.password
+  tcp <- settingsOf defaultConfig.mpd (noSources & #envHost ?~ "~music")
+  assertEqual "a host name" (TcpAddress "~music" 6600) tcp.address
+
 test_abstractSocket :: Assertion
 test_abstractSocket = do
   s <- settingsOf defaultConfig.mpd (noSources & #envHost ?~ "@mpd")
@@ -125,7 +139,7 @@ test_badEnvPort = do
 -- Helpers
 
 noSources :: Sources
-noSources = Sources Nothing Nothing Nothing Nothing []
+noSources = Sources Nothing Nothing Nothing Nothing [] "/home/user"
 
 settingsOf :: MpdConfig -> Sources -> IO Settings
 settingsOf config = either (assertFailure . T.unpack) pure . resolveSettings config

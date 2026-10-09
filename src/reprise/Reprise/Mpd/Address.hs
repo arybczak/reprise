@@ -8,6 +8,7 @@ import Control.Monad
 import Data.Maybe
 import Data.Text qualified as T
 import GHC.Generics
+import System.FilePath
 
 import Reprise.Config
 import Reprise.Mpd.Protocol.Connection
@@ -23,6 +24,9 @@ data Sources = Sources
   -- ^ @MPD_PORT@.
   , existingSockets :: [FilePath]
   -- ^ The usual socket locations that exist.
+  , home :: FilePath
+  -- ^ The home directory, which @~/@ in a socket path stands for, as in
+  -- MPD's own config.
   }
   deriving stock (Generic)
 
@@ -79,6 +83,8 @@ resolveSettings config sources = do
     address = case host of
       Just h
         | "/" `T.isPrefixOf` h -> Right $ UnixAddress (T.unpack h)
+        | Just path <- T.stripPrefix "~/" h ->
+            Right $ UnixAddress (sources.home </> T.unpack path)
         | Just name <- T.stripPrefix "@" h -> Right $ UnixAddress ('\0' : T.unpack name)
         | otherwise -> tcp (T.unpack h)
       Nothing -> case sources.existingSockets of
