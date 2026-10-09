@@ -3,4 +3,4 @@ branches:
 apt: [mpd, flac, libicu-dev]
 fourmolu:
   enabled: true
-  version: 0.20.1.0
+  version: 0.21.0.0

@@ -25,7 +25,7 @@ record-brace-space: true
 # Number of spaces between top-level declarations
 newlines-between-decls: 1
 
-# How to print Haddock comments (choices: single-line, multi-line, or multi-line-compact)
+# How to print Haddock comments (choices: single-line, multi-line, multi-line-compact, or auto)
 haddock-style: single-line
 
 # How to print module docstring
