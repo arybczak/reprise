@@ -67,8 +67,10 @@ runEvent env now event s = do
   pure (s', requests, commands)
 
 -- | Handle an event, or keep it for later if it is input that comes while
--- an edit of the queue waits for its reply. The password prompt takes keys
--- meanwhile, as the edit may wait for its answer.
+-- an edit of the queue waits for its reply. A prompt takes keys meanwhile.
+-- As the keys wait, an open one is one that an event opened: the prompt
+-- for the password, which the edit may wait for, or e.g. a choice that
+-- MPD's reply opened, which the prompt for the password may wait for.
 holdOrHandle :: App es => AppEvent -> Eff es ()
 holdOrHandle event = do
   s <- getS
@@ -77,11 +79,8 @@ holdOrHandle event = do
         MouseWheel {} -> True
         MouseClick {} -> True
         _ -> False
-      askingPassword = case s.prompt of
-        Just (Prompt _ (Line _ ForPassword _)) -> True
-        _ -> False
   case s.heldInput of
-    Just held | isInput && not askingPassword -> do
+    Just held | isInput && isNothing s.prompt -> do
       modifyS $ #heldInput ?~ (held Seq.|> event)
       keepScreen
     _ -> handleEvent event
@@ -184,13 +183,11 @@ handleEvent = \case
   MpdDone -> keepScreen
   MpdFailed _ err -> showError $ exceptionText err
   -- MPD's requests wait for the answer, so the prompt replaces any other.
+  -- A prompt that is open, e.g. the choice to replace a playlist, keeps its
+  -- turn, as its request waits for the password with the others.
   PasswordNeeded err -> do
-    let reason = case err of
-          AckError ack
-            | ack.code == AckPassword -> "Wrong password"
-            | otherwise -> "MPD refused " <> ack.command
-          _ -> exceptionText err
-    modifyS $ openLine (reason <> ". Password: ") emptyLineEdit ForPassword
+    open <- getsS (isJust . (.prompt))
+    modifyS $ if open then #passwordWaits ?~ err else askPassword err
   Tick token -> whenCurrent (.tick) fst token $ \_ -> modifyS $ #tick .~ Nothing
   SeekCommit token -> commitSeek token
   MessageExpired token ->
@@ -238,11 +235,31 @@ handleEvent = \case
 -- the header's title can show their song.
 afterEvent :: App es => Eff es ()
 afterEvent = do
+  -- The prompt for the password that waited for another one.
+  s <- getS
+  case (s.prompt, s.passwordWaits) of
+    (Nothing, Just err) ->
+      modifyS $ \st ->
+        st
+          & askPassword err
+          & #passwordWaits .~ Nothing
+    _ -> pure ()
   updateLyrics
   restartTitle
   scheduleTick
   updateWindowTitle
   updateVisualizer
+
+-- | Ask for the password after MPD refused a command or the password.
+askPassword :: MpdError -> AppState -> AppState
+askPassword err = openLine (reason <> ". Password: ") emptyLineEdit ForPassword
+  where
+    reason :: T.Text
+    reason = case err of
+      AckError ack
+        | ack.code == AckPassword -> "Wrong password"
+        | otherwise -> "MPD refused " <> ack.command
+      _ -> exceptionText err
 
 -- | Scroll the header's title from its start when it shows another subject.
 restartTitle :: App es => Eff es ()

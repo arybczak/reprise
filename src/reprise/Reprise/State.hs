@@ -140,6 +140,10 @@ data AppState = AppState
   -- ^ The width and the height.
   , pendingKeys :: Maybe PendingKeys
   , prompt :: Maybe Prompt
+  , passwordWaits :: Maybe MpdError
+  -- ^ MPD's refusal whose prompt for the password waits for the prompt
+  -- that is open to close. MPD's requests wait for the password, also the
+  -- one that the open prompt sends, so nothing is lost.
   , history :: [T.Text]
   -- ^ The lines of the line prompts, newest first.
   , findPattern :: Maybe T.Text
@@ -494,6 +498,7 @@ initialState config =
     , terminalSize = (0, 0)
     , pendingKeys = Nothing
     , prompt = Nothing
+    , passwordWaits = Nothing
     , history = []
     , findPattern = Nothing
     , foundOn = Nothing

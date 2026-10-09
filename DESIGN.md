@@ -1053,7 +1053,10 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
     and `plchanges` in its own command list, and keys, clicks and wheel
     steps that come meanwhile are handled in order once the mirror has
     them, as ncmpc's blocking commands do.
-    - The password prompt still takes keys, as the edit may wait for it.
+    - A prompt still takes keys. As the keys wait, an open one is one that
+      an event opened: the password prompt, which the edit may wait for,
+      or e.g. a choice that MPD's reply opened, which the password prompt
+      may wait for.
     - After a failed edit, or a new connection, the input that waited is
       dropped: it was meant for the queue after the edit.
     - The reply redraws the screen, even if a key that it handles changes
@@ -1225,8 +1228,14 @@ never use it directly; they go through `MpdRequest`.
     e.g. at the start with a wrong password.
   - Cancelling fails the refused request with MPD's error and runs the
     others. The next refused command asks again.
-  - The prompt replaces any other prompt, since the requests wait for it,
-    and shows the password as stars.
+  - The prompt waits for a prompt that is open to close, e.g. the choice
+    to replace or append to a playlist, or a find. Replacing it would lose
+    what the user did there, while its request, e.g. the save, can wait
+    for the password with the others and run after it. The prompt shows
+    the password as stars.
+  - ncmpcpp asks for the password, but doesn't run the refused command
+    again, so the user does it again. Cancelling its prompt quits
+    ncmpcpp.
 - **SIGTERM and SIGHUP restore the terminal** before reprise exits, as an
   exception does. The runtime turns only SIGINT into one, so without
   handlers a `pkill` would leave the terminal raw, on the alternate screen

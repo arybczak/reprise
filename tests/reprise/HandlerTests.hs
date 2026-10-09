@@ -93,6 +93,8 @@ handlerTests =
     , testCase "delete the marked songs" test_delete
     , testCase "input waits for an edit of the queue" test_heldInput
     , testCase "the password prompt takes keys during an edit" test_heldPassword
+    , testCase "the password prompt waits for an open prompt" test_passwordWaits
+    , testCase "a choice takes keys during an edit" test_heldChoice
     , testCase "move the marked songs up and down" test_moveSongs
     , testCase "move songs to a place" test_moveSongsTo
     , testCase "shuffle the selection" test_shuffleSelection
@@ -525,6 +527,39 @@ test_heldPassword = do
   answered <- keys (typed "secret" <> ["enter"]) asked.state
   assertEqual "the answer" [Just "secret"] (passwordAnswers answered)
   assertEqual "nothing held" (Just Seq.empty) answered.state.heldInput
+
+-- | The prompt for the password waits for a prompt that is open. The open
+-- prompt's request waits for the password with MPD's others, so nothing is
+-- lost.
+test_passwordWaits :: Assertion
+test_passwordWaits = do
+  s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+  let refusal = AckError $ Ack AckPermission 0 "pause" "you don't have permission for \"pause\""
+      password = Just "MPD refused pause. Password: "
+      question r = (.question) <$> r.state.prompt
+      saves r = [() | Request "save" _ <- concat r.requests]
+  -- A choice that MPD's reply opened.
+  choosing <- runEvents 0 [SaveChecked "list" SaveQueue True, PasswordNeeded refusal] s
+  assertEqual "the choice stays" (Just "The playlist list exists.") (question choosing)
+  replaced <- keys ["r"] choosing.state
+  assertEqual "the save" [()] (saves replaced)
+  assertEqual "then the password" password (question replaced)
+  -- A line that the user types.
+  finding <- runEvents 0 [PasswordNeeded refusal] =<< (.state) <$> keys ["/", "x"] s
+  assertBool "the find stays" (question finding /= password)
+  assertEqual "then the password" password . question =<< keys ["escape"] finding.state
+
+-- | While an edit of the queue waits, a choice that MPD's reply opened
+-- takes keys, as the prompt for the password, which the edit may wait for,
+-- waits for the choice.
+test_heldChoice :: Assertion
+test_heldChoice = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  deleted <- keys ["delete"] s
+  choosing <- runEvents 0 [SaveChecked "list" SaveQueue True] deleted.state
+  replaced <- keys ["r"] choosing.state
+  assertEqual "the save" [()] [() | Request "save" _ <- concat replaced.requests]
+  assertEqual "closed" Nothing replaced.state.prompt
 
 test_moveSongs :: Assertion
 test_moveSongs = do
