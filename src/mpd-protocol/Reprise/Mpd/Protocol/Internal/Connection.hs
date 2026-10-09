@@ -116,8 +116,8 @@ connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
     parseGreeting :: BS.ByteString -> Maybe Version
     parseGreeting l = do
       v <- BS.stripPrefix "OK MPD " l
-      case map BS8.readInt (BS8.split '.' v) of
-        [Just (major, ""), Just (minor, ""), Just (patch, "")] -> Just $ Version major minor patch
+      case traverse readInt (BS8.split '.' v) of
+        Just [major, minor, patch] -> Just $ Version major minor patch
         _ -> Nothing
 
 close :: Connection -> IO ()
