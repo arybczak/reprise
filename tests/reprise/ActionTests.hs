@@ -22,6 +22,13 @@ test_parse = do
   assertEqual "absolute volume" (Right $ Volume (VolumeTo 40)) (parseAction "volume 40")
   assertEqual "seek" (Right $ Seek (SeekBy (-10))) (parseAction "seek -10s")
   assertEqual "seek to a time" (Right $ Seek (SeekToSecond 90)) (parseAction "seek 1:30")
+  -- A time too long for an Int would wrap around to a negative one, which
+  -- MPD reads as a seek back from where the song is. MPD gets the time as it
+  -- is written instead, and tells what it makes of it.
+  case parseAction "seek 153722867280912931:00" of
+    Right (Seek (SeekToSecond n)) ->
+      assertEqual "a time past an Int" (153722867280912931 * 60) (toInteger n)
+    other -> assertFailure $ "not a seek to a time: " <> show other
   assertEqual
     "seek to a percentage"
     (Right $ Seek (SeekToPercent 50))

@@ -141,7 +141,7 @@ data VolumeChange = VolumeBy Int | VolumeTo Int
 data SeekStep
   = -- | Seconds forward or backward. Holding the key goes further.
     SeekBy Int
-  | SeekToSecond Int
+  | SeekToSecond Integer
   | SeekToPercent Int
   deriving stock (Eq, Show)
 
@@ -388,11 +388,14 @@ registry =
           Right . SeekBy $ if sign == '-' then negate n else n
       | otherwise = SeekToSecond <$> clockTime w
 
-    clockTime :: T.Text -> Either T.Text Int
+    -- The time goes to MPD as it is written, which MPD checks, so it
+    -- doesn't wrap around past the bounds of an Int.
+    clockTime :: T.Text -> Either T.Text Integer
     clockTime w = case T.splitOn ":" w of
       parts@(_ : _ : _)
         | length parts <= 3 -> do
-            ns <- traverse natural parts
+            ns <-
+              traverse (\p -> maybe (Left $ "expected a number, not " <> p) Right (decimal p)) parts
             Right $ foldl (\acc n -> acc * 60 + n) 0 ns
       _ -> Left "expected +Ns, -Ns, [h:]m:ss or N%"
 
@@ -506,7 +509,7 @@ renderAction = \case
     screenList ss = "[" <> T.intercalate ", " (map screenName ss) <> "]"
 
 -- | As the status bar shows a time.
-clock :: Int -> T.Text
+clock :: Integer -> T.Text
 clock = formatDuration . fromIntegral
 
 -- | The names of the arguments of actions, which 'parseAction' reads and
