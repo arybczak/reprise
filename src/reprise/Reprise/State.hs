@@ -45,12 +45,15 @@ module Reprise.State
   , layoutViews
   , mainHeight
   , listHeight
-  , screenDisplay
+
+    -- * Screens
+  , ScreenInfo (..)
+  , Content (..)
+  , screenInfo
 
     -- * Queries
   , cursorVisible
   , cursorHideDelay
-  , screenTitle
   , titleSubject
   , shownTitle
   , titleSince
@@ -498,17 +501,150 @@ layoutViews s = case s.layout of
 -- | The number of rows of the list in a view: the titles of the columns
 -- take one.
 listHeight :: AppEnv -> AppState -> View -> Int
-listHeight env s v
-  | env.config.songs.columns.showTitles && screenDisplay s v.screen == Just Columns =
-      max 0 (v.height - 1)
-  | otherwise = v.height
+listHeight env s v = case (screenInfo v.screen).content of
+  Songs display
+    | env.config.songs.columns.showTitles && display s == Columns -> max 0 (v.height - 1)
+  _ -> v.height
 
--- | How a screen shows songs, if it lists them.
-screenDisplay :: AppState -> ScreenName -> Maybe Display
-screenDisplay s = \case
-  QueueScreen -> Just s.toggles.queueDisplay
-  BrowserScreen -> Just s.toggles.browserDisplay
-  _ -> Nothing
+----------------------------------------
+-- Screens
+
+-- | What the code under the screens' modules knows of a screen, e.g. to keep
+-- a view's cursor in its list.
+data ScreenInfo = ScreenInfo
+  { built :: Bool
+  -- ^ Whether the screen is built yet. The others are names for later.
+  , content :: Content
+  , size :: AppEnv -> AppState -> Int
+  -- ^ The number of items or lines.
+  , songAt :: AppState -> Int -> Maybe Song
+  -- ^ The song of the item at an index.
+  , title :: AppEnv -> AppState -> (T.Text, T.Text)
+  -- ^ The title in the header: a part that stays, and a part that scrolls
+  -- if it doesn't fit, as in ncmpcpp.
+  }
+
+data Content
+  = -- | Items that can be songs, which show in a display.
+    Songs (AppState -> Display)
+  | -- | Items without songs, e.g. the outputs.
+    Items
+  | -- | Lines of text without a cursor, which a move scrolls.
+    Lines
+  | -- | A picture, e.g. the visualizer's.
+    Picture
+
+screenInfo :: ScreenName -> ScreenInfo
+screenInfo = \case
+  QueueScreen ->
+    ScreenInfo
+      { built = True
+      , content = Songs (.toggles.queueDisplay)
+      , size = \_ s -> Seq.length s.mirror.queue
+      , songAt = \s i -> Seq.lookup i s.mirror.queue
+      , title = queueTitle
+      }
+  BrowserScreen ->
+    ScreenInfo
+      { built = True
+      , content = Songs (.toggles.browserDisplay)
+      , size = \_ s -> Seq.length s.browser.items
+      , songAt = \s i -> case Seq.lookup i s.browser.items of
+          Just (EntryItem (SongEntry song)) -> Just song
+          _ -> Nothing
+      , title = \_ s ->
+          ( "Browse: "
+          , "/" <> case s.browser.location of
+              Just (InDirectory path) -> path
+              Just (InPlaylist path) -> path
+              Nothing -> ""
+          )
+      }
+  SearchEngineScreen -> unbuilt SearchEngineScreen
+  MediaLibraryScreen -> unbuilt MediaLibraryScreen
+  PlaylistEditorScreen -> unbuilt PlaylistEditorScreen
+  OutputsScreen ->
+    ScreenInfo
+      { built = True
+      , content = Items
+      , size = \_ s -> maybe 0 Seq.length s.outputs
+      , songAt = noSongs
+      , title = named OutputsScreen
+      }
+  VisualizerScreen ->
+    ScreenInfo
+      { built = True
+      , content = Picture
+      , size = \_ _ -> 0
+      , songAt = noSongs
+      , title = named VisualizerScreen
+      }
+  LyricsScreen ->
+    ScreenInfo
+      { built = True
+      , content = Lines
+      , size = \_ s -> length (lyricsRows (fst s.terminalSize) s.lyrics)
+      , songAt = noSongs
+      , title = \_ s -> ("Lyrics: ", maybe "" lyricsName s.lyrics.song)
+      }
+  SongInfoScreen ->
+    ScreenInfo
+      { built = True
+      , content = Lines
+      , size = \env s -> length (songInfoRows env s (fst s.terminalSize))
+      , songAt = noSongs
+      , title = \_ s -> ("Song info: ", maybe "" lyricsName s.songInfo.song)
+      }
+  HelpScreen ->
+    ScreenInfo
+      { built = True
+      , content = Lines
+      , size = \env _ -> length (helpLines env.keymaps)
+      , songAt = noSongs
+      , title = named HelpScreen
+      }
+  where
+    unbuilt :: ScreenName -> ScreenInfo
+    unbuilt screen =
+      ScreenInfo
+        { built = False
+        , content = Items
+        , size = \_ _ -> 0
+        , songAt = noSongs
+        , title = named screen
+        }
+
+    noSongs :: AppState -> Int -> Maybe Song
+    noSongs _ _ = Nothing
+
+    named :: ScreenName -> AppEnv -> AppState -> (T.Text, T.Text)
+    named screen _ _ = (T.toTitle (T.replace "_" " " (screenName screen)), "")
+
+    queueTitle :: AppEnv -> AppState -> (T.Text, T.Text)
+    queueTitle env s =
+      let q = s.mirror.queue
+          total = s.mirror.totalLength
+          remaining = case currentPosition s.mirror of
+            Just _ -> s.mirror.lengthFromCurrent - fromMaybe 0 (displayedElapsed s)
+            Nothing -> total
+          count = T.pack (show (Seq.length q)) <> if Seq.length q == 1 then " song" else " songs"
+          times =
+            [formatTotal total | total > 0]
+              <> [formatTotal remaining <> " left" | env.config.queue.showRemainingTime, remaining > 0]
+      in ("Queue ", "(" <> T.intercalate ", " (count : times) <> ")")
+      where
+        -- A short total, e.g. @1h 23m@.
+        formatTotal :: Seconds -> T.Text
+        formatTotal secs =
+          let total = floor @Seconds @Int secs
+              (d, r1) = total `divMod` 86400
+              (h, r2) = r1 `divMod` 3600
+              (m, sec) = r2 `divMod` 60
+              parts = [(d, "d"), (h, "h"), (m, "m"), (sec, "s")]
+              significant = take 2 $ dropWhile ((== 0) . fst) parts
+          in case significant of
+               [] -> "0s"
+               _ -> T.unwords [T.pack (show n) <> unit | (n, unit) <- significant, n > 0]
 
 ----------------------------------------
 -- Queries
@@ -523,45 +659,6 @@ cursorVisible s = s.now - s.lastInput < cursorHideDelay
 cursorHideDelay :: Double
 cursorHideDelay = 5
 
--- | The title of a screen in the header: a part that stays, and a part that
--- scrolls if it doesn't fit, as in ncmpcpp.
-screenTitle :: AppEnv -> AppState -> ScreenName -> (T.Text, T.Text)
-screenTitle env s = \case
-  QueueScreen ->
-    let q = s.mirror.queue
-        total = s.mirror.totalLength
-        remaining = case currentPosition s.mirror of
-          Just _ -> s.mirror.lengthFromCurrent - fromMaybe 0 (displayedElapsed s)
-          Nothing -> total
-        count = T.pack (show (Seq.length q)) <> if Seq.length q == 1 then " song" else " songs"
-        times =
-          [formatTotal total | total > 0]
-            <> [formatTotal remaining <> " left" | env.config.queue.showRemainingTime, remaining > 0]
-    in ("Queue ", "(" <> T.intercalate ", " (count : times) <> ")")
-  BrowserScreen ->
-    ( "Browse: "
-    , "/" <> case s.browser.location of
-        Just (InDirectory path) -> path
-        Just (InPlaylist path) -> path
-        Nothing -> ""
-    )
-  LyricsScreen -> ("Lyrics: ", maybe "" lyricsName s.lyrics.song)
-  SongInfoScreen -> ("Song info: ", maybe "" lyricsName s.songInfo.song)
-  other -> (T.toTitle (T.replace "_" " " (screenName other)), "")
-  where
-    -- A short total, e.g. @1h 23m@.
-    formatTotal :: Seconds -> T.Text
-    formatTotal secs =
-      let total = floor @Seconds @Int secs
-          (d, r1) = total `divMod` 86400
-          (h, r2) = r1 `divMod` 3600
-          (m, sec) = r2 `divMod` 60
-          parts = [(d, "d"), (h, "h"), (m, "m"), (sec, "s")]
-          significant = take 2 $ dropWhile ((== 0) . fst) parts
-      in case significant of
-           [] -> "0s"
-           _ -> T.unwords [T.pack (show n) <> unit | (n, unit) <- significant, n > 0]
-
 -- | What the title shows: the focused screen, and what the browser lists.
 -- The scrolling starts again when it changes.
 titleSubject :: AppState -> (ScreenName, Maybe Location)
@@ -574,7 +671,7 @@ titleSubject s = case (focusedView s).screen of
 -- title began to show its subject.
 shownTitle :: AppEnv -> AppState -> T.Text
 shownTitle env s =
-  let (stays, rest) = screenTitle env s (focusedView s).screen
+  let (stays, rest) = (screenInfo (focusedView s).screen).title env s
       room = titleRoom s stays
   in if textWidth rest <= room
        then stays <> rest
@@ -588,7 +685,7 @@ titleSince s = maybe s.now snd s.titleShown
 -- again each second.
 titleScrolls :: AppEnv -> AppState -> Bool
 titleScrolls env s =
-  let (stays, rest) = screenTitle env s (focusedView s).screen
+  let (stays, rest) = (screenInfo (focusedView s).screen).title env s
   in textWidth rest > titleRoom s stays
 
 -- | The columns of a title's part that scrolls, with a space before the

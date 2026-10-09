@@ -472,7 +472,7 @@ runAction = \case
       VolumeBy n -> changeVolume n
       VolumeTo n -> setVolume n
   Toggle t -> toggle t
-  Show screen | not (isBuilt screen) -> notAvailable $ "The " <> screenText screen
+  Show screen | not (screenInfo screen).built -> notAvailable $ "The " <> screenText screen
   Show LyricsScreen -> showLyrics
   Show SongInfoScreen -> showSongInfo
   Show OutputsScreen -> showOutputs
@@ -527,15 +527,11 @@ verb action implementation = do
 cycleScreens :: App es => [ScreenName] -> Eff es ()
 cycleScreens screens = do
   current <- getsS ((.screen) . focusedView)
-  case filter isBuilt screens of
+  case filter (\s -> (screenInfo s).built) screens of
     [] -> showMessage "None of the screens is available yet"
     built@(first : _) -> runAction . Show $ case dropWhile (/= current) built of
       _ : following : _ -> following
       _ -> first
-
--- | Whether a screen is built yet. The others are names for later.
-isBuilt :: ScreenName -> Bool
-isBuilt = (`notElem` [SearchEngineScreen, MediaLibraryScreen, PlaylistEditorScreen])
 
 -- | Run a destructive action that the user confirmed.
 runConfirmed :: App es => Action -> Eff es ()

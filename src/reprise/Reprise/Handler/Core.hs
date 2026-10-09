@@ -32,11 +32,9 @@ module Reprise.Handler.Core
   , jumpTo
   , moveListCursor
   , restoreView
-  , screenLength
   , scrollLines
   , showSongScreen
   , goBack
-  , songUnderCursor
 
     -- * Selection
   , selectInList
@@ -60,9 +58,7 @@ import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Find
 import Reprise.Groups
-import Reprise.Keymap
 import Reprise.LineEdit
-import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
 import Reprise.Selection
 import Reprise.State
@@ -259,20 +255,17 @@ modifyView f env s =
   s
     & #views % ix s.focus %~ \v ->
       let v' = f v
-          n = screenLength env s v'.screen
+          info = screenInfo v'.screen
+          n = info.size env s
           h = max 1 (listHeight env s v')
           c = max 0 (min (n - 1) v'.cursor)
           o
-            | v'.screen `elem` textScreens = v'.offset
+            | Lines <- info.content = v'.offset
             | env.config.lists.keepCursorCentered = c - h `div` 2
             | c < v'.offset = c
             | c >= v'.offset + h = c - h + 1
             | otherwise = v'.offset
       in v' & #cursor .~ c & #offset .~ max 0 (min (n - h) o)
-
--- | The screens of text without items, which a move scrolls.
-textScreens :: [ScreenName]
-textScreens = [LyricsScreen, SongInfoScreen, HelpScreen]
 
 -- | Scroll the focused screen of text.
 scrollLines :: App es => MoveTarget -> Eff es ()
@@ -287,36 +280,26 @@ scrollLines t = do
     MovePageUp -> scroll (-h)
     MovePageDown -> scroll h
     MoveFirst -> modifyWithEnv . modifyView $ #offset .~ 0
-    MoveLast -> modifyWithEnv . modifyView $ #offset .~ screenLength env s v.screen
+    MoveLast -> modifyWithEnv . modifyView $ #offset .~ (screenInfo v.screen).size env s
     _ -> showMessage $ "The " <> screenText v.screen <> " has no " <> renderAction (Move t)
   where
     scroll :: App es => Int -> Eff es ()
     scroll delta = modifyWithEnv . modifyView $ #offset %~ (+ delta)
-
--- | The number of items or lines of a screen.
-screenLength :: AppEnv -> AppState -> ScreenName -> Int
-screenLength env s = \case
-  QueueScreen -> Seq.length s.mirror.queue
-  BrowserScreen -> Seq.length s.browser.items
-  LyricsScreen -> length (lyricsRows (fst s.terminalSize) s.lyrics)
-  SongInfoScreen -> length (songInfoRows env s (fst s.terminalSize))
-  HelpScreen -> length (helpLines env.keymaps)
-  OutputsScreen -> maybe 0 Seq.length s.outputs
-  _ -> 0
 
 -- | Show a screen of a song, e.g. its lyrics, for the song under the cursor,
 -- from the top, after an action that opens it for the song.
 showSongScreen :: App es => ScreenName -> (Song -> Eff es ()) -> Eff es ()
 showSongScreen target open = do
   s <- getS
-  let screen = (focusedView s).screen
-  if
-    | Nothing <- screenDisplay s screen ->
-        showMessage $ "The " <> screenText screen <> " has no songs"
-    | Just song <- songUnderCursor s -> do
-        open song
-        modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen target
-    | otherwise -> showMessage "There is no song under the cursor"
+  let v = focusedView s
+      info = screenInfo v.screen
+  case info.content of
+    Songs _
+      | Just song <- info.songAt s v.cursor -> do
+          open song
+          modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen target
+      | otherwise -> showMessage "There is no song under the cursor"
+    _ -> showMessage $ "The " <> screenText v.screen <> " has no songs"
 
 -- | Show the screen that the view showed before.
 goBack :: App es => Eff es ()
@@ -324,14 +307,3 @@ goBack =
   getsS ((.previous) . focusedView) >>= \case
     Just previous -> modifyWithEnv . modifyView $ switchScreen previous
     Nothing -> showMessage "There is no screen to go back to"
-
--- | The song under the cursor of the focused list.
-songUnderCursor :: AppState -> Maybe Song
-songUnderCursor s =
-  let v = focusedView s
-  in case v.screen of
-       QueueScreen -> Seq.lookup v.cursor s.mirror.queue
-       BrowserScreen -> case Seq.lookup v.cursor s.browser.items of
-         Just (EntryItem (SongEntry song)) -> Just song
-         _ -> Nothing
-       _ -> Nothing

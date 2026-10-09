@@ -114,7 +114,9 @@ mainView env s =
        SongInfoScreen -> songInfoView env s v
        HelpScreen -> helpView env v
        OutputsScreen -> outputsView env s v
-       _ -> V.emptyImage
+       SearchEngineScreen -> V.emptyImage
+       MediaLibraryScreen -> V.emptyImage
+       PlaylistEditorScreen -> V.emptyImage
 
 -- | The which-key panel over the bottom rows of the main view, while a key
 -- sequence is pending.
