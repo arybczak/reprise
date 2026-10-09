@@ -3,7 +3,6 @@
 -- channel and the right one in turn.
 module Reprise.Visualizer.Samples
   ( sampleRate
-  , bytesPerSample
   , channels
   , frameBytes
   , sampleAt

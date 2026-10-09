@@ -2,7 +2,6 @@
 module Reprise.Mpd.Address
   ( Sources (..)
   , resolveSettings
-  , defaultPort
   ) where
 
 import Data.Maybe

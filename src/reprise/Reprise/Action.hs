@@ -19,13 +19,10 @@ module Reprise.Action
     -- * Screens
   , ScreenName (..)
   , screenName
-  , screenFromName
   , screenNames
   , numberedScreens
 
     -- * Registry
-  , ActionSpec (..)
-  , registry
   , parseAction
   , actionHint
   , renderAction

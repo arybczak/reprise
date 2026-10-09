@@ -37,11 +37,9 @@ module Reprise.State
     -- * Views
   , ViewId (..)
   , View (..)
-  , newView
   , switchScreen
   , Layout (..)
   , focusedView
-  , focusedViewId
   , layoutViews
   , mainHeight
   , listHeight
@@ -472,9 +470,6 @@ initialState config =
   where
     mainView :: ViewId
     mainView = ViewId 0
-
-focusedViewId :: AppState -> ViewId
-focusedViewId s = s.focus
 
 -- | The view that actions and key lookups target.
 focusedView :: AppState -> View

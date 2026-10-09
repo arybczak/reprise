@@ -8,12 +8,10 @@ module Reprise.Format
     Format (..)
   , Item (..)
   , Field (..)
-  , fieldName
   , fields
 
     -- * Parsing
   , FormatError (..)
-  , parseFormat
   , parseStyledFormat
   , parsePlainFormat
   , printFormat

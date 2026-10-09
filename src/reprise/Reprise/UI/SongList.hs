@@ -10,11 +10,7 @@ module Reprise.UI.SongList
   , rowText
 
     -- * Spans
-  , spansImage
   , padded
-
-    -- * Columns
-  , columnWidths
   ) where
 
 import Data.List qualified as L

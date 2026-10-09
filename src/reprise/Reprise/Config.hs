@@ -28,7 +28,6 @@ module Reprise.Config
   , LyricsConfig (..)
   , LyricsFetcher (..)
   , EditorConfig (..)
-  , lyricsFetcherName
   , Visualization (..)
   , visualizationName
   , FrameRate (..)
