@@ -183,7 +183,11 @@ parseSequence parseSpanStyle context = go []
         '<' -> case rest of
           (_, '/') : (_, '>') : _ -> case context of
             InSpan -> done acc ((i, c) : rest)
-            _ -> Left $ FormatError i "</> without an open styled span"
+            -- A span may be open outside the [...], but it can't end in it.
+            InAlternatives ->
+              Left $
+                FormatError i "</> without a styled span open in this [...]; a span can't cross [ or ]"
+            TopLevel -> Left $ FormatError i "</> without an open styled span"
           _ -> do
             let (styleChars, rest') = break ((== '>') . snd) rest
             case rest' of

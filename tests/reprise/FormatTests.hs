@@ -1,5 +1,6 @@
 module FormatTests (formatTests) where
 
+import Data.Functor
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Text qualified as T
@@ -93,6 +94,13 @@ test_parseErrors = do
   assertEqual "| outside [" (Left 1) (position $ parseStyledFormat "a|b")
   assertEqual "unclosed span" (Left 0) (position $ parseStyledFormat "<red>x")
   assertEqual "</> without a span" (Left 1) (position $ parseStyledFormat "x</>")
+  -- The span opens outside the [...], which it can't cross.
+  assertEqual
+    "a span across ["
+    ( Left
+        (FormatError 15 "</> without a styled span open in this [...]; a span can't cross [ or ]")
+    )
+    (void $ parseStyledFormat "<red>[%{artist}</>]")
   assertEqual "unbalanced span in [" (Left 7) (position $ parseStyledFormat "[<red>a|b</>]")
   assertEqual "bad style" (Left 1) (position $ parseStyledFormat "<purple>x</>")
   assertEqual "bad width" (Left 8) (position $ parseStyledFormat "%{title:x}")
