@@ -51,13 +51,8 @@ remember line history
 -- cursor at its end.
 recallOlder :: [T.Text] -> LineEdit -> Maybe Recall -> Maybe (LineEdit, Recall)
 recallOlder history edit recall =
-  case filter (matches typed . snd) . drop start $ zip [0 ..] history of
-    (i, line) : _ -> Just (LineEdit line T.empty, Recall typed i)
-    [] -> Nothing
+  recallFirst (typedLine edit recall) . drop start $ zip [0 ..] history
   where
-    typed :: LineEdit
-    typed = maybe edit (.typed) recall
-
     start :: Int
     start = maybe 0 ((+ 1) . (.index)) recall
 
@@ -65,20 +60,25 @@ recallOlder history edit recall =
 -- @beginning-of-history@.
 recallOldest :: [T.Text] -> LineEdit -> Maybe Recall -> Maybe (LineEdit, Recall)
 recallOldest history edit recall =
-  case reverse . filter (matches typed . snd) $ zip [0 ..] history of
-    (i, line) : _ -> Just (LineEdit line T.empty, Recall typed i)
-    [] -> Nothing
-  where
-    typed :: LineEdit
-    typed = maybe edit (.typed) recall
+  recallFirst (typedLine edit recall) . reverse $ zip [0 ..] history
 
 -- | The next newer line that starts with what the user typed, or what the
 -- user typed after the newest one.
 recallNewer :: [T.Text] -> Recall -> (LineEdit, Maybe Recall)
 recallNewer history recall =
-  case filter (matches recall.typed . snd) . reverse . take recall.index $ zip [0 ..] history of
-    (i, line) : _ -> (LineEdit line T.empty, Just recall {index = i})
-    [] -> (recall.typed, Nothing)
+  maybe (recall.typed, Nothing) (fmap Just) . recallFirst recall.typed . reverse $
+    take recall.index (zip [0 ..] history)
+
+-- | The first of lines of the history, by their indices from the newest,
+-- that stands for what the user typed, with the cursor at its end.
+recallFirst :: LineEdit -> [(Int, T.Text)] -> Maybe (LineEdit, Recall)
+recallFirst typed ls = case filter (matches typed . snd) ls of
+  (i, line) : _ -> Just (LineEdit line T.empty, Recall typed i)
+  [] -> Nothing
+
+-- | What the user typed, before the line that a prompt recalled, if any.
+typedLine :: LineEdit -> Maybe Recall -> LineEdit
+typedLine edit = maybe edit (.typed)
 
 -- | Whether a line can stand for what the user typed. The typed line itself
 -- would change nothing.

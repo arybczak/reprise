@@ -7,7 +7,7 @@ module Reprise.UI.SongList
   , RowFlags (..)
   , renderRow
   , renderOtherRow
-  , renderTitles
+  , titleRow
   , rowText
   , typedMatches
 
@@ -143,12 +143,16 @@ typedMatches s rows = case s.prompt of
         toList matched
   _ -> repeat False
 
--- | The titles of the columns.
-renderTitles :: RowContext -> V.Image
-renderTitles ctx =
-  V.horizCat . L.intersperse (padded attr (ctx.lists.style, mempty) AlignLeft 1 []) $
-    zipWith title ctx.songs.columns.list (columnWidths ctx.width ctx.songs.columns.list)
+-- | The row of the titles of the columns, if the list of a view leaves one
+-- for it.
+titleRow :: AppEnv -> AppState -> View -> RowContext -> [V.Image]
+titleRow env s v ctx = [titles | listHeight env s v < v.height]
   where
+    titles :: V.Image
+    titles =
+      V.horizCat . L.intersperse (padded attr (ctx.lists.style, mempty) AlignLeft 1 []) $
+        zipWith title ctx.songs.columns.list (columnWidths ctx.width ctx.songs.columns.list)
+
     attr :: Style -> V.Attr
     attr = toAttr ctx.colorMode
 

@@ -59,7 +59,7 @@ import Reprise.UI.SongList
 browserView :: AppEnv -> AppState -> View -> V.Image
 browserView env s v =
   let ctx = rowContext env s.toggles.browserDisplay v.width
-      titles = [renderTitles ctx | listHeight env s v < v.height]
+      titles = titleRow env s v ctx
       h = listHeight env s v
       visible = Seq.take h (Seq.drop v.offset s.browser.items)
       found = typedMatches s $ Seq.take h (Seq.drop v.offset s.browser.rows)

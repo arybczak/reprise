@@ -47,10 +47,7 @@ import Reprise.UI.SongList
 queueView :: AppEnv -> AppState -> View -> V.Image
 queueView env s v =
   let ctx = rowContext env s.toggles.queueDisplay v.width
-      titles
-        | s.toggles.queueDisplay == Columns && env.config.songs.columns.showTitles =
-            [renderTitles ctx]
-        | otherwise = []
+      titles = titleRow env s v ctx
       playingId = do
         st <- s.mirror.status
         guard $ st.state /= Stopped
@@ -145,17 +142,14 @@ select t = do
     SelectItem (Just m) -> modifyWithEnv (moveQueueCursor m)
     _ -> pure ()
 
-withSongUnderCursor :: App es => (Song -> Eff es ()) -> Eff es ()
-withSongUnderCursor k = do
-  s <- getS
-  forM_ (Seq.lookup (focusedView s).cursor s.mirror.queue) k
-
 ----------------------------------------
 -- Changes
 
 -- | Play the song under the cursor.
 activate :: App es => Eff es ()
-activate = withSongUnderCursor $ \song -> forM_ song.songId (mutate . playId)
+activate = do
+  song <- getsS songUnderCursor
+  forM_ (song >>= (.songId)) (mutate . playId)
 
 deleteMarked :: App es => Eff es ()
 deleteMarked = do

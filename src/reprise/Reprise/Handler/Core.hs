@@ -46,6 +46,7 @@ module Reprise.Handler.Core
   , restoreView
   , scrollLines
   , showSongScreen
+  , songUnderCursor
   , goBack
 
     -- * Selection
@@ -389,15 +390,20 @@ scrollLines t = do
 showSongScreen :: App es => ScreenName -> (Song -> Eff es ()) -> Eff es ()
 showSongScreen target open = do
   s <- getS
-  let v = focusedView s
-      info = screenInfo v.screen
-  case info.content of
+  let screen = (focusedView s).screen
+  case (screenInfo screen).content of
     Songs _
-      | Just song <- info.songAt s v.cursor -> do
+      | Just song <- songUnderCursor s -> do
           open song
           modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen target
       | otherwise -> showMessage "There is no song under the cursor"
-    _ -> showMessage $ "The " <> screenText v.screen <> " has no songs"
+    _ -> showMessage $ "The " <> screenText screen <> " has no songs"
+
+-- | The song under the cursor of the focused list.
+songUnderCursor :: AppState -> Maybe Song
+songUnderCursor s =
+  let v = focusedView s
+  in (screenInfo v.screen).songAt s v.cursor
 
 -- | Show the screen that the view showed before.
 goBack :: App es => Eff es ()

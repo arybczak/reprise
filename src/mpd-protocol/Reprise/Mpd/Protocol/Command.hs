@@ -226,11 +226,11 @@ plChanges v = command "plchanges" [toArgument v] parseSongs
 
 -- | Add a song or a directory, at the end or at a position.
 add :: T.Text -> Maybe Position -> Command ()
-add uri pos = command "add" (uri : maybe [] (pure . toArgument) pos) noReply
+add uri pos = command "add" (uri : optionalArgument pos) noReply
 
 -- | Add a song, at the end or at a position, and return its id.
 addId :: T.Text -> Maybe Position -> Command SongId
-addId uri pos = command "addid" (uri : maybe [] (pure . toArgument) pos) $ \fields ->
+addId uri pos = command "addid" (uri : optionalArgument pos) $ \fields ->
   SongId <$> required "Id" readInt (fieldMap fields)
 
 delete :: Range -> Command ()
@@ -247,7 +247,7 @@ moveId i to = command "moveid" [toArgument i, toArgument to] noReply
 
 -- | Shuffle the queue, or a range of it.
 shuffle :: Maybe Range -> Command ()
-shuffle r = command "shuffle" (maybe [] (pure . toArgument) r) noReply
+shuffle r = command "shuffle" (optionalArgument r) noReply
 
 clear :: Command ()
 clear = command "clear" [] noReply
@@ -266,7 +266,7 @@ prioId p is = command "prioid" (toArgument p : map toArgument is) noReply
 
 -- | Play the song at a position, or resume playback.
 play :: Maybe SongPos -> Command ()
-play p = command "play" (maybe [] (pure . toArgument) p) noReply
+play p = command "play" (optionalArgument p) noReply
 
 playId :: SongId -> Command ()
 playId i = command "playid" [toArgument i] noReply
@@ -332,7 +332,7 @@ replayGainStatus = command "replay_gain_status" [] $ \fields ->
 -- | Start a database update, of everything or of a directory or a file.
 -- Returns the job id, which 'updatingDb' shows while the update runs.
 update :: Maybe T.Text -> Command Int
-update uri = command "update" (maybe [] pure uri) $ \fields ->
+update uri = command "update" (optionalArgument uri) $ \fields ->
   required "updating_db" readInt (fieldMap fields)
 
 -- | The entries of a directory, @""@ for the root. MPD also lists the stored
@@ -410,7 +410,7 @@ load name range pos = command "load" (name : arguments) noReply
     -- MPD takes a position only after a range.
     arguments :: [T.Text]
     arguments = case pos of
-      Nothing -> maybe [] (pure . toArgument) range
+      Nothing -> optionalArgument range
       Just p -> [toArgument (fromMaybe (Range 0 Nothing) range), toArgument p]
 
 ----------------------------------------
@@ -443,3 +443,7 @@ noReply :: [Field] -> Either T.Text ()
 noReply = \case
   [] -> Right ()
   f : _ -> Left $ "unexpected key: " <> decode f.key
+
+-- | The argument of a command that can go without it.
+optionalArgument :: Argument a => Maybe a -> [T.Text]
+optionalArgument = maybe [] (pure . toArgument)
