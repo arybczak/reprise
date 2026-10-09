@@ -89,6 +89,7 @@ handlerTests =
     , testCase "select the found songs" test_selectFound
     , testCase "the help screen has no selection" test_selectOnHelp
     , testCase "songs that leave the queue leave the selection" test_selectionPruned
+    , testCase "a new connection clears the selection" test_selectionReconnect
     , testCase "delete the marked songs" test_delete
     , testCase "input waits for an edit of the queue" test_heldInput
     , testCase "the password prompt takes keys during an edit" test_heldPassword
@@ -445,6 +446,15 @@ test_selectOnHelp = do
   r <- keys ["f1", "insert"] s
   assertEqual "message" (Just "The help screen has no select") (message r)
   assertEqual "nothing selected" (ids []) (selected r)
+
+-- | MPD gives the ids anew when it restarts, so a selected id could be of
+-- another song after a new connection.
+test_selectionReconnect :: Assertion
+test_selectionReconnect = do
+  s <- keys ["space", "space"] =<< testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  assertEqual "selected" (ids [1, 2]) (selected s)
+  assertEqual "cleared" (ids []) . selected
+    =<< runEvents 0 [MpdConnected (Version 0 24 0)] s.state
 
 test_selectionPruned :: Assertion
 test_selectionPruned = do

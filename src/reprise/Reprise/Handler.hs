@@ -131,9 +131,14 @@ handleEvent = \case
     modifyWithEnv (modifyView id)
   -- The reply to an edit may be lost, e.g. with a restarted worker, and
   -- the input that waited for it was meant for the queue before the
-  -- connection broke.
+  -- connection broke. MPD gives the ids of the songs anew when it
+  -- restarts, so the ids of the selection could be of other songs now.
   MpdConnected v -> do
-    modifyS $ (#connection .~ Connected v) . (#heldInput .~ Nothing)
+    modifyS $ \s ->
+      s
+        & #connection .~ Connected v
+        & #heldInput .~ Nothing
+        & #queueState % #selection .~ noSelection
     fetchQueue
     relistBrowser
     refreshOutputs

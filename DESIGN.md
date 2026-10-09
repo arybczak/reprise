@@ -211,7 +211,10 @@ ncmpcpp.
   - An action applies to the selected items, or to the item under the cursor
     without a selection.
   - The queue keeps the selection by song id, so it follows the songs when
-    they move and loses the songs that leave the queue.
+    they move and loses the songs that leave the queue. A new connection
+    clears it, as MPD gives the ids anew when it restarts. Telling a song
+    with an id of its own from another one with the same id isn't worth it
+    for a selection.
   - The browser keeps the selection by entry while it lists the same
     directory or playlist, also when it lists it again. Leaving it clears
     the selection. `..` can't be selected.
