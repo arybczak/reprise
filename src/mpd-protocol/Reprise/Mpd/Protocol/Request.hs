@@ -78,20 +78,10 @@ instance Argument Tag where
   toArgument = tagName
 
 instance Argument SingleMode where
-  toArgument = \case
-    SingleOff -> "0"
-    SingleOn -> "1"
-    SingleOneshot -> "oneshot"
+  toArgument = singleModeName
 
 instance Argument ConsumeMode where
-  toArgument = \case
-    ConsumeOff -> "0"
-    ConsumeOn -> "1"
-    ConsumeOneshot -> "oneshot"
+  toArgument = consumeModeName
 
 instance Argument ReplayGainMode where
-  toArgument = \case
-    ReplayGainOff -> "off"
-    ReplayGainTrack -> "track"
-    ReplayGainAlbum -> "album"
-    ReplayGainAuto -> "auto"
+  toArgument = replayGainModeName

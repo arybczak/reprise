@@ -127,12 +127,7 @@ handleEvent = \case
   ReplayGainFetched mode -> do
     let nextMode = cycleNext mode
     mutate $ setReplayGainMode nextMode
-    showMessage $
-      "Replay gain: " <> case nextMode of
-        ReplayGainOff -> "off"
-        ReplayGainTrack -> "track"
-        ReplayGainAlbum -> "album"
-        ReplayGainAuto -> "auto"
+    showMessage $ "Replay gain: " <> replayGainModeName nextMode
   MpdDone -> keepScreen
   MpdFailed _ err -> showError $ exceptionText err
   -- MPD's requests wait for the answer, so the prompt replaces any other.

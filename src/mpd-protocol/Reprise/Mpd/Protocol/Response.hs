@@ -486,23 +486,14 @@ parseAll :: NFData b => (a -> Either T.Text b) -> [a] -> Either T.Text [b]
 parseAll = parseSingle . traverse
 
 parseSingleMode :: BS.ByteString -> Maybe SingleMode
-parseSingleMode = \case
-  "0" -> Just SingleOff
-  "1" -> Just SingleOn
-  "oneshot" -> Just SingleOneshot
-  _ -> Nothing
+parseSingleMode = byName singleModeName
 
 parseConsumeMode :: BS.ByteString -> Maybe ConsumeMode
-parseConsumeMode = \case
-  "0" -> Just ConsumeOff
-  "1" -> Just ConsumeOn
-  "oneshot" -> Just ConsumeOneshot
-  _ -> Nothing
+parseConsumeMode = byName consumeModeName
 
 parseReplayGainMode :: BS.ByteString -> Maybe ReplayGainMode
-parseReplayGainMode = \case
-  "off" -> Just ReplayGainOff
-  "track" -> Just ReplayGainTrack
-  "album" -> Just ReplayGainAlbum
-  "auto" -> Just ReplayGainAuto
-  _ -> Nothing
+parseReplayGainMode = byName replayGainModeName
+
+-- | A value by its name in the protocol.
+byName :: (Enum a, Bounded a) => (a -> T.Text) -> BS.ByteString -> Maybe a
+byName name = (`lookup` [(T.encodeUtf8 (name a), a) | a <- [minBound .. maxBound]])

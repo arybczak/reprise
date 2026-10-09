@@ -36,6 +36,7 @@ import Control.Monad
 import Data.Char
 import Data.List qualified as L
 import Data.List.NonEmpty qualified as NE
+import Data.Maybe
 import Data.Text qualified as T
 import Yamlet
 
@@ -233,11 +234,11 @@ data Argument = Word T.Text | List [T.Text]
 
 registry :: [ActionSpec]
 registry =
-  [ spec "move" (alternatives (map fst moveTargets)) $ one (fmap Move . moveTarget)
+  [ namedSpec "move" "direction" moveName Move
   , spec "jump_to_playing" "" $ none JumpToPlaying
   , spec "jump_to_browser" "" $ none JumpToBrowser
   , spec "back" "" $ none Back
-  , spec "select" "[up | down] | range | invert | none | album | artist | found" $ \case
+  , spec "select" selectUsage $ \case
       [] -> Right . Select $ SelectItem Nothing
       [Word w] -> Select <$> choice "selection" selectTargets w
       _ -> Left "expected at most one argument"
@@ -255,27 +256,13 @@ registry =
   , spec "seek" "+Ns | -Ns | m:ss | N%" $ one (fmap Seek . seekStep)
   , spec "volume" "+N | -N | N" $ one (fmap Volume . volumeChange)
   , spec "crossfade" "SECONDS" $ one (fmap Crossfade . natural)
-  , spec "find" "forward | backward | next | previous" $
-      one
-        ( fmap Find
-            . choice
-              "direction"
-              [ ("forward", FindForward)
-              , ("backward", FindBackward)
-              , ("next", FindNext)
-              , ("previous", FindPrevious)
-              ]
-        )
+  , namedSpec "find" "direction" findName Find
   , spec "show" "SCREEN" $ one (fmap Show . screenFromName)
   , spec "next_screen" "[SCREEN, ...]" $ screenList NextScreen
   , spec "previous_screen" "[SCREEN, ...]" $ screenList PreviousScreen
   , ActionSpec "command" "[START OF THE LINE]" (Right . CommandPrompt)
   , spec "quit" "" $ none Quit
-  , spec "add" "end | next | beginning" $
-      one
-        ( fmap Add
-            . choice "position" [("end", AddEnd), ("next", AddNext), ("beginning", AddBeginning)]
-        )
+  , namedSpec "add" "position" addName Add
   , spec "add_and_play" "" $ none AddAndPlay
   , -- A path can hold spaces and brackets, so it is the rest of the line.
     ActionSpec "add_path" "PATH" $ \t ->
@@ -287,20 +274,8 @@ registry =
       [Word "crossfade", Word n] -> Toggle . ToggleCrossfade <$> natural n
       [Word w] -> Toggle <$> choice "option" toggleTargets w
       _ -> Left "expected an option"
-  , spec "update" "current | all" $
-      one (fmap Update . choice "scope" [("current", UpdateCurrent), ("all", UpdateAll)])
-  , spec "move_songs" "up | down | cursor | end | beginning | next"
-      $ one
-      $ fmap MoveSongs
-        . choice
-          "target"
-          [ ("up", MoveSongsUp)
-          , ("down", MoveSongsDown)
-          , ("cursor", MoveSongsToCursor)
-          , ("end", MoveSongsToEnd)
-          , ("beginning", MoveSongsToBeginning)
-          , ("next", MoveSongsToNext)
-          ]
+  , namedSpec "update" "scope" updateName Update
+  , namedSpec "move_songs" "target" moveSongsName MoveSongs
   , spec "priority" "0-255" $ one (fmap Priority . priority)
   , spec "next_sort_mode" "" $ none NextSortMode
   , spec "refetch_lyrics" "" $ none RefetchLyrics
@@ -310,6 +285,17 @@ registry =
     -- An action whose arguments are words and lists.
     spec :: T.Text -> T.Text -> ([Argument] -> Either T.Text Action) -> ActionSpec
     spec name usage f = ActionSpec name usage (tokenize >=> f)
+
+    -- An action whose argument names a value, e.g. @add end@.
+    namedSpec
+      :: forall a
+       . (Enum a, Bounded a)
+      => T.Text -> T.Text -> (a -> T.Text) -> (a -> Action) -> ActionSpec
+    namedSpec name what argumentName f =
+      spec name (alternatives (map fst values)) $ one (fmap f . choice what values)
+      where
+        values :: [(T.Text, a)]
+        values = [(argumentName a, a) | a <- [minBound .. maxBound]]
 
     alternatives :: [T.Text] -> T.Text
     alternatives = T.intercalate " | "
@@ -331,33 +317,43 @@ registry =
       [] -> Right (f numberedScreens)
       _ -> Left "expected a list of screens, e.g. [browser, outputs]"
 
-    moveTarget :: T.Text -> Either T.Text MoveTarget
-    moveTarget = choice "direction" moveTargets
+    selectUsage :: T.Text
+    selectUsage =
+      "["
+        <> alternatives (map moveName selectMoves)
+        <> "] | "
+        <> alternatives (mapMaybe selectArgument otherSelections)
 
     selectTargets :: [(T.Text, SelectTarget)]
     selectTargets =
-      [ ("up", SelectItem (Just MoveUp))
-      , ("down", SelectItem (Just MoveDown))
-      , ("range", SelectRange)
-      , ("invert", SelectInvert)
-      , ("none", SelectNone)
-      , ("album", SelectAlbum)
-      , ("artist", SelectArtist)
-      , ("found", SelectFound)
+      [ (name, t)
+      | t <- map (SelectItem . Just) selectMoves <> otherSelections
+      , Just name <- [selectArgument t]
       ]
 
+    -- The moves after a toggle of the selection that an argument names.
+    selectMoves :: [MoveTarget]
+    selectMoves = [MoveUp, MoveDown]
+
+    otherSelections :: [SelectTarget]
+    otherSelections = [SelectRange, SelectInvert, SelectNone, SelectAlbum, SelectArtist, SelectFound]
+
+    -- Without the crossfade, which has a number.
     toggleTargets :: [(T.Text, ToggleTarget)]
     toggleTargets =
-      [ ("repeat", ToggleRepeat)
-      , ("random", ToggleRandom)
-      , ("single", ToggleSingle)
-      , ("consume", ToggleConsume)
-      , ("replay_gain", ToggleReplayGain)
-      , ("display", ToggleDisplay)
-      , ("album_separators", ToggleAlbumSeparators)
-      , ("follow_playing", ToggleFollowPlaying)
-      , ("bitrate", ToggleBitrate)
-      , ("visualization", ToggleVisualization)
+      [ (toggleName t, t)
+      | t <-
+          [ ToggleRepeat
+          , ToggleRandom
+          , ToggleSingle
+          , ToggleConsume
+          , ToggleReplayGain
+          , ToggleDisplay
+          , ToggleAlbumSeparators
+          , ToggleFollowPlaying
+          , ToggleBitrate
+          , ToggleVisualization
+          ]
       ]
 
     volumeChange :: T.Text -> Either T.Text VolumeChange
@@ -398,20 +394,6 @@ registry =
     -- MPD's priorities are from 0 to 255.
     maxPriority :: Int
     maxPriority = 255
-
-moveTargets :: [(T.Text, MoveTarget)]
-moveTargets =
-  [ ("up", MoveUp)
-  , ("down", MoveDown)
-  , ("page_up", MovePageUp)
-  , ("page_down", MovePageDown)
-  , ("first", MoveFirst)
-  , ("last", MoveLast)
-  , ("previous_album", MovePreviousAlbum)
-  , ("next_album", MoveNextAlbum)
-  , ("previous_artist", MovePreviousArtist)
-  , ("next_artist", MoveNextArtist)
-  ]
 
 -- | Parse an action with its arguments, e.g. @volume +2@ or
 -- @next_screen [browser, media_library]@.
@@ -466,15 +448,7 @@ renderAction = \case
   JumpToPlaying -> "jump_to_playing"
   JumpToBrowser -> "jump_to_browser"
   Back -> "back"
-  Select t -> case t of
-    SelectItem Nothing -> "select"
-    SelectItem (Just m) -> "select " <> moveName m
-    SelectRange -> "select range"
-    SelectInvert -> "select invert"
-    SelectNone -> "select none"
-    SelectAlbum -> "select album"
-    SelectArtist -> "select artist"
-    SelectFound -> "select found"
+  Select t -> "select" <> foldMap (" " <>) (selectArgument t)
   Activate -> "activate"
   AddOrRemove -> "add_or_remove"
   Delete -> "delete"
@@ -496,40 +470,21 @@ renderAction = \case
       VolumeBy n -> signed n
       VolumeTo n -> T.pack (show n)
   Crossfade n -> "crossfade " <> T.pack (show n)
-  Find t ->
-    "find " <> case t of
-      FindForward -> "forward"
-      FindBackward -> "backward"
-      FindNext -> "next"
-      FindPrevious -> "previous"
+  Find t -> "find " <> findName t
   Show s -> "show " <> screenName s
   NextScreen ss -> "next_screen " <> screenList ss
   PreviousScreen ss -> "previous_screen " <> screenList ss
   CommandPrompt t -> T.strip ("command " <> t)
   Quit -> "quit"
-  Add p ->
-    "add " <> case p of
-      AddEnd -> "end"
-      AddNext -> "next"
-      AddBeginning -> "beginning"
+  Add p -> "add " <> addName p
   AddAndPlay -> "add_and_play"
   AddPath p -> "add_path " <> p
   Clear -> "clear"
   Shuffle -> "shuffle"
   Save -> "save"
   Toggle t -> "toggle " <> toggleName t
-  Update s ->
-    "update " <> case s of
-      UpdateCurrent -> "current"
-      UpdateAll -> "all"
-  MoveSongs t ->
-    "move_songs " <> case t of
-      MoveSongsUp -> "up"
-      MoveSongsDown -> "down"
-      MoveSongsToCursor -> "cursor"
-      MoveSongsToEnd -> "end"
-      MoveSongsToBeginning -> "beginning"
-      MoveSongsToNext -> "next"
+  Update s -> "update " <> updateName s
+  MoveSongs t -> "move_songs " <> moveSongsName t
   Priority p -> "priority " <> T.pack (show p)
   NextSortMode -> "next_sort_mode"
   RefetchLyrics -> "refetch_lyrics"
@@ -541,8 +496,58 @@ renderAction = \case
 clock :: Int -> T.Text
 clock n = T.pack (show (n `div` 60)) <> ":" <> T.justifyRight 2 '0' (T.pack (show (n `mod` 60)))
 
+-- | The names of the arguments of actions, which 'parseAction' reads and
+-- 'renderAction' writes.
 moveName :: MoveTarget -> T.Text
-moveName t = maybe "?" fst $ L.find ((== t) . snd) moveTargets
+moveName = \case
+  MoveUp -> "up"
+  MoveDown -> "down"
+  MovePageUp -> "page_up"
+  MovePageDown -> "page_down"
+  MoveFirst -> "first"
+  MoveLast -> "last"
+  MovePreviousAlbum -> "previous_album"
+  MoveNextAlbum -> "next_album"
+  MovePreviousArtist -> "previous_artist"
+  MoveNextArtist -> "next_artist"
+
+-- | Without an argument, select toggles the item under the cursor.
+selectArgument :: SelectTarget -> Maybe T.Text
+selectArgument = \case
+  SelectItem m -> moveName <$> m
+  SelectRange -> Just "range"
+  SelectInvert -> Just "invert"
+  SelectNone -> Just "none"
+  SelectAlbum -> Just "album"
+  SelectArtist -> Just "artist"
+  SelectFound -> Just "found"
+
+findName :: FindTarget -> T.Text
+findName = \case
+  FindForward -> "forward"
+  FindBackward -> "backward"
+  FindNext -> "next"
+  FindPrevious -> "previous"
+
+addName :: AddPosition -> T.Text
+addName = \case
+  AddEnd -> "end"
+  AddNext -> "next"
+  AddBeginning -> "beginning"
+
+updateName :: UpdateScope -> T.Text
+updateName = \case
+  UpdateCurrent -> "current"
+  UpdateAll -> "all"
+
+moveSongsName :: MoveSongsTarget -> T.Text
+moveSongsName = \case
+  MoveSongsUp -> "up"
+  MoveSongsDown -> "down"
+  MoveSongsToCursor -> "cursor"
+  MoveSongsToEnd -> "end"
+  MoveSongsToBeginning -> "beginning"
+  MoveSongsToNext -> "next"
 
 toggleName :: ToggleTarget -> T.Text
 toggleName = \case

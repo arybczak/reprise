@@ -29,8 +29,11 @@ module Reprise.Mpd.Protocol.Types
   , Status (..)
   , PlayerState (..)
   , SingleMode (..)
+  , singleModeName
   , ConsumeMode (..)
+  , consumeModeName
   , ReplayGainMode (..)
+  , replayGainModeName
   , PlaylistVersion (..)
 
     -- * Statistics
@@ -304,14 +307,36 @@ data SingleMode = SingleOff | SingleOn | SingleOneshot
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving anyclass (NFData)
 
+-- | The name of a single mode in the protocol.
+singleModeName :: SingleMode -> T.Text
+singleModeName = \case
+  SingleOff -> "0"
+  SingleOn -> "1"
+  SingleOneshot -> "oneshot"
+
 -- | 'ConsumeOneshot' needs MPD 0.24.
 data ConsumeMode = ConsumeOff | ConsumeOn | ConsumeOneshot
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving anyclass (NFData)
 
+-- | The name of a consume mode in the protocol.
+consumeModeName :: ConsumeMode -> T.Text
+consumeModeName = \case
+  ConsumeOff -> "0"
+  ConsumeOn -> "1"
+  ConsumeOneshot -> "oneshot"
+
 data ReplayGainMode = ReplayGainOff | ReplayGainTrack | ReplayGainAlbum | ReplayGainAuto
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving anyclass (NFData)
+
+-- | The name of a ReplayGain mode in the protocol.
+replayGainModeName :: ReplayGainMode -> T.Text
+replayGainModeName = \case
+  ReplayGainOff -> "off"
+  ReplayGainTrack -> "track"
+  ReplayGainAlbum -> "album"
+  ReplayGainAuto -> "auto"
 
 -- | The version of the queue. MPD increments it on every change of the queue.
 newtype PlaylistVersion = PlaylistVersion Word32
