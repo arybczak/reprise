@@ -159,9 +159,11 @@ deleteMarked = do
 prioritize :: App es => Int -> Eff es ()
 prioritize p = do
   s <- getS
-  let ids = mapMaybe (\i -> Seq.lookup i s.mirror.queue >>= (.songId)) (markedPositions s)
-  mutate $ prioId p ids
-  showMessage $ "Priority " <> T.pack (show p) <> " set for " <> countSongs (length ids)
+  case mapMaybe (\i -> Seq.lookup i s.mirror.queue >>= (.songId)) (markedPositions s) of
+    [] -> showMessage "The queue is empty"
+    ids -> do
+      mutate $ prioId p ids
+      showMessage $ "Priority " <> T.pack (show p) <> " set for " <> countSongs (length ids)
 
 moveSongs :: App es => MoveSongsTarget -> Eff es ()
 moveSongs t = do

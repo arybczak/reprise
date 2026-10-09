@@ -34,6 +34,7 @@ handlerTests =
     , testCase "an unbound next key" test_unboundNextKey
     , testCase "next and previous screen" test_nextScreen
     , testCase "the startup screen shows as a key shows it" test_startupScreen
+    , testCase "a priority for an empty queue" test_priorityEmpty
     , testCase "clear asks first" test_clearConfirm
     , testCase "volume without a mixer" test_noMixer
     , testCase "seeking" test_seek
@@ -607,6 +608,13 @@ test_startupScreen = do
         0
         [Resized 80 24, Started]
         (initialState defaultConfig)
+
+test_priorityEmpty :: Assertion
+test_priorityEmpty = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 0) []
+  r <- keys (":" : map T.singleton "priority" <> ["space", "5", "enter"]) s
+  assertEqual "nothing sent" [] r.requests
+  assertEqual "why" (Just "The queue is empty") (message r)
 
 test_clearConfirm :: Assertion
 test_clearConfirm = do
