@@ -124,24 +124,36 @@ withPanel :: AppEnv -> AppState -> V.Image -> V.Image
 withPanel env s mainImage = case s.pendingKeys of
   Nothing -> mainImage
   Just pending ->
-    let panel = whichKeyPanel env s (whichKeyEntries pending.layers)
-        h = mainHeight s.terminalSize
+    let h = mainHeight s.terminalSize
+        panel = whichKeyPanel env s h (whichKeyEntries pending.layers)
         panelHeight = min h (V.imageHeight panel)
     in V.cropBottom (h - panelHeight) mainImage V.<-> V.cropTop panelHeight panel
 
-whichKeyPanel :: AppEnv -> AppState -> [WhichKeyEntry] -> V.Image
-whichKeyPanel env s entries =
+-- | The entries in columns, in at most a number of rows. Entries that don't
+-- fit make the last cell say how many more there are, which the help
+-- screen lists.
+whichKeyPanel :: AppEnv -> AppState -> Int -> [WhichKeyEntry] -> V.Image
+whichKeyPanel env s maxRows entries =
   let (w, _) = s.terminalSize
       cells = map cell entries
       cellWidth = maximum (1 : map fst cells) + gap
       columns = max 1 (w `div` cellWidth)
-      rows = max 1 ((length cells + columns - 1) `div` columns)
-      byColumn = chunks rows cells
+      rows = max 1 (min maxRows ((length cells + columns - 1) `div` columns))
+      room = rows * columns
+      shown
+        | length cells <= room = cells
+        | otherwise = take (room - 1) cells <> [more (length cells - room + 1)]
+      byColumn = chunks rows shown
       columnImage c = V.vertCat [V.resizeWidth cellWidth img | (_, img) <- c]
   in V.resize w rows $ V.horizCat (map columnImage byColumn)
   where
     gap :: Int
     gap = 2
+
+    more :: Int -> (Int, V.Image)
+    more n =
+      let img = V.text' (attr env mempty) ("+" <> T.pack (show n) <> " more")
+      in (V.imageWidth img, img)
 
     cell :: WhichKeyEntry -> (Int, V.Image)
     cell e =

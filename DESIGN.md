@@ -1541,6 +1541,10 @@ After a prefix key, a panel lists the possible next keys.
   as fit. Its height is just what the entries need, so a small group takes one
   line and looks like a status bar message. Paging is added only if a group
   ever outgrows the screen.
+  - In a terminal too short for every entry, the panel takes the main view's
+    rows, and its last cell says how many more entries there are, e.g.
+    `+6 more`. The help screen lists them all. The first entries show, as
+    the columns fill from the top.
 - **Entries.** An action shows its description from the registry, with its
   arguments filled in, e.g. `r  toggle repeat` or `+  change volume by +2`. A
   prefix shows `+` and the group's name.
