@@ -6,12 +6,10 @@ module Reprise.Screen.Queue
 
     -- * Verbs
   , queueVerb
+  , shuffleQueue
 
     -- * Moving
   , jumpToPlaying
-
-    -- * Selection
-  , selectedSongPositions
 
     -- * Finding
   , queueRows
@@ -29,7 +27,9 @@ import Optics.Core
 import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.MpdRequest
+import Reprise.Event
 import Reprise.Find
+import Reprise.Groups
 import Reprise.Handler.Core
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
@@ -82,9 +82,32 @@ queueVerb = \case
   Delete -> Just deleteMarked
   Priority p -> Just $ prioritize p
   MoveSongs t -> Just $ moveSongs t
+  Shuffle -> Just shuffleSelected
   Toggle ToggleDisplay -> Just $ toggleDisplay #queueDisplay
   Toggle ToggleFollowPlaying -> Just toggleFollowPlaying
   _ -> Nothing
+
+-- | Shuffle the selected songs, which must be next to each other, else the
+-- whole queue. Shuffling the selected songs loses nothing the user didn't
+-- point at, so only shuffling the whole queue asks first.
+shuffleSelected :: App es => Eff es ()
+shuffleSelected =
+  getsS (runs . selectedSongPositions) >>= \case
+    [] -> shuffleQueue
+    [(a, b)] -> do
+      mutate . shuffle . Just $ Range (SongPos a) (Just (SongPos (b + 1)))
+      showMessage $ "Shuffled " <> countSongs (b - a + 1)
+    _ -> showError "Only selected songs next to each other can be shuffled"
+
+-- | Ask whether to shuffle the whole queue.
+shuffleQueue :: App es => Eff es ()
+shuffleQueue = do
+  n <- getsS (queueLength . (.mirror))
+  if n < 2
+    then showMessage "There is nothing to shuffle"
+    else
+      modifyS $
+        confirm ("Shuffle " <> countSongs n <> " in the queue?") (Confirmed ConfirmShuffle)
 
 toggleFollowPlaying :: App es => Eff es ()
 toggleFollowPlaying = do

@@ -83,6 +83,7 @@ handlerTests =
     , testCase "move songs to a place" test_moveSongsTo
     , testCase "shuffle the selection" test_shuffleSelection
     , testCase "shuffling the whole queue asks first" test_shuffleConfirm
+    , testCase "update current outside the browser" test_updateCurrentElsewhere
     ]
 
 test_selectItem :: Assertion
@@ -453,6 +454,17 @@ test_shuffleConfirm = do
   assertEqual "nothing yet" [] asked.requests
   assertEqual "yes" [[Request "shuffle" []]] . (.requests) =<< keys ["y"] asked.state
   assertEqual "no" [] . (.requests) =<< keys ["n"] asked.state
+  elsewhere <- keys ["space", "space", "8", "e", "s"] s
+  assertEqual
+    "the whole queue from another screen"
+    (Just "Shuffle 5 songs in the queue?")
+    ((.question) <$> elsewhere.state.prompt)
+
+-- | Outside the browser, there is no current directory.
+test_updateCurrentElsewhere :: Assertion
+test_updateCurrentElsewhere = do
+  r <- keys ["d", "u"] =<< testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
+  assertEqual "the whole database" [[Request "update" []]] r.requests
 
 test_disconnectClears :: Assertion
 test_disconnectClears = do

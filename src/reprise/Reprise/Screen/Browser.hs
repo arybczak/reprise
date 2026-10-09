@@ -16,7 +16,7 @@ module Reprise.Screen.Browser
   , locateSong
 
     -- * Updating
-  , browserDirectory
+  , updateDatabase
   ) where
 
 import Control.Monad
@@ -134,6 +134,7 @@ browserVerb = \case
   AddOrRemove -> Just addOrRemove
   Select t -> Just $ selectInBrowser t
   Toggle ToggleDisplay -> Just toggleBrowserDisplay
+  Update UpdateCurrent -> Just $ updateDatabase =<< getsS browserDirectory
   _ -> Nothing
 
 -- | Show the songs in the other display, which finds match too.
@@ -426,6 +427,12 @@ songText :: AppEnv -> Song -> T.Text
 songText env song =
   spansText $
     renderFormat (plainContext env.config.lists) song env.config.statusBar.song
+
+-- | Update a directory in the database, or with Nothing the whole database.
+updateDatabase :: App es => Maybe T.Text -> Eff es ()
+updateDatabase path = do
+  mutate . void $ update path
+  showMessage $ "Updating " <> maybe "the database" ("/" <>) path
 
 -- | The directory to update in the database for "update current": the one
 -- that the browser lists, or the one that its playlist is in. Nothing is the

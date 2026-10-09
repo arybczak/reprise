@@ -32,6 +32,7 @@ module Reprise.Handler.Core
     -- * Prompts
   , openLine
   , openChoice
+  , confirm
 
     -- * Saving
   , askSaveName
@@ -191,6 +192,11 @@ openLine question edit purpose = #prompt ?~ Prompt question (Line edit purpose N
 -- | Open a choice between options, each picked by a letter of its name.
 openChoice :: T.Text -> [ChoiceOption] -> AppState -> AppState
 openChoice question options = #prompt ?~ Prompt question (Choice options)
+
+-- | Ask a yes or no question, and send the event on yes.
+confirm :: T.Text -> AppEvent -> AppState -> AppState
+confirm question onYes =
+  openChoice question [ChoiceOption 'y' "yes" (Just onYes), ChoiceOption 'n' "no" Nothing]
 
 ----------------------------------------
 -- Saving

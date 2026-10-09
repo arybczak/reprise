@@ -25,7 +25,6 @@ import Reprise.Event
 import Reprise.Exception
 import Reprise.Find
 import Reprise.Format
-import Reprise.Groups
 import Reprise.Handler.Core
 import Reprise.Header
 import Reprise.History
@@ -416,37 +415,22 @@ runAction action = case action of
       else
         modifyS $
           confirm ("Clear " <> countSongs n <> " from the queue?") (Confirmed ConfirmClear)
-  -- Shuffling the selected songs loses nothing the user didn't point at, so
-  -- only shuffling the whole queue asks first.
-  Shuffle -> do
-    s <- getS
-    let n = queueLength s.mirror
-    case runs (selectedSongPositions s) of
-      _
-        | (focusedView s).screen /= QueueScreen || null (selectedSongPositions s) ->
-            if n < 2
-              then showMessage "There is nothing to shuffle"
-              else
-                modifyS $
-                  confirm ("Shuffle " <> countSongs n <> " in the queue?") (Confirmed ConfirmShuffle)
-      [(a, b)] -> do
-        mutate . shuffle . Just $ Range (SongPos a) (Just (SongPos (b + 1)))
-        showMessage $ "Shuffled " <> countSongs (b - a + 1)
-      _ -> showError "Only selected songs next to each other can be shuffled"
-  Update scope -> do
-    s <- getS
-    let path
-          | scope == UpdateCurrent && (focusedView s).screen == BrowserScreen = browserDirectory s
-          | otherwise = Nothing
-    mutate . void $ update path
-    showMessage $ "Updating " <> maybe "the database" ("/" <>) path
+  Shuffle -> verbOr shuffleQueue action
+  Update _ -> verbOr (updateDatabase Nothing) action
 
 -- | Run a verb the way the focused screen implements it. A screen that
 -- doesn't implement it says so, instead of acting on another screen.
 verb :: App es => Action -> Eff es ()
 verb action = do
   screen <- getsS ((.screen) . focusedView)
-  fromMaybe (screenHasNo screen (renderAction action)) (screenVerb screen action)
+  verbOr (screenHasNo screen (renderAction action)) action
+
+-- | Run a verb the way the focused screen implements it, else the other
+-- way.
+verbOr :: App es => Eff es () -> Action -> Eff es ()
+verbOr otherwise' action = do
+  screen <- getsS ((.screen) . focusedView)
+  fromMaybe otherwise' (screenVerb screen action)
 
 -- | How a screen does a verb, if it does it. A screen finds if it has rows
 -- to find in.
@@ -577,10 +561,6 @@ saveTo name source mode = do
       -- the parts out.
       SavePlaylist _ -> pure ()
       SavePart -> pure ()
-
-confirm :: T.Text -> AppEvent -> AppState -> AppState
-confirm question onYes =
-  openChoice question [ChoiceOption 'y' "yes" (Just onYes), ChoiceOption 'n' "no" Nothing]
 
 withStatus :: App es => (Status -> Eff es ()) -> Eff es ()
 withStatus k =
