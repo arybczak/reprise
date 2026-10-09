@@ -476,7 +476,8 @@ minimumVersion = Version 0 24 0
 data MpdError
   = -- | MPD refused a command.
     AckError Ack
-  | -- | The reply wasn't what the command expects.
+  | -- | The reply wasn't what the command expects, or the command can't be
+    -- sent.
     ProtocolError T.Text
   | -- | The connection doesn't work. Close it and connect again.
     ConnectionError ConnectionError

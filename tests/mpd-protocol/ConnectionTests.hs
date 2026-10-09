@@ -29,6 +29,7 @@ connectionTests =
         , ("command list", test_commandList)
         , ("ACK", test_ack)
         , ("ACK in a command list", test_ackInCommandList)
+        , ("an argument with a line break", test_lineBreak)
         , ("song tags", test_songTags)
         , ("add and delete", test_addAndDelete)
         , ("move", test_move)
@@ -115,6 +116,15 @@ test_ack server = withConn server $ \conn -> do
       assertEqual "code" AckArg ack.code
       assertEqual "index" 0 ack.index
       assertEqual "command" "play" ack.command
+    _ -> assertFailure $ "unexpected result: " <> show r
+  run conn ping
+
+-- | An argument with a line break isn't sent, so the replies stay in step.
+test_lineBreak :: TestServer -> Assertion
+test_lineBreak server = withConn server $ \conn -> do
+  r <- try @MpdError . run conn $ add "a/one.flac\nclear" Nothing
+  case r of
+    Left (ProtocolError _) -> pure ()
     _ -> assertFailure $ "unexpected result: " <> show r
   run conn ping
 

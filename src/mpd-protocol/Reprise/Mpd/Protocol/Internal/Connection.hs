@@ -145,7 +145,11 @@ exchangeCommand :: Connection -> Command a -> IO a
 exchangeCommand conn cmd = do
   parts <- case commandRequests cmd of
     [] -> pure []
-    requests -> exchange conn (renderRequests requests)
+    requests -> case [r | r <- requests, any (T.elem '\n') r.arguments] of
+      -- MPD would read a second command after the line break, and send a
+      -- reply that no request reads.
+      r : _ -> throwIO . ProtocolError $ r.command <> ": an argument has a line break"
+      [] -> exchange conn (renderRequests requests)
   either throwIO pure $ parseCommandReply cmd parts
 
 -- | Send bytes without reading a reply. Throws 'MpdError'.
