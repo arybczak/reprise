@@ -94,7 +94,7 @@ shuffleSelected =
   getsS (runs . selectedSongPositions) >>= \case
     [] -> shuffleQueue
     [run@(a, b)] -> do
-      mutate . shuffle . Just $ runRange run
+      editQueue . shuffle . Just $ runRange run
       showMessage $ "Shuffled " <> countSongs (b - a + 1)
     _ -> showError "Only selected songs next to each other can be shuffled"
 
@@ -168,7 +168,7 @@ activate = do
 deleteMarked :: App es => Eff es ()
 deleteMarked = do
   ps <- getsS markedPositions
-  mutate $ deletePositions ps
+  editQueue $ deletePositions ps
 
 prioritize :: App es => Int -> Eff es ()
 prioritize p = do
@@ -192,23 +192,23 @@ moveSongs t = do
           modifyWithEnv (setCursor (c + delta))
   case t of
     MoveSongsUp -> do
-      mutate $ moveUp ps
+      editQueue $ moveUp ps
       follow (runsMovingUp ps) (-1)
     MoveSongsDown -> do
-      mutate $ moveDown n ps
+      editQueue $ moveDown n ps
       follow (runsMovingDown n ps) 1
     MoveSongsToCursor -> case selectedSongPositions s of
       [] -> showMessage "Select the songs to move first"
       selected -> case moveBefore selected c of
-        Just cmd -> mutate cmd
+        Just cmd -> editQueue cmd
         Nothing -> showMessage "The cursor is among the selected songs"
-    MoveSongsToEnd -> forM_ (moveBefore ps n) mutate
-    MoveSongsToBeginning -> mutate (moveToStart ps)
+    MoveSongsToEnd -> forM_ (moveBefore ps n) editQueue
+    MoveSongsToBeginning -> editQueue (moveToStart ps)
     MoveSongsToNext -> case currentPosition s.mirror of
       Nothing -> noCurrentSong
       Just current
         | current `elem` ps -> showMessage "The current song is among the songs to move"
-        | otherwise -> mutate (moveAfter current ps)
+        | otherwise -> editQueue (moveAfter current ps)
 
 ----------------------------------------
 -- Finding

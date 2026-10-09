@@ -35,6 +35,9 @@ module Reprise.Handler.Core
   , openChoice
   , confirm
 
+    -- * Editing the queue
+  , editQueue
+
     -- * Saving
   , askSaveName
   , describeSave
@@ -65,6 +68,7 @@ import Control.Monad
 import Data.Char
 import Data.Foldable
 import Data.Map.Strict qualified as M
+import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Effectful
@@ -80,6 +84,8 @@ import Reprise.Event
 import Reprise.Find
 import Reprise.Groups
 import Reprise.LineEdit
+import Reprise.Mpd.Mirror
+import Reprise.Mpd.Protocol.Command hiding (move, previous)
 import Reprise.Mpd.Protocol.Types
 import Reprise.Save
 import Reprise.Selection
@@ -210,6 +216,20 @@ openPrompt p = (#prompt ?~ p) . (#pendingKeys .~ Nothing)
 confirm :: T.Text -> AppEvent -> AppState -> AppState
 confirm question onYes =
   openChoice question [ChoiceOption 'y' "yes" (Just onYes), ChoiceOption 'n' "no" Nothing]
+
+----------------------------------------
+-- Editing the queue
+
+-- | Change the queue at positions. The changes of the queue come in the
+-- same command list, and input waits for them, see 'heldInput'. Without a
+-- queue in the mirror there are no positions, and so nothing to wait for.
+editQueue :: App es => Command () -> Eff es ()
+editQueue cmd =
+  getsS (.mirror.queueVersion) >>= \case
+    Just v | not (null (commandRequests cmd)) -> do
+      modifyS $ #heldInput %~ Just . fromMaybe Seq.empty
+      requestOr (cmd *> ((,) <$> status <*> plChanges v)) QueueEditFailed QueueEdited
+    _ -> mutate cmd
 
 ----------------------------------------
 -- Saving

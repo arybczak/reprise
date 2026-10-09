@@ -13,6 +13,7 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Effectful
+import Effectful.Dispatch.Dynamic
 import Effectful.Input.Static
 import Effectful.State.Static.Local
 import Optics.Core
@@ -61,9 +62,44 @@ runEvent env now event s = do
       . runInput env
       . runState (s & #now .~ now)
       $ do
-        handleEvent event
+        holdOrHandle event
         afterEvent
   pure (s', requests, commands)
+
+-- | Handle an event, or keep it for later if it is input that comes while
+-- an edit of the queue waits for its reply. The password prompt takes keys
+-- meanwhile, as the edit may wait for its answer.
+holdOrHandle :: App es => AppEvent -> Eff es ()
+holdOrHandle event = do
+  s <- getS
+  let isInput = case event of
+        KeyPressed _ -> True
+        MouseWheel {} -> True
+        MouseClick {} -> True
+        _ -> False
+      askingPassword = case s.prompt of
+        Just (Prompt _ (Line _ ForPassword _)) -> True
+        _ -> False
+  case s.heldInput of
+    Just held | isInput && not askingPassword -> do
+      modifyS $ #heldInput ?~ (held Seq.|> event)
+      keepScreen
+    _ -> handleEvent event
+
+-- | Handle the input that waited for an edit of the queue, whose changes
+-- the mirror has now. If it edits the queue again, the rest of it waits
+-- again.
+releaseInput :: App es => Eff es ()
+releaseInput = do
+  held <- getsS (fromMaybe Seq.empty . (.heldInput))
+  modifyS $ #heldInput .~ Nothing
+  -- The reply changed the screen, so a key that changes nothing mustn't
+  -- keep it from being redrawn.
+  let redrawn :: UiRequest :> es => Eff es a -> Eff es a
+      redrawn = interpose_ $ \case
+        UiRequest KeepScreen -> pure ()
+        UiRequest c -> send (UiRequest c)
+  redrawn $ traverse_ holdOrHandle held
 
 ----------------------------------------
 -- Constants
@@ -92,8 +128,11 @@ handleEvent = \case
   Resized w h -> do
     modifyS $ layoutViews . (#terminalSize .~ (w, h))
     modifyWithEnv (modifyView id)
+  -- The reply to an edit may be lost, e.g. with a restarted worker, and
+  -- the input that waited for it was meant for the queue before the
+  -- connection broke.
   MpdConnected v -> do
-    modifyS $ #connection .~ Connected v
+    modifyS $ (#connection .~ Connected v) . (#heldInput .~ Nothing)
     fetchQueue
     relistBrowser
     refreshOutputs
@@ -115,13 +154,14 @@ handleEvent = \case
   QueueFetched (st, songs) -> do
     now <- getsS (.now)
     updateMirror $ setQueue now st songs
-  QueueChangesFetched (st, changes) -> do
-    s <- getS
-    case applyQueueChanges s.now st changes s.mirror of
-      Right m -> updateMirror (const m)
-      Left err -> do
-        showError $ "The queue is out of sync, fetching it again: " <> err
-        fetchQueue
+  QueueChangesFetched changes -> applyChanges changes
+  QueueEdited changes -> do
+    applyChanges changes
+    releaseInput
+  -- The input was meant for the queue after the edit.
+  QueueEditFailed err -> do
+    showError $ exceptionText err
+    modifyS $ #heldInput .~ Nothing
   StatusFetched st -> do
     now <- getsS (.now)
     updateMirror $ setStatus now st
@@ -172,6 +212,15 @@ handleEvent = \case
   where
     statusSubsystems :: [Subsystem]
     statusSubsystems = [PlayerSubsystem, MixerSubsystem, OptionsSubsystem, UpdateSubsystem, DatabaseSubsystem]
+
+    applyChanges :: App es => (Status, [Song]) -> Eff es ()
+    applyChanges (st, changes) = do
+      s <- getS
+      case applyQueueChanges s.now st changes s.mirror of
+        Right m -> updateMirror (const m)
+        Left err -> do
+          showError $ "The queue is out of sync, fetching it again: " <> err
+          fetchQueue
 
 -- | Run after every event: fetch the lyrics of a new song that plays,
 -- schedule the next redraw of the elapsed time, update the window title,
@@ -545,8 +594,8 @@ cycleScreens screens = do
 -- | Run a destructive action that the user confirmed.
 runConfirmed :: App es => Confirmation -> Eff es ()
 runConfirmed = \case
-  ConfirmClear -> mutate clear
-  ConfirmShuffle -> mutate $ shuffle Nothing
+  ConfirmClear -> editQueue clear
+  ConfirmShuffle -> editQueue $ shuffle Nothing
 
 ----------------------------------------
 -- Saving as a stored playlist

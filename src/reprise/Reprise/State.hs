@@ -119,6 +119,11 @@ data AppEnv = AppEnv
 data AppState = AppState
   { connection :: ConnectionState
   , mirror :: Mirror
+  , heldInput :: Maybe (Seq.Seq AppEvent)
+  -- ^ While an edit of the queue waits for its reply, the input that came
+  -- meanwhile, in order. It waits until the mirror has the edit, as an
+  -- action plans from the positions in the mirror: a second delete would
+  -- delete the songs after the first one's.
   , queueState :: QueueState
   , browser :: BrowserState
   , visualizer :: VisualizerState
@@ -465,6 +470,7 @@ initialState config =
   AppState
     { connection = Connecting
     , mirror = emptyMirror
+    , heldInput = Nothing
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , visualizer = newVisualizer Nothing

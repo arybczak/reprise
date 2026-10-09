@@ -1,6 +1,7 @@
 module HandlerTests (handlerTests) where
 
 import Data.Foldable
+import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
@@ -89,6 +90,8 @@ handlerTests =
     , testCase "the help screen has no selection" test_selectOnHelp
     , testCase "songs that leave the queue leave the selection" test_selectionPruned
     , testCase "delete the marked songs" test_delete
+    , testCase "input waits for an edit of the queue" test_heldInput
+    , testCase "the password prompt takes keys during an edit" test_heldPassword
     , testCase "move the marked songs up and down" test_moveSongs
     , testCase "move songs to a place" test_moveSongsTo
     , testCase "shuffle the selection" test_shuffleSelection
@@ -455,24 +458,76 @@ test_delete = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   assertEqual
     "selected, from the end"
-    [[Request "delete" ["2:3"], Request "delete" ["0:1"]]]
+    (editRequests [Request "delete" ["2:3"], Request "delete" ["0:1"]])
     . (.requests)
     =<< keys ["space", "down", "space", "delete"] s
-  assertEqual "under the cursor" [[Request "delete" ["1:2"]]] . (.requests)
+  assertEqual "under the cursor" (editRequests [Request "delete" ["1:2"]]) . (.requests)
     =<< keys ["down", "delete"] s
+
+-- | Input waits while an edit of the queue waits for its reply, and then
+-- acts on the queue after the edit.
+test_heldInput :: Assertion
+test_heldInput = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  let st n = statusOf Stopped Nothing n & #playlistVersion .~ PlaylistVersion 2
+      movedTo p i = (songs 5 !! i) & #position ?~ SongPos p
+      files = map (.file) . toList . (.mirror.queue)
+  -- Songs 1 and 2 selected, the cursor on 3.
+  twice <- keys ["down", "space", "space", "delete", "delete"] s
+  assertEqual "the first delete" (editRequests [Request "delete" ["1:3"]]) twice.requests
+  replied <- runEvents 0 [QueueEdited (st 3, [movedTo 1 3, movedTo 2 4])] twice.state
+  assertEqual "the queue" ["dir/0.flac", "dir/3.flac", "dir/4.flac"] (files replied.state)
+  -- The cursor stays on its row, the last one of the shorter queue, as if
+  -- the key had come after the reply.
+  assertEqual
+    "the second delete, of the song under the cursor"
+    [[Request "delete" ["2:3"], Request "status" [], Request "plchanges" ["2"]]]
+    replied.requests
+  -- A click that changes nothing waits too, and doesn't keep the reply's
+  -- changes from being drawn.
+  clicked <- runEvents 0 [MouseClick LeftButton 0 0] =<< (.state) <$> keys ["delete"] s
+  released <-
+    runEvents
+      0
+      [QueueEdited (st 4, map (uncurry movedTo) [(0, 1), (1, 2), (2, 3), (3, 4)])]
+      clicked.state
+  assertEqual "the click's turn" Nothing released.state.heldInput
+  assertBool "a redraw" (KeepScreen `notElem` released.commands)
+  -- The input was meant for the queue after the edit.
+  failed <-
+    runEvents
+      0
+      [QueueEditFailed (AckError (Ack AckArg 0 "delete" "Bad song index"))]
+      twice.state
+  assertEqual "a failure drops it" [] failed.requests
+  assertEqual "nothing waits" Nothing failed.state.heldInput
+  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0)] twice.state
+  assertEqual "a new connection drops it" Nothing reconnected.state.heldInput
+
+-- | The password prompt takes keys while an edit waits, as the edit may
+-- wait for the password.
+test_heldPassword :: Assertion
+test_heldPassword = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  deleted <- keys ["delete"] s
+  let refusal = AckError $ Ack AckPermission 0 "delete" "you don't have permission for \"delete\""
+  asked <- runEvents 0 [PasswordNeeded refusal] deleted.state
+  answered <- keys (typed "secret" <> ["enter"]) asked.state
+  assertEqual "the answer" [Just "secret"] (passwordAnswers answered)
+  assertEqual "nothing held" (Just Seq.empty) answered.state.heldInput
 
 test_moveSongs :: Assertion
 test_moveSongs = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   up <- keys ["down", "insert", "m"] s
-  assertEqual "up" [[Request "move" ["0:1", "1"]]] up.requests
+  assertEqual "up" (editRequests [Request "move" ["0:1", "1"]]) up.requests
   assertEqual "the cursor follows up" 0 (cursor up)
   down <- keys ["down", "insert", "n"] s
-  assertEqual "down" [[Request "move" ["2:3", "1"]]] down.requests
+  assertEqual "down" (editRequests [Request "move" ["2:3", "1"]]) down.requests
   assertEqual "the cursor follows down" 2 (cursor down)
   assertEqual "the cursor stays" 3 . cursor
     =<< keys ["down", "insert", "down", "down", "m"] s
-  assertEqual "under the cursor" [[Request "move" ["1:2", "2"]]] . (.requests)
+  assertEqual "under the cursor" (editRequests [Request "move" ["1:2", "2"]]) . (.requests)
     =<< keys ["down", "down", "m"] s
   top <- keys ["insert", "m"] s
   assertEqual "the top stays" [] top.requests
@@ -481,21 +536,21 @@ test_moveSongs = do
 test_moveSongsTo :: Assertion
 test_moveSongsTo = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
-  assertEqual "above the cursor" [[Request "move" ["0:1", "3"]]] . (.requests)
+  assertEqual "above the cursor" (editRequests [Request "move" ["0:1", "3"]]) . (.requests)
     =<< keys ["insert", "end", "M"] s
   assertEqual "among the selected songs" (Just "The cursor is among the selected songs")
     . message
     =<< keys ["insert", "down", "down", "insert", "up", "M"] s
   assertEqual "without a selection" (Just "Select the songs to move first") . message
     =<< keys ["M"] s
-  assertEqual "end" [[Request "move" ["0:1", "4"]]] . (.requests)
+  assertEqual "end" (editRequests [Request "move" ["0:1", "4"]]) . (.requests)
     =<< keys ["insert", "e", "m", "e"] s
-  assertEqual "beginning" [[Request "move" ["2:3", "0"]]] . (.requests)
+  assertEqual "beginning" (editRequests [Request "move" ["2:3", "0"]]) . (.requests)
     =<< keys ["down", "down", "insert", "e", "m", "b"] s
   assertEqual "next, without a current song" (Just "There is no current song") . message
     =<< keys ["end", "e", "m", "n"] s
   playing <- testState (80, 24) (statusOf Playing (Just 1) 5) (songs 5)
-  assertEqual "next, the song under the cursor" [[Request "move" ["4:5", "2"]]]
+  assertEqual "next, the song under the cursor" (editRequests [Request "move" ["4:5", "2"]])
     . (.requests)
     =<< keys ["end", "e", "m", "n"] playing
   assertEqual
@@ -508,7 +563,7 @@ test_shuffleSelection :: Assertion
 test_shuffleSelection = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   r <- keys ["space", "space", "e", "s"] s
-  assertEqual "next to each other" [[Request "shuffle" ["0:2"]]] r.requests
+  assertEqual "next to each other" (editRequests [Request "shuffle" ["0:2"]]) r.requests
   assertEqual "message" (Just "Shuffled 2 songs") (message r)
   apart <- keys ["space", "down", "space", "e", "s"] s
   assertEqual "apart" [] apart.requests
@@ -523,7 +578,8 @@ test_shuffleConfirm = do
     (Just "Shuffle 5 songs in the queue?")
     ((.question) <$> asked.state.prompt)
   assertEqual "nothing yet" [] asked.requests
-  assertEqual "yes" [[Request "shuffle" []]] . (.requests) =<< keys ["y"] asked.state
+  assertEqual "yes" (editRequests [Request "shuffle" []]) . (.requests)
+    =<< keys ["y"] asked.state
   assertEqual "no" [] . (.requests) =<< keys ["n"] asked.state
   elsewhere <- keys ["space", "space", "8", "e", "s"] s
   assertEqual
@@ -844,7 +900,8 @@ test_clearConfirm = do
     ]
   assertEqual "nothing yet" [] asked.requests
   assertEqual "other keys wait" [] . (.requests) =<< keys ["x"] asked.state
-  assertEqual "yes" [[Request "clear" []]] . (.requests) =<< keys ["y"] asked.state
+  assertEqual "yes" (editRequests [Request "clear" []]) . (.requests)
+    =<< keys ["y"] asked.state
   no <- keys ["n"] asked.state
   assertEqual "no" [] no.requests
   assertEqual "closed" Nothing no.state.prompt
@@ -1065,6 +1122,11 @@ key = either (error . T.unpack) id . parseKeySpec
 
 key' :: T.Text -> AppEvent
 key' = KeyPressed . key
+
+-- | The requests of an edit of the queue, which end in the changes of the
+-- queue since the version of 'testState'.
+editRequests :: [Request] -> [[Request]]
+editRequests rs = [rs <> [Request "status" [], Request "plchanges" ["1"]]]
 
 keys :: [T.Text] -> AppState -> IO Result
 keys ks = runEvents 0 (map key' ks)

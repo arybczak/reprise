@@ -42,6 +42,12 @@ data AppEvent
   | -- | The status and the songs of the queue that changed since its version
     -- in the mirror.
     QueueChangesFetched (Status, [Song])
+  | -- | The status and the changes of the queue after an edit of the queue,
+    -- which came in one command list with them.
+    QueueEdited (Status, [Song])
+  | -- | An edit of the queue failed. MPD made the commands before the one
+    -- that failed.
+    QueueEditFailed MpdError
   | StatusFetched Status
   | -- | The entries of the browser's listing with the token.
     BrowserListed Int [Entry]

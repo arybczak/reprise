@@ -1014,6 +1014,23 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
   doesn't fail at once (see [Errors and logging](#errors-and-logging)).
 - Mutations (play, delete, move, ...) don't need the reply. The new state comes
   back through `idle`.
+  - **Edits of the queue at positions** (delete, move, shuffle and clear)
+    are the exception: input waits for them. An action plans from the
+    positions in the mirror, so a second `delete` before the reply would
+    delete the songs after the first one's. Each edit fetches the status
+    and `plchanges` in its own command list, and keys, clicks and wheel
+    steps that come meanwhile are handled in order once the mirror has
+    them, as ncmpc's blocking commands do.
+    - The password prompt still takes keys, as the edit may wait for it.
+    - After a failed edit, or a new connection, the input that waited is
+      dropped: it was meant for the queue after the edit.
+    - The reply redraws the screen, even if a key that it handles changes
+      nothing.
+    - ncmpc also makes the edit in its copy of the queue when the version
+      in the status shows that no other client changed it, instead of
+      fetching `plchanges`. That saves 4.6 ms of parsing after a delete in
+      the middle of a queue of 4254 songs, which isn't worth the
+      bookkeeping yet.
 - Queries (`lsinfo`, `find`, ...) deliver their result to the screen that asked
   for it. A reply to a query that a newer one has replaced, e.g. the listing
   of a directory the user has already left, is dropped.
