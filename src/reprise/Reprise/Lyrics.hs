@@ -19,10 +19,12 @@ module Reprise.Lyrics
   , byArtistAndTitle
   ) where
 
+import Control.Monad
 import Data.Bits
 import Data.ByteString qualified as BS
 import Data.Char
 import Data.List qualified as L
+import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Word
@@ -125,10 +127,32 @@ timedLyrics lrc = case parseLrc lrc of
 
 -- | The lines of LRC by their times, e.g. @[01:23.45]A line@. A line with
 -- several times is sung at each, and a tag without a time, e.g.
--- @[ar:Artist]@, isn't a line.
+-- @[ar:Artist]@, isn't a line. Spaces before a line's time don't count.
+--
+-- An @[offset:+500]@ tag moves every time by its milliseconds: a positive
+-- offset shows the lines sooner, as the format defines it. A time doesn't
+-- move before the start of the song.
 parseLrc :: T.Text -> [(Seconds, T.Text)]
-parseLrc = L.sortOn fst . concatMap timedLine . T.lines
+parseLrc lrc =
+  L.sortOn fst [(max 0 (t - offset), text) | l <- stripped, (t, text) <- timedLine l]
   where
+    stripped :: [T.Text]
+    stripped = map T.stripStart (T.lines lrc)
+
+    offset :: Seconds
+    offset = fromMaybe 0 . listToMaybe $ mapMaybe offsetTag stripped
+
+    offsetTag :: T.Text -> Maybe Seconds
+    offsetTag l = do
+      rest <- T.stripPrefix "[offset:" l
+      let (value, end) = T.breakOn "]" rest
+      guard . not $ T.null end
+      ms <- case T.uncons (T.strip value) of
+        Just ('+', digits) -> decimal digits
+        Just ('-', digits) -> negate <$> decimal digits
+        _ -> decimal (T.strip value)
+      pure $ fromInteger ms / 1000
+
     timedLine :: T.Text -> [(Seconds, T.Text)]
     timedLine l = let (times, text) = tagged l in [(t, T.strip text) | t <- times]
 

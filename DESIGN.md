@@ -691,7 +691,11 @@ ncmpcpp.
     whose times would go with the old ones.
   - **A line of LRC can have several times,** e.g. a chorus, and tags
     without a time, e.g. `[ar:Artist]`, aren't lines. A time is read
-    exactly, as `62.345` through a `Double` came to 62.344 s.
+    exactly, as `62.345` through a `Double` came to 62.344 s. Spaces before
+    a time don't count, e.g. in lyrics edited by hand.
+  - **An `[offset:]` tag moves every time** by its milliseconds, as tools
+    that time lyrics write it. A positive offset shows the lines sooner, as
+    the format defines it, and no time moves before the start.
   - **The screen is drawn again when the next line is sung,** besides the
     redraws of the elapsed time. Where the screen starts is worked out when
     it is drawn, so following the song needs no events of its own.

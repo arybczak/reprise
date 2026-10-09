@@ -447,6 +447,14 @@ test_parseLrc = do
     (parseLrc "[1:02]a\n[01:02.345]b\n[01:02:50]c")
   assertEqual "a pause" [(5, "")] (parseLrc "[00:05.00]")
   assertEqual "Windows' line ends" [(1, "A")] (parseLrc "[00:01.00]A\r\n")
+  assertEqual "spaces before a time" [(1, "A")] (parseLrc "  [00:01.00]A")
+  -- A positive offset, in milliseconds, shows the lines sooner.
+  assertEqual
+    "an offset"
+    [(0.5, "A"), (1.5, "B")]
+    (parseLrc "[offset:+500]\n[00:01.00]A\n[00:02.00]B")
+  assertEqual "a negative offset" [(1.5, "A")] (parseLrc "[offset: -500]\r\n[00:01.00]A")
+  assertEqual "not before the start" [(0, "A")] (parseLrc "[offset:2000]\n[00:01.00]A")
   assertEqual "not timed" Nothing (timedLyrics "Just words\nand more")
   assertEqual
     "the text of timed lyrics"
