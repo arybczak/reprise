@@ -147,10 +147,28 @@ parseKeySpec input = do
 renderKeySpec :: KeySpec -> T.Text
 renderKeySpec spec =
   T.concat [prefix | (prefix, m) <- modifierPrefixes, m `S.member` spec.modifiers]
-    <> case spec.key of
-      CharKey c -> T.singleton c
-      Function n -> "f" <> T.pack (show n)
-      k -> maybe "?" fst $ L.find ((== k) . snd) keyNames
+    <> renderKey spec.key
+
+-- | The text of a key, which 'parseKeySpec' reads back.
+renderKey :: Key -> T.Text
+renderKey = \case
+  CharKey c -> T.singleton c
+  Function n -> "f" <> T.pack (show n)
+  Space -> "space"
+  Enter -> "enter"
+  Escape -> "escape"
+  Backspace -> "backspace"
+  Tab -> "tab"
+  ArrowUp -> "up"
+  ArrowDown -> "down"
+  ArrowLeft -> "left"
+  ArrowRight -> "right"
+  Home -> "home"
+  End -> "end"
+  PageUp -> "page_up"
+  PageDown -> "page_down"
+  InsertKey -> "insert"
+  DeleteKey -> "delete"
 
 -- | An unquoted digit is an integer, so it is accepted as text.
 instance FromYaml KeySpec where
@@ -166,23 +184,28 @@ instance FromYaml KeySpec where
 modifierPrefixes :: [(T.Text, Modifier)]
 modifierPrefixes = [("ctrl-", Ctrl), ("alt-", Alt), ("shift-", Shift)]
 
+-- | The keys with names, by their names. A character and a function key
+-- have none.
 keyNames :: [(T.Text, Key)]
 keyNames =
-  [ ("space", Space)
-  , ("enter", Enter)
-  , ("escape", Escape)
-  , ("backspace", Backspace)
-  , ("tab", Tab)
-  , ("up", ArrowUp)
-  , ("down", ArrowDown)
-  , ("left", ArrowLeft)
-  , ("right", ArrowRight)
-  , ("home", Home)
-  , ("end", End)
-  , ("page_up", PageUp)
-  , ("page_down", PageDown)
-  , ("insert", InsertKey)
-  , ("delete", DeleteKey)
+  [ (renderKey k, k)
+  | k <-
+      [ Space
+      , Enter
+      , Escape
+      , Backspace
+      , Tab
+      , ArrowUp
+      , ArrowDown
+      , ArrowLeft
+      , ArrowRight
+      , Home
+      , End
+      , PageUp
+      , PageDown
+      , InsertKey
+      , DeleteKey
+      ]
   ]
 
 ----------------------------------------

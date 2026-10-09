@@ -12,6 +12,7 @@ module Reprise.Selection
   , addKeys
   , restrictTo
   , selectedPositions
+  , marked
   ) where
 
 import Control.Monad
@@ -86,3 +87,10 @@ restrictTo ks sel
 selectedPositions :: Ord k => Seq.Seq (Maybe k) -> Selection k -> [Int]
 selectedPositions items sel =
   [i | (i, Just k) <- zip [0 ..] (toList items), isSelected k sel]
+
+-- | The positions of the items that an action applies to: the selected
+-- ones, or without a selection the one at the cursor.
+marked :: Ord k => Seq.Seq (Maybe k) -> Selection k -> Int -> [Int]
+marked items sel cursor = case selectedPositions items sel of
+  [] -> [cursor | cursor >= 0, cursor < Seq.length items]
+  ps -> ps

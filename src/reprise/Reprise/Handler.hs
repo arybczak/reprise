@@ -101,7 +101,7 @@ handleEvent = \case
   MpdDisconnected reason ->
     modifyS $
       (#connection .~ Disconnected reason)
-        . (#mirror % #status .~ Nothing)
+        . (#mirror %~ forgetStatus)
         . (#seek .~ Nothing)
   MpdChanged subsystems -> do
     -- The changes of the queue come with the status.
@@ -220,11 +220,10 @@ updateMirror f = do
   s <- getS
   let oldId = old.status >>= (.currentId)
       newId = new.status >>= (.currentId)
-      loaded = isJust new.queueVersion && isJust new.status
+      -- The queue comes with the status, the first time too.
+      firstQueue = isNothing old.queueVersion && isJust new.queueVersion
   if
-    | loaded && not s.jumpedToPlaying -> do
-        modifyS $ #jumpedToPlaying .~ True
-        modifyWithEnv jumpToPlaying
+    | firstQueue -> modifyWithEnv jumpToPlaying
     | s.toggles.followPlaying && oldId /= newId -> modifyWithEnv jumpToPlaying
     | otherwise -> pure ()
   case (old.status, new.status) of
@@ -445,9 +444,7 @@ runAction action = case action of
 verb :: App es => Action -> Eff es ()
 verb action = do
   screen <- getsS ((.screen) . focusedView)
-  fromMaybe
-    (showMessage $ "The " <> screenText screen <> " has no " <> renderAction action)
-    (screenVerb screen action)
+  fromMaybe (screenHasNo screen (renderAction action)) (screenVerb screen action)
 
 -- | How a screen does a verb, if it does it. A screen finds if it has rows
 -- to find in.
@@ -545,14 +542,11 @@ saveChecked name source exists
   | Just why <- nothingToSave source = showMessage why
   | exists =
       modifyS $
-        #prompt
-          ?~ Prompt
-            ("The playlist " <> name <> " exists.")
-            ( Choice
-                [ ChoiceOption 'r' "replace" (Just (SaveTo name source ReplacePlaylist))
-                , ChoiceOption 'a' "append" (Just (SaveTo name source AppendToPlaylist))
-                ]
-            )
+        openChoice
+          ("The playlist " <> name <> " exists.")
+          [ ChoiceOption 'r' "replace" (Just (SaveTo name source ReplacePlaylist))
+          , ChoiceOption 'a' "append" (Just (SaveTo name source AppendToPlaylist))
+          ]
   | otherwise = saveTo name source CreatePlaylist
 
 saveTo :: App es => T.Text -> SaveSource -> SaveMode -> Eff es ()
@@ -584,10 +578,7 @@ saveTo name source mode = do
 
 confirm :: T.Text -> AppEvent -> AppState -> AppState
 confirm question onYes =
-  #prompt
-    ?~ Prompt
-      question
-      (Choice [ChoiceOption 'y' "yes" (Just onYes), ChoiceOption 'n' "no" Nothing])
+  openChoice question [ChoiceOption 'y' "yes" (Just onYes), ChoiceOption 'n' "no" Nothing]
 
 withStatus :: App es => (Status -> Eff es ()) -> Eff es ()
 withStatus k =
@@ -734,10 +725,7 @@ seekAction = \case
 commitSeek :: App es => Int -> Eff es ()
 commitSeek token = whenCurrent (.seek) (.token) token $ \sk -> do
   now <- getsS (.now)
-  modifyS $
-    (#seek .~ Nothing)
-      . (#mirror % #status % _Just % #elapsed ?~ sk.target)
-      . (#mirror % #statusTime .~ now)
+  modifyS $ (#seek .~ Nothing) . (#mirror %~ seekTo now sk.target)
   mutate . seekCur $ SeekTo sk.target
 
 currentDuration :: AppState -> Maybe Seconds

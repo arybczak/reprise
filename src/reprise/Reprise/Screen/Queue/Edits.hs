@@ -3,7 +3,9 @@
 module Reprise.Screen.Queue.Edits
   ( deletePositions
   , moveUp
+  , runsMovingUp
   , moveDown
+  , runsMovingDown
   , moveBefore
   , moveToStart
   , moveAfter
@@ -25,16 +27,25 @@ deletePositions ps = for_ (reverse (runs ps)) $ \(a, b) ->
 
 -- | Move the songs at the positions up by one. The song above each run moves
 -- below it, so each run costs one command, and the runs don't affect each
--- other. A run at the top stays.
+-- other.
 moveUp :: [Int] -> Command ()
-moveUp ps = for_ (runs ps) $ \(a, b) ->
-  when (a > 0) $ move (onePosition (SongPos (a - 1))) (At (SongPos b))
+moveUp ps = for_ (runsMovingUp ps) $ \(a, b) ->
+  move (onePosition (SongPos (a - 1))) (At (SongPos b))
+
+-- | The runs of the positions that 'moveUp' moves: a run at the top stays.
+runsMovingUp :: [Int] -> [(Int, Int)]
+runsMovingUp ps = [r | r@(a, _) <- runs ps, a > 0]
 
 -- | Move the songs at the positions down by one, in a queue of the given
--- length. A run at the bottom stays.
+-- length.
 moveDown :: Int -> [Int] -> Command ()
-moveDown len ps = for_ (runs ps) $ \(a, b) ->
-  when (b < len - 1) $ move (onePosition (SongPos (b + 1))) (At (SongPos a))
+moveDown len ps = for_ (runsMovingDown len ps) $ \(a, b) ->
+  move (onePosition (SongPos (b + 1))) (At (SongPos a))
+
+-- | The runs of the positions that 'moveDown' moves in a queue of the given
+-- length: a run at the bottom stays.
+runsMovingDown :: Int -> [Int] -> [(Int, Int)]
+runsMovingDown len ps = [r | r@(_, b) <- runs ps, b < len - 1]
 
 -- | Move the songs at the positions, in their order, to just before the song
 -- at a position, or to the end for the length of the queue. 'Nothing' if

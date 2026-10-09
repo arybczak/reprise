@@ -142,10 +142,9 @@ editLyrics = do
             option letter name file =
               ChoiceOption letter name (Just (EditLyricsFile (env.lyricsDirectory </> file song)))
         in modifyS $
-             #prompt
-               ?~ Prompt
-                 "Edit which lyrics?"
-                 (Choice [option 's' "synced" timedLyricsFileName, option 'u' "unsynced" lyricsFileName])
+             openChoice
+               "Edit which lyrics?"
+               [option 's' "synced" timedLyricsFileName, option 'u' "unsynced" lyricsFileName]
       _ -> showMessage "The lyrics are still loading"
 
 -- | Edit a file of lyrics that the user chose.

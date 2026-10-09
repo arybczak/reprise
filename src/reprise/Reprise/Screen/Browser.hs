@@ -392,15 +392,15 @@ queuedIds song s =
   , Just i <- [queued.songId]
   ]
 
--- | The items that an action applies to, in their order: the selected
--- items, or the item under the cursor without a selection. @..@ is never
--- one.
+-- | The items that an action applies to, in their order. @..@ is never one.
 markedItems :: AppState -> [(Int, BrowserItem)]
 markedItems s =
-  filter ((/= ParentItem) . snd) $
-    case selectedPositions (Just . itemKey <$> s.browser.items) s.browser.selection of
-      [] -> toList $ cursorItem s
-      ps -> [(i, item) | i <- ps, Just item <- [Seq.lookup i s.browser.items]]
+  [ (i, item)
+  | i <-
+      marked (Just . itemKey <$> s.browser.items) s.browser.selection (focusedView s).cursor
+  , Just item <- [Seq.lookup i s.browser.items]
+  , item /= ParentItem
+  ]
 
 cursorItem :: AppState -> Maybe (Int, BrowserItem)
 cursorItem s =

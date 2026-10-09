@@ -30,7 +30,6 @@ import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.MpdRequest
 import Reprise.Find
-import Reprise.Groups
 import Reprise.Handler.Core
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
@@ -120,12 +119,10 @@ queueToSave s = case selectedSongPositions s of
   ps ->
     Just $ SaveItems [songToSave song | p <- ps, Just song <- [Seq.lookup p s.mirror.queue]]
 
--- | The positions of the songs that an action applies to: the selected
--- songs, or the song under the cursor without a selection.
+-- | The positions of the songs that an action applies to.
 markedPositions :: AppState -> [Int]
-markedPositions s = case selectedSongPositions s of
-  [] -> [c | let c = (focusedView s).cursor, c >= 0, c < queueLength s.mirror]
-  ps -> ps
+markedPositions s =
+  marked ((.songId) <$> s.mirror.queue) s.queueState.selection (focusedView s).cursor
 
 select :: App es => SelectTarget -> Eff es ()
 select t = do
@@ -167,17 +164,17 @@ moveSongs t = do
       n = queueLength s.mirror
       c = (focusedView s).cursor
       -- The cursor moves with its song if the song's run moves.
-      follow :: App es => (Int -> Int -> Bool) -> Int -> Eff es ()
-      follow moves delta =
-        when (or [moves a b && c >= a && c <= b | (a, b) <- runs ps]) $
+      follow :: App es => [(Int, Int)] -> Int -> Eff es ()
+      follow moved delta =
+        when (or [c >= a && c <= b | (a, b) <- moved]) $
           modifyWithEnv (setCursor (c + delta))
   case t of
     MoveSongsUp -> do
       mutate $ moveUp ps
-      follow (\a _ -> a > 0) (-1)
+      follow (runsMovingUp ps) (-1)
     MoveSongsDown -> do
       mutate $ moveDown n ps
-      follow (\_ b -> b < n - 1) 1
+      follow (runsMovingDown n ps) 1
     MoveSongsToCursor -> case selectedSongPositions s of
       [] -> showMessage "Select the songs to move first"
       selected -> case moveBefore selected c of

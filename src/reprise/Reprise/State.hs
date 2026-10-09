@@ -149,8 +149,6 @@ data AppState = AppState
   , titleShown :: Maybe ((ScreenName, Maybe T.Text), Double)
   -- ^ What the header's title shows and since when, from which a title that
   -- doesn't fit scrolls. Nothing before the first event.
-  , jumpedToPlaying :: Bool
-  -- ^ Whether the cursor moved to the playing song after the start.
   }
   deriving stock (Show, Generic)
 
@@ -489,7 +487,6 @@ initialState config =
     , tick = Nothing
     , windowTitle = Nothing
     , titleShown = Nothing
-    , jumpedToPlaying = False
     }
   where
     mainView :: ViewId

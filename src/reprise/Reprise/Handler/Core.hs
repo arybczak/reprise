@@ -21,6 +21,7 @@ module Reprise.Handler.Core
   , notAvailable
   , capitalize
   , screenText
+  , screenHasNo
   , onOff
 
     -- * Toggles
@@ -30,6 +31,7 @@ module Reprise.Handler.Core
 
     -- * Prompts
   , openLine
+  , openChoice
 
     -- * Saving
   , askSaveName
@@ -146,6 +148,10 @@ capitalize t = case T.uncons t of
 screenText :: ScreenName -> T.Text
 screenText screen = screenWords screen <> " screen"
 
+-- | Say that a screen has no such thing, e.g. no songs or no action.
+screenHasNo :: App es => ScreenName -> T.Text -> Eff es ()
+screenHasNo screen what = showMessage $ "The " <> screenText screen <> " has no " <> what
+
 onOff :: Bool -> T.Text
 onOff b = if b then "on" else "off"
 
@@ -181,6 +187,10 @@ cycleNext a = if a == maxBound then minBound else succ a
 -- answer.
 openLine :: T.Text -> LineEdit -> LinePurpose -> AppState -> AppState
 openLine question edit purpose = #prompt ?~ Prompt question (Line edit purpose Nothing)
+
+-- | Open a choice between options, each picked by a letter of its name.
+openChoice :: T.Text -> [ChoiceOption] -> AppState -> AppState
+openChoice question options = #prompt ?~ Prompt question (Choice options)
 
 ----------------------------------------
 -- Saving
@@ -393,7 +403,7 @@ scrollLines t = do
     MovePageDown -> scroll h
     MoveFirst -> modifyWithEnv . modifyView $ #offset .~ 0
     MoveLast -> modifyWithEnv . modifyView $ #offset .~ (screenInfo v.screen).size env s v
-    _ -> showMessage $ "The " <> screenText v.screen <> " has no " <> renderAction (Move t)
+    _ -> screenHasNo v.screen $ renderAction (Move t)
   where
     scroll :: App es => Int -> Eff es ()
     scroll delta = modifyWithEnv . modifyView $ #offset %~ (+ delta)
@@ -410,7 +420,7 @@ showSongScreen target open = do
           open song
           modifyWithEnv . modifyView $ (#offset .~ 0) . switchScreen target
       | otherwise -> showMessage "There is no song under the cursor"
-    _ -> showMessage $ "The " <> screenText screen <> " has no songs"
+    _ -> screenHasNo screen "songs"
 
 -- | The song under the cursor of the focused list.
 songUnderCursor :: AppState -> Maybe Song

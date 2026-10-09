@@ -7,6 +7,8 @@ module Reprise.Mpd.Mirror
   , setQueue
   , applyQueueChanges
   , setStatus
+  , forgetStatus
+  , seekTo
 
     -- * Queries
   , currentSong
@@ -87,6 +89,16 @@ setStatus now st m =
     & #lengthFromCurrent .~ case st.currentPosition of
       Just (SongPos p) -> songsLength (Seq.drop p m.queue)
       Nothing -> m.totalLength
+
+-- | Forget the status of the player, e.g. without a connection, in which it
+-- would look as if it went on.
+forgetStatus :: Mirror -> Mirror
+forgetStatus = #status .~ Nothing
+
+-- | Move the current song to a point at a monotonic time, before MPD's
+-- status says that it moved.
+seekTo :: Double -> Seconds -> Mirror -> Mirror
+seekTo now target = (#status % _Just % #elapsed ?~ target) . (#statusTime .~ now)
 
 withQueue :: Seq.Seq Song -> Mirror -> Mirror
 withQueue q m =
