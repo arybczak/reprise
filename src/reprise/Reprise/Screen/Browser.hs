@@ -178,7 +178,7 @@ relistBrowser = do
     (Just l, _) -> list l.location l.cursor
     (Nothing, Just location) ->
       list location . maybe AtTop (StayOn . itemKey) $
-        Seq.lookup (fst (browserPosition s)) s.browser.items
+        Seq.lookup (fst (screenPosition BrowserScreen s)) s.browser.items
     (Nothing, Nothing)
       | (focusedView s).screen == BrowserScreen -> list (InDirectory "") AtTop
       | otherwise -> pure ()
@@ -461,7 +461,7 @@ nextSortMode = do
   env <- getAppEnv
   s <- getS
   forM_ s.browser.location $ \location -> do
-    let current = Seq.lookup (fst (browserPosition s)) s.browser.items
+    let current = Seq.lookup (fst (screenPosition BrowserScreen s)) s.browser.items
         items = arrange env s.toggles.browserSort location s.browser.entries
     modifyS $
       (#browser % #items .~ items)
@@ -528,27 +528,17 @@ data SortKey
 -- | Put the browser's cursor where a listing says, also while the view shows
 -- another screen.
 placeCursor :: ListingCursor -> AppEnv -> AppState -> AppState
-placeCursor cursor env s =
-  let (c, o) = browserPosition s
-      h = listHeight env s (focusedView s & #screen .~ BrowserScreen)
-      indexOf k = Seq.findIndexL ((== k) . itemKey) s.browser.items
-      (c', o') = case cursor of
-        AtTop -> (0, 0)
-        JumpTo k -> maybe (0, 0) (\i -> (i, i - h `div` 2)) (indexOf k)
-        StayOn k -> (fromMaybe c (indexOf k), o)
-  in if (focusedView s).screen == BrowserScreen
-       then restoreView (c', o') env s
-       else s & #views % ix s.focus % #positions % at BrowserScreen ?~ (c', max 0 o')
-
--- | The cursor and the offset of the browser in the focused view, which
--- remembers them while it shows another screen.
-browserPosition :: AppState -> (Int, Int)
-browserPosition s
-  | v.screen == BrowserScreen = (v.cursor, v.offset)
-  | otherwise = M.findWithDefault (0, 0) BrowserScreen v.positions
+placeCursor cursor env s = case cursor of
+  AtTop -> setScreenPosition BrowserScreen (0, 0) env s
+  JumpTo k -> case indexOf k of
+    Just i -> jumpScreenTo BrowserScreen i env s
+    Nothing -> setScreenPosition BrowserScreen (0, 0) env s
+  StayOn k ->
+    let (c, o) = screenPosition BrowserScreen s
+    in setScreenPosition BrowserScreen (fromMaybe c (indexOf k), o) env s
   where
-    v :: View
-    v = focusedView s
+    indexOf :: ItemKey -> Maybe Int
+    indexOf k = Seq.findIndexL ((== k) . itemKey) s.browser.items
 
 itemKey :: BrowserItem -> ItemKey
 itemKey = \case

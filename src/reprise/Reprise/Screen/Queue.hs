@@ -105,14 +105,9 @@ moveQueueCursor t env s = moveListCursor Just s.mirror.queue t env s
 -- | Move the queue's cursor to the playing song in the middle of the list,
 -- also while the view shows another screen.
 jumpToPlaying :: AppEnv -> AppState -> AppState
-jumpToPlaying env s =
-  let v = focusedView s
-      h = listHeight env s (v & #screen .~ QueueScreen)
-  in case currentPosition s.mirror of
-       Nothing -> s
-       Just p
-         | v.screen == QueueScreen -> jumpTo p env s
-         | otherwise -> s & #views % ix s.focus % #positions % at QueueScreen ?~ (p, p - h `div` 2)
+jumpToPlaying env s = case currentPosition s.mirror of
+  Nothing -> s
+  Just p -> jumpScreenTo QueueScreen p env s
 
 ----------------------------------------
 -- Selection

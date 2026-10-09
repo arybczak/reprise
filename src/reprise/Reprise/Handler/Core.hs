@@ -39,6 +39,9 @@ module Reprise.Handler.Core
   , modifyView
   , setCursor
   , jumpTo
+  , jumpScreenTo
+  , screenPosition
+  , setScreenPosition
   , moveListCursor
   , restoreView
   , scrollLines
@@ -53,6 +56,7 @@ module Reprise.Handler.Core
 import Control.Monad
 import Data.Char
 import Data.Foldable
+import Data.Map.Strict qualified as M
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Effectful
@@ -215,10 +219,33 @@ setCursor c = modifyView (#cursor .~ c)
 -- | Move the cursor to an item in the middle of the list, as every jump
 -- does, so that the item's neighbours show on both sides.
 jumpTo :: Int -> AppEnv -> AppState -> AppState
-jumpTo p env s =
-  let h = listHeight env s (focusedView s)
-  in -- modifyView brings the offset back into the list.
-     modifyView ((#cursor .~ p) . (#offset .~ p - h `div` 2)) env s
+jumpTo p env s = jumpScreenTo (focusedView s).screen p env s
+
+-- | 'jumpTo' in the list of a screen, also while the view shows another
+-- screen.
+jumpScreenTo :: ScreenName -> Int -> AppEnv -> AppState -> AppState
+jumpScreenTo screen p env s =
+  let h = listHeight env s (focusedView s & #screen .~ screen)
+  in -- modifyView brings the offset back into the list when the view shows
+     -- the screen.
+     setScreenPosition screen (p, p - h `div` 2) env s
+
+-- | The cursor and the offset of a screen in the focused view, which
+-- remembers them while it shows another screen.
+screenPosition :: ScreenName -> AppState -> (Int, Int)
+screenPosition screen s
+  | v.screen == screen = (v.cursor, v.offset)
+  | otherwise = M.findWithDefault (0, 0) screen v.positions
+  where
+    v :: View
+    v = focusedView s
+
+-- | Set the cursor and the offset of a screen in the focused view, also
+-- while the view shows another screen.
+setScreenPosition :: ScreenName -> (Int, Int) -> AppEnv -> AppState -> AppState
+setScreenPosition screen (c, o) env s
+  | (focusedView s).screen == screen = restoreView (c, o) env s
+  | otherwise = s & #views % ix s.focus % #positions % at screen ?~ (c, max 0 o)
 
 -- | Move the cursor of the focused list. The songs of its items tell albums
 -- and artists apart.
