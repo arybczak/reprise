@@ -1,13 +1,16 @@
 #define _XOPEN_SOURCE 700
 
+#include <langinfo.h>
 #include <locale.h>
+#include <string.h>
 #include <wchar.h>
 
-// A CJK ideograph is wide in every UTF-8 locale, and wcwidth returns -1 for
-// it in a locale without UTF-8.
+// Whether the character type locale is of UTF-8. A wide CJK ideograph
+// doesn't tell, as it is also wide in a CJK locale without UTF-8, e.g.
+// ja_JP.eucJP, whose widths of other characters are its own.
 static int utf8_ctype(void)
 {
-  return wcwidth(0x65E5) == 2;
+  return strcmp(nl_langinfo(CODESET), "UTF-8") == 0;
 }
 
 // Switch the character type locale to UTF-8, so that wcwidth knows the
