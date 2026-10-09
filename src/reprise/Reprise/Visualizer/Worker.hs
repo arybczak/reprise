@@ -103,7 +103,7 @@ visualizerWorker src = do
           st
             { frames = st.frames + 1
             , late = st.late + n - previous - 1
-            , empty = st.empty + fromEnum (BS.null frame && isJust p'.write && not stopped)
+            , empty = st.empty + fromEnum (BS.null frame && isJust (writeSize p') && not stopped)
             , bytes = st.bytes + BS.length new
             }
         case v of
@@ -176,9 +176,10 @@ data Playout = Playout
   , flowing :: Bool
   -- ^ Whether the frames show samples: from when the buffer holds a frame
   -- and the writes ahead, until it runs out.
-  , write :: Maybe Int
-  -- ^ The bytes of a write of MPD: the fewest that a read gave, as a pipe
-  -- gives a write that short whole.
+  , recentReads :: [Int]
+  -- ^ The bytes of the last reads that gave samples, newest first, at most
+  -- 'readsPerWrite' of them. The fewest are a write of MPD, see
+  -- 'writeSize'.
   , lastWrite :: Double
   -- ^ When the last samples came.
   }
@@ -186,7 +187,22 @@ data Playout = Playout
 
 -- | Before the first samples, which come after the time.
 newPlayout :: Double -> Playout
-newPlayout = Playout BS.empty False Nothing
+newPlayout = Playout BS.empty False []
+
+-- | The bytes of a write of MPD: the fewest that a recent read gave, as a
+-- pipe gives a write that short whole. Only recent reads count, as MPD's
+-- last write of a song is shorter, and so is the first after a seek.
+-- 'Nothing' before the first samples.
+writeSize :: Playout -> Maybe Int
+writeSize p = if null p.recentReads then Nothing else Just (minimum p.recentReads)
+
+-- | The reads that 'writeSize' takes the fewest bytes of. A read holds one
+-- write, or more when a frame comes late, or when frames come slower than
+-- MPD writes. While frames come at least half as often as MPD writes, one of
+-- any two reads in a row holds a single write, so three find one even with a
+-- frame that came late.
+readsPerWrite :: Int
+readsPerWrite = 3
 
 -- | What a frame shows: the samples that its time takes, of a number of
 -- bytes, at the time that the new samples came. Also whether MPD stopped
@@ -195,7 +211,8 @@ playout
   :: Int -> Double -> BS.ByteString -> Playout -> (BS.ByteString, Bool, Playout)
 playout shown arrival new p =
   let arrived = not (BS.null new)
-      write = if arrived then Just (maybe (BS.length new) (min (BS.length new)) p.write) else p.write
+      recentReads = if arrived then take readsPerWrite (BS.length new : p.recentReads) else p.recentReads
+      write = writeSize p {recentReads = recentReads}
       lastWrite = if arrived then arrival else p.lastWrite
       margin = fromMaybe 0 write
       available = p.buffered <> new
@@ -209,7 +226,7 @@ playout shown arrival new p =
       stopped =
         isJust write
           && arrival - lastWrite > 2 * fromIntegral margin / fromIntegral (frameBytes * sampleRate)
-  in (frame, stopped, Playout buffered flowing write lastWrite)
+  in (frame, stopped, Playout buffered flowing recentReads lastWrite)
   where
     -- To whole samples of every channel.
     roundUp :: Int -> Int

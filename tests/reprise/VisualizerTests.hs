@@ -83,6 +83,7 @@ visualizerTests =
     , testCase "the window of the spectrum" test_window
     , testCase "every frame shows the samples of its time" test_playout
     , testCase "MPD stops writing" test_playoutStops
+    , testCase "a short write" test_playoutShortWrite
     , testCase "the lag is bounded" test_playoutLag
     , testCase "the worker sends the samples of the fifo" test_worker
     , testCase "each frame sends the samples of its time" test_workerFrames
@@ -442,7 +443,7 @@ test_window = do
 -- two writes, every frame shows the samples of its time.
 test_playout :: Assertion
 test_playout = do
-  let frames = simulate 1 Nothing
+  let frames = simulate 1 Nothing Nothing
       steady = dropWhile (\f -> f.frame == 0) frames
   case steady of
     first : _ ->
@@ -457,7 +458,7 @@ test_playout = do
 -- stopped once two writes didn't come.
 test_playoutStops :: Assertion
 test_playoutStops = do
-  let frames = simulate 1 (Just 1)
+  let frames = simulate 1 (Just 1) Nothing
       later = dropWhile (\f -> f.time <= 1) frames
       stoppedAt = [f.time | f <- later, f.stopped]
   case stoppedAt of
@@ -468,11 +469,25 @@ test_playoutStops = do
     []
     [f | f <- dropWhile (\f -> f.frame /= 0) later, f.frame /= 0]
 
+-- | MPD's last write before a pause can be short, and come alone in a read.
+-- After three writes the short one doesn't count, and the frames start as
+-- at the start, once the buffer holds a frame and two writes. Then every
+-- frame shows the samples of its time again, and MPD didn't stop.
+test_playoutShortWrite :: Assertion
+test_playoutShortWrite = do
+  let resumed = 0.5 + 0.2
+      recovered =
+        dropWhile
+          (\f -> f.time <= resumed + 6 * writeSeconds + 1 / 120)
+          (simulate 1 Nothing (Just 0.5))
+  assertEqual "every frame" [] [f | f <- recovered, f.frame /= f.shown]
+  assertEqual "no stop" [] [f | f <- recovered, f.stopped]
+
 -- | MPD's clock is a little faster than reprise's, so the buffer would
 -- grow. It holds a frame and three writes at most.
 test_playoutLag :: Assertion
 test_playoutLag = do
-  let frames = simulate 1.01 Nothing
+  let frames = simulate 1.01 Nothing Nothing
   assertEqual
     "the lag"
     []
@@ -488,28 +503,39 @@ data Simulated = Simulated
   deriving stock (Eq, Show)
 
 -- | Two seconds of frames at 120 a second, with MPD's writes of 503
--- samples, at a speed relative to the sound's, until a time.
-simulate :: Double -> Maybe Double -> [Simulated]
-simulate speed stop = go (newPlayout 0) 1
+-- samples, at a speed relative to the sound's, until a time, with a short
+-- write of 10 samples at a time, before a pause of 0.2 s.
+simulate :: Double -> Maybe Double -> Maybe Double -> [Simulated]
+simulate speed stop short = go (newPlayout 0) 1
   where
     go :: Playout -> Int -> [Simulated]
     go p n
       | n > 2 * fps = []
       | otherwise =
           let t = frameTime n
-              new = BS.replicate (writeBytes * length (writesBetween (frameTime (n - 1)) t)) 1
+              new = BS.replicate (sum (writesBetween (frameTime (n - 1)) t)) 1
               shown = frameBytes * (samplesUntil n - samplesUntil (n - 1))
               (frame, stopped, p') = playout shown t new p
           in Simulated t shown (BS.length frame) stopped (BS.length p'.buffered)
                : go p' (n + 1)
 
-    writesBetween :: Double -> Double -> [Double]
+    -- The bytes of each write that comes between two times.
+    writesBetween :: Double -> Double -> [Int]
     writesBetween t0 t1 =
-      [ w
-      | w <- takeWhile (<= t1) [fromIntegral i * writeSeconds / speed | i <- [1 :: Int ..]]
-      , w > t0
-      , maybe True (w <=) stop
-      ]
+      [b | (w, b) <- takeWhile ((<= t1) . fst) writes, w > t0, maybe True (w <=) stop]
+
+    -- Each write with its time and its bytes. A short write is the last
+    -- before a pause, and the writes go on after it.
+    writes :: [(Double, Int)]
+    writes = case short of
+      Nothing -> from 0
+      Just s -> takeWhile ((< s) . fst) (from 0) <> [(s, 10 * frameBytes)] <> from (s + pause)
+
+    from :: Double -> [(Double, Int)]
+    from t0 = [(t0 + fromIntegral i * writeSeconds / speed, writeBytes) | i <- [1 :: Int ..]]
+
+    pause :: Double
+    pause = 0.2
 
     frameTime :: Int -> Double
     frameTime n = fromIntegral n / fromIntegral fps

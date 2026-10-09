@@ -473,6 +473,14 @@ ncmpcpp.
     The size of a write comes from the reads: a pipe gives a write that
     short whole, so the shortest read is a write. It costs two writes of
     lag, 23 ms for the mp3.
+    - **Only the last three reads count.** MPD's last write before a pause
+      can be short, and it comes alone in a read. The shortest read of all
+      time would then be a fraction of a write for good: the buffer would
+      hold almost nothing ahead, and every frame between two writes would
+      look like MPD stopped. A read holds one write, or two when a frame
+      comes late or frames come slower than MPD writes. While frames come
+      at least half as often as MPD writes, one of any two reads in a row
+      holds a single write, so three find one.
   - **The clocks of MPD and reprise drift,** so the buffer would grow.
     Beyond a frame and three writes, the oldest samples are dropped, and
     the picture doesn't fall behind the sound.
