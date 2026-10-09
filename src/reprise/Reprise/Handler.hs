@@ -469,9 +469,6 @@ showScreen = \case
   SongInfoScreen -> showSongInfo
   HelpScreen -> switchTo HelpScreen
   where
-    switchTo :: App es => ScreenName -> Eff es ()
-    switchTo = modifyWithEnv . modifyView . switchScreen
-
     notBuilt :: App es => ScreenName -> Eff es ()
     notBuilt screen = notAvailable $ "The " <> screenText screen
 

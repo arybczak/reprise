@@ -58,7 +58,7 @@ outputsVerb = \case
 -- after a failed fetch.
 showOutputs :: App es => Eff es ()
 showOutputs = do
-  modifyWithEnv . modifyView $ switchScreen OutputsScreen
+  switchTo OutputsScreen
   loaded <- getsS (isJust . (.outputs))
   unless loaded $ do
     modifyS $ #outputs ?~ Seq.empty

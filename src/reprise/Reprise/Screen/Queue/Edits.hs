@@ -22,8 +22,7 @@ import Reprise.Mpd.Protocol.Types
 -- | Delete the songs at the positions. The ranges go from the last, so that
 -- each one's positions are still right when it runs.
 deletePositions :: [Int] -> Command ()
-deletePositions ps = for_ (reverse (runs ps)) $ \(a, b) ->
-  delete $ Range (SongPos a) (Just (SongPos (b + 1)))
+deletePositions ps = for_ (reverse (runs ps)) $ delete . runRange
 
 -- | Move the songs at the positions up by one. The song above each run moves
 -- below it, so each run costs one command, and the runs don't affect each
@@ -90,5 +89,4 @@ indexedRuns ps = zip (scanl (+) 0 [b - a + 1 | (a, b) <- runs ps]) (runs ps)
 
 -- | Move a run to a position, unless it is there.
 moveRun :: (Int, Int) -> Int -> Command ()
-moveRun (a, b) to =
-  when (a /= to) $ move (Range (SongPos a) (Just (SongPos (b + 1)))) (At (SongPos to))
+moveRun run@(a, _) to = when (a /= to) $ move (runRange run) (At (SongPos to))

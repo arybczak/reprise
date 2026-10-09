@@ -41,6 +41,7 @@ module Reprise.Handler.Core
 
     -- * Views
   , modifyView
+  , switchTo
   , setCursor
   , jumpTo
   , jumpScreenTo
@@ -395,6 +396,10 @@ modifyView f env s =
             | otherwise = v'.offset
       in v' & #cursor .~ c & #offset .~ max 0 (min (n - h) o)
 
+-- | Show another screen in the focused view.
+switchTo :: App es => ScreenName -> Eff es ()
+switchTo = modifyWithEnv . modifyView . switchScreen
+
 -- | Scroll the focused screen of text.
 scrollLines :: App es => MoveTarget -> Eff es ()
 scrollLines t = do
@@ -438,5 +443,5 @@ songUnderCursor s =
 goBack :: App es => Eff es ()
 goBack =
   getsS ((.previous) . focusedView) >>= \case
-    Just previous -> modifyWithEnv . modifyView $ switchScreen previous
+    Just previous -> switchTo previous
     Nothing -> showMessage "There is no screen to go back to"

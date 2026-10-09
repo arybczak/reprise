@@ -367,9 +367,9 @@ addItems location items pos = traverse_ ($ pos) $ case pos of
     commands :: [Maybe Position -> Command ()]
     commands = case location of
       InPlaylist name ->
-        [ load name (Just $ Range (SongPos a) (Just (SongPos (b + 1))))
+        [ load name (Just (runRange run))
         | -- The playlist's songs come after @..@.
-        (a, b) <- runs [i - 1 | (i, EntryItem _) <- items]
+        run <- runs [i - 1 | (i, EntryItem _) <- items]
         ]
       InDirectory _ ->
         [ case entry of

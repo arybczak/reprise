@@ -94,8 +94,8 @@ shuffleSelected :: App es => Eff es ()
 shuffleSelected =
   getsS (runs . selectedSongPositions) >>= \case
     [] -> shuffleQueue
-    [(a, b)] -> do
-      mutate . shuffle . Just $ Range (SongPos a) (Just (SongPos (b + 1)))
+    [run@(a, b)] -> do
+      mutate . shuffle . Just $ runRange run
       showMessage $ "Shuffled " <> countSongs (b - a + 1)
     _ -> showError "Only selected songs next to each other can be shuffled"
 

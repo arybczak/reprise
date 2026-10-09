@@ -12,6 +12,7 @@ module Reprise.Groups
 
     -- * Positions
   , runs
+  , runRange
   ) where
 
 import Control.Applicative
@@ -20,6 +21,7 @@ import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Text qualified as T
 
+import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Types
 
 -- | What tells artists apart: the album artist, or the artist without one,
@@ -63,3 +65,7 @@ runs = foldr extend []
     extend p = \case
       (a, b) : rest | p + 1 == a -> (p, b) : rest
       acc -> (p, p) : acc
+
+-- | MPD's range of a run, which ends past the run's last position.
+runRange :: (Int, Int) -> Range
+runRange (a, b) = Range (SongPos a) (Just (SongPos (b + 1)))
