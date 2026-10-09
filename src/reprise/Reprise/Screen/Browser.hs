@@ -37,7 +37,6 @@ import Reprise.Action
 import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.MpdRequest
-import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Exception
 import Reprise.Find
@@ -233,40 +232,35 @@ list location cursor = do
 -- | Go up from a directory or a playlist that is gone, until one exists, as
 -- ncmpcpp does. Another error shows, and the browser stays as it was.
 browserFailed :: App es => Int -> MpdError -> Eff es ()
-browserFailed token err =
-  getsS (.browser.listing) >>= \case
-    Just l | l.token == token -> case (err, parentOf l.location) of
-      (AckError ack, Just up) | ack.code == AckNoExist -> list up AtTop
-      _ -> do
-        modifyS $ #browser % #listing .~ Nothing
-        showError $ exceptionText err
-    _ -> keepScreen
+browserFailed token err = whenCurrent (.browser.listing) (.token) token $ \l ->
+  case (err, parentOf l.location) of
+    (AckError ack, Just up) | ack.code == AckNoExist -> list up AtTop
+    _ -> do
+      modifyS $ #browser % #listing .~ Nothing
+      showError $ exceptionText err
 
 -- | Show the entries of the latest listing. The reply to a listing that a
 -- newer one replaced changes nothing. The selection stays in a listing of
 -- the same, without the items that are gone.
 browserListed :: App es => Int -> [Entry] -> Eff es ()
-browserListed token entries =
-  getsS (.browser.listing) >>= \case
-    Just l | l.token == token -> do
-      env <- getAppEnv
-      s <- getS
-      let items = arrange env s.toggles.browserSort l.location entries
-          same = s.browser.location == Just l.location
-          selection
-            | same = restrictTo (S.fromList (map itemKey (toList items))) s.browser.selection
-            | otherwise = noSelection
-      modifyS $
-        #browser
-          .~ BrowserState
-            (Just l.location)
-            entries
-            items
-            (itemRows env s.toggles.browserDisplay items)
-            selection
-            Nothing
-      modifyWithEnv $ placeCursor l.cursor
-    _ -> keepScreen
+browserListed token entries = whenCurrent (.browser.listing) (.token) token $ \l -> do
+  env <- getAppEnv
+  s <- getS
+  let items = arrange env s.toggles.browserSort l.location entries
+      same = s.browser.location == Just l.location
+      selection
+        | same = restrictTo (S.fromList (map itemKey (toList items))) s.browser.selection
+        | otherwise = noSelection
+  modifyS $
+    #browser
+      .~ BrowserState
+        (Just l.location)
+        entries
+        items
+        (itemRows env s.toggles.browserDisplay items)
+        selection
+        Nothing
+  modifyWithEnv $ placeCursor l.cursor
 
 ----------------------------------------
 -- Selection

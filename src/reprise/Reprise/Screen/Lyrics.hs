@@ -254,6 +254,4 @@ lyricsLoaded token result = forRequest token $ do
 
 -- | Run what a reply of the worker does, if it is of the newest request.
 forRequest :: App es => Int -> Eff es () -> Eff es ()
-forRequest token k = do
-  current <- getsS (.lyrics.token)
-  if token == current then k else keepScreen
+forRequest token = whenCurrent (Just . (.lyrics)) (.token) token . const

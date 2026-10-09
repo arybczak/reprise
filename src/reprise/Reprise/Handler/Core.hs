@@ -13,6 +13,7 @@ module Reprise.Handler.Core
   , getAppEnv
   , modifyWithEnv
   , newToken
+  , whenCurrent
 
     -- * Messages
   , showMessage
@@ -103,6 +104,16 @@ modifyWithEnv f = getAppEnv >>= modifyS . f
 
 newToken :: App es => Eff es Int
 newToken = state @AppState $ \s -> (s.nextToken, s & #nextToken %~ (+ 1))
+
+-- | Run what the event of a request or of a timer does, if it is of the
+-- newest one: the state holds what it is for, with its token. An event of
+-- one that a newer one replaced changes nothing on the screen.
+whenCurrent
+  :: App es => (AppState -> Maybe a) -> (a -> Int) -> Int -> (a -> Eff es ()) -> Eff es ()
+whenCurrent current tokenOf token k =
+  getsS current >>= \case
+    Just a | tokenOf a == token -> k a
+    _ -> keepScreen
 
 ----------------------------------------
 -- Messages

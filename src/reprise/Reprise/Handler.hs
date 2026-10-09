@@ -142,15 +142,10 @@ handleEvent = \case
     modifyS $
       (#pendingKeys .~ Nothing)
         . openLine (reason <> ". Password: ") emptyLineEdit ForPassword
-  Tick token ->
-    getsS (.tick) >>= \case
-      Just (t, _) | t == token -> modifyS $ #tick .~ Nothing
-      _ -> keepScreen
+  Tick token -> whenCurrent (.tick) fst token $ \_ -> modifyS $ #tick .~ Nothing
   SeekCommit token -> commitSeek token
   MessageExpired token ->
-    getsS (.message) >>= \case
-      Just m | m.token == token -> modifyS $ #message .~ Nothing
-      _ -> keepScreen
+    whenCurrent (.message) (.token) token $ \_ -> modifyS $ #message .~ Nothing
   -- One timer serves a run of keys: it waits again for the rest of the
   -- delay after the last key.
   HideCursor -> do
@@ -737,16 +732,13 @@ seekAction = \case
       Nothing -> showError "The current song has no length"
 
 commitSeek :: App es => Int -> Eff es ()
-commitSeek token =
-  getsS (.seek) >>= \case
-    Just sk | sk.token == token -> do
-      now <- getsS (.now)
-      modifyS $
-        (#seek .~ Nothing)
-          . (#mirror % #status % _Just % #elapsed ?~ sk.target)
-          . (#mirror % #statusTime .~ now)
-      mutate . seekCur $ SeekTo sk.target
-    _ -> keepScreen
+commitSeek token = whenCurrent (.seek) (.token) token $ \sk -> do
+  now <- getsS (.now)
+  modifyS $
+    (#seek .~ Nothing)
+      . (#mirror % #status % _Just % #elapsed ?~ sk.target)
+      . (#mirror % #statusTime .~ now)
+  mutate . seekCur $ SeekTo sk.target
 
 currentDuration :: AppState -> Maybe Seconds
 currentDuration s = s.mirror.status >>= (.duration)

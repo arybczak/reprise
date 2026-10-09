@@ -16,7 +16,6 @@ import Optics.Core
 import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.MpdRequest
-import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Handler.Core
 import Reprise.Mpd.Protocol.Command
@@ -67,8 +66,6 @@ showSongInfo = showSongScreen SongInfoScreen $ \song -> do
 -- | The comments of the file of the request with the token. Without them,
 -- e.g. if MPD can't read the file, the screen shows the rest.
 songCommentsFetched :: App es => Int -> [(T.Text, T.Text)] -> Eff es ()
-songCommentsFetched token comments = do
-  current <- getsS (.songInfo.token)
-  if token == current
-    then modifyS $ #songInfo % #comments .~ comments
-    else keepScreen
+songCommentsFetched token comments =
+  whenCurrent (Just . (.songInfo)) (.token) token $ \_ ->
+    modifyS $ #songInfo % #comments .~ comments
