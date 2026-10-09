@@ -24,12 +24,13 @@ import Data.List qualified as L
 import Data.List.NonEmpty qualified as NE
 import Data.Set qualified as S
 import Data.Text qualified as T
-import Data.Text.Read qualified as T
 import Data.Word
 import GHC.Generics
 import Graphics.Vty qualified as V
 import Optics.Core hiding (view)
 import Yamlet
+
+import Reprise.Number
 
 -- | A style changes only what it sets. A style laid over another with '<>'
 -- keeps the colors that it doesn't set and adds its attributes.
@@ -102,10 +103,9 @@ parseStyle input = case T.words input of
     parseColor w
       | w == "default" = Right DefaultColor
       | Just i <- L.elemIndex w colorNames = Right . Color $ fromIntegral i
-      | T.all isDigit w = case T.decimal @Integer w of
-          Right (n, "")
-            | n <= toInteger (maxBound @Word8) -> Right . Color $ fromInteger n
-          _ -> Left $ "a color number must be from 0 to 255, not " <> w
+      | T.all isDigit w = case decimalIn 0 (fromIntegral (maxBound @Word8)) w of
+          Just n -> Right . Color $ fromIntegral n
+          Nothing -> Left $ "a color number must be from 0 to 255, not " <> w
       | Just hex <- T.stripPrefix "#" w =
           if T.length hex == 6 && T.all isHexDigit hex
             then Right $ Rgb (byte hex 0) (byte hex 2) (byte hex 4)

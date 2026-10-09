@@ -46,11 +46,11 @@ module Reprise.Config
   ) where
 
 import Data.ByteString qualified as BS
-import Data.Char hiding (Space)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Void
 import Optics.Core hiding (view)
 import System.Directory
@@ -60,7 +60,9 @@ import Reprise.Action
 import Reprise.Format
 import Reprise.Keymap
 import Reprise.Keys
+import Reprise.Mpd.Protocol.Response qualified as Response
 import Reprise.Mpd.Protocol.Types
+import Reprise.Number
 import Reprise.Style
 
 ----------------------------------------
@@ -654,9 +656,7 @@ instance FromYaml Duration where
         | otherwise = Left "expected a duration with a unit, e.g. 5s or 500ms"
 
       number :: T.Text -> Maybe Seconds
-      number t = case reads @Double (T.unpack t) of
-        [(v, "")] | T.all (\c -> isDigit c || c == '.') t, v >= 0 -> Just (realToFrac v)
-        _ -> Nothing
+      number = Response.readSeconds . T.encodeUtf8
 
 instance FromYaml ColumnWidth where
   parseYaml n = case view n of
@@ -665,11 +665,8 @@ instance FromYaml ColumnWidth where
       | otherwise -> failAt n "a width must be at least 1"
     StringView t
       | Just p <- T.stripSuffix "%" t
-      , not (T.null p)
-      , T.all isDigit p
-      , [(v, "")] <- reads @Integer (T.unpack p)
-      , v >= 1 && v <= 100 ->
-          pure . RelativeWidth $ fromInteger v
+      , Just v <- decimalIn 1 100 p ->
+          pure $ RelativeWidth v
     _ -> failAt n "expected a number of columns, e.g. 6, or a percentage, e.g. 20%"
 
 instance FromYaml Align where

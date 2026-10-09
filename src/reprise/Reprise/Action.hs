@@ -39,6 +39,8 @@ import Data.Maybe
 import Data.Text qualified as T
 import Yamlet
 
+import Reprise.Number
+
 ----------------------------------------
 -- Actions
 
@@ -655,9 +657,7 @@ choice what choices w = case lookup w choices of
         <> T.intercalate ", " (map fst choices)
 
 natural :: T.Text -> Either T.Text Int
-natural w = case reads (T.unpack w) of
-  [(n, "")] | T.all isDigit w && n <= toInteger (maxBound @Int) -> Right (fromInteger n)
-  _ -> Left $ "expected a number, not " <> w
+natural w = maybe (Left $ "expected a number, not " <> w) Right (decimalIn 0 maxBound w)
 
 -- | The edit distance, for suggestions.
 distance :: T.Text -> T.Text -> Int

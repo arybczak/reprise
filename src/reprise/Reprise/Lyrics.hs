@@ -18,20 +18,19 @@ module Reprise.Lyrics
   , cleanTitle
   ) where
 
-import Control.Monad
 import Data.Bits
 import Data.ByteString qualified as BS
 import Data.Char
 import Data.List qualified as L
-import Data.Ratio
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Word
 import Numeric
 import System.FilePath
-import Text.Read
 
+import Reprise.Mpd.Protocol.Response qualified as Response
 import Reprise.Mpd.Protocol.Types
+import Reprise.Number
 
 -- | What the lyrics screen asks the worker for.
 data LyricsRequest = LyricsRequest
@@ -129,16 +128,9 @@ parseLrc = L.sortOn fst . concatMap timedLine . T.lines
       where
         at :: T.Text -> T.Text -> Maybe Seconds
         at m s = do
-          let (whole, fraction) = T.breakOn "." s
-              digits = T.drop 1 fraction
-          guard $ T.all isDigit (m <> whole <> digits)
-          minutes <- readMaybe @Integer (T.unpack m)
-          seconds <- readMaybe @Integer (T.unpack whole)
-          part <-
-            if T.null digits
-              then Just 0
-              else (% (10 ^ T.length digits)) <$> readMaybe @Integer (T.unpack digits)
-          pure . fromRational $ fromInteger (minutes * 60 + seconds) + part
+          minutes <- decimal m
+          seconds <- Response.readSeconds (T.encodeUtf8 s)
+          pure $ fromInteger (minutes * 60) + seconds
 
 -- | What a song's lyrics are known by, as ncmpcpp names them: the first
 -- artist and the first title, or without both, the name of the song's file

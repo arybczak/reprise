@@ -10,10 +10,10 @@ import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Data.Time
-import Text.Read
 
 import Reprise.Format
 import Reprise.Mpd.Protocol.Types
+import Reprise.Number
 import Reprise.Width
 
 data InfoLine
@@ -55,8 +55,8 @@ songInfoLines separator bitrate comments song =
     audioFormat :: T.Text -> [InfoLine]
     audioFormat format = case T.splitOn ":" format of
       [rate, bits, channels]
-        | Just r <- readMaybe @Int (T.unpack rate)
-        , Just c <- readMaybe @Int (T.unpack channels)
+        | Just r <- decimalIn 0 maxBound rate
+        , Just c <- decimalIn 0 maxBound channels
         , Just b <-
             if bits == "f" then Just "32 bit floating point" else (<> " bit") <$> number bits ->
             [ InfoField "Sample rate" (Just (T.pack (show r) <> " Hz"))
@@ -66,7 +66,7 @@ songInfoLines separator bitrate comments song =
       _ -> [InfoField "Format" (Just format)]
 
     number :: T.Text -> Maybe T.Text
-    number t = t <$ readMaybe @Int (T.unpack t)
+    number t = t <$ decimal t
 
     channelsText :: Int -> T.Text
     channelsText = \case

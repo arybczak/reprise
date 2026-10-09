@@ -22,6 +22,8 @@ import Data.Text qualified as T
 import Graphics.Vty qualified as V
 import Yamlet
 
+import Reprise.Number
+
 -- | A key with modifiers, as a terminal reports it.
 data KeySpec = KeySpec
   { modifiers :: S.Set Modifier
@@ -101,9 +103,7 @@ parseKeySpec input = do
               <> T.intercalate ", " (map fst keyNames)
 
     readFunction :: T.Text -> Either T.Text Int
-    readFunction n = case reads (T.unpack n) of
-      [(i, "")] | T.all isDigit n && i >= 1 && i <= maxFunctionKey -> Right i
-      _ -> Left "not a function key"
+    readFunction = maybe (Left "not a function key") Right . decimalIn 1 maxFunctionKey
 
     -- terminfo names the function keys up to kf63.
     maxFunctionKey :: Int

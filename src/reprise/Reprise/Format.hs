@@ -37,6 +37,7 @@ import Data.Void
 import Yamlet hiding (Comment)
 
 import Reprise.Mpd.Protocol.Types
+import Reprise.Number
 import Reprise.Style
 import Reprise.Width
 
@@ -223,14 +224,10 @@ parseSequence parseSpanStyle context = go []
                let (digits, rest'') = span (isDigit . snd) rest'
                in case (digits, rest'') of
                     (_ : _, (_, '}') : rest''')
-                      | Just w <- readWidth (map snd digits) -> Right (FieldItem field (Just w), rest''')
+                      | Just w <- decimalIn 1 maxBound (T.pack (map snd digits)) ->
+                          Right (FieldItem field (Just w), rest''')
                     _ -> Left $ FormatError (i + 1) "expected a width from 1 and }"
              _ -> Left $ FormatError start "%{ isn't closed with }"
-
-    readWidth :: String -> Maybe Int
-    readWidth ds = case reads ds of
-      [(w, "")] | w >= 1 && w <= toInteger (maxBound @Int) -> Just (fromInteger w)
-      _ -> Nothing
 
 addLiteral :: T.Text -> [Item s] -> [Item s]
 addLiteral t = \case
