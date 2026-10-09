@@ -141,7 +141,7 @@ data AppState = AppState
   -- ^ The token and the time of the scheduled redraw of the elapsed time.
   , windowTitle :: Maybe T.Text
   -- ^ The title that reprise set last.
-  , titleShown :: Maybe ((ScreenName, Maybe Location), Double)
+  , titleShown :: Maybe ((ScreenName, Maybe T.Text), Double)
   -- ^ What the header's title shows and since when, from which a title that
   -- doesn't fit scrolls. Nothing before the first event.
   , jumpedToPlaying :: Bool
@@ -513,6 +513,9 @@ data ScreenInfo = ScreenInfo
   , title :: AppEnv -> AppState -> (T.Text, T.Text)
   -- ^ The title in the header: a part that stays, and a part that scrolls
   -- if it doesn't fit, as in ncmpcpp.
+  , subject :: AppState -> Maybe T.Text
+  -- ^ What the screen shows, e.g. the song of the lyrics. The title scrolls
+  -- from its start when it changes.
   }
 
 data Content
@@ -534,6 +537,8 @@ screenInfo = \case
       , size = \_ s -> Seq.length s.mirror.queue
       , songAt = \s i -> Seq.lookup i s.mirror.queue
       , title = queueTitle
+      , -- The length of the queue in the title changes as the songs play.
+        subject = const Nothing
       }
   BrowserScreen ->
     ScreenInfo
@@ -543,13 +548,8 @@ screenInfo = \case
       , songAt = \s i -> case Seq.lookup i s.browser.items of
           Just (EntryItem (SongEntry song)) -> Just song
           _ -> Nothing
-      , title = \_ s ->
-          ( "Browse: "
-          , "/" <> case s.browser.location of
-              Just (InDirectory path) -> path
-              Just (InPlaylist path) -> path
-              Nothing -> ""
-          )
+      , title = \_ s -> ("Browse: ", "/" <> fromMaybe "" (browsed s))
+      , subject = browsed
       }
   SearchEngineScreen -> unbuilt SearchEngineScreen
   MediaLibraryScreen -> unbuilt MediaLibraryScreen
@@ -561,6 +561,7 @@ screenInfo = \case
       , size = \_ s -> maybe 0 Seq.length s.outputs
       , songAt = noSongs
       , title = named OutputsScreen
+      , subject = const Nothing
       }
   VisualizerScreen ->
     ScreenInfo
@@ -569,6 +570,7 @@ screenInfo = \case
       , size = \_ _ -> 0
       , songAt = noSongs
       , title = named VisualizerScreen
+      , subject = const Nothing
       }
   LyricsScreen ->
     ScreenInfo
@@ -577,6 +579,7 @@ screenInfo = \case
       , size = \_ s -> length (lyricsRows (fst s.terminalSize) s.lyrics)
       , songAt = noSongs
       , title = \_ s -> ("Lyrics: ", maybe "" lyricsName s.lyrics.song)
+      , subject = \s -> lyricsName <$> s.lyrics.song
       }
   SongInfoScreen ->
     ScreenInfo
@@ -585,6 +588,7 @@ screenInfo = \case
       , size = \env s -> length (songInfoRows env s (fst s.terminalSize))
       , songAt = noSongs
       , title = \_ s -> ("Song info: ", maybe "" lyricsName s.songInfo.song)
+      , subject = \s -> lyricsName <$> s.songInfo.song
       }
   HelpScreen ->
     ScreenInfo
@@ -593,6 +597,7 @@ screenInfo = \case
       , size = \env _ -> length (helpLines env.keymaps)
       , songAt = noSongs
       , title = named HelpScreen
+      , subject = const Nothing
       }
   where
     unbuilt :: ScreenName -> ScreenInfo
@@ -603,7 +608,15 @@ screenInfo = \case
         , size = \_ _ -> 0
         , songAt = noSongs
         , title = named screen
+        , subject = const Nothing
         }
+
+    -- The path of the directory or the playlist that the browser lists.
+    browsed :: AppState -> Maybe T.Text
+    browsed s =
+      s.browser.location <&> \case
+        InDirectory path -> path
+        InPlaylist path -> path
 
     noSongs :: AppState -> Int -> Maybe Song
     noSongs _ _ = Nothing

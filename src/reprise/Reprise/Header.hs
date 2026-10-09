@@ -17,12 +17,12 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.State
 import Reprise.Width
 
--- | What the title shows: the focused screen, and what the browser lists.
+-- | What the title shows: the focused screen, and what the screen shows.
 -- The scrolling starts again when it changes.
-titleSubject :: AppState -> (ScreenName, Maybe Location)
-titleSubject s = case (focusedView s).screen of
-  BrowserScreen -> (BrowserScreen, s.browser.location)
-  screen -> (screen, Nothing)
+titleSubject :: AppState -> (ScreenName, Maybe T.Text)
+titleSubject s =
+  let screen = (focusedView s).screen
+  in (screen, (screenInfo screen).subject s)
 
 -- | The focused screen's title as the header shows it. The part that doesn't
 -- fit next to the volume scrolls by a character for each second since the

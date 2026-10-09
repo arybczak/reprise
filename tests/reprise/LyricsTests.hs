@@ -66,6 +66,7 @@ lyricsTests =
     , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
     , testCase "the lyrics follow the song that plays" test_followPlaying
     , testCase "the next song's lyrics show from their top" test_followFromTop
+    , testCase "the title scrolls from its start for the next song" test_followTitle
     , testCase "space turns following the song on and off" test_toggleFollowing
     , testCase "e edits the lyrics" test_edit
     , testCase "the lyrics show again after the editor" test_edited
@@ -549,6 +550,13 @@ test_followFromTop = do
   where
     numbered :: Int -> T.Text
     numbered n = T.unlines ["line " <> T.pack (show i) | i <- [1 .. n]]
+
+test_followTitle :: Assertion
+test_followTitle = do
+  s <- testState (40, 10) (statusOf Playing (Just 0) 3) threeSongs
+  two <- runEvents 0 [key "down", key "l"] (s & #toggles % #lyricsFollowPlaying .~ True)
+  three <- runEvents 10 [StatusFetched (statusOf Playing (Just 2) 3)] two.state
+  assertEqual "since the next song" (Just 10) (snd <$> three.state.titleShown)
 
 test_toggleFollowing :: Assertion
 test_toggleFollowing = do
