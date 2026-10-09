@@ -315,9 +315,17 @@ registry =
 
     screenList :: ([ScreenName] -> Action) -> [Argument] -> Either T.Text Action
     screenList f = \case
-      [List ws] -> f <$> traverse screenFromName ws
+      [List ws] -> f <$> traverse (screenFromName >=> numbered) ws
       [] -> Right (f numberedScreens)
       _ -> Left "expected a list of screens, e.g. [browser, outputs]"
+
+    -- The other screens show something of the screen that they open from,
+    -- so a screen before them in a list could have nothing for them.
+    numbered :: ScreenName -> Either T.Text ScreenName
+    numbered s
+      | s `elem` numberedScreens = Right s
+      | otherwise =
+          Left $ "a list of screens takes only the screens with numbers, not " <> screenName s
 
     selectUsage :: T.Text
     selectUsage =

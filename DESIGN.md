@@ -258,6 +258,9 @@ ncmpcpp.
   - **Without a list, they go through the screens with numbers,** in their
     order. The lyrics, the song info and the help show something about a
     song or the keys, so they open from another screen and go back to it.
+  - **A list takes only the screens with numbers.** The others could have
+    nothing to show after the screen before them, e.g. no song under the
+    cursor, so the list would stop there.
   - **From a screen that isn't in the list,** `next_screen` shows the first
     and `previous_screen` the last.
   - **A screen that isn't built yet is skipped,** so that a list can name

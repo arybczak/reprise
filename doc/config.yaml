@@ -179,7 +179,7 @@ keys:
     l: show lyrics               # of the song under the cursor
     i: show song_info            # of the song under the cursor
     tab: next_screen             # the screens with numbers, in their order
-    shift-tab: previous_screen
+    shift-tab: previous_screen   # [browser, outputs] limits them to some
     f1: show help
     ":": command                 # type an action, e.g. "volume 50"
     q: quit

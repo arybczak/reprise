@@ -87,4 +87,12 @@ test_errors = do
   assertBool "unknown screen" (isLeft $ parseAction "show tag_editor")
   assertBool "seek without a unit" (isLeft $ parseAction "seek +5")
   assertBool "unclosed list" (isLeft $ parseAction "next_screen [browser")
+  assertEqual
+    "a screen of a song in a list"
+    ( Left
+        "next_screen: a list of screens takes only the screens with numbers, not lyrics; \
+        \usage: next_screen [SCREEN, ...]"
+    )
+    (parseAction "next_screen [queue, lyrics]")
+  assertBool "help in a list" (isLeft $ parseAction "previous_screen [help, queue]")
   assertEqual "empty" (Left "expected an action") (parseAction "")
