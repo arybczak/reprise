@@ -30,6 +30,9 @@ data Workers = Workers
   , password :: TVar (Maybe T.Text)
   -- ^ The password that MPD accepted last, which the idle connection sends
   -- when it connects again.
+  , retryDelay :: Double
+  -- ^ How long to wait before connecting again, 'retryInterval' but in
+  -- the tests.
   }
 
 -- | How long to wait before connecting again, as ncmpcpp does.
@@ -37,21 +40,28 @@ retryInterval :: Double
 retryInterval = 1
 
 -- | Run @idle@ in a loop and send the changes. Reconnect after an error.
+-- A connection that MPD refuses for its password connects again with the
+-- next password, which the command worker gets from the user.
 idleWorker :: (Mpd :> es, IOE :> es) => Workers -> Eff es ()
 idleWorker w = forever $ do
-  try @MpdError (connectMpd =<< liftIO (readTVarIO w.password)) >>= \case
-    Left err -> disconnected err
+  sent <- liftIO $ readTVarIO w.password
+  try @MpdError (connectMpd sent) >>= \case
+    Left err -> disconnected sent err
     Right version -> do
       liftIO . w.emit $ MpdConnected version
       forever (waitIdle >>= liftIO . w.emit . MpdChanged) `catch` \err -> do
         logError w err
         disconnectMpd
-        disconnected err
+        disconnected sent err
   where
-    disconnected :: IOE :> es => MpdError -> Eff es ()
-    disconnected err = do
+    -- After the password that the connection sent.
+    disconnected :: IOE :> es => Maybe T.Text -> MpdError -> Eff es ()
+    disconnected sent err = do
       liftIO . w.emit . MpdDisconnected $ exceptionText err
-      liftIO $ delaySeconds retryInterval
+      liftIO $
+        if refused err
+          then atomically $ readTVar w.password >>= check . (/= sent)
+          else delaySeconds w.retryDelay
 
 -- | Run the requests one at a time and send the events of their replies.
 --
@@ -126,11 +136,6 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
         AckError _ -> pure ()
       liftIO . w.emit $ onFailure err
 
-    refused :: MpdError -> Bool
-    refused = \case
-      AckError ack -> ack.code `elem` [AckPermission, AckPassword]
-      _ -> False
-
     -- MPD closes a connection that was unused for a while, before it runs
     -- the command, so the command runs again on a new connection.
     retryClosed :: Mpd :> es => Command a -> MpdError -> Eff es a
@@ -142,3 +147,9 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
 
 logError :: IOE :> es => Workers -> MpdError -> Eff es ()
 logError w = liftIO . w.logLine . exceptionText
+
+-- | Whether MPD refused a command without a password, or the password.
+refused :: MpdError -> Bool
+refused = \case
+  AckError ack -> ack.code `elem` [AckPermission, AckPassword]
+  _ -> False

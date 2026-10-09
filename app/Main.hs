@@ -121,6 +121,7 @@ main = withOpenSSL $ do
           , logLine = logLine
           , requests = requests
           , password = password
+          , retryDelay = retryInterval
           }
       mpdWorkers =
         [ runEff . runMpd settings $ worker workers
