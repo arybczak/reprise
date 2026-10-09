@@ -163,6 +163,7 @@ library
                      Reprise.Style
                      Reprise.UI.Layout
                      Reprise.UI.SongList
+                     Reprise.Visualizer.Draw
                      Reprise.Visualizer.Samples
                      Reprise.Visualizer.Spectrum
                      Reprise.Visualizer.Wave

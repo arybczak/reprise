@@ -882,6 +882,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Visualizer.Worker` | The thread that reads MPD's fifo output while the visualizer shows, and sends the samples of each frame |
 | `Reprise.Visualizer.Samples` | The format of the samples that the worker reads and the visualizer draws |
 | `Reprise.Visualizer.Spectrum` | The spectrum of the samples, with pocketfft's FFT in `cbits` |
+| `Reprise.Visualizer.Draw` | The pictures of the visualizer: the bars of the spectrum, and the ellipse and the wave of braille dots |
 | `Reprise.Visualizer.Wave` | The samples of the wave, from where the bass rose through zero |
 | `Reprise.Lyrics` | Where the lyrics of a song are stored, as ncmpcpp stores them |
 | `Reprise.SongInfo` | What the song info screen shows of a song: the lines of its file, its audio, its ReplayGain and its tags, and their rows at a width |
