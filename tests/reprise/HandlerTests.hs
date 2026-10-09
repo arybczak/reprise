@@ -1,7 +1,6 @@
 module HandlerTests (handlerTests) where
 
 import Data.Foldable
-import Data.List qualified as L
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
@@ -325,7 +324,7 @@ test_findInText = do
         , T.toLower t == "volume"
         , V.attrStyle a /= V.Default
         ]
-  (first, second, lastOne) <- case (withVolume, L.unsnoc withVolume) of
+  (first, second, lastOne) <- case (withVolume, unsnoc withVolume) of
     (a : b : _ : _, Just (_, z)) -> pure (a, b, z)
     _ -> assertFailure $ "too few matches: " <> show withVolume
   typing <- keys ("/" : typed "volume") help.state
