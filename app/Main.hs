@@ -4,6 +4,7 @@ module Main
   ) where
 
 import Control.Applicative
+import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.MVar.Strict qualified as S
 import Control.Concurrent.STM
@@ -25,6 +26,7 @@ import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
+import System.Posix.Signals
 
 import Paths_reprise qualified as Paths
 import Reprise.App
@@ -177,6 +179,15 @@ main = withOpenSSL $ do
         worker `catchSync` \e -> logLine $ "A worker failed: " <> exceptionText e
         delaySeconds retryInterval
   installWidthTable
+  -- The runtime turns only SIGINT into an exception. Without this, e.g.
+  -- pkill would leave the terminal raw, on the alternate screen and
+  -- reporting the mouse. The exit code is the shell's for the signal.
+  mainThread <- myThreadId
+  forM_ [sigTERM, sigHUP] $ \sig ->
+    installHandler
+      sig
+      (CatchOnce . throwTo mainThread $ ExitFailure (128 + fromIntegral sig))
+      Nothing
   withAsync
     (mapConcurrently_ restarted (mpdWorkers <> toList visualizer <> [lyricsFetcher]))
     $ \_ ->

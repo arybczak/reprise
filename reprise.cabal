@@ -201,6 +201,7 @@ executable reprise
                     , strict-mutable-base
                     , text
                     , time
+                    , unix                 >= 2.8.1
                     , vty
                     , vty-unix
 

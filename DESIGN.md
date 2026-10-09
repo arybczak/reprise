@@ -1167,6 +1167,11 @@ never use it directly; they go through `MpdRequest`.
     others. The next refused command asks again.
   - The prompt replaces any other prompt, since the requests wait for it,
     and shows the password as stars.
+- **SIGTERM and SIGHUP restore the terminal** before reprise exits, as an
+  exception does. The runtime turns only SIGINT into one, so without
+  handlers a `pkill` would leave the terminal raw, on the alternate screen
+  and reporting the mouse. The exit code is the shell's for the signal,
+  128 and its number.
 - **Logging.** Unexpected exceptions and protocol errors go to
   `$XDG_STATE_HOME/reprise/reprise.log`, never to the terminal while the UI is
   running. Each run appends to the file.
