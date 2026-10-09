@@ -288,7 +288,11 @@ ncmpcpp.
 - **A left click on the progress bar seeks** to where the cell under it
   begins, while a song plays or pauses, as ncmpcpp's does. The bar then
   shows its current cell where the click was.
-- Other clicks do nothing yet.
+- **A click on an item of a list moves the cursor to it,** and a right
+  click `activate`s it then, as `enter` does: it plays a song, enters a
+  directory or switches an output. In ncmpcpp a right click plays too. The
+  list takes no clicks while a prompt is open, or the panel of a key
+  sequence, which covers its bottom rows.
 
 **Other screens**
 - Outputs screen. It is small and used often.
@@ -760,10 +764,6 @@ tag editor, which needs the same two things.
   issues the minimal set of `move` commands instead of ncmpcpp's `swap` per
   quicksort step.
 - Add random items: songs, or tags such as artists and albums.
-
-**Interaction**
-- Mouse support: click to select or play. The wheel, and the clicks on the
-  progress bar and on the player's state, work already.
 
 **External commands, hooks and command line**
 - Key bindings that run external programs (see
@@ -1924,6 +1924,7 @@ options, `allow_for_physical_item_deletion`,
 | `playlist_disable_highlight_delay` | The queue hides the cursor after a fixed 5 seconds without input, as a named constant |
 | `incremental_seeking` | Seeking always works as described in [Core](#core) |
 | `use_console_editor` | The editor always gets the terminal |
+| `mouse_support` | The mouse always works; selecting text in the terminal takes `shift` |
 
 #### Not carried over yet
 

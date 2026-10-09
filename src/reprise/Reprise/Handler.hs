@@ -87,7 +87,7 @@ handleEvent = \case
   Started -> showScreen . (.config.startupScreen) =<< getAppEnv
   KeyPressed k -> handleKey k
   MouseWheel t col row -> handleWheel t col row
-  LeftClick col row -> handleClick col row
+  MouseClick button col row -> handleClick button col row
   Resized w h -> do
     modifyS $ layoutViews . (#terminalSize .~ (w, h))
     modifyWithEnv (modifyView id)
@@ -300,25 +300,36 @@ handleWheel t col row = do
     | isJust s.prompt -> keepScreen
     | onVolume s col row ->
         runAction . Volume . VolumeBy $ if t == MoveUp then step else negate step
-    | viewAt s col row == Just s.focus
+    | fmap fst (viewAt s col row) == Just s.focus
     , Just moveOnce <- screenVerb (focusedView s).screen (Move t) -> do
         noteInput
         replicateM_ n moveOnce
     | otherwise -> keepScreen
 
--- | A click on the state of the player in the status bar pauses it, or plays
--- it again. A click on the progress bar, while a song plays or pauses,
--- seeks to where its cell begins. Both are as in ncmpcpp.
-handleClick :: App es => Int -> Int -> Eff es ()
-handleClick col row = do
+-- | A left click on the state of the player in the status bar pauses it,
+-- or plays it again. A left click on the progress bar, while a song plays
+-- or pauses, seeks to where its cell begins. A click on an item of a list
+-- moves the cursor to it, and a right click activates it then. All are as
+-- in ncmpcpp. The list doesn't take clicks while a prompt or the panel of
+-- a key sequence is open, which the panel would cover.
+handleClick :: App es => MouseButton -> Int -> Int -> Eff es ()
+handleClick button col row = do
+  env <- getAppEnv
   s <- getS
   let width = fst s.terminalSize
   if
-    | onPlayerLabel s col row -> runAction Pause
-    | row == progressBarRow s
+    | button == LeftButton, onPlayerLabel s col row -> runAction Pause
+    | button == LeftButton
+    , row == progressBarRow s
     , col >= 0 && col < width
     , Just d <- progressDuration s ->
         seekNow (cellTime width col d)
+    | isNothing s.prompt
+    , isNothing s.pendingKeys
+    , Just i <- listItemAt env s col row -> do
+        noteInput
+        modifyWithEnv (setCursor i)
+        when (button == RightButton) $ runAction Activate
     | otherwise -> keepScreen
 
 -- | The user did something, which shows the cursor until it is idle again.

@@ -525,13 +525,14 @@ progressBarRow s = snd s.terminalSize - footerHeight
 statusBarRow :: AppState -> Int
 statusBarRow s = snd s.terminalSize - 1
 
--- | The view that shows a cell of the terminal, at a column and a row.
-viewAt :: AppState -> Int -> Int -> Maybe ViewId
+-- | The view that shows a cell of the terminal, at a column and a row, with
+-- the column and the row of the cell in the view.
+viewAt :: AppState -> Int -> Int -> Maybe (ViewId, (Int, Int))
 viewAt s col row = case s.layout of
   Single vid
     | col >= 0 && col < fst s.terminalSize
     , row >= headerHeight && row < headerHeight + mainHeight s.terminalSize ->
-        Just vid
+        Just (vid, (col, row - headerHeight))
   Single _ -> Nothing
 
 -- | Give the views their sizes from the terminal size.

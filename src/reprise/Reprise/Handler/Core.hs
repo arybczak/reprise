@@ -44,6 +44,7 @@ module Reprise.Handler.Core
   , modifyView
   , switchTo
   , setCursor
+  , listItemAt
   , jumpTo
   , jumpScreenTo
   , screenPosition
@@ -250,6 +251,25 @@ nothingToSave = \case
 -- | Move the cursor of the focused view and scroll it into view.
 setCursor :: Int -> AppEnv -> AppState -> AppState
 setCursor c = modifyView (#cursor .~ c)
+
+-- | The item of the focused view's list at a cell of the terminal, at a
+-- column and a row, if the view shows a list with an item there. The titles
+-- of the columns aren't an item.
+listItemAt :: AppEnv -> AppState -> Int -> Int -> Maybe Int
+listItemAt env s col row = do
+  (vid, (_, viewRow)) <- viewAt s col row
+  guard $ vid == s.focus
+  let v = focusedView s
+      info = screenInfo v.screen
+      listRow = viewRow - (v.height - listHeight env s v)
+      i = v.offset + listRow
+  guard $ case info.content of
+    Songs _ -> True
+    Items -> True
+    Lines -> False
+    Picture -> False
+  guard $ listRow >= 0 && i < info.size env s v
+  pure i
 
 -- | Move the cursor to an item in the middle of the list, as every jump
 -- does, so that the item's neighbours show on both sides.

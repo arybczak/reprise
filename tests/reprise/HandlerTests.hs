@@ -60,6 +60,7 @@ handlerTests =
     , testCase "the mouse wheel over the volume" test_wheelVolume
     , testCase "a click on the player's state pauses" test_clickPause
     , testCase "a click on the progress bar seeks" test_clickSeek
+    , testCase "a click on a list" test_clickList
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
     , testCase "back from the screens about a song or the keys" test_backKeys
     , testCase "the help screen scrolls" test_helpScrolls
@@ -540,7 +541,7 @@ test_clickSeek = do
   playing <- testState (80, 24) (statusOf Playing (Just 0) 1) (songs 1)
   paused <- testState (80, 24) (statusOf Paused (Just 0) 1) (songs 1)
   stopped <- testState (80, 24) (statusOf Stopped (Just 0) 1) (songs 1)
-  let click col row s = runEvents 0 [LeftClick col row] s
+  let click col row s = runEvents 0 [MouseClick LeftButton col row] s
   r <- click 20 22 playing
   assertEqual "a quarter" [[Request "seekcur" ["15"]]] r.requests
   assertEqual "shown at once" (Just 15) (displayedElapsed r.state)
@@ -559,7 +560,7 @@ test_clickPause = do
   playing <- testState (80, 24) (statusOf Playing (Just 0) 1) (songs 1)
   paused <- testState (80, 24) (statusOf Paused (Just 0) 1) (songs 1)
   stopped <- testState (80, 24) (statusOf Stopped (Just 0) 1) (songs 1)
-  let click col row s = (.requests) <$> runEvents 0 [LeftClick col row] s
+  let click col row s = (.requests) <$> runEvents 0 [MouseClick LeftButton col row] s
   assertEqual "pause" [[Request "pause" ["1"]]] =<< click 0 23 playing
   assertEqual "the label's end" [[Request "pause" ["1"]]] =<< click 8 23 playing
   assertEqual "resume" [[Request "pause" ["0"]]] =<< click 7 23 paused
@@ -569,6 +570,36 @@ test_clickPause = do
   toggled <- keys ["t", "f"] playing
   assertBool "a message shows" (message toggled /= Nothing)
   assertEqual "not over a message" [] =<< click 0 23 toggled.state
+
+-- | The list of 24 rows is from row 2 to row 21, below the titles of the
+-- columns when they show.
+test_clickList :: Assertion
+test_clickList = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 50) (songs 50)
+  let click button col row st = runEvents 0 [MouseClick button col row] st
+  left <- click LeftButton 10 5 s
+  assertEqual "the cursor on the item" (3, 0) (position left)
+  assertEqual "nothing else" [] left.requests
+  scrolled <- keys ["end"] s
+  assertEqual "an item of a scrolled list" (30, 30) . position
+    =<< click LeftButton 10 2 scrolled.state
+  right <- click RightButton 10 3 s
+  assertEqual "a right click moves the cursor" (1, 0) (position right)
+  assertEqual "and plays" [[Request "playid" ["2"]]] right.requests
+  few <- testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
+  assertEqual "below the last item" (0, 0) . position =<< click LeftButton 10 10 few
+  let titles = testAppEnv & #config % #songs % #columns % #showTitles .~ True
+  assertEqual "not the titles" (0, 0) . position
+    =<< runEventsWith titles 0 [MouseClick LeftButton 10 2] s
+  assertEqual "the first item under them" (2, 0) . position
+    =<< runEventsWith titles 0 [MouseClick LeftButton 10 5] s
+  help <- keys ["f1"] s
+  assertEqual "not in text" [KeepScreen] . (.commands) =<< click LeftButton 10 5 help.state
+  prompt <- keys [":"] s
+  assertEqual "not with a prompt" (0, 0) . position =<< click LeftButton 10 5 prompt.state
+  pending <- keys ["g"] s
+  assertEqual "not with a key sequence" (0, 0) . position
+    =<< click LeftButton 10 5 pending.state
 
 test_wheelVolume :: Assertion
 test_wheelVolume = do

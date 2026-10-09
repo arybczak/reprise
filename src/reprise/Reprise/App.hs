@@ -93,7 +93,10 @@ runApp env channels buildVty initial = do
             pure . Just $ MouseWheel MoveDown col row
           -- The terminal repeats the press while the mouse moves, so the
           -- release makes a click.
-          Left (V.InputEvent (V.EvMouseUp col row (Just V.BLeft))) -> pure . Just $ LeftClick col row
+          Left (V.InputEvent (V.EvMouseUp col row (Just V.BLeft))) ->
+            pure . Just $ MouseClick LeftButton col row
+          Left (V.InputEvent (V.EvMouseUp col row (Just V.BRight))) ->
+            pure . Just $ MouseClick RightButton col row
           Left (V.InputEvent (V.EvResize w h)) -> pure . Just $ Resized w h
           -- vty-unix sends it after the terminal changed its size.
           Left V.ResumeAfterInterrupt -> Just . uncurry Resized <$> displaySize vty

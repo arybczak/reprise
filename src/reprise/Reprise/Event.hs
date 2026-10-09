@@ -3,6 +3,7 @@
 -- compare them and run them.
 module Reprise.Event
   ( AppEvent (..)
+  , MouseButton (..)
   , Confirmation (..)
   , FrameStats (..)
   ) where
@@ -27,8 +28,8 @@ data AppEvent
   | -- | A step of the mouse wheel, up or down, at a column and a row of the
     -- terminal.
     MouseWheel MoveTarget Int Int
-  | -- | A click of the left button, at a column and a row of the terminal.
-    LeftClick Int Int
+  | -- | A click of a button, at a column and a row of the terminal.
+    MouseClick MouseButton Int Int
   | -- | The terminal's new width and height.
     Resized Int Int
   | -- | The idle connection is up.
@@ -97,6 +98,9 @@ data AppEvent
     SaveChecked T.Text SaveSource Bool
   | -- | Save to the stored playlist of the name.
     SaveTo T.Text SaveSource SaveMode
+  deriving stock (Eq, Show)
+
+data MouseButton = LeftButton | RightButton
   deriving stock (Eq, Show)
 
 -- | A destructive action that asks before it runs.
