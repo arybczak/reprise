@@ -26,6 +26,7 @@ module Reprise.Handler.Core
 
     -- * Toggles
   , toggleSetting
+  , toggleDisplay
 
     -- * Prompts
   , openLine
@@ -148,6 +149,17 @@ toggleSetting name field = do
   modifyS $ #toggles % field %~ not
   v <- getsS (view (#toggles % field))
   showMessage $ name <> ": " <> onOff v
+
+-- | Show the songs of a list in the other display.
+toggleDisplay :: App es => Lens' Toggles Display -> Eff es ()
+toggleDisplay field = do
+  modifyS $
+    #toggles % field %~ \case
+      Classic -> Columns
+      Columns -> Classic
+  modifyWithEnv (modifyView id)
+  d <- getsS (view (#toggles % field))
+  showMessage $ "Display: " <> displayName d
 
 ----------------------------------------
 -- Prompts

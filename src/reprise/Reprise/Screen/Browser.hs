@@ -30,7 +30,6 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Time
-import Data.Void
 import Effectful
 import Graphics.Vty qualified as V
 import Optics.Core
@@ -45,7 +44,6 @@ import Reprise.Find
 import Reprise.Format
 import Reprise.Groups
 import Reprise.Handler.Core
-import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
@@ -60,24 +58,11 @@ import Reprise.UI.SongList
 
 browserView :: AppEnv -> AppState -> View -> V.Image
 browserView env s v =
-  let ctx =
-        RowContext
-          { colorMode = env.colorMode
-          , lists = env.config.lists
-          , songs = env.config.songs
-          , display = s.toggles.browserDisplay
-          , width = v.width
-          }
+  let ctx = rowContext env s.toggles.browserDisplay v.width
       titles = [renderTitles ctx | listHeight env s v < v.height]
       h = listHeight env s v
       visible = Seq.take h (Seq.drop v.offset s.browser.items)
-      -- The matches of a find show while the user types it.
-      found = case s.prompt of
-        Just (Prompt _ (Line edit (ForFind _) _))
-          | Right p <- compilePattern (lineEditText edit)
-          , Right matched <- matchAll p (Seq.take h (Seq.drop v.offset s.browser.rows)) ->
-              toList matched
-        _ -> repeat False
+      found = typedMatches s $ Seq.take h (Seq.drop v.offset s.browser.rows)
       row (i, isFound) item =
         let flags =
               RowFlags
@@ -109,7 +94,7 @@ rowContent env = \case
     playlistPrefix :: Playlist -> [Span Style]
     playlistPrefix p =
       renderFormat
-        (RenderContext env.config.lists.tagSeparator [])
+        (plainContext env.config.lists)
         Song
           { file = p.path
           , tags = M.empty
@@ -152,21 +137,13 @@ browserVerb = \case
   Toggle ToggleDisplay -> Just toggleBrowserDisplay
   _ -> Nothing
 
--- | Show the songs in the other display.
+-- | Show the songs in the other display, which finds match too.
 toggleBrowserDisplay :: App es => Eff es ()
 toggleBrowserDisplay = do
-  modifyS $
-    #toggles % #browserDisplay %~ \case
-      Classic -> Columns
-      Columns -> Classic
+  toggleDisplay #browserDisplay
   env <- getAppEnv
   s <- getS
   modifyS $ #browser % #rows .~ itemRows env s.toggles.browserDisplay s.browser.items
-  modifyWithEnv (modifyView id)
-  showMessage $
-    "Display: " <> case s.toggles.browserDisplay of
-      Classic -> "classic"
-      Columns -> "columns"
 
 ----------------------------------------
 -- Moving
@@ -460,10 +437,7 @@ addedText env = \case
 songText :: AppEnv -> Song -> T.Text
 songText env song =
   spansText $
-    renderFormat
-      (RenderContext env.config.lists.tagSeparator [])
-      song
-      env.config.statusBar.song
+    renderFormat (plainContext env.config.lists) song env.config.statusBar.song
 
 -- | The directory to update in the database for "update current": the one
 -- that the browser lists, or the one that its playlist is in. Nothing is the
@@ -527,7 +501,7 @@ sortEntries env by entries = case by of
         SongEntry song -> song.lastModified
         PlaylistEntry p -> p.lastModified
       SortByFormat -> ByText . collated $ case e of
-        SongEntry song -> renderPlain plainContext song env.config.browser.sort.format
+        SongEntry song -> renderPlain (plainContext env.config.lists) song env.config.browser.sort.format
         _ -> name e
       _ -> NoKey
 
@@ -540,9 +514,6 @@ sortEntries env by entries = case by of
 
     collated :: T.Text -> CollationKey
     collated = collationKey env.collator env.config.lists.ignoreLeadingThe
-
-    plainContext :: RenderContext Void
-    plainContext = RenderContext env.config.lists.tagSeparator []
 
 -- | What entries of one kind sort by. 'L.sortOn' computes it once for each.
 data SortKey

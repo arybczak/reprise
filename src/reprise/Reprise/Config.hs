@@ -14,6 +14,7 @@ module Reprise.Config
   , Align (..)
   , ListsConfig (..)
   , Display (..)
+  , displayName
   , QueueConfig (..)
   , BrowserConfig (..)
   , BrowserSort (..)
@@ -167,7 +168,13 @@ data ListsConfig = ListsConfig
   deriving (FromYaml) via GenericYaml ListsConfig
 
 data Display = Classic | Columns
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Enum, Bounded)
+
+-- | The name of a display in the config.
+displayName :: Display -> T.Text
+displayName = \case
+  Classic -> "classic"
+  Columns -> "columns"
 
 data QueueConfig = QueueConfig
   { display :: Display
@@ -682,7 +689,7 @@ instance FromYaml Align where
   parseYaml = oneOf [("left", AlignLeft), ("right", AlignRight)]
 
 instance FromYaml Display where
-  parseYaml = oneOf [("classic", Classic), ("columns", Columns)]
+  parseYaml = oneOf [(displayName d, d) | d <- [minBound .. maxBound]]
 
 instance FromYaml Visualization where
   parseYaml = oneOf [(visualizationName v, v) | v <- [minBound .. maxBound]]

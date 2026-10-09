@@ -30,14 +30,7 @@ import Reprise.UI.SongList
 
 outputsView :: AppEnv -> AppState -> View -> V.Image
 outputsView env s v =
-  let ctx =
-        RowContext
-          { colorMode = env.colorMode
-          , lists = env.config.lists
-          , songs = env.config.songs
-          , display = Classic
-          , width = v.width
-          }
+  let ctx = rowContext env Classic v.width
       row :: Int -> Output -> V.Image
       row i o =
         renderOtherRow

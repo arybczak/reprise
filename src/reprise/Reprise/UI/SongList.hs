@@ -3,24 +3,36 @@
 module Reprise.UI.SongList
   ( -- * Rows
     RowContext (..)
+  , rowContext
   , RowFlags (..)
   , renderRow
   , renderOtherRow
   , renderTitles
   , rowText
+  , typedMatches
+
+    -- * Rendering contexts
+  , renderContext
+  , unstyledContext
+  , plainContext
 
     -- * Spans
   , padded
   ) where
 
+import Data.Foldable
 import Data.List qualified as L
 import Data.Maybe
+import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
 
 import Reprise.Config
+import Reprise.Find
 import Reprise.Format
+import Reprise.LineEdit
 import Reprise.Mpd.Protocol.Types
+import Reprise.State
 import Reprise.Style
 
 data RowContext = RowContext
@@ -30,6 +42,17 @@ data RowContext = RowContext
   , display :: Display
   , width :: Int
   }
+
+-- | The rows of a list in a display and of a width.
+rowContext :: AppEnv -> Display -> Int -> RowContext
+rowContext env display width =
+  RowContext
+    { colorMode = env.colorMode
+    , lists = env.config.lists
+    , songs = env.config.songs
+    , display = display
+    , width = width
+    }
 
 -- | What the row is, which lays styles over its own.
 data RowFlags = RowFlags
@@ -70,10 +93,8 @@ renderRow ctx flags song = case ctx.display of
     column :: Column -> Int -> V.Image
     column c w =
       let base = ctx.lists.style <> c.style
-          columnContext =
-            RenderContext ctx.lists.tagSeparator [Span Nothing ctx.lists.missingTag]
       in padded attr (base, overlay) c.align w . fitSpans w $
-           renderFormat columnContext song c.format
+           renderFormat (unstyledContext ctx.lists) song c.format
 
     styles :: (Style, Style)
     styles = (ctx.lists.style, overlay)
@@ -110,7 +131,17 @@ rowText lists songs display song = T.unwords . map render $ case display of
   Columns -> map (.format) songs.columns.list
   where
     render :: Format Style -> T.Text
-    render = spansText . renderFormat (RenderContext lists.tagSeparator []) song
+    render = spansText . renderFormat (plainContext lists) song
+
+-- | Which rows the pattern of a find matches while the user types it. The
+-- rows are made only during a find.
+typedMatches :: AppState -> Seq.Seq Folded -> [Bool]
+typedMatches s rows = case s.prompt of
+  Just (Prompt _ (Line edit (ForFind _) _))
+    | Right p <- compilePattern (lineEditText edit)
+    , Right matched <- matchAll p rows ->
+        toList matched
+  _ -> repeat False
 
 -- | The titles of the columns.
 renderTitles :: RowContext -> V.Image
@@ -126,8 +157,18 @@ renderTitles ctx =
       padded attr (ctx.lists.style <> c.style, mempty) c.align w $
         fitSpans w [Span Nothing c.title]
 
+-- | A missing tag is its marker, in the marker's style.
 renderContext :: ListsConfig -> RenderContext Style
 renderContext lists = RenderContext lists.tagSeparator [Span lists.missingTagStyle lists.missingTag]
+
+-- | A missing tag is its marker, in the style around it.
+unstyledContext :: ListsConfig -> RenderContext s
+unstyledContext lists = RenderContext lists.tagSeparator [Span Nothing lists.missingTag]
+
+-- | A missing tag is empty, e.g. in the text that finds match or that a
+-- sort compares.
+plainContext :: ListsConfig -> RenderContext s
+plainContext lists = RenderContext lists.tagSeparator []
 
 -- | Spans in a cell of exactly the given width, aligned and padded with
 -- spaces. Each span's style is the base, its own style, then the overlay.

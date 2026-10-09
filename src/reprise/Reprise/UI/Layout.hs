@@ -5,12 +5,11 @@ module Reprise.UI.Layout
   , promptCursor
   ) where
 
+import Control.Monad
 import Data.List qualified as L
 import Data.Maybe
-import Data.Set qualified as S
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
-import Optics.Core
 
 import Reprise.Action
 import Reprise.Config
@@ -146,15 +145,12 @@ whichKeyPanel env s entries =
     cell :: WhichKeyEntry -> (Int, V.Image)
     cell e =
       let keyText = renderKeySpec e.key
+          -- The screen's own entries are bold.
           style = if e.fromScreen then boldStyle else mempty
           img =
             V.text' (attr env (env.config.styles.value <> style)) keyText
               V.<|> V.text' (attr env style) ("  " <> e.description)
       in (V.imageWidth img, img)
-
-    -- The screen's own entries.
-    boldStyle :: Style
-    boldStyle = mempty & #attributes .~ S.singleton Bold
 
     chunks :: Int -> [a] -> [[a]]
     chunks n xs = case splitAt n xs of
@@ -172,9 +168,9 @@ progressBar env s =
       elapsedAttr = attr env cfg.elapsedStyle
       fraction = do
         st <- s.mirror.status
-        guardMaybe (st.state /= Stopped)
+        guard (st.state /= Stopped)
         d <- st.duration
-        guardMaybe (d > 0)
+        guard (d > 0)
         e <- displayedElapsed s
         pure (realToFrac (min e d / d) :: Double)
   in case fraction of
@@ -187,9 +183,6 @@ progressBar env s =
               , V.charFill elapsedAttr cfg.chars.current current 1
               , V.charFill remainingAttr cfg.chars.remaining (w - done - current) 1
               ]
-  where
-    guardMaybe :: Bool -> Maybe ()
-    guardMaybe b = if b then Just () else Nothing
 
 ----------------------------------------
 -- Status bar
@@ -222,13 +215,10 @@ statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
     choices options =
       L.intercalate
         [Span Nothing "/"]
-        [ [Span Nothing before, Span (Just bold) (T.take 1 rest), Span Nothing (T.drop 1 rest)]
+        [ [Span Nothing before, Span (Just boldStyle) (T.take 1 rest), Span Nothing (T.drop 1 rest)]
         | o <- options
         , let (before, rest) = T.breakOn (T.singleton o.letter) o.name
         ]
-
-    bold :: Style
-    bold = mempty & #attributes .~ S.singleton Bold
 
 -- | What of a line prompt shows: the part of the line that fits next to
 -- the question and the note, the column of the cursor in the status bar,
@@ -290,7 +280,7 @@ playerStatus env s = case (s.mirror.status, currentSong s.mirror) of
               _ -> ""
             right = [Span Nothing bitrate, Span (Just cfg.timeStyle) time]
             room = max 0 (fst s.terminalSize - textWidth label - spansWidth right - 1)
-            songSpans = renderFormat ctx song cfg.song
+            songSpans = renderFormat (renderContext env.config.lists) song cfg.song
             shown
               | spansWidth songSpans <= room = songSpans
               | otherwise = [Span Nothing (scrollText room (floor e) (spansText songSpans))]
@@ -299,12 +289,6 @@ playerStatus env s = case (s.mirror.status, currentSong s.mirror) of
   where
     cfg :: StatusBarConfig
     cfg = env.config.statusBar
-
-    ctx :: RenderContext Style
-    ctx =
-      RenderContext
-        env.config.lists.tagSeparator
-        [Span env.config.lists.missingTagStyle env.config.lists.missingTag]
 
 ----------------------------------------
 -- Helpers

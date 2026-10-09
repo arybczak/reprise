@@ -6,11 +6,9 @@ module Reprise.Screen.Help
   , keyColumnWidth
   ) where
 
-import Data.Set qualified as S
 import Data.Text qualified as T
 import Effectful
 import Graphics.Vty qualified as V
-import Optics.Core
 
 import Reprise.Action
 import Reprise.Config
@@ -52,9 +50,6 @@ renderHelpLine colorMode styles keyWidth width = \case
 
     gap :: Int
     gap = 2
-
-    boldStyle :: Style
-    boldStyle = mempty & #attributes .~ S.singleton Bold
 
 -- | The width of the key column: the widest key sequence with its
 -- indentation.

@@ -4,6 +4,7 @@ module Reprise.Style
     Style (..)
   , Color (..)
   , StyleAttribute (..)
+  , boldStyle
   , parseStyle
   , renderStyle
 
@@ -50,6 +51,10 @@ instance Semigroup Style where
 
 instance Monoid Style where
   mempty = Style Nothing Nothing S.empty
+
+-- | Bold, over any colors.
+boldStyle :: Style
+boldStyle = mempty & #attributes .~ S.singleton Bold
 
 data Color
   = -- | The terminal's own color.

@@ -46,6 +46,7 @@ import Reprise.Screen.SongInfo
 import Reprise.Screen.Visualizer
 import Reprise.Selection
 import Reprise.State
+import Reprise.UI.SongList
 
 -- | Handle an event at a monotonic time, with pure handlers that collect the
 -- requests. It runs in 'IO', but without 'IOE' the code that handles the
@@ -805,9 +806,9 @@ updateWindowTitle = do
   s <- getS
   forM_ env.config.windowTitle $ \fmt -> do
     let title = case (currentSong s.mirror, (.state) <$> s.mirror.status) of
-          (Just song, Just st) | st /= Stopped -> renderPlain ctx song fmt
+          (Just song, Just st)
+            | st /= Stopped -> renderPlain (unstyledContext env.config.lists) song fmt
           _ -> "reprise"
-        ctx = RenderContext env.config.lists.tagSeparator [Span Nothing env.config.lists.missingTag]
     when (s.windowTitle /= Just title) $ do
       modifyS $ #windowTitle ?~ title
       setTitle title

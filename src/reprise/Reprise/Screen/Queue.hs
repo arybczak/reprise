@@ -32,7 +32,6 @@ import Reprise.Effect.MpdRequest
 import Reprise.Find
 import Reprise.Groups
 import Reprise.Handler.Core
-import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
@@ -47,14 +46,7 @@ import Reprise.UI.SongList
 
 queueView :: AppEnv -> AppState -> View -> V.Image
 queueView env s v =
-  let ctx =
-        RowContext
-          { colorMode = env.colorMode
-          , lists = env.config.lists
-          , songs = env.config.songs
-          , display = s.toggles.queueDisplay
-          , width = v.width
-          }
+  let ctx = rowContext env s.toggles.queueDisplay v.width
       titles
         | s.toggles.queueDisplay == Columns && env.config.songs.columns.showTitles =
             [renderTitles ctx]
@@ -64,16 +56,9 @@ queueView env s v =
         guard $ st.state /= Stopped
         st.currentId
       visible = Seq.take (listHeight env s v) (Seq.drop v.offset s.mirror.queue)
-      -- The matches of a find show while the user types it.
-      found = case s.prompt of
-        Just (Prompt _ (Line edit (ForFind _) _))
-          | Right p <- compilePattern (lineEditText edit)
-          , Right matched <-
-              matchAll
-                p
-                (foldText . rowText env.config.lists env.config.songs s.toggles.queueDisplay <$> visible) ->
-              toList matched
-        _ -> repeat False
+      found =
+        typedMatches s $
+          foldText . rowText env.config.lists env.config.songs s.toggles.queueDisplay <$> visible
       row (i, isFound) song =
         renderRow
           ctx
@@ -101,22 +86,9 @@ queueVerb = \case
   Delete -> Just deleteMarked
   Priority p -> Just $ prioritize p
   MoveSongs t -> Just $ moveSongs t
-  Toggle ToggleDisplay -> Just toggleDisplay
+  Toggle ToggleDisplay -> Just $ toggleDisplay #queueDisplay
   Toggle ToggleFollowPlaying -> Just toggleFollowPlaying
   _ -> Nothing
-
-toggleDisplay :: App es => Eff es ()
-toggleDisplay = do
-  modifyS $
-    #toggles % #queueDisplay %~ \case
-      Classic -> Columns
-      Columns -> Classic
-  modifyWithEnv (modifyView id)
-  d <- getsS (.toggles.queueDisplay)
-  showMessage $
-    "Display: " <> case d of
-      Classic -> "classic"
-      Columns -> "columns"
 
 toggleFollowPlaying :: App es => Eff es ()
 toggleFollowPlaying = do
