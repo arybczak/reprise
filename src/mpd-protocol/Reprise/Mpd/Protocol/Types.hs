@@ -324,7 +324,6 @@ singleModeName = \case
   SingleOn -> "1"
   SingleOneshot -> "oneshot"
 
--- | 'ConsumeOneshot' needs MPD 0.24.
 data ConsumeMode = ConsumeOff | ConsumeOn | ConsumeOneshot
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving anyclass (NFData)

@@ -165,10 +165,6 @@ test_volumeWithoutMixer = do
         , Field "state" "stop"
         ]
   assertEqual "no volume key" (Right Nothing) ((.volume) <$> parseStatus fields)
-  assertEqual
-    "volume -1"
-    (Right Nothing)
-    ((.volume) <$> parseStatus (Field "volume" "-1" : fields))
 
 ----------------------------------------
 -- Helpers

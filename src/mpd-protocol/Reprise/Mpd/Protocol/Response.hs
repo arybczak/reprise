@@ -386,10 +386,7 @@ parseStatus = parseSingle $ \fields -> do
   err <- optional "error" Just m
   pure
     Status
-      { volume = case volume of
-          -- MPD before 0.24 sends -1 without a mixer.
-          Just v | v >= 0 -> Just v
-          _ -> Nothing
+      { volume = volume
       , repeat = repeat_
       , random = random
       , single = single
