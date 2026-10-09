@@ -44,6 +44,7 @@ import Reprise.Screen.SongInfo
 import Reprise.Screen.Visualizer
 import Reprise.Selection
 import Reprise.State
+import Reprise.StatusBar
 import Reprise.UI.SongList
 
 -- | Handle an event at a monotonic time, with pure handlers that collect the
@@ -86,6 +87,7 @@ handleEvent = \case
   Started -> showScreen . (.config.startupScreen) =<< getAppEnv
   KeyPressed k -> handleKey k
   MouseWheel t col row -> handleWheel t col row
+  LeftClick col row -> handleClick col row
   Resized w h -> do
     modifyS $ layoutViews . (#terminalSize .~ (w, h))
     modifyWithEnv (modifyView id)
@@ -303,6 +305,13 @@ handleWheel t col row = do
         noteInput
         replicateM_ n moveOnce
     | otherwise -> keepScreen
+
+-- | A click on the state of the player in the status bar pauses it, or plays
+-- it again, as ncmpcpp's does.
+handleClick :: App es => Int -> Int -> Eff es ()
+handleClick col row = do
+  s <- getS
+  if onPlayerLabel s col row then runAction Pause else keepScreen
 
 -- | The user did something, which shows the cursor until it is idle again.
 noteInput :: App es => Eff es ()

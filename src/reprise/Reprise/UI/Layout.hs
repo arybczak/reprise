@@ -28,6 +28,7 @@ import Reprise.Screen.Queue
 import Reprise.Screen.SongInfo
 import Reprise.Screen.Visualizer
 import Reprise.State
+import Reprise.StatusBar
 import Reprise.Style
 import Reprise.UI.SongList
 import Reprise.Width
@@ -188,21 +189,21 @@ progressBar env s =
 -- Status bar
 
 statusBar :: AppEnv -> AppState -> V.Image
-statusBar env s = case (s.prompt, s.pendingKeys, s.message) of
-  (Just (Prompt question (Choice options)), _, _) ->
+statusBar env s = case statusContent s of
+  StatusPrompt (Prompt question (Choice options)) ->
     line
       env
       s
       cfg.style
       (Span Nothing (question <> " [") : choices options <> [Span Nothing "]"])
       []
-  (Just (Prompt question (Line edit purpose _)), _, _) ->
+  StatusPrompt (Prompt question (Line edit purpose _)) ->
     let p = promptLine s question edit purpose
     in line env s cfg.style [Span Nothing question, Span Nothing p.shown] [Span Nothing p.note]
-  (_, Just pending, _) -> textLine (T.unwords (map renderKeySpec pending.keys) <> " -")
-  (_, _, Just m) ->
+  StatusPending pending -> textLine (T.unwords (map renderKeySpec pending.keys) <> " -")
+  StatusMessage m ->
     line env s cfg.style [Span (if m.isError then Just cfg.errorStyle else Nothing) m.text] []
-  _ -> playerStatus env s
+  StatusPlayer -> playerStatus env s
   where
     cfg :: StatusBarConfig
     cfg = env.config.statusBar
@@ -262,29 +263,25 @@ promptCursor s = case s.prompt of
   _ -> Nothing
 
 playerStatus :: AppEnv -> AppState -> V.Image
-playerStatus env s = case (s.mirror.status, currentSong s.mirror) of
-  (Just st, Just song)
-    | st.state /= Stopped ->
-        let label = case st.state of
-              Playing -> "Playing: "
-              _ -> "Paused: "
-            e = fromMaybe 0 (displayedElapsed s)
-            time = case st.duration of
-              Just d
-                | cfg.showRemainingTime ->
-                    "[-" <> formatDuration (max 0 (d - e)) <> "/" <> formatDuration d <> "]"
-                | otherwise -> "[" <> formatDuration e <> "/" <> formatDuration d <> "]"
-              Nothing -> "[" <> formatDuration e <> "]"
-            bitrate = case st.bitrate of
-              Just b | s.toggles.showBitrate && b > 0 -> T.pack (show b) <> " kbps "
-              _ -> ""
-            right = [Span Nothing bitrate, Span (Just cfg.timeStyle) time]
-            room = max 0 (fst s.terminalSize - textWidth label - spansWidth right - 1)
-            songSpans = renderFormat (renderContext env.config.lists) song cfg.song
-            shown
-              | spansWidth songSpans <= room = songSpans
-              | otherwise = [Span Nothing (scrollText room (floor e) (spansText songSpans))]
-        in line env s cfg.style (Span (Just cfg.stateStyle) label : shown) right
+playerStatus env s = case (s.mirror.status, currentSong s.mirror, playerLabel s) of
+  (Just st, Just song, Just label) ->
+    let e = fromMaybe 0 (displayedElapsed s)
+        time = case st.duration of
+          Just d
+            | cfg.showRemainingTime ->
+                "[-" <> formatDuration (max 0 (d - e)) <> "/" <> formatDuration d <> "]"
+            | otherwise -> "[" <> formatDuration e <> "/" <> formatDuration d <> "]"
+          Nothing -> "[" <> formatDuration e <> "]"
+        bitrate = case st.bitrate of
+          Just b | s.toggles.showBitrate && b > 0 -> T.pack (show b) <> " kbps "
+          _ -> ""
+        right = [Span Nothing bitrate, Span (Just cfg.timeStyle) time]
+        room = max 0 (fst s.terminalSize - textWidth label - spansWidth right - 1)
+        songSpans = renderFormat (renderContext env.config.lists) song cfg.song
+        shown
+          | spansWidth songSpans <= room = songSpans
+          | otherwise = [Span Nothing (scrollText room (floor e) (spansText songSpans))]
+    in line env s cfg.style (Span (Just cfg.stateStyle) label : shown) right
   _ -> line env s cfg.style [] []
   where
     cfg :: StatusBarConfig

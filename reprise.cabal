@@ -161,6 +161,7 @@ library
                      Reprise.Selection
                      Reprise.SongInfo
                      Reprise.State
+                     Reprise.StatusBar
                      Reprise.Style
                      Reprise.UI.Layout
                      Reprise.UI.SongList

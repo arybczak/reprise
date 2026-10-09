@@ -266,7 +266,7 @@ ncmpcpp.
   - **A screen that isn't built yet is skipped,** so that a list can name
     it ahead, and it joins once it is built.
 
-**Mouse wheel**
+**Mouse**
 - A step of the wheel moves the cursor of a list by `mouse.scroll_lines`,
   4 as the author's ncmpcpp sets `lines_scrolled`, and scrolls text by
   them. A screen does it with its moves, so the lyrics stop following the
@@ -281,7 +281,10 @@ ncmpcpp.
 - **reprise turns on the terminal's mouse events.** Without them, a terminal
   sends the wheel as arrow keys on its alternate screen, one line a step.
   With them, selecting text in the terminal takes `shift`, as in ncmpcpp.
-  The other buttons do nothing yet.
+- **A left click on "Playing:" or "Paused:"** in the status bar pauses or
+  plays again, as ncmpcpp's does. The release makes the click, because the
+  terminal repeats the press while the mouse moves with it down, which
+  would pause and play again. Other clicks do nothing yet.
 
 **Other screens**
 - Outputs screen. It is small and used often.
@@ -908,6 +911,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
 | `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors, the order of text, the directory of lyrics and the editor. What the code under the screens knows of each screen, e.g. its length, its songs and its title, in one table. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
 | `Reprise.Header` | What the header's first line shows: the focused screen's title, which scrolls if it doesn't fit, and the volume |
+| `Reprise.StatusBar` | What the status bar shows: a prompt, the keys of a pending sequence, a message or the player, and where the player's state is for a click |
 | `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write to the queue of events |
 | `Reprise.Visualizer.Worker` | The thread that reads MPD's fifo output while the visualizer shows, and sends the samples of each frame |

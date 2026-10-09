@@ -58,6 +58,7 @@ handlerTests =
     , testCase "jump to playing centers the cursor" test_jumpCenters
     , testCase "the mouse wheel" test_wheel
     , testCase "the mouse wheel over the volume" test_wheelVolume
+    , testCase "a click on the player's state pauses" test_clickPause
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
     , testCase "back from the screens about a song or the keys" test_backKeys
     , testCase "the help screen scrolls" test_helpScrolls
@@ -529,6 +530,24 @@ test_wheel = do
   assertEqual "nor a redraw" [KeepScreen] r.commands
 
 -- | "Volume: 50%" takes the last 11 columns of the title's row.
+-- | "Playing: " takes the first 9 columns of the status bar, and "Paused: "
+-- the first 8.
+test_clickPause :: Assertion
+test_clickPause = do
+  playing <- testState (80, 24) (statusOf Playing (Just 0) 1) (songs 1)
+  paused <- testState (80, 24) (statusOf Paused (Just 0) 1) (songs 1)
+  stopped <- testState (80, 24) (statusOf Stopped (Just 0) 1) (songs 1)
+  let click col row s = (.requests) <$> runEvents 0 [LeftClick col row] s
+  assertEqual "pause" [[Request "pause" ["1"]]] =<< click 0 23 playing
+  assertEqual "the label's end" [[Request "pause" ["1"]]] =<< click 8 23 playing
+  assertEqual "resume" [[Request "pause" ["0"]]] =<< click 7 23 paused
+  assertEqual "beside the label" [] =<< click 8 23 paused
+  assertEqual "another row" [] =<< click 0 22 playing
+  assertEqual "stopped" [] =<< click 0 23 stopped
+  toggled <- keys ["t", "f"] playing
+  assertBool "a message shows" (message toggled /= Nothing)
+  assertEqual "not over a message" [] =<< click 0 23 toggled.state
+
 test_wheelVolume :: Assertion
 test_wheelVolume = do
   s <- testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)

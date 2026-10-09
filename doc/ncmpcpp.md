@@ -122,8 +122,9 @@ Options whose choice is fixed in reprise:
 
 The search engine, the media library, the playlist editor, the tag editors,
 album separators in the queue, the server info, the mouse but for its
-wheel, and commands that run on song change. The browser already opens stored
-playlists and loads them, and `e w` saves them.
+wheel and a click on the player's state, and commands that run on song
+change. The browser already opens stored playlists and loads them, and
+`e w` saves them.
 
 The clock screen and split screens are gone.
 
