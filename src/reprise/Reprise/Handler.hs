@@ -93,8 +93,9 @@ releaseInput :: App es => Eff es ()
 releaseInput = do
   held <- getsS (fromMaybe Seq.empty . (.heldInput))
   modifyS $ #heldInput .~ Nothing
-  -- The reply changed the screen, so a key that changes nothing mustn't
-  -- keep it from being redrawn.
+  -- The held input runs within the event of the reply, and a 'KeepScreen'
+  -- anywhere in an event skips its redraw, which the reply needs. A key
+  -- that changes nothing, e.g. a click outside a list, would send one.
   let redrawn :: UiRequest :> es => Eff es a -> Eff es a
       redrawn = interpose_ $ \case
         UiRequest KeepScreen -> pure ()
