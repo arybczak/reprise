@@ -10,6 +10,7 @@ module Reprise.LineEdit
 import Data.Char hiding (Space)
 import Data.Set qualified as S
 import Data.Text qualified as T
+import Data.Text.ICU qualified as ICU
 
 import Reprise.Keys
 import Reprise.Width
@@ -35,7 +36,7 @@ editLine :: KeySpec -> LineEdit -> Maybe LineEdit
 editLine k e = case (S.toList k.modifiers, k.key) of
   ([], CharKey c) -> Just $ e {before = T.snoc e.before c}
   ([], Space) -> Just $ e {before = T.snoc e.before ' '}
-  ([], Backspace) -> Just $ e {before = T.dropEnd 1 e.before}
+  ([], Backspace) -> Just $ e {before = maybe e.before fst (unsnocCharacter e.before)}
   ([], DeleteKey) -> Just deleteNext
   ([Ctrl], CharKey 'd') -> Just deleteNext
   ([], ArrowLeft) -> Just left
@@ -55,17 +56,28 @@ editLine k e = case (S.toList k.modifiers, k.key) of
   ([Alt], Backspace) -> Just $ e {before = fst wordBefore}
   _ -> Nothing
   where
+    -- The keys move over and delete characters as people see them.
+    unconsCharacter :: T.Text -> Maybe (T.Text, T.Text)
+    unconsCharacter t = case characters t of
+      c : _ -> Just (c, T.drop (T.length c) t)
+      [] -> Nothing
+
+    unsnocCharacter :: T.Text -> Maybe (T.Text, T.Text)
+    unsnocCharacter t = case reverse (characters t) of
+      c : _ -> Just (T.dropEnd (T.length c) t, c)
+      [] -> Nothing
+
     deleteNext :: LineEdit
-    deleteNext = e {after = T.drop 1 e.after}
+    deleteNext = e {after = maybe e.after snd (unconsCharacter e.after)}
 
     left :: LineEdit
-    left = case T.unsnoc e.before of
-      Just (rest, c) -> LineEdit rest (T.cons c e.after)
+    left = case unsnocCharacter e.before of
+      Just (rest, c) -> LineEdit rest (c <> e.after)
       Nothing -> e
 
     right :: LineEdit
-    right = case T.uncons e.after of
-      Just (c, rest) -> LineEdit (T.snoc e.before c) rest
+    right = case unconsCharacter e.after of
+      Just (c, rest) -> LineEdit (e.before <> c) rest
       Nothing -> e
 
     home :: LineEdit
@@ -103,5 +115,17 @@ visibleLine room e
     beforeWidth :: Int
     beforeWidth = textWidth e.before
 
+    -- Whole characters, so that the line doesn't start with an accent
+    -- without its letter.
     takeWidthEnd :: Int -> T.Text -> T.Text
-    takeWidthEnd n = T.reverse . takeWidth n . T.reverse
+    takeWidthEnd n = T.concat . reverse . fit n . reverse . characters
+      where
+        fit :: Int -> [T.Text] -> [T.Text]
+        fit left = \case
+          c : cs | textWidth c <= left -> c : fit (left - textWidth c) cs
+          _ -> []
+
+-- | The characters of text as people see them, e.g. a letter with its
+-- accents, or emoji that a joiner joins.
+characters :: T.Text -> [T.Text]
+characters = map ICU.brkBreak . ICU.breaks (ICU.breakCharacter ICU.Root)

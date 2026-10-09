@@ -18,6 +18,7 @@ lineEditTests =
     , testCase "words" test_words
     , testCase "keys that don't edit" test_notEditing
     , testCase "the visible part" test_visible
+    , testCase "characters as people see them" test_graphemes
     ]
 
 test_typing :: Assertion
@@ -84,6 +85,37 @@ test_visible = do
   assertEqual "scrolled" ("efg", 3) (visibleLine 4 (LineEdit "abcdefg" ""))
   assertEqual "scrolled in the middle" ("cdef", 3) (visibleLine 4 (LineEdit "abcde" "fgh"))
   assertEqual "wide characters" ("日本", 4) (visibleLine 5 (LineEdit "中日本" ""))
+  assertEqual
+    "a letter with its accent"
+    ("e\x301\&e\x301\&e\x301\&e\x301", 4)
+    (visibleLine 5 (LineEdit (T.replicate 10 "e\x301") ""))
+
+-- | The keys move over and delete characters as people see them: a letter
+-- with its accents, or emoji that a joiner joins.
+test_graphemes :: Assertion
+test_graphemes = do
+  let accented = "e\x301"
+      family = "👨\x200D👩\x200D👧"
+  assertEqual
+    "backspace"
+    (LineEdit "a" "")
+    (edits ["backspace"] (LineEdit ("a" <> accented) ""))
+  assertEqual
+    "backspace on emoji"
+    (LineEdit "a" "")
+    (edits ["backspace"] (LineEdit ("a" <> family) ""))
+  assertEqual
+    "delete"
+    (LineEdit "a" "b")
+    (edits ["delete"] (LineEdit "a" (accented <> "b")))
+  assertEqual
+    "left"
+    (LineEdit "a" (accented <> "b"))
+    (edits ["left"] (LineEdit ("a" <> accented) "b"))
+  assertEqual
+    "right"
+    (LineEdit ("a" <> family) "b")
+    (edits ["right"] (LineEdit "a" (family <> "b")))
 
 ----------------------------------------
 -- Helpers

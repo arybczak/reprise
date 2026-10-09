@@ -1462,6 +1462,11 @@ shows where:
 - `alt-b`, `alt-f`, `alt-d` and `alt-backspace` work on words of letters and
   digits, as in readline.
 
+The keys of single characters move over and delete characters as people see
+them, by ICU's breaks of characters: a letter with its accents, or emoji that
+a joiner joins, is one, so that a key doesn't leave an accent without its
+letter. A line too long for the prompt starts at such a character too.
+
 The line prompts share one history, as in ncmpcpp. Separate histories would
 each hold few lines, and more prompts are coming, e.g. the search engine's.
 - **`up`/`ctrl-p` and `down`/`ctrl-n` recall the lines that start with what
