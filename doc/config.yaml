@@ -118,6 +118,7 @@ editor:
 
 mouse:
   scroll_lines: 4                # a step of the wheel moves a list or text
+  volume_step: 2                 # a step of the wheel over the volume
 
 styles:
   label: white                   # names of fields, e.g. in the song info

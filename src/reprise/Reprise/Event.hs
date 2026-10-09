@@ -24,8 +24,9 @@ data AppEvent
     Started
   | -- | A key that the user pressed.
     KeyPressed KeySpec
-  | -- | A step of the mouse wheel, up or down.
-    MouseWheel MoveTarget
+  | -- | A step of the mouse wheel, up or down, at a column and a row of the
+    -- terminal.
+    MouseWheel MoveTarget Int Int
   | -- | The terminal's new width and height.
     Resized Int Int
   | -- | The idle connection is up.

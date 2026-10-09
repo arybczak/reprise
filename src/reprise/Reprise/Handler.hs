@@ -85,7 +85,7 @@ handleEvent :: App es => AppEvent -> Eff es ()
 handleEvent = \case
   Started -> showScreen . (.config.startupScreen) =<< getAppEnv
   KeyPressed k -> handleKey k
-  MouseWheel t -> handleWheel t
+  MouseWheel t col row -> handleWheel t col row
   Resized w h -> do
     modifyS $ layoutViews . (#terminalSize .~ (w, h))
     modifyWithEnv (modifyView id)
@@ -284,19 +284,25 @@ handleKey k = do
         when (length keys > 1) . showMessage $
           T.unwords (map renderKeySpec keys) <> " is not bound"
 
--- | Move the cursor of a list, or scroll text, by the lines of a step of the
--- wheel, as the screen's moves do. A prompt, and a screen without moves,
--- leave the wheel alone.
-handleWheel :: App es => MoveTarget -> Eff es ()
-handleWheel t = do
+-- | A step of the wheel over the volume changes it, as ncmpcpp's does. Over
+-- the focused view, it moves the cursor of a list, or scrolls text, by its
+-- lines, as the screen's moves do. Elsewhere, in a prompt, or over a screen
+-- without moves, it does nothing.
+handleWheel :: App es => MoveTarget -> Int -> Int -> Eff es ()
+handleWheel t col row = do
   env <- getAppEnv
   s <- getS
   let ScrollLines n = env.config.mouse.scrollLines
-  case (s.prompt, screenVerb (focusedView s).screen (Move t)) of
-    (Nothing, Just step) -> do
-      noteInput
-      replicateM_ n step
-    _ -> keepScreen
+      VolumeStep step = env.config.mouse.volumeStep
+  if
+    | isJust s.prompt -> keepScreen
+    | onVolume s col row ->
+        runAction . Volume . VolumeBy $ if t == MoveUp then step else negate step
+    | viewAt s col row == Just s.focus
+    , Just moveOnce <- screenVerb (focusedView s).screen (Move t) -> do
+        noteInput
+        replicateM_ n moveOnce
+    | otherwise -> keepScreen
 
 -- | The user did something, which shows the cursor until it is idle again.
 noteInput :: App es => Eff es ()

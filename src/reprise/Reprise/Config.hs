@@ -34,6 +34,7 @@ module Reprise.Config
   , EditorConfig (..)
   , MouseConfig (..)
   , ScrollLines (..)
+  , VolumeStep (..)
   , Visualization (..)
   , visualizationName
   , FrameRate (..)
@@ -329,16 +330,22 @@ newtype EditorConfig = EditorConfig
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml EditorConfig
 
-newtype MouseConfig = MouseConfig
+data MouseConfig = MouseConfig
   { scrollLines :: ScrollLines
   -- ^ How far a step of the wheel moves the cursor of a list, or scrolls
   -- text.
+  , volumeStep :: VolumeStep
+  -- ^ How much a step of the wheel over the volume changes it.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml MouseConfig
 
 -- | Lines, at least one.
 newtype ScrollLines = ScrollLines Int
+  deriving newtype (Eq, Show)
+
+-- | Percents of the volume, from 1 to 'maxVolume'.
+newtype VolumeStep = VolumeStep Int
   deriving newtype (Eq, Show)
 
 data LyricsFetcher
@@ -550,9 +557,10 @@ defaultVisualizer =
 defaultEditor :: EditorConfig
 defaultEditor = EditorConfig {command = Nothing}
 
--- | The author's ncmpcpp sets @lines_scrolled@ to 4.
+-- | The author's ncmpcpp sets @lines_scrolled@ to 4, and leaves
+-- @volume_change_step@ at 2, which the volume keys take too.
 defaultMouse :: MouseConfig
-defaultMouse = MouseConfig {scrollLines = ScrollLines 4}
+defaultMouse = MouseConfig {scrollLines = ScrollLines 4, volumeStep = VolumeStep 2}
 
 defaultLyrics :: LyricsConfig
 defaultLyrics =
@@ -752,6 +760,13 @@ instance FromYaml ScrollLines where
     if lines' >= 1
       then pure (ScrollLines lines')
       else failAt n "expected at least 1 line"
+
+instance FromYaml VolumeStep where
+  parseYaml n = do
+    step <- parseYaml @Int n
+    if step >= 1 && step <= maxVolume
+      then pure (VolumeStep step)
+      else failAt n $ "expected a step from 1 to " <> show maxVolume
 
 instance FromYaml ProgressChars where
   parseYaml n = withText chars n

@@ -91,7 +91,7 @@ Crop (`C`) and reversing the queue (`ctrl-r`) are gone.
 | `follow_now_playing_lyrics` | `lyrics.follow_playing` |
 | `external_editor` | `editor.command`, else `$VISUAL` or `$EDITOR` |
 | `lines_scrolled` | `mouse.scroll_lines` |
-| `volume_change_step`, `seek_time`, `mpd_crossfade_time` | the arguments of the keys: `volume +2`, `seek +1s`, `toggle crossfade 5` |
+| `volume_change_step`, `seek_time`, `mpd_crossfade_time` | the arguments of the keys: `volume +2`, `seek +1s`, `toggle crossfade 5`; for the wheel over the volume, `mouse.volume_step` |
 | `screen_switcher_mode` | `tab: next_screen [queue, browser]`, with the screens to go through |
 | `space_add_mode` | `add` and `add_or_remove` are two actions; `space` adds or removes |
 

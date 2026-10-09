@@ -87,8 +87,10 @@ runApp env channels buildVty initial = do
               `orElse` (Right <$> readTBQueue channels.events)
         event <- case received of
           Left (V.InputEvent (V.EvKey k mods)) -> pure (KeyPressed <$> fromVtyKey k mods)
-          Left (V.InputEvent (V.EvMouseDown _ _ V.BScrollUp _)) -> pure . Just $ MouseWheel MoveUp
-          Left (V.InputEvent (V.EvMouseDown _ _ V.BScrollDown _)) -> pure . Just $ MouseWheel MoveDown
+          Left (V.InputEvent (V.EvMouseDown col row V.BScrollUp _)) ->
+            pure . Just $ MouseWheel MoveUp col row
+          Left (V.InputEvent (V.EvMouseDown col row V.BScrollDown _)) ->
+            pure . Just $ MouseWheel MoveDown col row
           Left (V.InputEvent (V.EvResize w h)) -> pure . Just $ Resized w h
           -- vty-unix sends it after the terminal changed its size.
           Left V.ResumeAfterInterrupt -> Just . uncurry Resized <$> displaySize vty

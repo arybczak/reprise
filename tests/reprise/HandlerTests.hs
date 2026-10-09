@@ -57,6 +57,7 @@ handlerTests =
     , testCase "a lost connection clears the player status" test_disconnectClears
     , testCase "jump to playing centers the cursor" test_jumpCenters
     , testCase "the mouse wheel" test_wheel
+    , testCase "the mouse wheel over the volume" test_wheelVolume
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition
     , testCase "back from the screens about a song or the keys" test_backKeys
     , testCase "the help screen scrolls" test_helpScrolls
@@ -501,23 +502,46 @@ test_jumpCenters = do
 test_wheel :: Assertion
 test_wheel = do
   s <- testState (80, 24) (statusOf Stopped Nothing 50) (songs 50)
-  let wheel ts = runEvents 0 (map MouseWheel ts)
+  -- The list of 24 rows is from row 2 to row 21.
+  let wheelAt col row ts = runEvents 0 [MouseWheel t col row | t <- ts]
+      wheel = wheelAt 10 5
   assertEqual "down" (8, 0) . position =<< wheel [MoveDown, MoveDown] s
   assertEqual "up" (4, 0) . position =<< wheel [MoveDown, MoveDown, MoveUp] s
+  assertEqual "at the list's corner" (4, 0) . position =<< wheelAt 79 21 [MoveDown] s
   assertEqual "the cursor shows" 3 . (.state.lastInput)
-    =<< runEvents 3 [MouseWheel MoveDown] s
+    =<< runEvents 3 [MouseWheel MoveDown 10 5] s
   let two = testAppEnv & #config % #mouse % #scrollLines .~ ScrollLines 2
   assertEqual "the config's lines" (2, 0) . position
-    =<< runEventsWith two 0 [MouseWheel MoveDown] s
+    =<< runEventsWith two 0 [MouseWheel MoveDown 10 5] s
   help <- keys ["f1"] s
   assertEqual "text scrolls" 4 . (.offset) . focusedView . (.state)
-    =<< runEvents 0 [MouseWheel MoveDown] help.state
+    =<< runEvents 0 [MouseWheel MoveDown 10 5] help.state
+  forM_ [("the title", 10, 0), ("the header's line", 10, 1), ("the status bar", 10, 23)] $
+    \(what, col, row) -> do
+      r <- wheelAt col row [MoveDown] s
+      assertEqual ("not over " <> what) (0, 0) (position r)
+      assertEqual ("no request over " <> what) [] r.requests
   prompt <- keys [":"] s
   assertEqual "not in a prompt" (0, 0) . position =<< wheel [MoveDown] prompt.state
   visualizer <- keys ["8"] s
   r <- wheel [MoveDown] visualizer.state
   assertEqual "nothing on a screen without moves" Nothing (message r)
   assertEqual "nor a redraw" [KeepScreen] r.commands
+
+-- | "Volume: 50%" takes the last 11 columns of the title's row.
+test_wheelVolume :: Assertion
+test_wheelVolume = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
+  let volume t col = (.requests) <$> runEvents 0 [MouseWheel t col 0] s
+  assertEqual "up" [[Request "volume" ["+2"]]] =<< volume MoveUp 79
+  assertEqual "down" [[Request "volume" ["-2"]]] =<< volume MoveDown 69
+  assertEqual "beside it" [] =<< volume MoveUp 68
+  let four = testAppEnv & #config % #mouse % #volumeStep .~ VolumeStep 4
+  assertEqual "the config's step" [[Request "volume" ["+4"]]] . (.requests)
+    =<< runEventsWith four 0 [MouseWheel MoveUp 79 0] s
+  disconnected <- runEvents 0 [MpdDisconnected "gone"] s
+  assertEqual "not while disconnected" [] . (.requests)
+    =<< runEvents 0 [MouseWheel MoveUp 79 0] disconnected.state
 
 test_backKeys :: Assertion
 test_backKeys = do

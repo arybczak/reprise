@@ -1,12 +1,14 @@
 -- | What the header's first line shows: the title of the focused screen,
 -- which scrolls if it doesn't fit, and the volume. Both the handlers, which
--- redraw it while it scrolls, and the layout need it.
+-- redraw it while it scrolls and take the wheel over the volume, and the
+-- layout need it.
 module Reprise.Header
   ( titleSubject
   , shownTitle
   , titleSince
   , titleScrolls
   , headerRight
+  , onVolume
   ) where
 
 import Data.Text qualified as T
@@ -57,3 +59,12 @@ headerRight s = case s.connection of
   Connected _ -> case s.mirror.status >>= (.volume) of
     Just v -> "Volume: " <> T.pack (show v) <> "%"
     Nothing -> "Volume: n/a"
+
+-- | Whether a cell of the terminal, at a column and a row, is on the volume
+-- at the right of the header's first line.
+onVolume :: AppState -> Int -> Int -> Bool
+onVolume s col row = case s.connection of
+  Connected _ ->
+    let w = fst s.terminalSize
+    in row == 0 && col >= w - textWidth (headerRight s) && col < w
+  _ -> False

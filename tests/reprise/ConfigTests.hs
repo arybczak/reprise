@@ -277,6 +277,10 @@ test_errors = do
   assertError "unknown fetcher" "genius" (decode "lyrics:\n  fetchers: [genius]\n")
   assertError "port too large" "a port is from 1 to 65535" (decode "mpd:\n  port: 70000\n")
   assertError "no lines to scroll" "at least 1 line" (decode "mouse:\n  scroll_lines: 0\n")
+  assertError
+    "a volume step too large"
+    "from 1 to 100"
+    (decode "mouse:\n  volume_step: 101\n")
   assertError "port 0" "a port is from 1 to 65535" (decode "mpd:\n  port: 0\n")
   assertError
     "no timeout"

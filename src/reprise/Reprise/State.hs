@@ -45,6 +45,7 @@ module Reprise.State
   , focusedView
   , layoutViews
   , mainHeight
+  , viewAt
   , listHeight
 
     -- * Screens
@@ -499,10 +500,27 @@ initialState config =
 focusedView :: AppState -> View
 focusedView s = M.findWithDefault (newView QueueScreen) s.focus s.views
 
--- | The height of the main area: the terminal without the header (2
--- lines), the progress bar and the status bar.
+-- | The height of the main area: the terminal without the header, the
+-- progress bar and the status bar.
 mainHeight :: (Int, Int) -> Int
-mainHeight (_, h) = max 0 (h - 4)
+mainHeight (_, h) = max 0 (h - headerHeight - footerHeight)
+
+-- | The title and the line of the header.
+headerHeight :: Int
+headerHeight = 2
+
+-- | The progress bar and the status bar.
+footerHeight :: Int
+footerHeight = 2
+
+-- | The view that shows a cell of the terminal, at a column and a row.
+viewAt :: AppState -> Int -> Int -> Maybe ViewId
+viewAt s col row = case s.layout of
+  Single vid
+    | col >= 0 && col < fst s.terminalSize
+    , row >= headerHeight && row < headerHeight + mainHeight s.terminalSize ->
+        Just vid
+  Single _ -> Nothing
 
 -- | Give the views their sizes from the terminal size.
 layoutViews :: AppState -> AppState

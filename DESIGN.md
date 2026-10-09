@@ -269,9 +269,15 @@ ncmpcpp.
 **Mouse wheel**
 - A step of the wheel moves the cursor of a list by `mouse.scroll_lines`,
   4 as the author's ncmpcpp sets `lines_scrolled`, and scrolls text by
-  them. A screen does
-  it with its moves, so the lyrics stop following the song as for the keys.
-  A screen without moves, and a prompt, leave the wheel alone.
+  them. A screen does it with its moves, so the lyrics stop following the
+  song as for the keys. A screen without moves, and a prompt, leave the
+  wheel alone.
+  - **Only over the view.** The wheel elsewhere, e.g. over the status bar,
+    moves nothing, so that the view under the mouse is the one that moves
+    once screens have several, e.g. the media library's columns.
+  - **Over the volume, it changes the volume** by `mouse.volume_step`, as
+    ncmpcpp's does by its `volume_change_step`, 2. The volume keys take
+    their step from their arguments, e.g. `volume +2`.
 - **reprise turns on the terminal's mouse events.** Without them, a terminal
   sends the wheel as arrow keys on its alternate screen, one line a step.
   With them, selecting text in the terminal takes `shift`, as in ncmpcpp.
