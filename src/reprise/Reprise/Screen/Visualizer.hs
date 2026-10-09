@@ -54,10 +54,13 @@ visualizerView env s v = case env.config.visualizer.dataSource of
     | otherwise -> picture v.height
   where
     picture :: Int -> V.Image
-    picture h = case s.toggles.visualization of
-      Spectrum -> bars env.colorMode env.config.visualizer v.width h s.visualizer.spectrum
-      Ellipse -> ellipse env.colorMode env.config.visualizer v.width h s.visualizer.frames
-      Wave -> wave env.colorMode env.config.visualizer v.width h s.visualizer.wave
+    picture h = case s.visualizer.reading of
+      Just (SpectrumFrame spectrum) ->
+        bars env.colorMode env.config.visualizer v.width h spectrum
+      Just (EllipseFrames frames) ->
+        ellipse env.colorMode env.config.visualizer v.width h frames
+      Just (WaveFrame samples) -> wave env.colorMode env.config.visualizer v.width h samples
+      Nothing -> V.emptyImage
 
     debugLine :: V.Image
     debugLine =
@@ -91,9 +94,8 @@ updateVisualizer = do
         guard $
           isJust env.config.visualizer.dataSource && (focusedView s).screen == VisualizerScreen
         pure s.toggles.visualization
-  when (wanted /= s.visualizer.reading) $ do
-    modifyS $
-      #visualizer .~ VisualizerState wanted Seq.empty Nothing Nothing Seq.empty Nothing
+  when (wanted /= (pictureVisualization <$> s.visualizer.reading)) $ do
+    modifyS $ #visualizer .~ newVisualizer wanted
     visualize wanted
 
 nextVisualization :: App es => Eff es ()
@@ -107,37 +109,37 @@ nextVisualization = do
 visualizerSamples :: App es => BS.ByteString -> Eff es ()
 visualizerSamples samples = do
   env <- getAppEnv
-  v <- getsS (.visualizer)
-  if v.reading /= Just Ellipse || (BS.null samples && all BS.null v.frames)
-    then keepScreen
-    else do
-      modifyS $
-        #visualizer
-          % #frames
-          .~ Seq.take (trailFrames env.config.visualizer) (samples Seq.<| v.frames)
-      countDrawn
+  showFrame $ \case
+    -- Silence on silence changes nothing.
+    EllipseFrames frames
+      | not (BS.null samples && all BS.null frames) ->
+          Just . EllipseFrames $
+            Seq.take (trailFrames env.config.visualizer) (samples Seq.<| frames)
+    _ -> Nothing
 
 -- | Show the spectrum of a frame. A spectrum that comes after the spectrum
 -- stopped reading is dropped.
 visualizerSpectrum :: App es => VS.Vector Double -> VS.Vector Double -> Eff es ()
-visualizerSpectrum left right = do
-  v <- getsS (.visualizer)
-  if v.reading /= Just Spectrum
-    then keepScreen
-    else do
-      modifyS $ #visualizer % #spectrum ?~ (left, right)
-      countDrawn
+visualizerSpectrum left right = showFrame $ \case
+  SpectrumFrame _ -> Just $ SpectrumFrame (Just (left, right))
+  _ -> Nothing
 
 -- | Show the wave of a frame. A wave that comes after the wave stopped
 -- reading is dropped.
 visualizerWave :: App es => BS.ByteString -> Eff es ()
-visualizerWave samples = do
-  v <- getsS (.visualizer)
-  if v.reading /= Just Wave
-    then keepScreen
-    else do
-      modifyS $ #visualizer % #wave ?~ samples
+visualizerWave samples = showFrame $ \case
+  WaveFrame _ -> Just $ WaveFrame (Just samples)
+  _ -> Nothing
+
+-- | Show what a frame changes in the picture of the visualization that
+-- reads the samples, if it changes anything.
+showFrame :: App es => (VisualizerPicture -> Maybe VisualizerPicture) -> Eff es ()
+showFrame next =
+  getsS (.visualizer.reading) >>= \case
+    Just picture | Just picture' <- next picture -> do
+      modifyS $ #visualizer % #reading ?~ picture'
       countDrawn
+    _ -> keepScreen
 
 -- | Show what happened to the worker's frames in the last second.
 visualizerStats :: App es => FrameStats -> Eff es ()

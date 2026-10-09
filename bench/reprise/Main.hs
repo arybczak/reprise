@@ -294,8 +294,10 @@ settled s =
   Seq.length s.mirror.queue
     + S.size s.queueState.selection.keys
     + Seq.length s.browser.items
-    + Seq.length s.visualizer.frames
-    + maybe 0 (\(l, r) -> VS.length l + VS.length r) s.visualizer.spectrum
+    + case s.visualizer.reading of
+      Just (EllipseFrames frames) -> Seq.length frames
+      Just (SpectrumFrame spectrum) -> maybe 0 (\(l, r) -> VS.length l + VS.length r) spectrum
+      _ -> 0
     + (focusedView s).cursor
     + (focusedView s).offset
     + maybe 0 (T.length . (.question)) s.prompt

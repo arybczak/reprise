@@ -24,6 +24,9 @@ module Reprise.State
   , FindRows (..)
   , BrowserState (..)
   , VisualizerState (..)
+  , VisualizerPicture (..)
+  , newVisualizer
+  , pictureVisualization
   , LyricsState (..)
   , LyricsStatus (..)
   , SongInfoState (..)
@@ -308,16 +311,9 @@ data ItemKey
 
 -- | What the visualizer shows.
 data VisualizerState = VisualizerState
-  { reading :: Maybe Visualization
-  -- ^ What reprise asked the samples for, which it does while the
-  -- visualizer shows.
-  , frames :: Seq.Seq BS.ByteString
-  -- ^ The samples of the frames of the ellipse on the screen, the newest
-  -- first.
-  , spectrum :: Maybe (VS.Vector Double, VS.Vector Double)
-  -- ^ The magnitudes of the left channel's spectrum and of the right one's.
-  , wave :: Maybe BS.ByteString
-  -- ^ The samples of the wave.
+  { reading :: Maybe VisualizerPicture
+  -- ^ What reprise reads the samples for, which it does while the
+  -- visualizer shows, with what the samples show so far.
   , drawn :: Seq.Seq Double
   -- ^ When the frames of the last second were drawn, with
   -- @visualizer.debug@.
@@ -325,6 +321,36 @@ data VisualizerState = VisualizerState
   -- ^ What the worker last sent, with @visualizer.debug@.
   }
   deriving stock (Eq, Show, Generic)
+
+-- | A visualization with what it shows.
+data VisualizerPicture
+  = -- | The samples of the frames of the ellipse on the screen, the newest
+    -- first.
+    EllipseFrames (Seq.Seq BS.ByteString)
+  | -- | The magnitudes of the left channel's spectrum and of the right
+    -- one's.
+    SpectrumFrame (Maybe (VS.Vector Double, VS.Vector Double))
+  | -- | The samples of the wave.
+    WaveFrame (Maybe BS.ByteString)
+  deriving stock (Eq, Show)
+
+-- | The visualizer reading the samples for a visualization, or not, before
+-- the first frame.
+newVisualizer :: Maybe Visualization -> VisualizerState
+newVisualizer v = VisualizerState (empty <$> v) Seq.empty Nothing
+  where
+    empty :: Visualization -> VisualizerPicture
+    empty = \case
+      Ellipse -> EllipseFrames Seq.empty
+      Spectrum -> SpectrumFrame Nothing
+      Wave -> WaveFrame Nothing
+
+-- | The visualization that a picture is of.
+pictureVisualization :: VisualizerPicture -> Visualization
+pictureVisualization = \case
+  EllipseFrames _ -> Ellipse
+  SpectrumFrame _ -> Spectrum
+  WaveFrame _ -> Wave
 
 -- | What the lyrics screen shows.
 data LyricsState = LyricsState
@@ -430,7 +456,7 @@ initialState config =
     , mirror = emptyMirror
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
-    , visualizer = VisualizerState Nothing Seq.empty Nothing Nothing Seq.empty Nothing
+    , visualizer = newVisualizer Nothing
     , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing
     , songInfo = SongInfoState Nothing 0 []
     , outputs = Nothing

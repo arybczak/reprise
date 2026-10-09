@@ -222,14 +222,14 @@ test_staleSamples = do
   s <- testState (40, 12) (statusOf Stopped Nothing 0) []
   r <- runEventsWith visualizing 0 [VisualizerSamples circle] s
   assertEqual "the screen stays" [KeepScreen] r.commands
-  assertEqual "no frames" Seq.empty r.state.visualizer.frames
+  assertEqual "no frames" Seq.empty (ellipseFrames r.state)
 
 -- | 50 ms at 60 frames a second are 3 frames.
 test_trail :: Assertion
 test_trail = do
   let env = visualizing & #config % #visualizer % #trail .~ 0.05
   r <- shownWith Ellipse env (replicate 5 circle)
-  assertEqual "frames" 3 (Seq.length r.visualizer.frames)
+  assertEqual "frames" 3 (Seq.length (ellipseFrames r))
 
 test_silence :: Assertion
 test_silence = do
@@ -240,7 +240,7 @@ test_silence = do
   assertEqual
     "the screen changes while samples are on it"
     2
-    (Seq.length stayed.visualizer.frames)
+    (Seq.length (ellipseFrames stayed))
 
 -- | The header and the bars take the 4 rows.
 test_noRoom :: Assertion
@@ -720,6 +720,12 @@ test_workerStats = do
 
 ----------------------------------------
 -- Helpers
+
+-- | The samples of the ellipse on the screen.
+ellipseFrames :: AppState -> Seq.Seq BS.ByteString
+ellipseFrames s = case s.visualizer.reading of
+  Just (EllipseFrames frames) -> frames
+  _ -> Seq.empty
 
 -- | The default config with a data source.
 visualizing :: AppEnv
