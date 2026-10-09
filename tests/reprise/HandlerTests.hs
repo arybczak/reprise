@@ -38,6 +38,7 @@ handlerTests =
     , testCase "clear asks first" test_clearConfirm
     , testCase "volume without a mixer" test_noMixer
     , testCase "seeking" test_seek
+    , testCase "a seek is of its song" test_seekOfItsSong
     , testCase "a stale seek timer" test_staleSeek
     , testCase "one timer hides the cursor" test_cursorTimer
     , testCase
@@ -661,6 +662,23 @@ test_seek = do
       assertEqual "one seek" [[Request "seekcur" ["13"]]] done.requests
       assertEqual "finished" Nothing done.state.seek
     [] -> assertFailure "no timer"
+
+-- | A seek that waits for its keys to end is of its song: another song, a
+-- stop or a replay drops it.
+test_seekOfItsSong :: Assertion
+test_seekOfItsSong = do
+  s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+  r <- runEvents 0 [key' "f"] s
+  commit <- case [e | After _ e@(SeekCommit _) <- r.commands] of
+    [e] -> pure e
+    _ -> assertFailure "expected one timer"
+  next <- runEvents 0 [StatusFetched (statusOf Playing (Just 1) 3)] r.state
+  assertEqual "dropped for the next song" Nothing next.state.seek
+  assertEqual "nothing sent for it" [] . (.requests) =<< runEvents 0 [commit] next.state
+  stopped <- runEvents 0 [key' "s", commit] r.state
+  assertEqual "a stop drops it" [[Request "stop" []]] stopped.requests
+  replayed <- runEvents 0 [key' "backspace", commit] r.state
+  assertEqual "a replay replaces it" [[Request "seekcur" ["0"]]] replayed.requests
 
 test_staleSeek :: Assertion
 test_staleSeek = do

@@ -221,6 +221,8 @@ data PendingKeys = PendingKeys
 data SeekState = SeekState
   { target :: Seconds
   , started :: Double
+  , songId :: Maybe SongId
+  -- ^ Of the song that the seek moves in.
   , token :: Int
   }
   deriving stock (Eq, Show, Generic)

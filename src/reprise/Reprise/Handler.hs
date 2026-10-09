@@ -220,6 +220,8 @@ updateMirror f = do
       newId = new.status >>= (.currentId)
       -- The queue comes with the status, the first time too.
       firstQueue = isNothing old.queueVersion && isJust new.queueVersion
+  -- A seek that the keys moved is of the song that played.
+  when (oldId /= newId) dropSeek
   if
     | firstQueue -> modifyWithEnv jumpToPlaying
     | s.toggles.followPlaying && oldId /= newId -> modifyWithEnv jumpToPlaying
@@ -388,12 +390,14 @@ runAction action = case action of
     Playing -> pause True
     Paused -> pause False
     Stopped -> play Nothing
-  Stop -> mutate stop
+  Stop -> dropSeek >> mutate stop
   Previous -> mutate previous
   Next -> mutate next
-  Replay -> withStatus $ \st -> case st.state of
-    Stopped -> mutate $ play st.currentPosition
-    _ -> mutate . seekCur $ SeekTo 0
+  Replay -> withStatus $ \st -> do
+    dropSeek
+    mutate $ case st.state of
+      Stopped -> play st.currentPosition
+      _ -> seekCur $ SeekTo 0
   Seek t -> seekAction t
   Volume v -> withStatus $ \st -> case st.volume of
     Nothing -> showError "MPD has no mixer, so the volume can't change"
@@ -710,21 +714,34 @@ seekAction = \case
               fromIntegral (abs n) + fromIntegral (floor @Double @Int (held / seekAccelerationPeriod))
             target = max 0 . min d $ if n >= 0 then base + step else base - step
         token <- newToken
-        modifyS $ #seek ?~ SeekState target started token
+        modifyS $ #seek ?~ SeekState target started (s.mirror.status >>= (.currentId)) token
         after seekCommitDelay (SeekCommit token)
       _ -> showError "The current song has no length"
-  SeekToSecond n -> mutate . seekCur . SeekTo $ fromIntegral n
+  SeekToSecond n -> do
+    dropSeek
+    mutate . seekCur . SeekTo $ fromIntegral n
   SeekToPercent p -> do
+    dropSeek
     s <- getS
     case currentDuration s of
       Just d -> mutate . seekCur . SeekTo $ d * fromIntegral p / 100
       Nothing -> showError "The current song has no length"
 
+-- | Send the seek that the keys moved, if its song still plays or pauses.
 commitSeek :: App es => Int -> Eff es ()
 commitSeek token = whenCurrent (.seek) (.token) token $ \sk -> do
-  now <- getsS (.now)
-  modifyS $ (#seek .~ Nothing) . (#mirror %~ seekTo now sk.target)
-  mutate . seekCur $ SeekTo sk.target
+  s <- getS
+  modifyS $ #seek .~ Nothing
+  case s.mirror.status of
+    Just st | st.state /= Stopped && st.currentId == sk.songId -> do
+      modifyS $ #mirror %~ seekTo s.now sk.target
+      mutate . seekCur $ SeekTo sk.target
+    _ -> pure ()
+
+-- | Drop the seek that the keys moved, e.g. for a command that moves the
+-- song itself.
+dropSeek :: App es => Eff es ()
+dropSeek = modifyS $ #seek .~ Nothing
 
 currentDuration :: AppState -> Maybe Seconds
 currentDuration s = s.mirror.status >>= (.duration)
