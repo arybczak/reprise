@@ -1162,7 +1162,9 @@ never use it directly; they go through `MpdRequest`.
     connection, so the idle connection gets it at its next reconnect.
   - Without the password, MPD may refuse @idle@ too. The idle connection
     then waits for the next password instead of connecting again every
-    second.
+    second. It sends the command worker a `status`, which MPD refuses
+    too, so that the prompt shows also before the user's first command,
+    e.g. at the start with a wrong password.
   - Cancelling fails the refused request with MPD's error and runs the
     others. The next refused command asks again.
   - The prompt replaces any other prompt, since the requests wait for it,
