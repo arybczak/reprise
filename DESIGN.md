@@ -1988,7 +1988,7 @@ songs and a terminal of 160×45:
 - **`mpd-protocol-bench`** parses the reply to `playlistinfo` of the whole
   queue, and to `plchanges` after a delete in the middle, which has every
   song after the deleted one.
-- **`reprise-bench`** handles a key, the change of the queue after such a
+- **`bench`** handles a key, the change of the queue after such a
   delete, and the keys of a find that matches nothing, which goes through the
   whole queue. It handles the listing of a directory as long as the queue,
   sorted by name. It also makes a frame of the queue, and vty writes a frame
@@ -1998,12 +1998,15 @@ songs and a terminal of 160×45:
 
 CI builds the suites but doesn't run them, because timings on shared
 machines are too noisy to fail a build on. To check a change, save the
-timings of a suite before it and compare after, e.g. for `reprise-bench`:
+timings of a suite before it and compare after, e.g. for `bench`:
 
 ```
-cabal bench reprise-bench --benchmark-options='--csv reprise.csv'
-cabal bench reprise-bench --benchmark-options='--baseline reprise.csv --fail-if-slower 20'
+cabal bench reprise:bench --benchmark-options='--csv reprise.csv'
+cabal bench reprise:bench --benchmark-options='--baseline reprise.csv --fail-if-slower 20'
 ```
+
+yamlet has `test` and `bench` components too, so the names need the
+package, as `reprise:test` and `reprise:bench`.
 
 A benchmark that is more than 20% slower than in the saved file fails. Each
 suite needs a file of its own, because the suites write the same file
@@ -2071,7 +2074,7 @@ These are copied from `effectful-core.cabal`:
     `RoleAnnotations`, `TypeFamilies`, `UndecidableInstances`.
 - Lower bounds on the dependencies of the libraries. The test suites list
   their dependencies without bounds.
-- A test suite for each library, `mpd-protocol-tests` and `reprise-tests`:
+- A test suite for each library, `mpd-protocol-test` and `test`:
   `type: exitcode-stdio-1.0`, `main-is: Main.hs`, `hs-source-dirs` in
   `tests`, with every test module listed in `other-modules`.
 
@@ -2093,7 +2096,7 @@ Settings that effectful doesn't have:
 - `-with-rtsopts=-maxN4` for both test suites, which run their tests on a
   thread for each capability, unless `-j` or `TASTY_NUM_THREADS` says
   otherwise. tasty would take a thread for each core. More than 4 don't
-  speed the tests up: on 32 cores, `reprise-tests` took 0.24-0.30 s with 4,
+  speed the tests up: on 32 cores, `test` took 0.24-0.30 s with 4,
   0.24-0.31 s with 8, 0.29-0.35 s with 16 and 0.35-0.50 s with 32.
 - `-with-rtsopts=-Iw10 --disable-delayed-os-memory-return` for the `reprise`
   executable.

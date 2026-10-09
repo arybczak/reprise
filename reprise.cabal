@@ -171,7 +171,7 @@ library
                      Reprise.Visualizer.Worker
                      Reprise.Width
 
-    -- reprise-bench computes the spectra of a frame in 171 µs with -O3,
+    -- reprise:bench computes the spectra of a frame in 171 µs with -O3,
     -- and in 208 µs without. -ffast-math made no difference beyond the
     -- noise. Cabal doesn't build the C sources again when this changes.
     cc-options:      -O3
@@ -230,7 +230,7 @@ library mpd-test-server
 
     exposed-modules: Reprise.Mpd.TestServer
 
-test-suite mpd-protocol-tests
+test-suite mpd-protocol-test
     import:         language
 
     -- More threads don't make the tests faster.
@@ -264,7 +264,7 @@ test-suite mpd-protocol-tests
                     TestMain
                     Thunks
 
-test-suite reprise-tests
+test-suite test
     import:         language
 
     -- More threads don't make the tests faster.
@@ -345,7 +345,7 @@ benchmark mpd-protocol-bench
     type:           exitcode-stdio-1.0
     main-is:        Main.hs
 
-benchmark reprise-bench
+benchmark bench
     import:         language
 
     build-depends:    base
