@@ -58,6 +58,7 @@ module Reprise.Config
 
 import Control.Exception
 import Data.ByteString qualified as BS
+import Data.Char hiding (Space)
 import Data.Functor
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
@@ -78,6 +79,7 @@ import Reprise.Mpd.Protocol.Response qualified as Response
 import Reprise.Mpd.Protocol.Types
 import Reprise.Number
 import Reprise.Style
+import Reprise.Width
 
 ----------------------------------------
 -- Configuration
@@ -853,7 +855,12 @@ instance FromYaml ProgressChars where
     where
       chars :: T.Text -> Parser ProgressChars
       chars t = case T.unpack t of
-        [e, c, r] -> pure $ ProgressChars e c r
+        [e, c, r]
+          -- The bar fills a cell with each, and the terminal would draw a
+          -- control character, e.g. a tab, as something else.
+          | all (\ch -> not (isControl ch) && textWidth (T.singleton ch) == 1) [e, c, r] ->
+              pure $ ProgressChars e c r
+          | otherwise -> failAt n "each character must take one column, e.g. = > -"
         _ ->
           failAt
             n

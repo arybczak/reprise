@@ -73,7 +73,8 @@ status_bar:
   show_bitrate: false
 
 progress_bar:
-  chars: ▅▅▅                     # elapsed, the current position, remaining
+  chars: ▅▅▅                     # elapsed, the current position, remaining;
+                                 # each one column wide
 
 visualizer:
   data_source: ~                 # the fifo of an MPD output; see the README

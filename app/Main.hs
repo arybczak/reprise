@@ -88,6 +88,8 @@ main = withOpenSSL $ do
       info
         (options <**> helper <**> simpleVersioner (showVersion Paths.version))
         (fullDesc <> progDesc "A terminal client for the Music Player Daemon")
+  -- The config's characters are measured as the screen draws them.
+  installWidthTable
   config <-
     maybe
       (loadUsualConfig =<< getXdgDirectory XdgConfig ("reprise" </> "config.yaml"))
@@ -180,7 +182,6 @@ main = withOpenSSL $ do
       restarted worker = forever $ do
         worker `catchSync` \e -> logLine $ "A worker failed: " <> exceptionText e
         delaySeconds retryInterval
-  installWidthTable
   -- The runtime turns only SIGINT into an exception. Without this, e.g.
   -- pkill would leave the terminal raw, on the alternate screen and
   -- reporting the mouse. The exit code is the shell's for the signal.

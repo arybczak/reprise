@@ -33,6 +33,7 @@ configTests =
     "Config"
     [ testCase "empty file" test_emptyFile
     , testCase "a missing file" test_missingFile
+    , testCase "the characters of the progress bar" test_progressChars
     , testCase "a section keeps its other defaults" test_sectionDefaults
     , testCase "the default keymaps" test_defaultKeymaps
     , testCase "a config can bind every default key" test_defaultKeysWritable
@@ -150,6 +151,16 @@ test_durations = do
   config <- expectRight $ decode "mpd:\n  timeout: 500ms\n"
   assertEqual "milliseconds" 0.5 config.mpd.timeout
   assertEqual "default" 5 defaultConfig.mpd.timeout
+
+-- | The bar fills a cell with each of its characters, so each must take one
+-- column.
+test_progressChars :: Assertion
+test_progressChars = do
+  let chars t = (.progressBar.chars) <$> decode ("progress_bar:\n  chars: \"" <> t <> "\"\n")
+  assertEqual "narrow" (Right (ProgressChars '=' '>' '-')) (chars "=>-")
+  assertBool "wide" . isLeft $ chars "日日本"
+  assertBool "a tab" . isLeft $ chars "=\\t-"
+  assertBool "a combining mark" . isLeft $ chars "=\\u0301-"
 
 -- | A file that the user named must be there, but the usual one may be
 -- missing. A file that can't be read is an error either way.
