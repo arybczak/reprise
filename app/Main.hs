@@ -104,6 +104,7 @@ main = withOpenSSL $ do
     lookupEnv "NO_COLOR" <&> \case
       Just v | not (null v) -> NoColors
       _ -> WithColors
+  sortOrder <- userCollator
   settings <-
     resolveSettings config.mpd <$> sources opts >>= \case
       Right s -> pure s
@@ -199,7 +200,7 @@ main = withOpenSSL $ do
           { config = config
           , keymaps = keymapsOf config.keys
           , colorMode = colorMode
-          , collator = userCollator
+          , collator = sortOrder
           , lyricsDirectory = lyricsDirectory
           , editor = editor
           }

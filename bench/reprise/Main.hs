@@ -107,7 +107,7 @@ defaultEnv =
     { config = defaultConfig
     , keymaps = keymapsOf defaultConfig.keys
     , colorMode = WithColors
-    , collator = userCollator
+    , collator = rootCollator
     , lyricsDirectory = "lyrics"
     , editor = Nothing
     }

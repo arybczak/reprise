@@ -161,7 +161,10 @@ ncmpcpp.
     alphabetical.
   - Names and formats sort by the rules of the user's locale, as ncmpcpp
     does, and `lists.ignore_leading_the` applies to them. Without a locale,
-    ICU sorts capitals first.
+    ICU sorts capitals first. The locale is the first of `LC_ALL`,
+    `LC_COLLATE` and `LANG`, as the C library takes it. ICU's own default
+    locale reads `LC_MESSAGES` instead of `LC_COLLATE`, so a Swedish
+    `LC_COLLATE` with an English `LANG` sorted in English.
   - The songs of a playlist keep its order.
 - Add, add and play, add or remove. A directory is added with its
   subdirectories, and a playlist is loaded.

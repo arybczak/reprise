@@ -2,6 +2,7 @@
 module Reprise.Collation
   ( Collator
   , userCollator
+  , localeCollator
   , rootCollator
   , CollationKey
   , collationKey
@@ -10,6 +11,7 @@ module Reprise.Collation
 import Data.ByteString qualified as BS
 import Data.Text qualified as T
 import Data.Text.ICU qualified as ICU
+import System.Environment
 
 -- | The rules of a locale, with the locale for 'Show'.
 data Collator = Collator ICU.LocaleName ICU.Collator
@@ -19,8 +21,21 @@ instance Show Collator where
     showParen (d > 10) $ showString "Collator " . showsPrec 11 locale
 
 -- | The rules of the user's locale, as ncmpcpp sorts.
-userCollator :: Collator
-userCollator = collator ICU.Current
+userCollator :: IO Collator
+userCollator = localeCollator <$> traverse lookupEnv ["LC_ALL", "LC_COLLATE", "LANG"]
+
+-- | The rules of the locale that orders text, from the values of @LC_ALL@,
+-- @LC_COLLATE@ and @LANG@: the first one set and not empty, as the C
+-- library reads them. ICU's default locale reads @LC_MESSAGES@ instead of
+-- @LC_COLLATE@. ICU doesn't read a codeset or a modifier, e.g. of
+-- @sv_SE.UTF-8@, and the C or POSIX locale, or none, has the root rules.
+localeCollator :: [Maybe String] -> Collator
+localeCollator values = case [v | Just v <- values, not (null v)] of
+  value : _
+    | name <- takeWhile (`notElem` ['.', '@']) value
+    , name `notElem` ["C", "POSIX"] ->
+        collator (ICU.Locale name)
+  _ -> rootCollator
 
 -- | Rules that don't depend on the environment, e.g. for tests. In the C
 -- locale, ICU orders letters as their bytes, capitals first.
