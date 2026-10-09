@@ -29,6 +29,7 @@ import Reprise.Keys
 import Reprise.Lyrics
 import Reprise.Lyrics.Worker
 import Reprise.Mpd.Protocol.Types
+import Reprise.Screen.Lyrics
 import Reprise.State
 import Reprise.UI.Layout
 import Utils

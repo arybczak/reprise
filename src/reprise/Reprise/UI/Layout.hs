@@ -14,6 +14,7 @@ import Graphics.Vty qualified as V
 import Reprise.Action
 import Reprise.Config
 import Reprise.Format
+import Reprise.Header
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.LineEdit

@@ -2,6 +2,8 @@
 -- worker reads from the directory of lyrics, or fetches.
 module Reprise.Screen.Lyrics
   ( lyricsView
+  , sungLine
+  , nextLyricsLine
   , lyricsVerb
   , showLyrics
   , editLyricsFile
@@ -12,6 +14,7 @@ module Reprise.Screen.Lyrics
   ) where
 
 import Control.Monad
+import Data.List qualified as L
 import Data.Maybe
 import Data.Text qualified as T
 import Effectful
@@ -43,6 +46,47 @@ lyricsView env s v =
 
     sung :: Maybe Int
     sung = sungLine s
+
+-- | The index of the timed line of the lyrics screen that is being sung:
+-- the last one whose time came, in the song that plays.
+sungLine :: AppState -> Maybe Int
+sungLine s = do
+  (timed, elapsed) <- playingTimedLyrics s
+  let sung = takeWhile ((<= elapsed) . fst) timed.entries
+  guard . not $ null sung
+  pure $ length sung - 1
+
+-- | The first row that the lyrics screen shows: while it follows the song,
+-- the one that keeps the line being sung in the middle, else the view's.
+lyricsOffset :: AppState -> View -> Int
+lyricsOffset s v = fromMaybe v.offset $ do
+  guard s.lyrics.following
+  line <- sungLine s
+  let rows = lyricsRows v.width s.lyrics
+  row <- L.findIndex ((== Just line) . fst) rows
+  pure . max 0 $ min (length rows - v.height) (row - v.height `div` 2)
+
+-- | When the next timed line of the lyrics screen is sung, for a redraw.
+nextLyricsLine :: AppState -> Maybe Double
+nextLyricsLine s = do
+  guard $ (focusedView s).screen == LyricsScreen && isNothing s.seek
+  st <- s.mirror.status
+  guard $ st.state == Playing
+  (timed, elapsed) <- playingTimedLyrics s
+  next <- L.find (> elapsed) (map fst timed.entries)
+  pure $ s.now + realToFrac (next - elapsed)
+
+-- | The timed lyrics of the lyrics screen, if its song is the one that
+-- plays, with the elapsed time of the song.
+playingTimedLyrics :: AppState -> Maybe (TimedLyrics, Seconds)
+playingTimedLyrics s = do
+  song <- s.lyrics.song
+  playing <- currentSong s.mirror
+  guard $ sameSong playing song
+  ShowingLyrics (LyricsFound _ lyrics) <- Just s.lyrics.status
+  timed <- lyrics.timed
+  elapsed <- displayedElapsed s
+  pure (timed, elapsed)
 
 -- | How the lyrics screen does a verb, if it does it.
 lyricsVerb :: App es => Action -> Maybe (Eff es ())

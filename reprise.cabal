@@ -132,6 +132,7 @@ library
                      Reprise.Groups
                      Reprise.Handler
                      Reprise.Handler.Core
+                     Reprise.Header
                      Reprise.History
                      Reprise.Keymap
                      Reprise.Keys

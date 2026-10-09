@@ -56,22 +56,13 @@ module Reprise.State
     -- * Queries
   , cursorVisible
   , cursorHideDelay
-  , titleSubject
-  , shownTitle
-  , titleSince
-  , titleScrolls
-  , headerRight
   , displayedElapsed
   , lyricsRows
   , songInfoRows
-  , sungLine
-  , lyricsOffset
-  , nextLyricsLine
   ) where
 
 import Control.Monad
 import Data.ByteString qualified as BS
-import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Sequence qualified as Seq
@@ -666,50 +657,6 @@ cursorVisible s = s.now - s.lastInput < cursorHideDelay
 cursorHideDelay :: Double
 cursorHideDelay = 5
 
--- | What the title shows: the focused screen, and what the browser lists.
--- The scrolling starts again when it changes.
-titleSubject :: AppState -> (ScreenName, Maybe Location)
-titleSubject s = case (focusedView s).screen of
-  BrowserScreen -> (BrowserScreen, s.browser.location)
-  screen -> (screen, Nothing)
-
--- | The focused screen's title as the header shows it. The part that doesn't
--- fit next to the volume scrolls by a character for each second since the
--- title began to show its subject.
-shownTitle :: AppEnv -> AppState -> T.Text
-shownTitle env s =
-  let (stays, rest) = (screenInfo (focusedView s).screen).title env s
-      room = titleRoom s stays
-  in if textWidth rest <= room
-       then stays <> rest
-       else stays <> scrollText room (floor (s.now - titleSince s)) rest
-
--- | When the title began to show its subject.
-titleSince :: AppState -> Double
-titleSince s = maybe s.now snd s.titleShown
-
--- | Whether the focused screen's title scrolls, for which the header is drawn
--- again each second.
-titleScrolls :: AppEnv -> AppState -> Bool
-titleScrolls env s =
-  let (stays, rest) = (screenInfo (focusedView s).screen).title env s
-  in textWidth rest > titleRoom s stays
-
--- | The columns of a title's part that scrolls, with a space before the
--- volume.
-titleRoom :: AppState -> T.Text -> Int
-titleRoom s stays = max 0 (fst s.terminalSize - textWidth stays - textWidth (headerRight s) - 1)
-
--- | The right of the header's first line: the volume, or the state of the
--- connection.
-headerRight :: AppState -> T.Text
-headerRight s = case s.connection of
-  Connecting -> "Connecting…"
-  Disconnected _ -> "Disconnected"
-  Connected _ -> case s.mirror.status >>= (.volume) of
-    Just v -> "Volume: " <> T.pack (show v) <> "%"
-    Nothing -> "Volume: n/a"
-
 -- | The elapsed time to show: the target of a seek in progress, or the
 -- interpolated elapsed time.
 displayedElapsed :: AppState -> Maybe Seconds
@@ -752,47 +699,6 @@ lyricsRows width st = case (st.song, st.status) of
     alternatives names = case reverse names of
       lastName : rest@(_ : _) -> T.intercalate ", " (reverse rest) <> " or " <> lastName
       _ -> T.concat names
-
--- | The index of the timed line of the lyrics screen that is being sung:
--- the last one whose time came, in the song that plays.
-sungLine :: AppState -> Maybe Int
-sungLine s = do
-  (timed, elapsed) <- playingTimedLyrics s
-  let sung = takeWhile ((<= elapsed) . fst) timed.entries
-  guard . not $ null sung
-  pure $ length sung - 1
-
--- | The first row that the lyrics screen shows: while it follows the song,
--- the one that keeps the line being sung in the middle, else the view's.
-lyricsOffset :: AppState -> View -> Int
-lyricsOffset s v = fromMaybe v.offset $ do
-  guard s.lyrics.following
-  line <- sungLine s
-  let rows = lyricsRows v.width s.lyrics
-  row <- L.findIndex ((== Just line) . fst) rows
-  pure . max 0 $ min (length rows - v.height) (row - v.height `div` 2)
-
--- | When the next timed line of the lyrics screen is sung, for a redraw.
-nextLyricsLine :: AppState -> Maybe Double
-nextLyricsLine s = do
-  guard $ (focusedView s).screen == LyricsScreen && isNothing s.seek
-  st <- s.mirror.status
-  guard $ st.state == Playing
-  (timed, elapsed) <- playingTimedLyrics s
-  next <- L.find (> elapsed) (map fst timed.entries)
-  pure $ s.now + realToFrac (next - elapsed)
-
--- | The timed lyrics of the lyrics screen, if its song is the one that
--- plays, with the elapsed time of the song.
-playingTimedLyrics :: AppState -> Maybe (TimedLyrics, Seconds)
-playingTimedLyrics s = do
-  song <- s.lyrics.song
-  playing <- currentSong s.mirror
-  guard $ sameSong playing song
-  ShowingLyrics (LyricsFound _ lyrics) <- Just s.lyrics.status
-  timed <- lyrics.timed
-  elapsed <- displayedElapsed s
-  pure (timed, elapsed)
 
 -- | The rows of the song info screen at a width: a label and a value, which
 -- the song can be without.

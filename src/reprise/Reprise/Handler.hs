@@ -29,6 +29,7 @@ import Reprise.Find
 import Reprise.Format
 import Reprise.Groups
 import Reprise.Handler.Core
+import Reprise.Header
 import Reprise.History
 import Reprise.Keymap
 import Reprise.Keys

@@ -11,6 +11,7 @@ import Test.Tasty.HUnit
 import Reprise.Action
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Header
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
