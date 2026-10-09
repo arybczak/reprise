@@ -140,9 +140,15 @@ browserVerb = \case
 toggleBrowserDisplay :: App es => Eff es ()
 toggleBrowserDisplay = do
   toggleDisplay #browserDisplay
-  env <- getAppEnv
-  s <- getS
-  modifyS $ #browser % #rows .~ itemRows env s.toggles.browserDisplay s.browser.items
+  modifyWithEnv $ \env s -> setItems s.browser.items env s
+
+-- | Set the items that the browser lists, with their text as finds match
+-- it, which is of the display.
+setItems :: Seq.Seq BrowserItem -> AppEnv -> AppState -> AppState
+setItems items env s =
+  s
+    & #browser % #items .~ items
+    & #browser % #rows .~ itemRows env s.toggles.browserDisplay items
 
 ----------------------------------------
 -- Listing
@@ -165,8 +171,7 @@ relistBrowser = do
   case (s.browser.listing, s.browser.location) of
     (Just l, _) -> list l.location l.cursor
     (Nothing, Just location) ->
-      list location . maybe AtTop (StayOn . itemKey) $
-        Seq.lookup (fst (screenPosition BrowserScreen s)) s.browser.items
+      list location . maybe AtTop (StayOn . itemKey) $ browserCursorItem s
     (Nothing, Nothing) -> pure ()
 
 -- | List again after a change of the database, or of the stored playlists,
@@ -253,13 +258,11 @@ browserListed token entries = whenCurrent (.browser.listing) (.token) token $ \l
         | otherwise = noSelection
   modifyS $
     #browser
-      .~ BrowserState
-        (Just l.location)
-        entries
-        items
-        (itemRows env s.toggles.browserDisplay items)
-        selection
-        Nothing
+      %~ (#location ?~ l.location)
+      . (#entries .~ entries)
+      . (#selection .~ selection)
+      . (#listing .~ Nothing)
+  modifyWithEnv $ setItems items
   modifyWithEnv $ placeCursor l.cursor
 
 ----------------------------------------
@@ -440,12 +443,8 @@ nextSortMode = do
   env <- getAppEnv
   s <- getS
   forM_ s.browser.location $ \location -> do
-    let current = Seq.lookup (fst (screenPosition BrowserScreen s)) s.browser.items
-        items = arrange env s.toggles.browserSort location s.browser.entries
-    modifyS $
-      (#browser % #items .~ items)
-        . (#browser % #rows .~ itemRows env s.toggles.browserDisplay items)
-    modifyWithEnv . placeCursor $ maybe AtTop (StayOn . itemKey) current
+    modifyWithEnv . setItems $ arrange env s.toggles.browserSort location s.browser.entries
+    modifyWithEnv . placeCursor $ maybe AtTop (StayOn . itemKey) (browserCursorItem s)
   showMessage $ "Sort: " <> sortByName s.toggles.browserSort
 
 -- | The items of a listing: @..@ unless at the root, then the entries. The
@@ -518,6 +517,11 @@ placeCursor cursor env s = case cursor of
   where
     indexOf :: ItemKey -> Maybe Int
     indexOf k = Seq.findIndexL ((== k) . itemKey) s.browser.items
+
+-- | The item under the browser's cursor, also while the view shows another
+-- screen.
+browserCursorItem :: AppState -> Maybe BrowserItem
+browserCursorItem s = Seq.lookup (fst (screenPosition BrowserScreen s)) s.browser.items
 
 itemKey :: BrowserItem -> ItemKey
 itemKey = \case
