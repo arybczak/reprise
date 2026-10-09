@@ -89,6 +89,7 @@ module Reprise.Mpd.Protocol.Command
   , ping
   ) where
 
+import Data.Foldable
 import Data.Maybe
 import Data.Text qualified as T
 
@@ -255,11 +256,21 @@ clear = command "clear" [] noReply
 -- | Set the priority of ranges of songs, from 0 to 255. In random mode, MPD
 -- plays songs with a higher priority first.
 prio :: Int -> [Range] -> Command ()
-prio p rs = command "prio" (toArgument p : map toArgument rs) noReply
+prio p = withPriority "prio" p . map toArgument
 
 -- | Set the priority of songs, from 0 to 255.
 prioId :: Int -> [SongId] -> Command ()
-prioId p is = command "prioid" (toArgument p : map toArgument is) noReply
+prioId p = withPriority "prioid" p . map toArgument
+
+-- | A command of a priority and any number of songs, as many requests as
+-- MPD's limit of arguments needs.
+withPriority :: T.Text -> Int -> [T.Text] -> Command ()
+withPriority name p = traverse_ (\songs -> command name (toArgument p : songs) noReply) . batches
+  where
+    batches :: [T.Text] -> [[T.Text]]
+    batches = \case
+      [] -> []
+      songs -> let (batch, rest) = splitAt (maxArguments - 1) songs in batch : batches rest
 
 ----------------------------------------
 -- Playback
@@ -437,3 +448,10 @@ noReply = \case
 -- | The argument of a command that can go without it.
 optionalArgument :: Argument a => Maybe a -> [T.Text]
 optionalArgument = maybe [] (pure . toArgument)
+
+-- | The most arguments that MPD reads after a command's name, else it
+-- answers "Too many arguments". It is @COMMAND_ARGV_MAX@ of MPD's
+-- @src/command/AllCommands.cxx@, @2 + TAG_NUM_OF_ITEM_TYPES * 2@, with the
+-- 35 tags of 'minimumVersion'. A newer MPD with more tags reads more.
+maxArguments :: Int
+maxArguments = 72

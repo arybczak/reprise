@@ -21,7 +21,10 @@ import Control.Exception
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Char8 qualified as BS8
+import Data.ByteString.Lazy qualified as BL
+import Data.Foldable
 import Data.IORef.Strict qualified as S
+import Data.Int
 import Data.Text qualified as T
 import Data.Word
 import Network.Socket qualified as N
@@ -149,12 +152,24 @@ exchangeCommand :: Connection -> Command a -> IO a
 exchangeCommand conn cmd = do
   parts <- case commandRequests cmd of
     [] -> pure []
-    requests -> case [r | r <- requests, any (T.elem '\n') r.arguments] of
-      -- MPD would read a second command after the line break, and send a
-      -- reply that no request reads.
-      r : _ -> throwIO . ProtocolError $ r.command <> ": an argument has a line break"
-      [] -> exchange conn (renderRequests requests)
+    requests -> do
+      for_ requests $ \r ->
+        if
+          -- MPD would read a second command after the line break, and send
+          -- a reply that no request reads.
+          | any (T.elem '\n') r.arguments ->
+              throwIO . ProtocolError $ r.command <> ": an argument has a line break"
+          | BL.length (B.toLazyByteString (renderRequest r)) > maxLineLength ->
+              throwIO . ProtocolError $ r.command <> ": the request is longer than MPD reads"
+          | otherwise -> pure ()
+      exchange conn (renderRequests requests)
   either throwIO pure $ parseCommandReply cmd parts
+  where
+    -- The longest line that MPD reads, with its line break: the size of
+    -- the input buffer of MPD's @src/event/BufferedSocket.hxx@. MPD closes
+    -- the connection of a longer one.
+    maxLineLength :: Int64
+    maxLineLength = 8192
 
 -- | Send bytes without reading a reply. Throws 'MpdError'.
 sendRaw :: Connection -> B.Builder -> IO ()

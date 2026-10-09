@@ -35,6 +35,7 @@ connectionTests =
         , ("ACK", test_ack)
         , ("ACK in a command list", test_ackInCommandList)
         , ("an argument with a line break", test_lineBreak)
+        , ("a line too long for MPD", test_longLine)
         , ("song tags", test_songTags)
         , ("add and delete", test_addAndDelete)
         , ("move", test_move)
@@ -173,6 +174,16 @@ test_lineBreak server = withConn server $ \conn -> do
     _ -> assertFailure $ "unexpected result: " <> show r
   run conn ping
 
+-- | MPD would close the connection of a line that its input buffer can't
+-- hold.
+test_longLine :: TestServer -> Assertion
+test_longLine server = withConn server $ \conn -> do
+  r <- try @MpdError . run conn $ add (T.replicate 8192 "a") Nothing
+  case r of
+    Left (ProtocolError _) -> pure ()
+    _ -> assertFailure $ "unexpected result: " <> show r
+  run conn ping
+
 test_ackInCommandList :: TestServer -> Assertion
 test_ackInCommandList server = withConn server $ \conn -> do
   r <- try @MpdError . run conn $ setRepeat True *> play (Just 99) *> setRandom True
@@ -246,6 +257,10 @@ test_priority server = withConn server $ \conn -> do
   run conn $ prio 5 [onePosition 0] *> prioId 7 [i]
   priorities <- map (.priority) <$> run conn playlistInfo
   assertEqual "priorities" [5, 7, 0] priorities
+  -- More songs than MPD reads arguments of one command.
+  run conn $ prio 3 (replicate 200 (onePosition 0)) *> prioId 4 (replicate 200 i)
+  more <- map (.priority) <$> run conn playlistInfo
+  assertEqual "the priorities of many songs" [3, 4, 0] more
 
 test_plChanges :: TestServer -> Assertion
 test_plChanges server = withConn server $ \conn -> do
