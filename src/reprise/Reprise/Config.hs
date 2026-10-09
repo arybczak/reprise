@@ -402,6 +402,9 @@ data ListStyles = ListStyles
   , queued :: Style
   -- ^ The songs that are in the queue, in the other screens. ncmpcpp
   -- always makes them bold.
+  , columnTitles :: Style
+  -- ^ Not laid over 'normal' or a column's style, so that the titles
+  -- stand out from the songs.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml ListStyles
@@ -623,6 +626,8 @@ defaultListStyles =
     , found = style "underline"
     , playing = style "bold"
     , queued = style "bold"
+    , -- As ncmpcpp's titles of columns.
+      columnTitles = style "bold"
     }
 
 defaultHeaderStyles :: HeaderStyles

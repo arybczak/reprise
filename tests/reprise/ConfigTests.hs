@@ -407,9 +407,6 @@ expectRight = \case
   Right a -> pure a
   Left errs -> assertFailure (unlines errs)
 
-style :: T.Text -> Style
-style = either (error . T.unpack) id . parseStyle
-
 key :: T.Text -> KeySpec
 key = either (error . T.unpack) id . parseKeySpec
 

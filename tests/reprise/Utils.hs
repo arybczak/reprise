@@ -20,6 +20,7 @@ module Utils
     -- * Images
   , imageLines
   , imageSpans
+  , style
   ) where
 
 import Control.Monad
@@ -170,6 +171,9 @@ lookupKeys layers = \case
 
 ----------------------------------------
 -- Images
+
+style :: T.Text -> Style
+style = either (error . T.unpack) id . parseStyle
 
 -- | The text of an image, one line for each row, without styles.
 -- | The pieces of text of an image with their attributes, in the order of

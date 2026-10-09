@@ -131,6 +131,7 @@ styles:
     found: underline             # what a find matches
     playing: bold                # the song that plays, and the enabled outputs
     queued: bold                 # songs that are in the queue, in the browser
+    column_titles: bold          # not over normal or a column's style
   header:
     normal: default
     title: bold

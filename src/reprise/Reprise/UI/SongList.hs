@@ -184,16 +184,17 @@ titleRow env s v ctx = [titles | listHeight env s v < v.height]
   where
     titles :: V.Image
     titles =
-      V.horizCat . L.intersperse (padded attr (ctx.styles.list.normal, mempty) AlignLeft 1 []) $
+      V.horizCat . L.intersperse (padded attr (base, mempty) AlignLeft 1 []) $
         zipWith title ctx.songs.columns.list (columnWidths ctx.width ctx.songs.columns.list)
+
+    base :: Style
+    base = ctx.styles.list.columnTitles
 
     attr :: Style -> V.Attr
     attr = toAttr ctx.colorMode
 
     title :: Column -> Int -> V.Image
-    title c w =
-      padded attr (ctx.styles.list.normal <> c.style, mempty) c.align w $
-        fitSpans w [Span Nothing c.title]
+    title c w = padded attr (base, mempty) c.align w $ fitSpans w [Span Nothing c.title]
 
 -- | A missing tag is its marker, in the marker's style.
 renderContext :: SongsConfig -> StylesConfig -> RenderContext Style

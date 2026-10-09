@@ -137,10 +137,10 @@ test_queuedStyle = do
       [ (["2"], ["directory: dir"])
       , (["enter"], ["file: dir/1.flac", "file: dir/9.flac"])
       ]
-  let style name =
+  let styleOf name =
         [V.attrStyle a | (a, t) <- imageSpans (renderScreen testAppEnv s), T.strip t == name]
-  assertEqual "queued" [V.SetTo V.bold] (style "1.flac")
-  assertEqual "not queued" [V.Default] (style "9.flac")
+  assertEqual "queued" [V.SetTo V.bold] (styleOf "1.flac")
+  assertEqual "not queued" [V.Default] (styleOf "9.flac")
 
 test_selected :: Assertion
 test_selected = do
@@ -331,6 +331,14 @@ test_browserTitles = do
         (T.words titles)
       assertEqual "the first item" ".." parent
     ls -> assertFailure $ "too few lines: " <> show ls
+  let red = env & #config % #styles % #list % #columnTitles .~ style "red"
+  assertEqual
+    "their own style, not the columns', one span over the whole row"
+    [V.SetTo V.red]
+    [ V.attrForeColor a
+    | (a, t) <- imageSpans (renderScreen red columns)
+    , "Artist" `T.isPrefixOf` t
+    ]
   case imageLines (renderScreen env inAlbums) of
     _ : _ : first : _ -> assertEqual "no titles in the classic display" ".." first
     ls -> assertFailure $ "too few lines: " <> show ls

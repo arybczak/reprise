@@ -37,7 +37,6 @@ import Reprise.Event
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Types
 import Reprise.State
-import Reprise.Style
 import Reprise.UI.Layout
 import Reprise.Visualizer.Samples
 import Reprise.Visualizer.Spectrum
@@ -839,9 +838,6 @@ dotsOf v frame = do
 
 isBraille :: Char -> Bool
 isBraille c = c >= '\x2801' && c <= '\x28ff'
-
-style :: T.Text -> Style
-style = either (error . T.unpack) id . parseStyle
 
 -- | A frame of samples of the left and the right channel, as MPD writes
 -- them.
