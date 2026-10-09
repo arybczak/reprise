@@ -60,7 +60,11 @@ runMpd candidates action = do
         Connect p -> liftIO $ do
           disconnect
           serverVersion <$> connected p
-        RunCommand cmd -> liftIO $ withConnection' (`run` cmd)
+        -- A command without requests, e.g. one that marks a point in the
+        -- queue of requests, needs no connection.
+        RunCommand cmd
+          | null (commandRequests cmd) -> either throwIO pure $ parseCommandReply cmd []
+          | otherwise -> liftIO $ withConnection' (`run` cmd)
         WaitIdle interrupted ->
           liftIO . withConnection' $ \conn ->
             either (const Nothing) Just <$> race (atomically interrupted) (idle conn [])

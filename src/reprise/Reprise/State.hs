@@ -140,6 +140,8 @@ data AppState = AppState
   -- ^ The width and the height.
   , pendingKeys :: Maybe PendingKeys
   , prompt :: Maybe Prompt
+  , quitting :: Bool
+  -- ^ Whether reprise quits once the requests before the quit ran.
   , passwordWaits :: Maybe MpdError
   -- ^ MPD's refusal whose prompt for the password waits for the prompt
   -- that is open to close. MPD's requests wait for the password, also the
@@ -498,6 +500,7 @@ initialState config =
     , terminalSize = (0, 0)
     , pendingKeys = Nothing
     , prompt = Nothing
+    , quitting = False
     , passwordWaits = Nothing
     , history = []
     , findPattern = Nothing

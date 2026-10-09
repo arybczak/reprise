@@ -181,6 +181,7 @@ handleEvent = \case
     mutate $ setReplayGainMode nextMode
     showMessage $ "Replay gain: " <> replayGainModeName nextMode
   MpdDone -> keepScreen
+  QuitReady -> halt
   MpdFailed _ err -> showError $ exceptionText err
   -- MPD's requests wait for the answer, so the prompt replaces any other.
   -- A prompt that is open, e.g. the choice to replace a playlist, keeps its
@@ -249,6 +250,24 @@ afterEvent = do
   scheduleTick
   updateWindowTitle
   updateVisualizer
+
+-- | Quit once the requests before the quit ran, so that the command of a
+-- key right before it isn't lost. A command without requests marks that
+-- point in the queue of requests. While MPD waits for the password, the
+-- requests wait for its answer, so reprise quits at once, as it does for a
+-- second quit.
+quit :: App es => Eff es ()
+quit = do
+  s <- getS
+  let askingPassword = case s.prompt of
+        Just (Prompt _ (Line _ ForPassword _)) -> True
+        _ -> False
+  if s.quitting || askingPassword || isJust s.passwordWaits
+    then halt
+    else do
+      modifyS $ #quitting .~ True
+      showMessage "Quitting (do it again to force)…"
+      requestOr (pure ()) (const QuitReady) (const QuitReady)
 
 -- | Ask for the password after MPD refused a command or the password.
 askPassword :: MpdError -> AppState -> AppState
@@ -342,7 +361,7 @@ handleKey k = do
   s <- getS
   noteInput
   case s.prompt of
-    _ | k == alwaysQuit -> halt
+    _ | k == alwaysQuit -> quit
     Just p -> handlePromptKey p k
     Nothing -> case s.pendingKeys of
       Just pending
@@ -537,7 +556,7 @@ runAction action = case action of
   Show screen -> showScreen screen
   NextScreen screens -> cycleScreens screens
   PreviousScreen screens -> cycleScreens (reverse screens)
-  Quit -> halt
+  Quit -> quit
   Clear -> do
     n <- getsS (queueLength . (.mirror))
     if n == 0

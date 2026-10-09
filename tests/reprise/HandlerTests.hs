@@ -78,6 +78,7 @@ handlerTests =
     , testCase "select an artist" test_selectArtist
     , testCase "prompts for a value" test_promptAnswers
     , testCase "ctrl-q always quits" test_alwaysQuit
+    , testCase "a quit waits for the commands before it" test_quit
     , testCase "a prompt takes the keys" test_promptKeys
     , testCase "ask for the password" test_passwordPrompt
     , testCase "a choice ends a key sequence" test_choiceEndsSequence
@@ -191,7 +192,25 @@ test_alwaysQuit = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
   forM_ [[], [":", "x"], ["t"]] $ \before -> do
     r <- keys (before <> ["ctrl-q"]) s
-    assertEqual (show before) [()] [() | Halt <- r.commands]
+    assertEqual (show before) [[]] r.requests
+    assertEqual (show before) [()] . halts =<< runEvents 0 [QuitReady] r.state
+
+-- | A quit waits for the requests before it, e.g. of the key right before
+-- it, as a command without requests after them. A second quit, or a quit
+-- while MPD waits for the password, quits at once.
+test_quit :: Assertion
+test_quit = do
+  s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+  paused <- keys ["p", "q"] s
+  assertEqual "after the pause" [[Request "pause" ["1"]], []] paused.requests
+  assertEqual "not yet" [] (halts paused)
+  assertEqual "once MPD took the pause" [()] . halts
+    =<< runEvents 0 [QuitReady] paused.state
+  assertEqual "again" [()] . halts =<< keys ["q"] paused.state
+  let refusal = AckError $ Ack AckPermission 0 "pause" "you don't have permission for \"pause\""
+  asked <- runEvents 0 [PasswordNeeded refusal] s
+  assertEqual "while MPD waits for the password" [()] . halts
+    =<< keys ["ctrl-q"] asked.state
 
 test_passwordPrompt :: Assertion
 test_passwordPrompt = do
@@ -1170,6 +1189,9 @@ key = either (error . T.unpack) id . parseKeySpec
 
 key' :: T.Text -> AppEvent
 key' = KeyPressed . key
+
+halts :: Result -> [()]
+halts r = [() | Halt <- r.commands]
 
 -- | The requests of an edit of the queue, which end in the changes of the
 -- queue since the version of 'testState'.

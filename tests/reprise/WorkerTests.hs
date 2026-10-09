@@ -5,6 +5,7 @@ import Control.Concurrent.STM
 import Control.Exception qualified as E
 import Control.Monad
 import Data.IORef.Strict qualified as S
+import Data.List.NonEmpty qualified as NE
 import Data.Maybe
 import Data.Text qualified as T
 import Effectful
@@ -19,6 +20,7 @@ import Reprise.Effect.MpdRequest
 import Reprise.Event
 import Reprise.Exception
 import Reprise.Mpd.Protocol.Command
+import Reprise.Mpd.Protocol.Connection hiding (run)
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 import Reprise.Mpd.Worker
@@ -38,6 +40,7 @@ workerTests =
     , testCase "a refused idle connection waits for the password" test_idleRefused
     , testCase "a wrong password at the start asks for another" test_idleWrongPassword
     , testCase "a failed command connection reopens the idle one" test_idleAfterCommandFailed
+    , testCase "a command without requests needs no connection" test_noConnection
     ]
 
 test_retryClosed :: Assertion
@@ -159,6 +162,21 @@ test_idleWrongPassword = do
     atomically . writeTQueue workers.requests $ PasswordAnswer (Just "secret")
     assertEqual "connected" (MpdConnected (Version 0 24 0))
       =<< expectWithin (untilEvent (\case MpdConnected _ -> True; _ -> False))
+
+-- | A command without requests, which marks a point in the queue of
+-- requests, e.g. of a quit, runs without a connection, also when MPD can't
+-- be reached.
+test_noConnection :: Assertion
+test_noConnection = do
+  let nowhere =
+        Settings
+          { address = UnixAddress "/nonexistent/socket"
+          , password = Nothing
+          , timeout = Just 1
+          }
+  r <-
+    expectWithin . E.try @MpdError . runEff . runMpd (nowhere NE.:| []) $ runCommand (pure ())
+  assertEqual "done" (Right ()) r
 
 -- | The idle connection opens anew after the connection of the commands
 -- failed, since it may wait for a peer that is gone.

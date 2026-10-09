@@ -1061,6 +1061,12 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
       dropped: it was meant for the queue after the edit.
     - The reply redraws the screen, even if a key that it handles changes
       nothing.
+- **Quitting waits for the requests before it,** so that the command of a
+  key right before `q` isn't lost when the workers stop. The quit sends a
+  command without requests, which needs no connection, and reprise quits
+  on its reply, once the worker ran the requests before it. While MPD
+  waits for the password, the requests wait for its answer, so reprise
+  quits at once, as it does for a second quit, e.g. when MPD hangs.
     - ncmpc also makes the edit in its copy of the queue when the version
       in the status shows that no other client changed it, instead of
       fetching `plchanges`. That saves 4.6 ms of parsing after a delete in

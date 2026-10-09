@@ -59,6 +59,8 @@ data AppEvent
     MpdDone
   | -- | A requested command failed, instead of its continuation.
     MpdFailed [Request] MpdError
+  | -- | The requests before a quit ran, so reprise can quit.
+    QuitReady
   | -- | MPD refused a command without a password, or refused the password.
     -- The requests wait for 'Reprise.Effect.MpdRequest.answerPassword'.
     PasswordNeeded MpdError
