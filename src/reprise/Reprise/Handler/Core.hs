@@ -355,7 +355,7 @@ modifyView f env s =
     & #views % ix s.focus %~ \v ->
       let v' = f v
           info = screenInfo v'.screen
-          n = info.size env s
+          n = info.size env s v'
           h = max 1 (listHeight env s v')
           c = max 0 (min (n - 1) v'.cursor)
           o
@@ -379,7 +379,7 @@ scrollLines t = do
     MovePageUp -> scroll (-h)
     MovePageDown -> scroll h
     MoveFirst -> modifyWithEnv . modifyView $ #offset .~ 0
-    MoveLast -> modifyWithEnv . modifyView $ #offset .~ (screenInfo v.screen).size env s
+    MoveLast -> modifyWithEnv . modifyView $ #offset .~ (screenInfo v.screen).size env s v
     _ -> showMessage $ "The " <> screenText v.screen <> " has no " <> renderAction (Move t)
   where
     scroll :: App es => Int -> Eff es ()

@@ -506,8 +506,8 @@ data ScreenInfo = ScreenInfo
   { built :: Bool
   -- ^ Whether the screen is built yet. The others are names for later.
   , content :: Content
-  , size :: AppEnv -> AppState -> Int
-  -- ^ The number of items or lines.
+  , size :: AppEnv -> AppState -> View -> Int
+  -- ^ The number of items, or of lines at the view's width.
   , songAt :: AppState -> Int -> Maybe Song
   -- ^ The song of the item at an index.
   , title :: AppEnv -> AppState -> (T.Text, T.Text)
@@ -534,7 +534,7 @@ screenInfo = \case
     ScreenInfo
       { built = True
       , content = Songs (.toggles.queueDisplay)
-      , size = \_ s -> Seq.length s.mirror.queue
+      , size = \_ s _ -> Seq.length s.mirror.queue
       , songAt = \s i -> Seq.lookup i s.mirror.queue
       , title = queueTitle
       , -- The length of the queue in the title changes as the songs play.
@@ -544,7 +544,7 @@ screenInfo = \case
     ScreenInfo
       { built = True
       , content = Songs (.toggles.browserDisplay)
-      , size = \_ s -> Seq.length s.browser.items
+      , size = \_ s _ -> Seq.length s.browser.items
       , songAt = \s i -> case Seq.lookup i s.browser.items of
           Just (EntryItem (SongEntry song)) -> Just song
           _ -> Nothing
@@ -558,7 +558,7 @@ screenInfo = \case
     ScreenInfo
       { built = True
       , content = Items
-      , size = \_ s -> maybe 0 Seq.length s.outputs
+      , size = \_ s _ -> maybe 0 Seq.length s.outputs
       , songAt = noSongs
       , title = named OutputsScreen
       , subject = const Nothing
@@ -567,7 +567,7 @@ screenInfo = \case
     ScreenInfo
       { built = True
       , content = Picture
-      , size = \_ _ -> 0
+      , size = \_ _ _ -> 0
       , songAt = noSongs
       , title = named VisualizerScreen
       , subject = const Nothing
@@ -576,7 +576,7 @@ screenInfo = \case
     ScreenInfo
       { built = True
       , content = Lines
-      , size = \_ s -> length (lyricsRows (fst s.terminalSize) s.lyrics)
+      , size = \_ s v -> length (lyricsRows v.width s.lyrics)
       , songAt = noSongs
       , title = \_ s -> ("Lyrics: ", maybe "" lyricsName s.lyrics.song)
       , subject = \s -> lyricsName <$> s.lyrics.song
@@ -585,7 +585,7 @@ screenInfo = \case
     ScreenInfo
       { built = True
       , content = Lines
-      , size = \env s -> length (songInfoRows env s (fst s.terminalSize))
+      , size = \env s v -> length (songInfoRows env s v.width)
       , songAt = noSongs
       , title = \_ s -> ("Song info: ", maybe "" lyricsName s.songInfo.song)
       , subject = \s -> lyricsName <$> s.songInfo.song
@@ -594,7 +594,7 @@ screenInfo = \case
     ScreenInfo
       { built = True
       , content = Lines
-      , size = \env _ -> length (helpLines env.keymaps)
+      , size = \env _ _ -> length (helpLines env.keymaps)
       , songAt = noSongs
       , title = named HelpScreen
       , subject = const Nothing
@@ -605,7 +605,7 @@ screenInfo = \case
       ScreenInfo
         { built = False
         , content = Items
-        , size = \_ _ -> 0
+        , size = \_ _ _ -> 0
         , songAt = noSongs
         , title = named screen
         , subject = const Nothing
