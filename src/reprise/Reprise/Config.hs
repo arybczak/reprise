@@ -49,13 +49,16 @@ module Reprise.Config
     -- * Loading
   , decodeConfig
   , loadConfig
+  , loadUsualConfig
 
     -- * Keymaps
   , keymapsOf
   , defaultKeymaps
   ) where
 
+import Control.Exception
 import Data.ByteString qualified as BS
+import Data.Functor
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as M
 import Data.Maybe
@@ -64,7 +67,7 @@ import Data.Text.Encoding qualified as T
 import Data.Void
 import Network.Socket qualified as N
 import Optics.Core hiding (view)
-import System.Directory
+import System.IO.Error
 import Yamlet
 
 import Reprise.Action
@@ -875,12 +878,24 @@ instance FromYaml ConfigFile where
     NullView -> pure $ ConfigFile defaultConfig
     _ -> ConfigFile <$> parseYaml n
 
--- | Load the configuration file. A missing file gives the defaults.
+-- | Load a configuration file that the user named, e.g. with @--config@. A
+-- file that can't be read is an error, also a missing one, as the user
+-- meant one.
 loadConfig :: FilePath -> IO (Either [String] Config)
-loadConfig file =
-  doesFileExist file >>= \case
-    False -> pure $ Right defaultConfig
-    True -> decodeConfig file <$> BS.readFile file
+loadConfig file = either (Left . pure . readError) (decodeConfig file) <$> try (BS.readFile file)
+
+-- | Load the usual configuration file, which gives the defaults if it is
+-- missing.
+loadUsualConfig :: FilePath -> IO (Either [String] Config)
+loadUsualConfig file =
+  try (BS.readFile file) <&> \case
+    Right bytes -> decodeConfig file bytes
+    Left err
+      | isDoesNotExistError err -> Right defaultConfig
+      | otherwise -> Left [readError err]
+
+readError :: IOException -> String
+readError err = "The config can't be read: " <> displayException err
 
 ----------------------------------------
 -- Keymaps

@@ -3,6 +3,7 @@
 module ConfigTests (configTests) where
 
 import Control.Monad
+import Data.Either
 import Data.Kind
 import Data.List qualified as L
 import Data.List.NonEmpty qualified as NE
@@ -14,6 +15,7 @@ import GHC.Generics
 import GHC.TypeLits
 import Optics.Core hiding (view)
 import System.FilePath
+import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 import Yamlet hiding (decode, lookupKey)
@@ -30,6 +32,7 @@ configTests =
   testGroup
     "Config"
     [ testCase "empty file" test_emptyFile
+    , testCase "a missing file" test_missingFile
     , testCase "a section keeps its other defaults" test_sectionDefaults
     , testCase "the default keymaps" test_defaultKeymaps
     , testCase "a config can bind every default key" test_defaultKeysWritable
@@ -147,6 +150,15 @@ test_durations = do
   config <- expectRight $ decode "mpd:\n  timeout: 500ms\n"
   assertEqual "milliseconds" 0.5 config.mpd.timeout
   assertEqual "default" 5 defaultConfig.mpd.timeout
+
+-- | A file that the user named must be there, but the usual one may be
+-- missing. A file that can't be read is an error either way.
+test_missingFile :: Assertion
+test_missingFile = withSystemTempDirectory "config" $ \dir -> do
+  let missing = dir </> "config.yaml"
+  assertBool "a named file" . isLeft =<< loadConfig missing
+  assertEqual "the usual file" (Right defaultConfig) =<< loadUsualConfig missing
+  assertBool "a directory" . isLeft =<< loadUsualConfig dir
 
 -- | The config of the documentation shows the defaults: its keys make the
 -- default keymaps, and the other options that it lists have their default

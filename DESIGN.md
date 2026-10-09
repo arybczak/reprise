@@ -1177,6 +1177,9 @@ never use it directly; they go through `MpdRequest`.
   line and column, and exits with a non-zero status. There is no
   `--ignore-config-errors`: a config that only half applies is worse than a
   clear error. A missing config file is not an error; the defaults apply.
+  A file that `--config` names must exist, though, as a typo in its name
+  would quietly give the defaults. A file that can't be read, e.g. a
+  directory, is an error either way.
 - **Lost connection.** The header shows that reprise is disconnected, and both
   connections retry every second, as ncmpcpp does. The screens keep their
   content until the connection is back, then the mirror is fetched again. The

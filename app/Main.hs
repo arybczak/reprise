@@ -88,14 +88,16 @@ main = withOpenSSL $ do
       info
         (options <**> helper <**> simpleVersioner (showVersion Paths.version))
         (fullDesc <> progDesc "A terminal client for the Music Player Daemon")
-  configFile <-
-    maybe (getXdgDirectory XdgConfig ("reprise" </> "config.yaml")) pure opts.config
   config <-
-    loadConfig configFile >>= \case
-      Right c -> pure c
-      Left errs -> do
-        mapM_ (hPutStrLn stderr) errs
-        exitFailure
+    maybe
+      (loadUsualConfig =<< getXdgDirectory XdgConfig ("reprise" </> "config.yaml"))
+      loadConfig
+      opts.config
+      >>= \case
+        Right c -> pure c
+        Left errs -> do
+          mapM_ (hPutStrLn stderr) errs
+          exitFailure
   colorMode <-
     lookupEnv "NO_COLOR" <&> \case
       Just v | not (null v) -> NoColors

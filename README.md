@@ -182,7 +182,8 @@ ellipse and the wave.
 ## Configuration
 
 reprise reads `~/.config/reprise/config.yaml`
-(`$XDG_CONFIG_HOME/reprise/config.yaml`), or the file that `--config` names.
+(`$XDG_CONFIG_HOME/reprise/config.yaml`), or the file that `--config` names,
+which must exist.
 The file lists only what you change. [doc/config.yaml](doc/config.yaml)
 lists every option with its default value and what it does; copy from it
 what you want to change, not all of it, so that your file keeps getting
