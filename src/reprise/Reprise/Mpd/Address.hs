@@ -30,16 +30,23 @@ defaultPort :: Port
 defaultPort = Port 6600
 
 -- | The connection settings: the host from the command line, the config or
--- @MPD_HOST@, else the first usual socket that exists, else
--- @localhost:6600@. Fails if the port that a TCP address takes from
--- @MPD_PORT@ isn't one.
+-- @MPD_HOST@, else the first usual socket that exists, else @localhost@. A
+-- TCP host takes the port from the same sources, whichever gave the host,
+-- else 6600. Fails if the port from @MPD_PORT@ isn't one.
+--
+-- A password in the host of the command line comes before the one of the
+-- config, which comes before one in the host of the config or @MPD_HOST@.
 resolveSettings :: MpdConfig -> Sources -> Either T.Text Settings
 resolveSettings config sources = do
   a <- address
   pure
     Settings
       { address = a
-      , password = listToMaybe (catMaybes [config.password, hostPassword])
+      , password =
+          listToMaybe . catMaybes $
+            if isJust sources.cliHost
+              then [hostPassword, config.password]
+              else [config.password, hostPassword]
       , timeout = let Timeout (Duration t) = config.timeout in Just t
       }
   where

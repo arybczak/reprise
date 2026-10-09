@@ -1662,11 +1662,15 @@ same spirit, e.g. `media_library.primary_tag`, `hooks.on_song_change`,
 The author's MPD host, port and music directory are not defaults, because they
 describe one machine. Users set their socket path in their own config.
 
-Without a host in the config, reprise tries these in order:
-1. `$MPD_HOST`/`$MPD_PORT`;
+Without a host on the command line or in the config, reprise tries these in
+order:
+1. `$MPD_HOST`;
 2. the usual socket locations, `$XDG_RUNTIME_DIR/mpd/socket` and
    `/run/mpd/socket`;
-3. `localhost:6600`.
+3. `localhost`.
+
+The port is found on its own: `--port`, the config,
+`$MPD_PORT`, then 6600. So `$MPD_PORT` applies to a host from the config.
 
 There is no music directory option yet. No core feature needs it, and file
 deletion is never implemented. It comes back with the first feature that reads

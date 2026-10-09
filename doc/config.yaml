@@ -24,9 +24,10 @@ mpd:
   port: ~                        # 6600 without it
   password: ~
   timeout: 5s
-  # --host and --port come before these. Without a host in either, reprise tries
-  # $MPD_HOST and $MPD_PORT, then the sockets $XDG_RUNTIME_DIR/mpd/socket and
-  # /run/mpd/socket, then localhost:6600.
+  # --host and --port come before these, and $MPD_HOST and $MPD_PORT after them,
+  # each on its own. Without a host, reprise tries the sockets
+  # $XDG_RUNTIME_DIR/mpd/socket and /run/mpd/socket, then localhost. A password
+  # in --host comes before this password, which comes before one in a host.
 
 # Shows as its key shows it, after the queue. A screen of a song, e.g. lyrics,
 # has no song yet, so the queue stays.
