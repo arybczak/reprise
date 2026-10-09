@@ -50,7 +50,7 @@ songInfoSpans env s width = map row (songInfoRows env s width)
           Nothing ->
             Span
               (Just (fromMaybe env.config.styles.value env.config.styles.missingTag))
-              env.config.lists.missingTag
+              env.config.songs.missingTag
       ]
 
 -- | How the song info screen does a verb, if it does it.

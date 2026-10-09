@@ -283,7 +283,7 @@ playerStatus env s = case (s.mirror.status, currentSong s.mirror, playerLabel s)
           _ -> ""
         right = [Span Nothing bitrate, Span (Just styles.time) time]
         room = max 0 (fst s.terminalSize - textWidth label - spansWidth right - 1)
-        songSpans = renderFormat (renderContext env.config.lists env.config.styles) song cfg.song
+        songSpans = renderFormat (renderContext env.config.songs env.config.styles) song cfg.song
         shown
           | spansWidth songSpans <= room = songSpans
           | otherwise = [Span Nothing (scrollText room (floor e) (spansText songSpans))]

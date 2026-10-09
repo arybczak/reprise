@@ -36,8 +36,10 @@ startup_screen: queue
 # The title of the terminal's window; ~ leaves it alone.
 window_title: '[%{artist} - ][%{title}|%{filename}]'
 
-songs:                           # how a song looks in a list
-  classic:
+songs:                           # how a song looks
+  missing_tag: —                 # what a tag without a value shows
+  tag_separator: ' | '           # between the values of a tag
+  classic:                       # in a list
     left: '[%{artist} - ][%{title}|<white>%{filename}</>]'
     right: '<green>[%{length}|-:--]</>'
   columns:                       # a width with % is a share of the screen
@@ -52,8 +54,6 @@ songs:                           # how a song looks in a list
 lists:                           # every list
   keep_cursor_centered: false
   ignore_leading_the: false      # sort "The Beatles" under B
-  missing_tag: —                 # what a tag without a value shows
-  tag_separator: ' | '           # between the values of a tag
 
 queue:
   display: columns               # or classic; t d switches it

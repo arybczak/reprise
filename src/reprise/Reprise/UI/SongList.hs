@@ -42,7 +42,6 @@ import Reprise.Width
 
 data RowContext = RowContext
   { colorMode :: ColorMode
-  , lists :: ListsConfig
   , styles :: StylesConfig
   , songs :: SongsConfig
   , display :: Display
@@ -54,7 +53,6 @@ rowContext :: AppEnv -> Display -> Int -> RowContext
 rowContext env display width =
   RowContext
     { colorMode = env.colorMode
-    , lists = env.config.lists
     , styles = env.config.styles
     , songs = env.config.songs
     , display = display
@@ -93,7 +91,7 @@ renderRow ctx flags song = case ctx.display of
     attr = toAttr ctx.colorMode
 
     render :: Format Style -> [Span Style]
-    render = renderFormat (renderContext ctx.lists ctx.styles) song
+    render = renderFormat (renderContext ctx.songs ctx.styles) song
 
     -- A column's color tells what the column is, so the marker of a
     -- missing tag takes the column's style rather than its own.
@@ -101,7 +99,7 @@ renderRow ctx flags song = case ctx.display of
     column c w =
       let base = ctx.styles.list.normal <> c.style
       in padded attr (base, overlay) c.align w . fitSpans w $
-           renderFormat (unstyledContext ctx.lists) song c.format
+           renderFormat (unstyledContext ctx.songs) song c.format
 
     styles :: (Style, Style)
     styles = (ctx.styles.list.normal, overlay)
@@ -138,7 +136,7 @@ songFindText env display song = foldText . T.unwords . map render $ case display
   Columns -> map (.format) env.config.songs.columns.list
   where
     render :: Format Style -> T.Text
-    render = spansText . renderFormat (plainContext env.config.lists) song
+    render = spansText . renderFormat (plainContext env.config.songs) song
 
 -- | The items of the list in a view that it shows, from its offset.
 visibleItems :: AppEnv -> AppState -> View -> Seq.Seq a -> Seq.Seq a
@@ -198,18 +196,18 @@ titleRow env s v ctx = [titles | listHeight env s v < v.height]
         fitSpans w [Span Nothing c.title]
 
 -- | A missing tag is its marker, in the marker's style.
-renderContext :: ListsConfig -> StylesConfig -> RenderContext Style
-renderContext lists styles =
-  RenderContext lists.tagSeparator [Span styles.missingTag lists.missingTag]
+renderContext :: SongsConfig -> StylesConfig -> RenderContext Style
+renderContext songs styles =
+  RenderContext songs.tagSeparator [Span styles.missingTag songs.missingTag]
 
 -- | A missing tag is its marker, in the style around it.
-unstyledContext :: ListsConfig -> RenderContext s
-unstyledContext lists = RenderContext lists.tagSeparator [Span Nothing lists.missingTag]
+unstyledContext :: SongsConfig -> RenderContext s
+unstyledContext songs = RenderContext songs.tagSeparator [Span Nothing songs.missingTag]
 
 -- | A missing tag is empty, e.g. in the text that finds match or that a
 -- sort compares.
-plainContext :: ListsConfig -> RenderContext s
-plainContext lists = RenderContext lists.tagSeparator []
+plainContext :: SongsConfig -> RenderContext s
+plainContext songs = RenderContext songs.tagSeparator []
 
 -- | Spans in a cell of exactly the given width, aligned and padded with
 -- spaces. Each span's style is the base, its own style, then the overlay.

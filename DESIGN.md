@@ -532,9 +532,9 @@ ncmpcpp.
     album. MPD reads them of some formats only, e.g. FLAC and Ogg, not
     MP3, so they show when it has them;
   - **the tags:** ncmpcpp's, also when the song is without them, with
-    `lists.missing_tag`, then the others that the song has, e.g. the
+    `songs.missing_tag`, then the others that the song has, e.g. the
     MusicBrainz ids, by MPD's names. A tag's values join with
-    `lists.tag_separator`.
+    `songs.tag_separator`.
 - **The labels are a column,** as wide as the widest, and a long value wraps
   below its first line.
 - **A stream isn't asked for comments,** as MPD would open its URL.
@@ -1587,7 +1587,7 @@ window title, in a column.
 
 | Syntax | Meaning |
 |---|---|
-| `%{artist}` | A tag. Multi-value tags are joined with `lists.tag_separator` |
+| `%{artist}` | A tag. Multi-value tags are joined with `songs.tag_separator` |
 | `%{title:30}` | At most 30 terminal columns wide (wide characters count as 2), shortened with an ellipsis |
 | `[ ... ]` | An optional section: printed only if every tag inside is present |
 | `[ A \| B \| C ]` | Alternatives: the first one whose tags are all present, else nothing |
@@ -1615,7 +1615,7 @@ Rendering returns either "missing" or a list of styled text spans.
   `[...]`.
 - `[...]` tries its alternatives in order. It renders the first one that is not
   missing, or nothing.
-- A missing tag outside any `[...]` renders as `lists.missing_tag`, with
+- A missing tag outside any `[...]` renders as `songs.missing_tag`, with
   `styles.missing_tag` if it is set. In the columns display, the marker
   takes the column's style instead, so that it looks like the rest of the
   column.

@@ -201,7 +201,7 @@ test_noLength = do
 marked :: Maybe Style -> AppEnv
 marked markerStyle =
   testAppEnv
-    & #config % #lists % #missingTag .~ "<empty>"
+    & #config % #songs % #missingTag .~ "<empty>"
     & #config % #styles % #missingTag .~ markerStyle
 
 cyan :: Style

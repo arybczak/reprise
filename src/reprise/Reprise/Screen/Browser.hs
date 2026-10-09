@@ -92,7 +92,7 @@ rowContent env = \case
     playlistPrefix :: Playlist -> [Span Style]
     playlistPrefix p =
       renderFormat
-        (plainContext env.config.lists)
+        (plainContext env.config.songs)
         Song
           { file = p.path
           , tags = M.empty
@@ -430,7 +430,7 @@ addedText env = \case
 songText :: AppEnv -> Song -> T.Text
 songText env song =
   spansText $
-    renderFormat (plainContext env.config.lists) song env.config.statusBar.song
+    renderFormat (plainContext env.config.songs) song env.config.statusBar.song
 
 -- | Update a directory in the database, or with Nothing the whole database.
 updateDatabase :: App es => Maybe T.Text -> Eff es ()
@@ -496,7 +496,7 @@ sortEntries env by entries = case by of
         SongEntry song -> song.lastModified
         PlaylistEntry p -> p.lastModified
       SortByFormat -> ByText . collated $ case e of
-        SongEntry song -> renderPlain (plainContext env.config.lists) song env.config.browser.sort.format
+        SongEntry song -> renderPlain (plainContext env.config.songs) song env.config.browser.sort.format
         _ -> name e
       _ -> NoKey
 

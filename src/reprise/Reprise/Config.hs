@@ -133,7 +133,11 @@ newtype Duration = Duration Seconds
   deriving newtype (Eq, Ord, Show, Num, Fractional)
 
 data SongsConfig = SongsConfig
-  { classic :: RowFormat
+  { missingTag :: T.Text
+  -- ^ What a tag without a value shows, in every format.
+  , tagSeparator :: T.Text
+  -- ^ Between the values of a tag, in every format.
+  , classic :: RowFormat
   , columns :: ColumnsConfig
   }
   deriving stock (Eq, Show, Generic)
@@ -176,8 +180,6 @@ data Align = AlignLeft | AlignRight
 data ListsConfig = ListsConfig
   { keepCursorCentered :: Bool
   , ignoreLeadingThe :: Bool
-  , missingTag :: T.Text
-  , tagSeparator :: T.Text
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml ListsConfig
@@ -465,7 +467,9 @@ defaultMpd = MpdConfig {host = Nothing, port = Nothing, password = Nothing, time
 defaultSongs :: SongsConfig
 defaultSongs =
   SongsConfig
-    { classic = defaultRowFormat
+    { missingTag = "—"
+    , tagSeparator = " | "
+    , classic = defaultRowFormat
     , columns = defaultColumns
     }
 
@@ -508,8 +512,6 @@ defaultLists =
   ListsConfig
     { keepCursorCentered = False
     , ignoreLeadingThe = False
-    , missingTag = "—"
-    , tagSeparator = " | "
     }
 
 defaultQueue :: QueueConfig

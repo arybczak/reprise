@@ -870,7 +870,7 @@ updateWindowTitle = do
   forM_ env.config.windowTitle $ \fmt -> do
     let title = case (currentSong s.mirror, (.state) <$> s.mirror.status) of
           (Just song, Just st)
-            | st /= Stopped -> renderPlain (unstyledContext env.config.lists) song fmt
+            | st /= Stopped -> renderPlain (unstyledContext env.config.songs) song fmt
           _ -> "reprise"
     when (s.windowTitle /= Just title) $ do
       modifyS $ #windowTitle ?~ title

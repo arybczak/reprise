@@ -70,8 +70,8 @@ Crop (`C`) and reversing the queue (`ctrl-r`) are gone.
 | `now_playing_prefix`, `now_playing_suffix` | `styles.list.playing` |
 | `centered_cursor` | `lists.keep_cursor_centered` |
 | `ignore_leading_the` | `lists.ignore_leading_the` |
-| `empty_tag_marker`, `empty_tag_color` | `lists.missing_tag`, `styles.missing_tag` |
-| `tags_separator` | `lists.tag_separator` |
+| `empty_tag_marker`, `empty_tag_color` | `songs.missing_tag`, `styles.missing_tag` |
+| `tags_separator` | `songs.tag_separator` |
 | `playlist_display_mode` | `queue.display` |
 | `autocenter_mode` | `queue.follow_playing` |
 | `playlist_show_remaining_time` | `queue.show_remaining_time` |
