@@ -5,6 +5,7 @@ import Control.Concurrent.STM
 import Control.Exception qualified as E
 import Control.Monad
 import Data.IORef.Strict qualified as S
+import Data.Maybe
 import Data.Text qualified as T
 import Effectful
 import Effectful.Dispatch.Dynamic
@@ -31,6 +32,7 @@ workerTests =
     , testCase "a wrong password asks again" test_wrongPassword
     , testCase "the requests after a refused one wait for it" test_passwordHolds
     , testCase "a cancelled password fails the refused command" test_passwordCancelled
+    , testCase "the idle connection sends the password" test_idlePassword
     ]
 
 test_retryClosed :: Assertion
@@ -57,8 +59,8 @@ test_password :: Assertion
 test_password = do
   r <- runWorker [Left refusal, Right (), Right ()] [stop] [Just "secret"]
   assertEqual "events" [PasswordNeeded refusal, MpdDone] r.events
-  assertEqual "calls" ["run stop", "connect", "run stop"] r.calls
-  assertEqual "the password for the next connections" (Just "secret") r.password
+  assertEqual "calls" ["run stop", "connect secret", "run stop"] r.calls
+  assertEqual "the password for the idle connection" (Just "secret") r.password
 
 test_wrongPassword :: Assertion
 test_wrongPassword = do
@@ -76,7 +78,7 @@ test_passwordHolds :: Assertion
 test_passwordHolds = do
   r <- runWorker [Left refusal] [stop, pause True] [Just "secret"]
   assertEqual "events" [PasswordNeeded refusal, MpdDone, MpdDone] r.events
-  assertEqual "calls" ["run stop", "connect", "run stop", "run pause"] r.calls
+  assertEqual "calls" ["run stop", "connect secret", "run stop", "run pause"] r.calls
 
 test_passwordCancelled :: Assertion
 test_passwordCancelled = do
@@ -86,6 +88,27 @@ test_passwordCancelled = do
     [PasswordNeeded refusal, MpdFailed [Request "stop" []] refusal, MpdDone]
     r.events
   assertEqual "calls" ["run stop", "run pause"] r.calls
+
+-- | The idle connection sends the password that MPD accepted last.
+test_idlePassword :: Assertion
+test_idlePassword = do
+  outcomesRef <- S.newIORef []
+  callsRef <- S.newIORef []
+  events <- newTQueueIO
+  requests <- newTQueueIO
+  passwordVar <- newTVarIO (Just "secret")
+  let workers =
+        Workers
+          { emit = atomically . writeTQueue events
+          , logLine = \_ -> pure ()
+          , requests = requests
+          , password = passwordVar
+          }
+      worker = forkIO . runEff . runScripted outcomesRef callsRef $ idleWorker workers
+  E.bracket worker killThread $ \_ -> do
+    connected <- atomically $ readTQueue events
+    assertEqual "connected" (MpdConnected (Version 0 24 0)) connected
+    assertEqual "calls" ["connect secret"] =<< S.readIORef callsRef
 
 ----------------------------------------
 -- Helpers
@@ -154,8 +177,8 @@ runScripted
   -> Eff (Mpd : es) a
   -> Eff es a
 runScripted outcomesRef callsRef = interpret_ $ \case
-  Connect -> do
-    call "connect"
+  Connect p -> do
+    call . unwords $ "connect" : map T.unpack (maybeToList p)
     either throwIO (const . pure $ Version 0 24 0) =<< nextOutcome
   RunCommand cmd -> do
     call . unwords $ "run" : [T.unpack r.command | r <- commandRequests cmd]

@@ -28,7 +28,8 @@ data Workers = Workers
   , logLine :: T.Text -> IO ()
   , requests :: TQueue PendingRequest
   , password :: TVar (Maybe T.Text)
-  -- ^ The password that the connections send.
+  -- ^ The password that MPD accepted last, which the idle connection sends
+  -- when it connects again.
   }
 
 -- | How long to wait before connecting again, as ncmpcpp does.
@@ -38,7 +39,7 @@ retryInterval = 1000000
 -- | Run @idle@ in a loop and send the changes. Reconnect after an error.
 idleWorker :: (Mpd :> es, IOE :> es) => Workers -> Eff es ()
 idleWorker w = forever $ do
-  try @MpdError connectMpd >>= \case
+  try @MpdError (connectMpd =<< liftIO (readTVarIO w.password)) >>= \case
     Left err -> disconnected err
     Right version -> do
       liftIO . w.emit $ MpdConnected version
@@ -108,13 +109,12 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
     -- A new connection sends the password, which also works when MPD
     -- refused the one that the connection had.
     authenticate :: (Mpd :> es, IOE :> es) => T.Text -> Eff es (Maybe MpdError)
-    authenticate p = do
-      old <- liftIO . atomically $ swapTVar w.password (Just p)
-      try connectMpd >>= \case
-        Right _ -> pure Nothing
-        Left err -> do
-          liftIO . atomically $ writeTVar w.password old
-          pure (Just err)
+    authenticate p =
+      try (connectMpd (Just p)) >>= \case
+        Right _ -> do
+          liftIO . atomically $ writeTVar w.password (Just p)
+          pure Nothing
+        Left err -> pure (Just err)
 
     failed :: (Mpd :> es, IOE :> es) => MpdError -> (MpdError -> AppEvent) -> Eff es ()
     failed err onFailure = do

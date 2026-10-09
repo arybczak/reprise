@@ -124,7 +124,7 @@ main = withOpenSSL $ do
           , password = password
           }
       mpdWorkers =
-        [ runEff . runMpd settings (readTVarIO password) $ worker workers
+        [ runEff . runMpd settings $ worker workers
         | worker <- [idleWorker, commandWorker]
         ]
   visualizer <- forM config.visualizer.dataSource $ \source -> do
