@@ -22,6 +22,7 @@ module Reprise.Handler.Core
   , capitalize
   , screenText
   , screenHasNo
+  , noCurrentSong
   , onOff
 
     -- * Toggles
@@ -153,6 +154,11 @@ screenText screen = screenWords screen <> " screen"
 -- | Say that a screen has no such thing, e.g. no songs or no action.
 screenHasNo :: App es => ScreenName -> T.Text -> Eff es ()
 screenHasNo screen what = showMessage $ "The " <> screenText screen <> " has no " <> what
+
+-- | MPD has no current song, e.g. before anything played. A song that
+-- stopped stays current.
+noCurrentSong :: App es => Eff es ()
+noCurrentSong = showMessage "There is no current song"
 
 onOff :: Bool -> T.Text
 onOff b = if b then "on" else "off"

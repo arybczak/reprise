@@ -197,7 +197,7 @@ jumpToPlayingLyrics :: App es => Eff es ()
 jumpToPlayingLyrics = do
   s <- getS
   case currentSong s.mirror of
-    Nothing -> showMessage "No song is playing"
+    Nothing -> noCurrentSong
     Just playing
       | maybe False (sameSong playing) s.lyrics.song -> modifyS $ #lyrics % #following .~ True
       | otherwise -> void $ showSongLyrics playing

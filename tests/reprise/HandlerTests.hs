@@ -421,7 +421,7 @@ test_moveSongsTo = do
     =<< keys ["insert", "e", "m", "e"] s
   assertEqual "beginning" [[Request "move" ["2:3", "0"]]] . (.requests)
     =<< keys ["down", "down", "insert", "e", "m", "b"] s
-  assertEqual "next, without a song playing" (Just "No song is playing") . message
+  assertEqual "next, without a current song" (Just "There is no current song") . message
     =<< keys ["end", "e", "m", "n"] s
   playing <- testState (80, 24) (statusOf Playing (Just 1) 5) (songs 5)
   assertEqual "next, the song under the cursor" [[Request "move" ["4:5", "2"]]]
@@ -429,7 +429,7 @@ test_moveSongsTo = do
     =<< keys ["end", "e", "m", "n"] playing
   assertEqual
     "the playing song among them"
-    (Just "The playing song is among the songs to move")
+    (Just "The current song is among the songs to move")
     . message
     =<< keys ["home", "down", "insert", "e", "m", "n"] playing
 
@@ -489,6 +489,11 @@ test_jumpCenters = do
   helpShown <- keys ["t", "f", "f1"] =<< playingAt 30
   behindHelp <- runEvents 0 [StatusFetched (statusOf Playing (Just 40) 50)] helpShown.state
   assertEqual "behind the help screen" (40, 30) . position =<< keys ["1"] behindHelp.state
+  stopped <- testState (80, 24) (statusOf Stopped (Just 30) 50) (songs 50)
+  assertEqual "stopped" (30, 20) . position =<< keys ["home", "o"] stopped
+  none <- keys ["end", "o"] =<< testState (80, 24) (statusOf Stopped Nothing 50) (songs 50)
+  assertEqual "no current song" (49, 30) (position none)
+  assertEqual "its message" (Just "There is no current song") (message none)
 
 test_backKeys :: Assertion
 test_backKeys = do

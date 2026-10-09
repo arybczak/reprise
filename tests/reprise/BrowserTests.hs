@@ -375,7 +375,7 @@ test_jumpToPlaying = do
   assertEqual "the listing of dir" [[Request "lsinfo" ["dir"]]] r.requests
   s <- answer ["file: dir/9.flac", "file: dir/0.flac"] r
   assertEqual "the cursor is on the song" 2 (focusedView s).cursor
-  assertEqual "nothing plays" (Just "No song is playing") . message . (.state)
+  assertEqual "no current song" (Just "There is no current song") . message . (.state)
     =<< press ["o"]
     =<< root
 

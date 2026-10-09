@@ -72,7 +72,9 @@ queueView env s v =
 queueVerb :: App es => Action -> Maybe (Eff es ())
 queueVerb = \case
   Move t -> Just $ modifyWithEnv (moveListCursor t)
-  JumpToPlaying -> Just $ modifyWithEnv jumpToPlaying
+  JumpToPlaying -> Just $ do
+    current <- getsS (currentPosition . (.mirror))
+    if isJust current then modifyWithEnv jumpToPlaying else noCurrentSong
   Activate -> Just activate
   Save -> Just $ getsS queueToSave >>= maybe (showMessage "The queue is empty") askSaveName
   Select t -> Just $ select t
@@ -203,9 +205,9 @@ moveSongs t = do
     MoveSongsToEnd -> forM_ (moveBefore ps n) mutate
     MoveSongsToBeginning -> mutate (moveToStart ps)
     MoveSongsToNext -> case currentPosition s.mirror of
-      Nothing -> showMessage "No song is playing"
+      Nothing -> noCurrentSong
       Just current
-        | current `elem` ps -> showMessage "The playing song is among the songs to move"
+        | current `elem` ps -> showMessage "The current song is among the songs to move"
         | otherwise -> mutate (moveAfter current ps)
 
 ----------------------------------------

@@ -122,7 +122,7 @@ browserVerb = \case
   JumpToPlaying ->
     Just $
       getsS (currentSong . (.mirror)) >>= \case
-        Nothing -> showMessage "No song is playing"
+        Nothing -> noCurrentSong
         Just song -> void $ locateSong song
   Activate -> Just activateItem
   Parent -> Just leave
