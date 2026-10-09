@@ -18,6 +18,7 @@ import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
+import Reprise.Save
 import Reprise.Screen.Help
 import Reprise.Selection
 import Reprise.State
@@ -78,6 +79,7 @@ handlerTests =
     , testCase "ctrl-q always quits" test_alwaysQuit
     , testCase "a prompt takes the keys" test_promptKeys
     , testCase "ask for the password" test_passwordPrompt
+    , testCase "a choice ends a key sequence" test_choiceEndsSequence
     , testCase "the prompts share a history" test_promptHistory
     , testCase "find as you type" test_findAsYouType
     , testCase "find the next and the previous match" test_findAgain
@@ -218,6 +220,20 @@ test_passwordPrompt = do
   where
     lastMaybe :: [a] -> Maybe a
     lastMaybe = fmap snd . unsnoc
+
+-- | A choice that MPD's reply opens in the middle of a key sequence ends
+-- the sequence, so that a key after the choice doesn't complete it.
+test_choiceEndsSequence :: Assertion
+test_choiceEndsSequence = do
+  s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
+  asked <- runEvents 0 [SaveChecked "list" SaveQueue True] =<< (.state) <$> keys ["t"] s
+  assertEqual
+    "the choice"
+    (Just "The playlist list exists.")
+    ((.question) <$> asked.state.prompt)
+  assertEqual "the pending keys end" Nothing asked.state.pendingKeys
+  replaced <- keys ["r", "r"] asked.state
+  assertEqual "no repeat" [] [r | r@(Request "repeat" _) <- concat replaced.requests]
 
 test_promptHistory :: Assertion
 test_promptHistory = do

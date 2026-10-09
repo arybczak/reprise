@@ -140,9 +140,7 @@ handleEvent = \case
             | ack.code == AckPassword -> "Wrong password"
             | otherwise -> "MPD refused " <> ack.command
           _ -> exceptionText err
-    modifyS $
-      (#pendingKeys .~ Nothing)
-        . openLine (reason <> ". Password: ") emptyLineEdit ForPassword
+    modifyS $ openLine (reason <> ". Password: ") emptyLineEdit ForPassword
   Tick token -> whenCurrent (.tick) fst token $ \_ -> modifyS $ #tick .~ Nothing
   SeekCommit token -> commitSeek token
   MessageExpired token ->

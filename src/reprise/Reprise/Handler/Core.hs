@@ -195,11 +195,16 @@ cycleNext a = if a == maxBound then minBound else succ a
 -- | Open a line prompt for a purpose, which "Reprise.Handler" runs with the
 -- answer.
 openLine :: T.Text -> LineEdit -> LinePurpose -> AppState -> AppState
-openLine question edit purpose = #prompt ?~ Prompt question (Line edit purpose Nothing)
+openLine question edit purpose = openPrompt $ Prompt question (Line edit purpose Nothing)
 
 -- | Open a choice between options, each picked by a letter of its name.
 openChoice :: T.Text -> [ChoiceOption] -> AppState -> AppState
-openChoice question options = #prompt ?~ Prompt question (Choice options)
+openChoice question options = openPrompt $ Prompt question (Choice options)
+
+-- | A prompt that an event opens, e.g. MPD's reply, can come in the middle
+-- of a key sequence, whose keys would complete it after the prompt closes.
+openPrompt :: Prompt -> AppState -> AppState
+openPrompt p = (#prompt ?~ p) . (#pendingKeys .~ Nothing)
 
 -- | Ask a yes or no question, and send the event on yes.
 confirm :: T.Text -> AppEvent -> AppState -> AppState
