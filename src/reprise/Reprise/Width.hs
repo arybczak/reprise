@@ -33,7 +33,7 @@ import Graphics.Vty.UnicodeWidthTable.Types qualified as V
 
 -- | The width of text in terminal columns. Wide characters count as 2.
 textWidth :: T.Text -> Int
-textWidth = T.foldl' (\w c -> w + W.safeWcwidth c) 0
+textWidth = T.foldl' (\w c -> w + charWidth c) 0
 
 -- | The longest prefix of text that fits in the width.
 takeWidth :: Int -> T.Text -> T.Text
@@ -42,8 +42,14 @@ takeWidth w = T.pack . go w . T.unpack
     go :: Int -> String -> String
     go _ [] = []
     go n (c : cs)
-      | W.safeWcwidth c <= n = c : go (n - W.safeWcwidth c) cs
+      | charWidth c <= n = c : go (n - charWidth c) cs
       | otherwise = []
+
+-- | A control character shows as the space that 'sanitize' makes of it.
+charWidth :: Char -> Int
+charWidth c
+  | isControl c = 1
+  | otherwise = W.safeWcwidth c
 
 -- | Shorten text to at most the given width, with an ellipsis at the end if
 -- it was too wide.
@@ -82,9 +88,9 @@ wrapText width t
       rest -> (line, rest)
 
 -- | Text with a space for each control character, e.g. a tab, which would
--- break the terminal's layout, and which has no width to measure.
+-- break the terminal's layout.
 sanitize :: T.Text -> T.Text
-sanitize = T.map $ \c -> if c < ' ' then ' ' else c
+sanitize = T.map $ \c -> if isControl c then ' ' else c
 
 -- | Text that doesn't fit in the width, scrolled by a character for each
 -- step, e.g. each second. It goes round with a separator.

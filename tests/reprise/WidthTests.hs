@@ -1,7 +1,9 @@
 module WidthTests (widthTests) where
 
 import Control.Monad
+import Data.Char
 import Data.Text qualified as T
+import Graphics.Vty qualified as V
 import Graphics.Vty.UnicodeWidthTable.Query qualified as V
 import Graphics.Vty.UnicodeWidthTable.Types qualified as V
 import Test.Tasty
@@ -20,6 +22,7 @@ widthTests =
     , testCase "wrapping" test_wrap
     , testCase "an emoji is wide" test_emoji
     , testCase "a row with an emoji fits the terminal" test_emojiRowFits
+    , testCase "a row with control characters fits the terminal" test_controlRowFits
     , testCase "the ranges are vty's" test_sameRanges
     ]
 
@@ -64,3 +67,17 @@ test_emojiRowFits = do
   forM_ (imageLines (renderScreen testAppEnv s)) $ \line -> do
     w <- sum <$> mapM width (T.unpack line)
     assertBool ("wider than the terminal: " <> T.unpack line) (w <= 80)
+
+-- | A control character shows as a space, which takes a column.
+test_controlRowFits :: Assertion
+test_controlRowFits = do
+  let title = "a\tb\DELc\x85\&d " <> T.replicate 20 "\t"
+  s <-
+    testState
+      (80, 6)
+      (statusOf Playing (Just 0) 1)
+      [song 0 [(Artist, ["A"]), (Title, [title])] 60]
+  forM_ (imageLines (renderScreen testAppEnv s)) $ \line -> do
+    assertBool ("a control character: " <> show line) (not (T.any isControl line))
+    assertBool ("wider than the terminal: " <> show line) (textWidth line <= 80)
+  assertEqual "the width of the screen" 80 (V.imageWidth (renderScreen testAppEnv s))
