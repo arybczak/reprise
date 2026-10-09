@@ -96,7 +96,10 @@ connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
     open = case settings.address of
       UnixAddress path -> do
         sock <- N.socket N.AF_UNIX N.Stream N.defaultProtocol
-        N.connect sock (N.SockAddrUnix path) `onException` N.close sock
+        -- network rejects a path too long for the address of a socket with
+        -- 'error', not with an 'IOException'.
+        (N.connect sock (N.SockAddrUnix path) `onException` N.close sock)
+          `catch` \(ErrorCall _) -> throwIO . ConnectionError $ ConnectFailed "the socket path is too long"
         pure sock
       TcpAddress host port -> do
         let hints = N.defaultHints {N.addrSocketType = N.Stream}

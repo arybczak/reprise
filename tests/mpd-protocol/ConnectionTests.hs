@@ -31,6 +31,7 @@ connectionTests =
         [ ("connect over a unix socket", test_connectUnix)
         , ("connect over TCP", test_connectTcp)
         , ("connect to nothing", test_connectToNothing)
+        , ("a socket path that is too long", test_longSocketPath)
         , ("wrong password", test_wrongPassword)
         , ("command list", test_commandList)
         , ("ACK", test_ack)
@@ -194,6 +195,18 @@ test_connectToNothing server = do
   r <-
     try @MpdError $
       connect (unixSettings server) {address = UnixAddress (server.socketPath <> "-missing")}
+  case r of
+    Left (ConnectionError (ConnectFailed _)) -> pure ()
+    Left err -> assertFailure $ "unexpected error: " <> show err
+    Right conn -> close conn >> assertFailure "connected"
+
+-- | A path longer than a socket's address holds fails as a connection that
+-- can't open, not as a crash.
+test_longSocketPath :: TestServer -> Assertion
+test_longSocketPath server = do
+  r <-
+    try @MpdError $
+      connect (unixSettings server) {address = UnixAddress ("/" <> replicate 200 'a')}
   case r of
     Left (ConnectionError (ConnectFailed _)) -> pure ()
     Left err -> assertFailure $ "unexpected error: " <> show err
