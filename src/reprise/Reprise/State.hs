@@ -81,6 +81,7 @@ import Reprise.Collation
 import Reprise.Config
 import Reprise.Event
 import Reprise.Find
+import Reprise.Format
 import Reprise.History
 import Reprise.Keymap
 import Reprise.Keys
@@ -603,8 +604,8 @@ screenInfo = \case
       , content = Lines
       , size = \_ s v -> length (lyricsRows v.width s.lyrics)
       , songAt = noSongs
-      , title = \_ s -> ("Lyrics: ", maybe "" lyricsName s.lyrics.song)
-      , subject = \s -> lyricsName <$> s.lyrics.song
+      , title = \_ s -> ("Lyrics: ", maybe "" songName s.lyrics.song)
+      , subject = \s -> songName <$> s.lyrics.song
       }
   SongInfoScreen ->
     ScreenInfo
@@ -612,8 +613,8 @@ screenInfo = \case
       , content = Lines
       , size = \env s v -> length (songInfoRows env s v.width)
       , songAt = noSongs
-      , title = \_ s -> ("Song info: ", maybe "" lyricsName s.songInfo.song)
-      , subject = \s -> lyricsName <$> s.songInfo.song
+      , title = \_ s -> ("Song info: ", maybe "" songName s.songInfo.song)
+      , subject = \s -> songName <$> s.songInfo.song
       }
   HelpScreen ->
     ScreenInfo

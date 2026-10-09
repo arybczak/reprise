@@ -25,6 +25,7 @@ import Reprise.App
 import Reprise.Config
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Format
 import Reprise.Keys
 import Reprise.Lyrics
 import Reprise.Lyrics.Worker
@@ -138,7 +139,7 @@ test_show = do
   assertEqual "the screen" LyricsScreen (focusedView r.state).screen
   case [(t, q) | FetchLyrics t q <- r.commands] of
     [(token, requested)] -> do
-      assertEqual "the song" "A - One" (lyricsName requested.song)
+      assertEqual "the song" "A - One" (songName requested.song)
       assertBool "not again" (not requested.refetch)
       assertEqual "nothing while reading" [] (filter (not . T.null) (mainLines r.state))
       loaded <- runEvents 0 [LyricsLoaded token (stored "First line\nSecond line")] r.state
@@ -276,7 +277,7 @@ test_refetch = do
   again <- runEvents 0 [key "`"] loaded.state
   case [q | FetchLyrics _ q <- again.commands] of
     [requested] -> do
-      assertEqual "the song" "A - One" (lyricsName requested.song)
+      assertEqual "the song" "A - One" (songName requested.song)
       assertBool "again" requested.refetch
     other -> assertFailure $ "one request, not " <> show other
   assertEqual "until they come" [] (filter (not . T.null) (mainLines again.state))
@@ -650,7 +651,7 @@ threeSongs =
 
 -- | The songs whose lyrics the screen asked for.
 askedFor :: Result -> [T.Text]
-askedFor r = [lyricsName q.song | FetchLyrics _ q <- r.commands]
+askedFor r = [songName q.song | FetchLyrics _ q <- r.commands]
 
 test_fetchInBackground :: Assertion
 test_fetchInBackground = do
@@ -659,7 +660,7 @@ test_fetchInBackground = do
         [ song 0 [(Artist, ["A"]), (Title, ["One"])] 60
         , song 1 [(Artist, ["A"]), (Title, ["Two"])] 60
         ]
-      fetched r = [lyricsName s | FetchLyricsInBackground s <- r.commands]
+      fetched r = [songName s | FetchLyricsInBackground s <- r.commands]
   s <- testState (40, 10) (statusOf Playing (Just 0) 2) songs
   first <- runEventsWith env 0 [Tick 0, Tick 0] s
   assertEqual "once" ["A - One"] (fetched first)

@@ -868,7 +868,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.App` | The event loop: a thin adapter between vty, the queue of events and the handlers |
 | `Reprise.Effect.*` | The app's own effects (`MpdRequest`, `UiRequest`, `Mpd`, `Clock`, `Fifo`), one module each |
 | `Reprise.Config` | Config types, yamlet decoders, defaults, the default keymaps |
-| `Reprise.Format` | The format language: parser and renderer to styled spans. Pure, with golden tests |
+| `Reprise.Format` | The format language: parser and renderer to styled spans, and the plain name of a song. Pure, with golden tests |
 | `Reprise.Style` | Parsing styles into vty `Attr` |
 | `Reprise.Keys` | Key spec parsing (`ctrl-x`, `alt-shift-tab`, ...) |
 | `Reprise.Keymap` | Keymaps, key sequences and lookup, and the listings of keymaps: the which-key entries and the lines of the help screen |

@@ -25,6 +25,7 @@ module Reprise.Format
   , spansText
   , spansWidth
   , fitSpans
+  , songName
   , formatDuration
   ) where
 
@@ -34,6 +35,7 @@ import Data.Map.Strict qualified as M
 import Data.Maybe
 import Data.Text qualified as T
 import Data.Void
+import System.FilePath
 import Yamlet hiding (Comment)
 
 import Reprise.Mpd.Protocol.Types
@@ -346,6 +348,14 @@ fieldValue separator song =
     normalizeTrack t =
       let n = T.takeWhile (/= '/') t
       in if T.length n == 1 && T.all isDigit n then "0" <> n else n
+
+-- | What a song is known by, e.g. in a title or the name of its lyrics, as
+-- ncmpcpp names lyrics: the first artist and the first title, or without
+-- both, the name of the song's file without its extension.
+songName :: Song -> T.Text
+songName song = case (firstTag Artist song, firstTag Title song) of
+  (Just artist, Just title) -> artist <> " - " <> title
+  _ -> T.pack . dropExtension . takeFileName $ T.unpack song.file
 
 -- | @m:ss@, or @h:mm:ss@ from an hour.
 formatDuration :: Seconds -> T.Text

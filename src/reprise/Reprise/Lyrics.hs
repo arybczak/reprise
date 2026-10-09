@@ -12,7 +12,6 @@ module Reprise.Lyrics
   , plainLyrics
   , timedLyrics
   , parseLrc
-  , lyricsName
   , lyricsFileName
   , timedLyricsFileName
   , cleanTitle
@@ -29,6 +28,7 @@ import Data.Word
 import Numeric
 import System.FilePath
 
+import Reprise.Format
 import Reprise.Mpd.Protocol.Response qualified as Response
 import Reprise.Mpd.Protocol.Types
 import Reprise.Number
@@ -133,14 +133,6 @@ parseLrc = L.sortOn fst . concatMap timedLine . T.lines
           seconds <- Response.readSeconds (T.encodeUtf8 s)
           pure $ fromInteger (minutes * 60) + seconds
 
--- | What a song's lyrics are known by, as ncmpcpp names them: the first
--- artist and the first title, or without both, the name of the song's file
--- without its extension.
-lyricsName :: Song -> T.Text
-lyricsName song = case (firstTag Artist song, firstTag Title song) of
-  (Just artist, Just title) -> artist <> " - " <> title
-  _ -> T.pack . dropExtension . takeFileName $ T.unpack song.file
-
 -- | The file of a song's lyrics in the directory of lyrics: its name
 -- without the characters that Windows forbids in a file name, as ncmpcpp
 -- with its default @generate_win32_compatible_filenames@ removes them.
@@ -168,7 +160,7 @@ lyricsBaseName song
   | otherwise = T.unpack $ cut (room - utf8Length suffix) name <> suffix
   where
     name :: T.Text
-    name = T.filter (`notElem` forbidden) (lyricsName song)
+    name = T.filter (`notElem` forbidden) (songName song)
 
     forbidden :: String
     forbidden = "\"*/:<>?\\|"

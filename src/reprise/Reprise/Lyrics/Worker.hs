@@ -19,6 +19,7 @@ import System.IO.Error
 import Reprise.Event
 import Reprise.Exception
 import Reprise.File
+import Reprise.Format
 import Reprise.Lyrics
 import Reprise.Mpd.Protocol.Types
 
@@ -67,7 +68,7 @@ lyricsWorker src = go Nothing Nothing
               forM_ [(n, r) | (n, Just r) <- asked] $ \(fetcher, reason) ->
                 src.logLine $
                   "The lyrics of "
-                    <> lyricsName song
+                    <> songName song
                     <> " can't be fetched from "
                     <> fetcher
                     <> ": "
