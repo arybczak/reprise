@@ -26,6 +26,7 @@ import Reprise.Test.Screen.Help
 import Reprise.Test.Screen.Lyrics
 import Reprise.Test.Screen.Outputs
 import Reprise.Test.Screen.Queue
+import Reprise.Test.Screen.SongInfo
 import Reprise.Test.Screen.Visualizer
 import Reprise.Test.Selection
 import Reprise.Test.SongInfo
@@ -67,6 +68,7 @@ main = do
           , lyricsScreenTests
           , outputsTests
           , queueTests
+          , songInfoScreenTests
           , visualizerTests
           ]
       , selectionTests

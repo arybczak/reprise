@@ -339,6 +339,8 @@ test-suite test
                     Reprise.Test.Screen.Lyrics
                     Reprise.Test.Screen.Outputs
                     Reprise.Test.Screen.Queue
+                    Reprise.Test.Screen.Queue.Edits
+                    Reprise.Test.Screen.SongInfo
                     Reprise.Test.Screen.Visualizer
                     Reprise.Test.Selection
                     Reprise.Test.SongInfo
