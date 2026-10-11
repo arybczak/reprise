@@ -31,7 +31,7 @@ import Reprise.Width
 visualizerTests :: TestTree
 visualizerTests =
   testGroup
-    "Visualizer"
+    "visualizer"
     [ testCase "showing the visualizer reads the samples, leaving it stops" test_reading
     , testCase "space switches the visualization" test_switch
     , testCase "the bars of the spectrum" test_bars

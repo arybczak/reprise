@@ -13,7 +13,7 @@ import Reprise.Visualizer.Spectrum
 spectrumTests :: TestTree
 spectrumTests =
   testGroup
-    "Spectrum"
+    "spectrum"
     [ testCase "the spectrum of a sine" test_sineSpectrum
     , testCase "the window of the spectrum" test_window
     ]

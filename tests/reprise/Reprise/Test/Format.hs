@@ -16,7 +16,7 @@ import Reprise.Style
 formatTests :: TestTree
 formatTests =
   testGroup
-    "Format"
+    "format"
     [ testCase "parse" test_parse
     , testCase "parse errors" test_parseErrors
     , testCase "plain formats reject styles" test_plainRejectsStyles

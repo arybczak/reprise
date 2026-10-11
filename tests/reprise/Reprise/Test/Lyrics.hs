@@ -16,7 +16,7 @@ import Reprise.Test.Helpers
 lyricsTests :: TestTree
 lyricsTests =
   testGroup
-    "Lyrics"
+    "lyrics"
     [ testCase "the file names are ncmpcpp's" test_fileNames
     , testCase "a name too long for a file is cut" test_longFileNames
     , testCase "the name of a long title stays" test_longName

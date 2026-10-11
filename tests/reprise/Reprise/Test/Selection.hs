@@ -16,7 +16,7 @@ import Reprise.Test.Helpers
 selectionTests :: TestTree
 selectionTests =
   testGroup
-    "Selection"
+    "selection"
     [ testCase "select songs one by one" test_selectItem
     , testCase "select a range" test_selectRange
     , testCase "invert and clear the selection" test_selectInvertNone

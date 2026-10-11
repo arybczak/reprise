@@ -16,7 +16,7 @@ import Reprise.UI.Layout
 saveTests :: TestTree
 saveTests =
   testGroup
-    "Save"
+    "save"
     [ testCase "the queue saves as a new playlist" test_newPlaylist
     , testCase "a playlist of the name is replaced or appended to" test_existing
     , testCase "escape cancels the choice" test_cancel

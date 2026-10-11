@@ -20,7 +20,7 @@ import Reprise.Mpd.TestServer
 addressTests :: TestTree
 addressTests =
   testGroup
-    "Address"
+    "address"
     [ testCase "the command line first" test_commandLine
     , testCase "MPD_HOST with a password" test_envPassword
     , testCase "the order of the passwords" test_passwordOrder

@@ -28,7 +28,7 @@ import Reprise.Mpd.Worker
 workerTests :: TestTree
 workerTests =
   testGroup
-    "Worker"
+    "MPD worker"
     [ testCase "a command runs again after MPD closed the connection" test_retryClosed
     , testCase "a failed command sends its failure event" test_failed
     , testCase "a broken connection is closed" test_broken

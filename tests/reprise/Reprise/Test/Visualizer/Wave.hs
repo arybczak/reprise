@@ -13,7 +13,7 @@ import Reprise.Visualizer.Wave
 waveTests :: TestTree
 waveTests =
   testGroup
-    "Wave"
+    "wave"
     [ testCase "a steady sound stands still in the wave" test_triggerStill
     , testCase "the wave follows the bass" test_triggerBass
     , testCase "without a rise of the bass, the wave is of the last samples" test_triggerNone

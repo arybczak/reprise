@@ -12,7 +12,7 @@ import Reprise.App
 appTests :: TestTree
 appTests =
   testGroup
-    "App"
+    "app"
     [ testCase "the editor gets the file as an argument" test_runEditor
     ]
 

@@ -14,7 +14,7 @@ import Reprise.LineEdit
 historyTests :: TestTree
 historyTests =
   testGroup
-    "History"
+    "history"
     [ testCase "remember a line" test_remember
     , testCase "recall older and newer lines" test_recall
     , testCase "recall the lines that start with what was typed" test_recallPrefix

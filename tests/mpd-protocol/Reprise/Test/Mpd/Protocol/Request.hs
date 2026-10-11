@@ -10,7 +10,7 @@ import Reprise.Mpd.Protocol.Request
 requestTests :: TestTree
 requestTests =
   testGroup
-    "Request"
+    "request"
     [ testCase "quote" test_quote
     , testCase "one request" test_oneRequest
     , testCase "command list" test_commandList

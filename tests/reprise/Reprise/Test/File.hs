@@ -12,7 +12,7 @@ import Reprise.File
 fileTests :: TestTree
 fileTests =
   testGroup
-    "File"
+    "file"
     [ testCase "write a file whole" test_writeFileAtomically
     , testCase "write through a symbolic link" test_symlink
     ]

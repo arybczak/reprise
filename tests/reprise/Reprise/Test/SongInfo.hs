@@ -18,7 +18,7 @@ import Reprise.UI.Layout
 songInfoTests :: TestTree
 songInfoTests =
   testGroup
-    "Song info"
+    "song info"
     [ testCase "the lines of a song" test_lines
     , testCase "the formats of MPD" test_formats
     , testCase "the rows at a width" test_rows

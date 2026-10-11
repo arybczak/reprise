@@ -16,7 +16,7 @@ import Test.Tasty.HUnit
 layerTests :: TestTree
 layerTests =
   testGroup
-    "Layers"
+    "layers"
     [ testCase "the modules follow the layers" test_sources
     , testCase "an import across the layers is reported" test_crossings
     ]

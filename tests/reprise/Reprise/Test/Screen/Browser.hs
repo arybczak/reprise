@@ -22,7 +22,7 @@ import Reprise.Test.Helpers
 browserTests :: TestTree
 browserTests =
   testGroup
-    "Browser"
+    "browser"
     [ testCase "showing the browser lists the root" test_showLists
     , testCase "showing it again lists nothing" test_showAgain
     , testCase "entering a directory and leaving it" test_enterAndLeave

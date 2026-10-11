@@ -13,7 +13,7 @@ import Reprise.Test.Helpers
 keymapTests :: TestTree
 keymapTests =
   testGroup
-    "Keymap"
+    "keymap"
     [ testCase "override replaces, merges and removes" test_override
     , testCase "screen keymap first" test_screenFirst
     , testCase "prefixes in both layers merge" test_prefixesMerge

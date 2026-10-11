@@ -12,7 +12,7 @@ import Reprise.Style
 styleTests :: TestTree
 styleTests =
   testGroup
-    "Style"
+    "style"
     [ testCase "parse" test_parse
     , testCase "parse errors" test_parseErrors
     , testCase "render" test_render

@@ -18,7 +18,7 @@ import Reprise.Test.Helpers
 helpTests :: TestTree
 helpTests =
   testGroup
-    "Help"
+    "help"
     [ testCase "sections and groups" test_sections
     , testCase "key column" test_keyColumn
     , testCase "the help screen keeps the queue's position" test_helpKeepsPosition

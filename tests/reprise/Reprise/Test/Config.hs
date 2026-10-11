@@ -30,7 +30,7 @@ import Reprise.Test.Helpers
 configTests :: TestTree
 configTests =
   testGroup
-    "Config"
+    "config"
     [ testCase "empty file" test_emptyFile
     , testCase "a missing file" test_missingFile
     , testCase "the characters of the progress bar" test_progressChars

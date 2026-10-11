@@ -26,7 +26,7 @@ import Reprise.UI.Layout
 layoutTests :: TestTree
 layoutTests =
   testGroup
-    "Layout"
+    "layout"
     [ snapshot "queue-columns" $ playing (80, 12)
     , snapshot "queue-narrow" $ playing (40, 12)
     , snapshot "queue-classic" $ press ["t", "d"] =<< playing (80, 12)

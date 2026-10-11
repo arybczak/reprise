@@ -21,7 +21,7 @@ import Reprise.Test.Helpers
 mirrorTests :: TestTree
 mirrorTests =
   testGroup
-    "Mirror"
+    "mirror"
     [ testCase "a change replaces a song" test_replace
     , testCase "changes past the end append" test_append
     , testCase "the queue is cut to its length" test_truncate

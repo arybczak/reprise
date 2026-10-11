@@ -20,7 +20,7 @@ import Reprise.Test.Mpd.Protocol.Helpers.Thunks
 responseTests :: TestTree
 responseTests =
   testGroup
-    "Response"
+    "response"
     [ testGroup
         "recorded replies"
         [ golden "status-stopped" status

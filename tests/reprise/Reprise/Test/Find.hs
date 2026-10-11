@@ -22,7 +22,7 @@ import Reprise.UI.Layout
 findTests :: TestTree
 findTests =
   testGroup
-    "Find"
+    "find"
     [ testCase "matching" test_matching
     , testCase "an incomplete pattern" test_incomplete
     , testCase "a pattern that is too slow" test_tooSlow

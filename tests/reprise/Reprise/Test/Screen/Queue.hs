@@ -26,7 +26,7 @@ import Reprise.Test.Helpers
 queueTests :: TestTree
 queueTests =
   testGroup
-    "Queue"
+    "queue"
     [ testCase "runs" test_runs
     , testCase "delete from the last run" test_delete
     , testCase "move runs up and down" test_moveUpDown

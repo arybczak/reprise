@@ -17,7 +17,7 @@ import Reprise.Width
 widthTests :: TestTree
 widthTests =
   testGroup
-    "Width"
+    "width"
     [ testCase "truncation" test_truncate
     , testCase "wrapping" test_wrap
     , testCase "scrolling" test_scroll

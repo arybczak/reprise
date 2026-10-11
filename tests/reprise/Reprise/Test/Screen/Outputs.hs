@@ -18,7 +18,7 @@ import Reprise.UI.Layout
 outputsTests :: TestTree
 outputsTests =
   testGroup
-    "Outputs"
+    "outputs"
     [ testCase "showing the outputs fetches them once" test_shown
     , testCase "enter enables or disables an output" test_toggle
     , testCase "changes fetch the outputs once they showed" test_changes

@@ -12,7 +12,7 @@ import Reprise.Keys
 keysTests :: TestTree
 keysTests =
   testGroup
-    "Keys"
+    "keys"
     [ testCase "parse" test_parse
     , testCase "keys a terminal can't tell apart" test_aliases
     , testCase "render" test_render

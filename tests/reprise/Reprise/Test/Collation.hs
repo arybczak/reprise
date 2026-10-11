@@ -10,7 +10,7 @@ import Reprise.Collation
 collationTests :: TestTree
 collationTests =
   testGroup
-    "Collation"
+    "collation"
     [ testCase "case doesn't come first" test_case
     , testCase "a leading the" test_leadingThe
     , testCase "the locale of the order" test_locale

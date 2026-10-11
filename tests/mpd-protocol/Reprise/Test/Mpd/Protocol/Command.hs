@@ -11,7 +11,7 @@ import Reprise.Mpd.Protocol.Types
 commandTests :: TestTree
 commandTests =
   testGroup
-    "Command"
+    "command"
     [ testCase "pure sends nothing" test_pure
     , testCase "requests combine in order" test_requestsInOrder
     , testCase "each part goes to its command" test_partsInOrder

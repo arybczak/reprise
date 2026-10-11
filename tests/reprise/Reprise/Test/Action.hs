@@ -9,7 +9,7 @@ import Reprise.Action
 actionTests :: TestTree
 actionTests =
   testGroup
-    "Action"
+    "action"
     [ testCase "parse" test_parse
     , testCase "render then parse" test_renderParse
     , testCase "errors" test_errors

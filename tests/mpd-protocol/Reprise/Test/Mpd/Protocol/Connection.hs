@@ -25,7 +25,7 @@ import Reprise.Mpd.TestServer
 connectionTests :: TestTree
 connectionTests =
   withResource (startTestServer songs) stopTestServer $ \getServer ->
-    dependentTestGroup "Connection (real server)" AllFinish $
+    dependentTestGroup "connection (real server)" AllFinish $
       map
         (\(name, test) -> testCase name $ getServer >>= \s -> resetTestServer s >> test s)
         [ ("connect over a unix socket", test_connectUnix)
@@ -64,7 +64,7 @@ connectionTests =
 closedTests :: TestTree
 closedTests =
   testGroup
-    "Connection (closed by the server)"
+    "connection (closed by the server)"
     [ testCase "a closed unix socket" . withSystemTempDirectory "reprise" $ \dir -> do
         let path = dir </> "socket"
         assertClosed $ FakeServer N.AF_UNIX (N.SockAddrUnix path) (\_ -> pure $ UnixAddress path)
@@ -98,7 +98,7 @@ closedTests =
 timeoutTests :: TestTree
 timeoutTests =
   testGroup
-    "Connection (timeouts)"
+    "connection (timeouts)"
     [ testCase "a reply that comes slowly" $ do
         r <- withFakeServer localTcp (reply 5) (`withShortTimeout` (`run` fields))
         assertEqual "the reply" (Right 5) r

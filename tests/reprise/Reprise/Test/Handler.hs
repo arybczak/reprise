@@ -24,7 +24,7 @@ import Reprise.UI.Layout
 handlerTests :: TestTree
 handlerTests =
   testGroup
-    "Handler"
+    "handler"
     [ testCase "pause and resume" test_pause
     , testCase "replay" test_replay
     , testCase "a key sequence" test_keySequence

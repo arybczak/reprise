@@ -11,7 +11,7 @@ import Reprise.LineEdit
 lineEditTests :: TestTree
 lineEditTests =
   testGroup
-    "LineEdit"
+    "line edit"
     [ testCase "typing and deleting" test_typing
     , testCase "moving the cursor" test_moving
     , testCase "killing" test_killing
