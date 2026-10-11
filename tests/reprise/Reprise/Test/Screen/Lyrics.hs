@@ -27,7 +27,7 @@ import Reprise.UI.Layout
 lyricsScreenTests :: TestTree
 lyricsScreenTests =
   testGroup
-    "lyrics screen"
+    "lyrics"
     [ testCase "l shows the lyrics of the song under the cursor" test_show
     , testCase "fetched lyrics and the other outcomes" test_outcomes
     , testCase "l on the lyrics goes back" test_back

@@ -12,6 +12,10 @@ import Test.Tasty.HUnit
 import Reprise.Lyrics
 import Reprise.Mpd.Protocol.Types
 import Reprise.Test.Helpers
+import Reprise.Test.Lyrics.Http
+import Reprise.Test.Lyrics.Lrclib
+import Reprise.Test.Lyrics.Tekstowo
+import Reprise.Test.Lyrics.Worker
 
 lyricsTests :: TestTree
 lyricsTests =
@@ -21,6 +25,10 @@ lyricsTests =
     , testCase "a name too long for a file is cut" test_longFileNames
     , testCase "the name of a long title stays" test_longName
     , testCase "timed lyrics from LRC" test_parseLrc
+    , httpTests
+    , lrclibTests
+    , tekstowoTests
+    , lyricsWorkerTests
     ]
 
 -- | The first is the name of a file in the author's lyrics from ncmpcpp.

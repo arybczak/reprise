@@ -16,10 +16,6 @@ import Reprise.Test.Keys
 import Reprise.Test.Layers
 import Reprise.Test.LineEdit
 import Reprise.Test.Lyrics
-import Reprise.Test.Lyrics.Http
-import Reprise.Test.Lyrics.Lrclib
-import Reprise.Test.Lyrics.Tekstowo
-import Reprise.Test.Lyrics.Worker
 import Reprise.Test.Main
 import Reprise.Test.Mpd.Address
 import Reprise.Test.Mpd.Mirror
@@ -49,39 +45,34 @@ main = do
     testGroup
       "reprise"
       [ actionTests
-      , addressTests
       , appTests
-      , browserTests
       , collationTests
       , configTests
       , fileTests
       , findTests
       , formatTests
       , handlerTests
-      , helpTests
       , historyTests
-      , httpTests
       , keymapTests
       , keysTests
       , layerTests
-      , layoutTests
       , lineEditTests
-      , lrclibTests
-      , lyricsScreenTests
       , lyricsTests
-      , lyricsWorkerTests
-      , mirrorTests
-      , outputsTests
-      , queueTests
+      , testGroup "mpd" [addressTests, mirrorTests, workerTests]
       , saveTests
+      , testGroup
+          "screen"
+          [ browserTests
+          , helpTests
+          , lyricsScreenTests
+          , outputsTests
+          , queueTests
+          , visualizerTests
+          ]
       , selectionTests
       , songInfoTests
-      , spectrumTests
       , styleTests
-      , tekstowoTests
-      , visualizerTests
-      , visualizerWorkerTests
-      , waveTests
+      , testGroup "ui" [layoutTests]
+      , testGroup "visualizer" [spectrumTests, waveTests, visualizerWorkerTests]
       , widthTests
-      , workerTests
       ]

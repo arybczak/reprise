@@ -26,7 +26,7 @@ import Reprise.Test.Lyrics.Helpers
 lyricsWorkerTests :: TestTree
 lyricsWorkerTests =
   testGroup
-    "lyrics worker"
+    "worker"
     [ testCase "the worker reads the stored lyrics" test_worker
     , testCase "the worker fetches and stores the lyrics" test_workerFetches
     , testCase "the worker asks again for what wasn't there" test_workerAsksAgain

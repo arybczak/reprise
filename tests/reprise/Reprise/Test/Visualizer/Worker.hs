@@ -32,7 +32,7 @@ import Reprise.Visualizer.Worker
 visualizerWorkerTests :: TestTree
 visualizerWorkerTests =
   testGroup
-    "visualizer worker"
+    "worker"
     [ testCase "every frame shows the samples of its time" test_playout
     , testCase "MPD stops writing" test_playoutStops
     , testCase "a short write" test_playoutShortWrite
