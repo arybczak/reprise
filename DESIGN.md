@@ -1009,7 +1009,7 @@ Reprise.App
 - **`mpd-protocol` imports nothing from reprise.** It is a library of its
   own, so cabal enforces this.
 
-`LayerTests` checks the other rules: it reads the imports of the sources and
+`Reprise.Test.Layers` checks the other rules: it reads the imports of the sources and
 names each one that crosses a layer, with the rule.
 
 Libraries:
@@ -2215,9 +2215,10 @@ reprise/                          repository root
 │   ├── mpd-protocol/             README.md, Reprise/Mpd/Protocol/...
 │   └── reprise/Reprise/...
 └── tests/
-    ├── mpd-protocol/             Main.hs, ...Tests.hs, recorded replies
+    ├── common/Reprise/Test/Main.hs
+    ├── mpd-protocol/             Main.hs, Reprise/Test/Mpd/Protocol/..., recorded replies
     ├── mpd-test-server/Reprise/Mpd/TestServer.hs
-    └── reprise/                  Main.hs, ...Tests.hs, golden files
+    └── reprise/                  Main.hs, Reprise/Test/..., golden files
 ```
 
 The reprise repository is public on GitHub.
@@ -2329,9 +2330,12 @@ Settings that effectful doesn't have:
 - **Internal modules.** In `mpd-protocol`, modules that are exposed only for
   the tests live under `Reprise.Mpd.Protocol.Internal.*` and carry
   `{-# OPTIONS_HADDOCK not-home #-}`.
-- **Tests.** Laid out like `effectful/tests`:
-  - `Main.hs` collects one `TestTree` from each `XTests` module
-    (`module XTests (xTests) where`);
+- **Tests.** Laid out like `yamlet/tests`:
+  - the tests of `Reprise.X` live in `Reprise.Test.X`, in both suites;
+  - `Main.hs` collects one `TestTree` from each of them
+    (`module Reprise.Test.X (xTests) where`);
+  - code that several tests share lives in a `Helpers` module next to them,
+    such as `Reprise.Test.Helpers`;
   - each test case is a top-level `test_name :: Assertion`, named in a
     `testGroup` list at the top of the module;
   - helpers go at the bottom, under a `-- Helpers` banner.

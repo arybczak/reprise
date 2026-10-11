@@ -262,12 +262,12 @@ test-suite mpd-protocol-test
     type:           exitcode-stdio-1.0
     main-is:        Main.hs
 
-    other-modules:  CommandTests
-                    ConnectionTests
-                    RequestTests
-                    ResponseTests
-                    TestMain
-                    Thunks
+    other-modules:  Reprise.Test.Main
+                    Reprise.Test.Mpd.Protocol.Command
+                    Reprise.Test.Mpd.Protocol.Connection
+                    Reprise.Test.Mpd.Protocol.Helpers.Thunks
+                    Reprise.Test.Mpd.Protocol.Request
+                    Reprise.Test.Mpd.Protocol.Response
 
 test-suite test
     import:         language
@@ -308,37 +308,37 @@ test-suite test
     type:           exitcode-stdio-1.0
     main-is:        Main.hs
 
-    other-modules:  ActionTests
-                    AddressTests
-                    BrowserTests
-                    CollationTests
-                    ConfigTests
-                    FileTests
-                    FindTests
-                    FormatTests
-                    HandlerTests
-                    HelpTests
-                    HistoryTests
-                    HttpTests
-                    KeymapTests
-                    KeysTests
-                    LayerTests
-                    LayoutTests
-                    LineEditTests
-                    LrclibTests
-                    LyricsTests
-                    MirrorTests
-                    OutputsTests
-                    QueueTests
-                    SaveTests
-                    SongInfoTests
-                    StyleTests
-                    TekstowoTests
-                    TestMain
-                    VisualizerTests
-                    WidthTests
-                    WorkerTests
-                    Utils
+    other-modules:  Reprise.Test.Action
+                    Reprise.Test.Collation
+                    Reprise.Test.Config
+                    Reprise.Test.File
+                    Reprise.Test.Find
+                    Reprise.Test.Format
+                    Reprise.Test.Handler
+                    Reprise.Test.Helpers
+                    Reprise.Test.History
+                    Reprise.Test.Keymap
+                    Reprise.Test.Keys
+                    Reprise.Test.Layers
+                    Reprise.Test.LineEdit
+                    Reprise.Test.Lyrics
+                    Reprise.Test.Lyrics.Http
+                    Reprise.Test.Lyrics.Lrclib
+                    Reprise.Test.Lyrics.Tekstowo
+                    Reprise.Test.Main
+                    Reprise.Test.Mpd.Address
+                    Reprise.Test.Mpd.Mirror
+                    Reprise.Test.Mpd.Worker
+                    Reprise.Test.Save
+                    Reprise.Test.Screen.Browser
+                    Reprise.Test.Screen.Help
+                    Reprise.Test.Screen.Outputs
+                    Reprise.Test.Screen.Queue
+                    Reprise.Test.SongInfo
+                    Reprise.Test.Style
+                    Reprise.Test.UI.Layout
+                    Reprise.Test.Visualizer
+                    Reprise.Test.Width
 
 benchmark mpd-protocol-bench
     import:         language

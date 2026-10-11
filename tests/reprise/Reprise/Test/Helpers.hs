@@ -1,0 +1,222 @@
+-- | Helpers shared by the tests.
+module Reprise.Test.Helpers
+  ( -- * Songs
+    song
+  , statusOf
+
+    -- * State
+  , testAppEnv
+  , testState
+  , runEvents
+  , runEventsWith
+  , Result (..)
+  , replyTo
+  , failureOf
+  , passwordAnswers
+
+    -- * Keys
+  , lookupKeys
+
+    -- * Images
+  , imageLines
+  , imageSpans
+  , style
+  ) where
+
+import Control.Monad
+import Data.ByteString qualified as BS
+import Data.Map.Strict qualified as M
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
+import Graphics.Text.Width qualified as W
+import Graphics.Vty qualified as V
+import Graphics.Vty.Image.Internal qualified as VI
+
+import Reprise.Collation
+import Reprise.Config
+import Reprise.Effect.MpdRequest
+import Reprise.Effect.UiRequest
+import Reprise.Event
+import Reprise.Handler
+import Reprise.Keymap
+import Reprise.Keys
+import Reprise.Mpd.Protocol.Command
+import Reprise.Mpd.Protocol.Request
+import Reprise.Mpd.Protocol.Response
+import Reprise.Mpd.Protocol.Types
+import Reprise.State
+import Reprise.Style
+
+----------------------------------------
+-- Songs
+
+-- | A song in the queue at a position, with its id one more than the
+-- position.
+song :: Int -> [(Tag, [T.Text])] -> Seconds -> Song
+song pos tags len =
+  Song
+    { file = "dir/" <> T.pack (show pos) <> ".flac"
+    , tags = M.fromList tags
+    , duration = Just len
+    , range = Nothing
+    , lastModified = Nothing
+    , format = Nothing
+    , position = Just (SongPos pos)
+    , songId = Just (SongId (pos + 1))
+    , priority = 0
+    }
+
+-- | A status with the given state and current position.
+statusOf :: PlayerState -> Maybe Int -> Int -> Status
+statusOf st current queueLen =
+  Status
+    { volume = Just 50
+    , repeat = False
+    , random = False
+    , single = SingleOff
+    , consume = ConsumeOff
+    , playlistVersion = PlaylistVersion 1
+    , playlistLength = queueLen
+    , state = st
+    , currentPosition = SongPos <$> current
+    , currentId = SongId . (+ 1) <$> current
+    , nextPosition = Nothing
+    , nextId = Nothing
+    , elapsed = 10 <$ current
+    , duration = 60 <$ current
+    , bitrate = Nothing
+    , crossfade = 0
+    , audio = Nothing
+    , updatingDb = Nothing
+    , error = Nothing
+    }
+
+----------------------------------------
+-- State
+
+-- | The default config and keymaps, with colors, and an order of text that
+-- doesn't depend on the locale.
+testAppEnv :: AppEnv
+testAppEnv =
+  AppEnv
+    { config = defaultConfig
+    , keymaps = keymapsOf defaultConfig.keys
+    , colorMode = WithColors
+    , collator = rootCollator
+    , lyricsDirectory = "lyrics"
+    , editor = Just "edit"
+    }
+
+-- | The state with a terminal of the given size and a queue that MPD sent.
+testState :: (Int, Int) -> Status -> [Song] -> IO AppState
+testState size st songs =
+  let s0 = initialState defaultConfig
+      events =
+        [ Resized (fst size) (snd size)
+        , MpdConnected (Version 0 24 0)
+        , QueueFetched (st, songs)
+        ]
+  in (.state) <$> runEvents 0 events s0
+
+data Result = Result
+  { state :: AppState
+  , requests :: [[Request]]
+  , pending :: [PendingRequest]
+  , commands :: [UiCommand]
+  }
+
+-- | Handle events at a monotonic time, and collect what they requested.
+runEvents :: Double -> [AppEvent] -> AppState -> IO Result
+runEvents = runEventsWith testAppEnv
+
+runEventsWith :: AppEnv -> Double -> [AppEvent] -> AppState -> IO Result
+runEventsWith env now events s0 = foldM step (Result s0 [] [] []) events
+  where
+    step :: Result -> AppEvent -> IO Result
+    step r e = do
+      (s, ps, cs) <- runEvent env now e r.state
+      pure $
+        Result s (r.requests <> map pendingRequestLines ps) (r.pending <> ps) (r.commands <> cs)
+
+-- | The event of a request's continuation, for a reply of the given lines
+-- before its @OK@.
+replyTo :: [BS.ByteString] -> PendingRequest -> AppEvent
+replyTo ls = \case
+  PendingRequest cmd _ k ->
+    either (error . show) k $ parseCommandReply cmd =<< parseReply (ls <> ["OK"])
+  PasswordAnswer _ -> error "a password answer has no reply"
+
+-- | The event of a request's failure.
+failureOf :: MpdError -> PendingRequest -> AppEvent
+failureOf err = \case
+  PendingRequest _ onFailure _ -> onFailure err
+  PasswordAnswer _ -> error "a password answer can't fail"
+
+-- | The answers to 'PasswordNeeded' that the events gave.
+passwordAnswers :: Result -> [Maybe T.Text]
+passwordAnswers r = [a | PasswordAnswer a <- r.pending]
+
+----------------------------------------
+-- Keys
+
+-- | Look up a sequence of keys.
+lookupKeys :: Layers -> [KeySpec] -> Lookup
+lookupKeys layers = \case
+  [] -> Pending layers
+  k : ks -> case lookupKey layers k of
+    Pending following -> lookupKeys following ks
+    result
+      | null ks -> result
+      | otherwise -> Unbound
+
+----------------------------------------
+-- Images
+
+style :: T.Text -> Style
+style = either (error . T.unpack) id . parseStyle
+
+-- | The text of an image, one line for each row, without styles.
+-- | The pieces of text of an image with their attributes, in the order of
+-- the image's structure. Cropping is ignored.
+imageSpans :: V.Image -> [(V.Attr, T.Text)]
+imageSpans = \case
+  VI.HorizText {VI.attr = a, VI.displayText = t} -> [(a, TL.toStrict t)]
+  VI.HorizJoin {VI.partLeft = l, VI.partRight = r} -> imageSpans l <> imageSpans r
+  VI.VertJoin {VI.partTop = t, VI.partBottom = b} -> imageSpans t <> imageSpans b
+  VI.Crop i _ _ _ _ -> imageSpans i
+  _ -> []
+
+imageLines :: V.Image -> [T.Text]
+imageLines = map T.stripEnd . render
+  where
+    render :: V.Image -> [T.Text]
+    render = \case
+      VI.HorizText {VI.displayText = t} -> [TL.toStrict t]
+      VI.HorizJoin {VI.partLeft = l, VI.partRight = r} -> zipWith (<>) (render l) (render r)
+      VI.VertJoin {VI.partTop = t, VI.partBottom = b} -> render t <> render b
+      VI.BGFill {VI.outputWidth = w, VI.outputHeight = h} -> replicate h (T.replicate w " ")
+      VI.Crop i l t w h -> map (padTo w . takeColumns w . dropColumns l) . take h . drop t $ render i
+      VI.EmptyImage -> []
+
+    padTo :: Int -> T.Text -> T.Text
+    padTo w t = t <> T.replicate (w - width t) " "
+
+    width :: T.Text -> Int
+    width = T.foldl' (\n c -> n + W.safeWcwidth c) 0
+
+    takeColumns :: Int -> T.Text -> T.Text
+    takeColumns n t = T.pack . go n $ T.unpack t
+      where
+        go :: Int -> String -> String
+        go _ [] = []
+        go k (c : cs)
+          | W.safeWcwidth c <= k = c : go (k - W.safeWcwidth c) cs
+          | otherwise = []
+
+    dropColumns :: Int -> T.Text -> T.Text
+    dropColumns n t = T.pack . go n $ T.unpack t
+      where
+        go :: Int -> String -> String
+        go k cs | k <= 0 = cs
+        go _ [] = []
+        go k (c : cs) = go (k - W.safeWcwidth c) cs
