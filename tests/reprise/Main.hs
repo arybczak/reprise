@@ -27,10 +27,13 @@ import Reprise.Test.Screen.Browser
 import Reprise.Test.Screen.Help
 import Reprise.Test.Screen.Outputs
 import Reprise.Test.Screen.Queue
+import Reprise.Test.Screen.Visualizer
 import Reprise.Test.SongInfo
 import Reprise.Test.Style
 import Reprise.Test.UI.Layout
-import Reprise.Test.Visualizer
+import Reprise.Test.Visualizer.Spectrum
+import Reprise.Test.Visualizer.Wave
+import Reprise.Test.Visualizer.Worker
 import Reprise.Test.Width
 import Reprise.Width
 
@@ -65,9 +68,12 @@ main = do
       , queueTests
       , saveTests
       , songInfoTests
+      , spectrumTests
       , styleTests
       , tekstowoTests
       , visualizerTests
+      , visualizerWorkerTests
+      , waveTests
       , widthTests
       , workerTests
       ]

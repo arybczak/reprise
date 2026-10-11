@@ -334,10 +334,14 @@ test-suite test
                     Reprise.Test.Screen.Help
                     Reprise.Test.Screen.Outputs
                     Reprise.Test.Screen.Queue
+                    Reprise.Test.Screen.Visualizer
                     Reprise.Test.SongInfo
                     Reprise.Test.Style
                     Reprise.Test.UI.Layout
-                    Reprise.Test.Visualizer
+                    Reprise.Test.Visualizer.Helpers
+                    Reprise.Test.Visualizer.Spectrum
+                    Reprise.Test.Visualizer.Wave
+                    Reprise.Test.Visualizer.Worker
                     Reprise.Test.Width
 
 benchmark mpd-protocol-bench
