@@ -31,6 +31,7 @@ import Reprise.Test.Screen.Lyrics
 import Reprise.Test.Screen.Outputs
 import Reprise.Test.Screen.Queue
 import Reprise.Test.Screen.Visualizer
+import Reprise.Test.Selection
 import Reprise.Test.SongInfo
 import Reprise.Test.Style
 import Reprise.Test.UI.Layout
@@ -73,6 +74,7 @@ main = do
       , outputsTests
       , queueTests
       , saveTests
+      , selectionTests
       , songInfoTests
       , spectrumTests
       , styleTests

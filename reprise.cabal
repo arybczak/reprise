@@ -316,6 +316,7 @@ test-suite test
                     Reprise.Test.Find
                     Reprise.Test.Format
                     Reprise.Test.Handler
+                    Reprise.Test.Handler.Helpers
                     Reprise.Test.Helpers
                     Reprise.Test.History
                     Reprise.Test.Keymap
@@ -339,6 +340,7 @@ test-suite test
                     Reprise.Test.Screen.Outputs
                     Reprise.Test.Screen.Queue
                     Reprise.Test.Screen.Visualizer
+                    Reprise.Test.Selection
                     Reprise.Test.SongInfo
                     Reprise.Test.Style
                     Reprise.Test.UI.Layout

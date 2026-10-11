@@ -3,11 +3,21 @@ module Reprise.Test.Find (findTests) where
 import Control.Exception
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
+import Graphics.Vty qualified as V
+import Optics.Core hiding (folded)
 import System.Timeout
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import Reprise.Event
 import Reprise.Find
+import Reprise.Format
+import Reprise.Mpd.Protocol.Types
+import Reprise.Screen.Help
+import Reprise.State
+import Reprise.Test.Handler.Helpers
+import Reprise.Test.Helpers
+import Reprise.UI.Layout
 
 findTests :: TestTree
 findTests =
@@ -19,6 +29,10 @@ findTests =
     , testCase "a search that is too slow" test_searchTooSlow
     , testCase "searching" test_search
     , testCase "where a pattern matches" test_matchRanges
+    , testCase "find as you type" test_findAsYouType
+    , testCase "find the next and the previous match" test_findAgain
+    , testCase "find in text" test_findInText
+    , testCase "find after the rows change" test_findRowsChange
     ]
 
 test_matchRanges :: Assertion
@@ -115,3 +129,110 @@ test_search = case compilePattern "a" of
   where
     folded :: [T.Text] -> Seq.Seq Folded
     folded = Seq.fromList . map foldText
+
+test_findAsYouType :: Assertion
+test_findAsYouType = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) titled
+  let cursorAfter ks = cursor <$> keys ks s
+      note ks = do
+        r <- keys ks s
+        pure $ case r.state.prompt of
+          Just (Prompt _ (Line _ (ForFind f) _)) -> f.note
+          _ -> Just "no find"
+  assertEqual "a match after the cursor" 3 =<< cursorAfter ("/" : typed "al")
+  assertEqual "while typing" 2 =<< cursorAfter ("/" : typed "g")
+  assertEqual "diacritics" 4 =<< cursorAfter ("/" : typed "pokoj")
+  assertEqual "backward around the start" 3 =<< cursorAfter ("?" : typed "al")
+  assertEqual "the note" (Just "wrapped around to the bottom") =<< note ("?" : typed "al")
+  assertEqual "no match" (0, Just "no match")
+    =<< ((,) <$> cursorAfter ("/" : typed "x") <*> note ("/" : typed "x"))
+  assertEqual "an incomplete pattern" (Just "incomplete pattern") =<< note ("/" : typed "(")
+  assertEqual "a cancel goes back" 0 =<< cursorAfter ("/" : typed "g" <> ["escape"])
+  assertEqual "backspace goes back" 0 =<< cursorAfter ("/" : typed "g" <> ["backspace"])
+  accepted <- keys ("/" : typed "al" <> ["enter"]) s
+  assertEqual
+    "kept"
+    (3, Nothing)
+    ((focusedView accepted.state).cursor, accepted.state.prompt)
+  assertEqual "the pattern" (Just "al") accepted.state.findPattern
+  assertEqual "on the visualizer" (Just "The visualizer screen has no find forward")
+    . message
+    =<< keys ["8", "/"] s
+
+-- | The help of the default keys, on a view of 20 rows. A match goes to
+-- the middle, as in a list.
+test_findInText :: Assertion
+test_findInText = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
+  help <- keys ["f1"] s
+  let rows = map spansText (helpRows testAppEnv)
+      withVolume = [i | (i, r) <- zip [0 ..] rows, "volume" `T.isInfixOf` T.toLower r]
+      centered i = (i, max 0 (min (length rows - 20) (i - 10)))
+      highlighted r =
+        [ t
+        | (a, t) <- imageSpans (renderScreen testAppEnv r.state)
+        , T.toLower t == "volume"
+        , V.attrStyle a /= V.Default
+        ]
+  (first, second, lastOne) <- case (withVolume, unsnoc withVolume) of
+    (a : b : _ : _, Just (_, z)) -> pure (a, b, z)
+    _ -> assertFailure $ "too few matches: " <> show withVolume
+  typing <- keys ("/" : typed "volume") help.state
+  assertEqual "while typing" (centered first) (position typing)
+  assertBool "highlighted while typing" (not (null (highlighted typing)))
+  found <- keys ["enter"] typing.state
+  assertEqual "found" (centered first) (position found)
+  assertBool "highlighted after" (not (null (highlighted found)))
+  assertEqual "the next" (centered second) . position =<< keys ["."] found.state
+  backward <- keys ("?" : typed "volume" <> ["enter"]) help.state
+  assertEqual "backward around the start" (centered lastOne) (position backward)
+  -- The first match leaves the view, so the next find starts at its top,
+  -- not after the first match.
+  let lastPage = length rows - 20
+      afterTop = case [i | i <- withVolume, i >= lastPage] of
+        i : _ -> i
+        [] -> first
+  assertBool "a find from the view differs" (afterTop /= second)
+  scrolled <- keys ["end"] found.state
+  assertEqual "from the view after a scroll" (centered afterTop) . position
+    =<< keys ["."] scrolled.state
+  queueFind <- keys ("/" : typed "volume" <> ["enter", "f1"]) s
+  assertEqual "not after a find on another screen" [] (highlighted queueFind)
+  assertEqual "not after an empty find" [] . highlighted =<< keys ["/", "enter"] found.state
+
+test_findAgain :: Assertion
+test_findAgain = do
+  s <-
+    keys ("/" : typed "al" <> ["enter"])
+      =<< testState (80, 24) (statusOf Stopped Nothing 5) titled
+  let findAfter ks = (\r -> (cursor r, message r)) <$> keys ks s.state
+  assertEqual "next" (0, Just "Wrapped around to the top") =<< findAfter ["."]
+  assertEqual "previous" (0, Nothing) =<< findAfter [","]
+  assertEqual "previous twice" (3, Just "Wrapped around to the bottom")
+    =<< findAfter [",", ","]
+  cleared <- keys ["/", "enter"] s.state
+  assertEqual
+    "an empty find clears"
+    (Nothing, Just "Find cleared")
+    (cleared.state.findPattern, message cleared)
+  assertEqual "nothing to find again" (Just "No find pattern") . message
+    =<< keys ["."] cleared.state
+  fresh <- testState (80, 24) (statusOf Stopped Nothing 5) titled
+  assertEqual "nothing yet" (Just "No find pattern") . message =<< keys ["."] fresh
+
+-- | A find matches the rows of the queue and the display of now, not the
+-- ones of an earlier find.
+test_findRowsChange :: Assertion
+test_findRowsChange = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) titled
+  missed <- keys ("/" : typed "delta" <> ["enter"]) s
+  let added = statusOf Stopped Nothing 6 & #playlistVersion .~ PlaylistVersion 2
+  changed <-
+    runEvents
+      0
+      [QueueFetched (added, titled <> [song 5 [(Title, ["delta"])] 60])]
+      missed.state
+  assertEqual "a song added since" 5 . cursor =<< keys ["."] changed.state
+  -- Only the classic display joins the artist and the title with " - ".
+  assertEqual "another display" 3 . cursor
+    =<< keys ("/" : typed "A - alpha" <> ["enter", "t", "d", "."]) s
