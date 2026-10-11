@@ -37,9 +37,14 @@ import Reprise.Style
 import Reprise.UI.Layout
 import Reprise.Visualizer.Spectrum
 import Reprise.Visualizer.Wave
+import Reprise.Width
 
 main :: IO ()
-main =
+main = do
+  -- As reprise does at the start. vty looks a width up by index in an
+  -- installed table, and by a binary search in its built-in one, which made
+  -- writing the spectrum take 47 µs instead of 34 µs.
+  installWidthTable
   defaultMain
     [ bench "reading a full history" $
         nf
