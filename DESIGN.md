@@ -2161,15 +2161,15 @@ songs and a terminal of 160×45:
 - **`mpd-protocol-bench`** parses the reply to `playlistinfo` of the whole
   queue, and to `plchanges` after a delete in the middle, which has every
   song after the deleted one.
-- **`bench`** handles a key, the change of the queue after such a
-  delete, and the keys of a find that matches nothing, which goes through the
-  whole queue. It handles the listing of a directory as long as the queue,
-  sorted by name. It also makes a frame of the queue, and vty writes a frame
-  for xterm-256color, which covers the pin of vty-unix. It makes and writes
-  a frame of each visualization after a second of noise, which it draws 60
-  times a second, and computes the spectra of the channels for a frame.
-  It reads a full history of the prompts, as at the start and at each line
-  saved to it.
+- **`bench`** reads a full history of the prompts, as at the start and at
+  each line saved to it. It handles a key, the change of the queue after
+  such a delete, and the keys of a find that matches nothing, which goes
+  through the whole queue. It handles the listing of a directory as long as
+  the queue, sorted by name. It computes what the visualizer worker does for
+  each of 60 frames a second: the spectra of both channels, and where the
+  wave starts. It draws a frame of the queue and of each visualization
+  after a second of noise, and vty writes each of them whole for
+  xterm-256color, which measures the output of vty-unix.
 
 CI builds the suites but doesn't run them, because timings on shared
 machines are too noisy to fail a build on. To check a change, save the

@@ -1,5 +1,5 @@
 -- | Benchmarks of what reprise does often with a long queue: handling keys
--- and changes of the queue, and drawing frames.
+-- and replies, and computing, drawing and writing frames.
 module Main (main) where
 
 import Control.DeepSeq
@@ -46,11 +46,11 @@ main =
           historyOfLines
           [T.pack ("find a pattern of a line, number " <> show i) | i <- [1 .. historySize]]
     , bgroup
-        "handler"
+        "handling"
         [ afterKeys [] $ \s ->
-            bench "down key" . whnfIO $ settled <$> handle (key "down") s
+            bench "the down key" . whnfIO $ settled <$> handle (key "down") s
         , afterKeys [] $ \s ->
-            bench "the change of the queue after a delete in the middle" . whnfIO $
+            bench "the queue's changes after a delete in the middle" . whnfIO $
               settled <$> handle deletedInTheMiddle s
         , -- The first key makes the text of the rows, which the next keys
           -- reuse. With no match, the find goes through the whole queue.
@@ -62,39 +62,42 @@ main =
               settled <$> handle (key "x") s
         , -- Sorting by name computes a collation key for each entry.
           afterKeys ["2", "t", "o"] $ \s ->
-            bench "the listing of a directory as long as the queue, sorted by name" . whnfIO $
+            bench "a directory listing as long as the queue, sorted by name" . whnfIO $
               settled <$> listed s
         ]
     , bgroup
-        "screen"
-        [ afterKeys scrolling $ \s ->
-            bench "a frame of the queue" $ nf (renderScreen defaultEnv) s
-        , env (xterm (renderScreen defaultEnv <$> (keys scrolling =<< loaded))) $ \t ->
-            bench "the output of a whole frame for xterm-256color" . whnfIO $ output t
-        , env (Settled <$> ellipseShown) $ \ ~(Settled s) ->
-            bench "a frame of the ellipse" $ nf (renderScreen visualizerEnv) s
-        , env (xterm (renderScreen visualizerEnv <$> ellipseShown)) $ \t ->
-            bench "the output of a whole frame of the ellipse for xterm-256color" . whnfIO $
-              output t
+        "computing a frame of the visualizer"
+        [ env (Planned <$> newTransform <*> noiseWindow) $ \ ~(Planned transform window) ->
+            bench "the spectra of both channels" . nfIO $ spectraOf transform window
         , env (Pushed <$> noiseWave) $ \ ~(Pushed w) ->
-            bench "pushing a frame of samples and finding where the wave starts" . nfIO $
+            bench "pushing the samples and finding where the wave starts" . nfIO $
               pushWave w (mconcat (take 1 noise)) >> waveOf w
-        , env (Settled <$> waveShown) $ \ ~(Settled s) ->
-            bench "a frame of the wave" $ nf (renderScreen visualizerEnv) s
-        , env (xterm (renderScreen visualizerEnv <$> waveShown)) $ \t ->
-            bench "the output of a whole frame of the wave for xterm-256color" . whnfIO $
-              output t
-        , env (Planned <$> newTransform <*> noiseWindow) $ \ ~(Planned transform window) ->
-            bench "the spectra of the channels for a frame" . nfIO $ spectraOf transform window
+        ]
+    , bgroup
+        "drawing a frame"
+        [ afterKeys scrolling $ \s ->
+            bench "the queue" $ nf (renderScreen defaultEnv) s
         , env (Settled <$> spectrumShown) $ \ ~(Settled s) ->
-            bench "a frame of the spectrum" $ nf (renderScreen visualizerEnv) s
+            bench "the spectrum" $ nf (renderScreen visualizerEnv) s
+        , env (Settled <$> ellipseShown) $ \ ~(Settled s) ->
+            bench "the ellipse" $ nf (renderScreen visualizerEnv) s
+        , env (Settled <$> waveShown) $ \ ~(Settled s) ->
+            bench "the wave" $ nf (renderScreen visualizerEnv) s
+        ]
+    , -- Without the last frame, vty writes every row.
+      bgroup
+        "writing a whole frame to xterm-256color"
+        [ env (xterm (renderScreen defaultEnv <$> (keys scrolling =<< loaded))) $ \t ->
+            bench "the queue" . whnfIO $ output t
         , env (xterm (renderScreen visualizerEnv <$> spectrumShown)) $ \t ->
-            bench "the output of a whole frame of the spectrum for xterm-256color" . whnfIO $
-              output t
+            bench "the spectrum" . whnfIO $ output t
+        , env (xterm (renderScreen visualizerEnv <$> ellipseShown)) $ \t ->
+            bench "the ellipse" . whnfIO $ output t
+        , env (xterm (renderScreen visualizerEnv <$> waveShown)) $ \t ->
+            bench "the wave" . whnfIO $ output t
         ]
     ]
   where
-    -- Without the last frame, vty writes every row.
     output :: Terminal -> IO ()
     output ~(Terminal out dc frame) = do
       -- vty's own variable, of base's lazy IORef.

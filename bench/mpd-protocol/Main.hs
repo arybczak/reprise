@@ -10,7 +10,7 @@ main :: IO ()
 main =
   defaultMain
     [ bgroup
-        "parse"
+        "parsing"
         [ env (pure (reply [0 .. queueLength - 1])) $ \ls ->
             bench "playlistinfo of a long queue" $ whnf parseSongCount ls
         , -- Deleting a song shifts every song after it, and MPD sends them all.
