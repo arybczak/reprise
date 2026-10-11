@@ -77,7 +77,8 @@ main =
             bench "the output of a whole frame of the ellipse for xterm-256color" . whnfIO $
               output t
         , env (Pushed <$> noiseWave) $ \ ~(Pushed w) ->
-            bench "the wave of a frame" . nfIO $ pushWave w (mconcat (take 1 noise)) >> waveOf w
+            bench "pushing a frame of samples and finding where the wave starts" . nfIO $
+              pushWave w (mconcat (take 1 noise)) >> waveOf w
         , env (Settled <$> waveShown) $ \ ~(Settled s) ->
             bench "a frame of the wave" $ nf (renderScreen visualizerEnv) s
         , env (xterm (renderScreen visualizerEnv <$> waveShown)) $ \t ->
