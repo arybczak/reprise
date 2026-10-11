@@ -3,6 +3,7 @@ module Main (main) where
 import Test.Tasty
 
 import Reprise.Test.Action
+import Reprise.Test.App
 import Reprise.Test.Collation
 import Reprise.Test.Config
 import Reprise.Test.File
@@ -18,6 +19,7 @@ import Reprise.Test.Lyrics
 import Reprise.Test.Lyrics.Http
 import Reprise.Test.Lyrics.Lrclib
 import Reprise.Test.Lyrics.Tekstowo
+import Reprise.Test.Lyrics.Worker
 import Reprise.Test.Main
 import Reprise.Test.Mpd.Address
 import Reprise.Test.Mpd.Mirror
@@ -25,6 +27,7 @@ import Reprise.Test.Mpd.Worker
 import Reprise.Test.Save
 import Reprise.Test.Screen.Browser
 import Reprise.Test.Screen.Help
+import Reprise.Test.Screen.Lyrics
 import Reprise.Test.Screen.Outputs
 import Reprise.Test.Screen.Queue
 import Reprise.Test.Screen.Visualizer
@@ -46,6 +49,7 @@ main = do
       "reprise"
       [ actionTests
       , addressTests
+      , appTests
       , browserTests
       , collationTests
       , configTests
@@ -62,7 +66,9 @@ main = do
       , layoutTests
       , lineEditTests
       , lrclibTests
+      , lyricsScreenTests
       , lyricsTests
+      , lyricsWorkerTests
       , mirrorTests
       , outputsTests
       , queueTests

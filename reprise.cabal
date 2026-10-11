@@ -309,6 +309,7 @@ test-suite test
     main-is:        Main.hs
 
     other-modules:  Reprise.Test.Action
+                    Reprise.Test.App
                     Reprise.Test.Collation
                     Reprise.Test.Config
                     Reprise.Test.File
@@ -322,9 +323,11 @@ test-suite test
                     Reprise.Test.Layers
                     Reprise.Test.LineEdit
                     Reprise.Test.Lyrics
+                    Reprise.Test.Lyrics.Helpers
                     Reprise.Test.Lyrics.Http
                     Reprise.Test.Lyrics.Lrclib
                     Reprise.Test.Lyrics.Tekstowo
+                    Reprise.Test.Lyrics.Worker
                     Reprise.Test.Main
                     Reprise.Test.Mpd.Address
                     Reprise.Test.Mpd.Mirror
@@ -332,6 +335,7 @@ test-suite test
                     Reprise.Test.Save
                     Reprise.Test.Screen.Browser
                     Reprise.Test.Screen.Help
+                    Reprise.Test.Screen.Lyrics
                     Reprise.Test.Screen.Outputs
                     Reprise.Test.Screen.Queue
                     Reprise.Test.Screen.Visualizer

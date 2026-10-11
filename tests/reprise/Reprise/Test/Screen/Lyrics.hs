@@ -1,0 +1,573 @@
+module Reprise.Test.Screen.Lyrics (lyricsScreenTests) where
+
+import Data.List qualified as L
+import Data.Map.Strict qualified as M
+import Data.Maybe
+import Data.Text qualified as T
+import Graphics.Vty qualified as V
+import Optics.Core
+import System.FilePath
+import Test.Tasty
+import Test.Tasty.HUnit
+
+import Reprise.Action
+import Reprise.Config
+import Reprise.Effect.UiRequest
+import Reprise.Event
+import Reprise.Format
+import Reprise.Keys
+import Reprise.Lyrics
+import Reprise.Mpd.Protocol.Types
+import Reprise.Screen.Lyrics
+import Reprise.State
+import Reprise.Test.Helpers
+import Reprise.Test.Lyrics.Helpers
+import Reprise.UI.Layout
+
+lyricsScreenTests :: TestTree
+lyricsScreenTests =
+  testGroup
+    "Lyrics screen"
+    [ testCase "l shows the lyrics of the song under the cursor" test_show
+    , testCase "fetched lyrics and the other outcomes" test_outcomes
+    , testCase "l on the lyrics goes back" test_back
+    , testCase "nowhere to go back to" test_nowhereBack
+    , testCase "back from any screen" test_backAnywhere
+    , testCase "l without a song under the cursor" test_noSong
+    , testCase "the lyrics of a song that the screen left are dropped" test_stale
+    , testCase "the lyrics scroll" test_scroll
+    , testCase "` fetches the lyrics again" test_refetch
+    , testCase "the line being sung" test_sung
+    , testCase "scrolling stops following the song" test_stopFollowing
+    , testCase "a find stops following the song" test_findStopsFollowing
+    , testCase "o on another song's lyrics" test_jumpToPlayingLyrics
+    , testCase "a redraw when the next line is sung" test_nextLine
+    , testCase "the lyrics of each new song that plays are fetched" test_fetchInBackground
+    , testCase "the lyrics follow the song that plays" test_followPlaying
+    , testCase "a stream has no lyrics" test_stream
+    , testCase "the next song's lyrics show from their top" test_followFromTop
+    , testCase "a control character is a space" test_controlCharacters
+    , testCase "the title scrolls from its start for the next song" test_followTitle
+    , testCase "space turns following the song on and off" test_toggleFollowing
+    , testCase "e edits the lyrics" test_edit
+    , testCase "the lyrics show again after the editor" test_edited
+    ]
+
+test_show :: Assertion
+test_show = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  assertEqual "the screen" LyricsScreen (focusedView r.state).screen
+  case [(t, q) | FetchLyrics t q <- r.commands] of
+    [(token, requested)] -> do
+      assertEqual "the song" "A - One" (songName requested.song)
+      assertBool "not again" (not requested.refetch)
+      assertEqual "nothing while reading" [] (filter (not . T.null) (mainLines r.state))
+      loaded <- runEvents 0 [LyricsLoaded token (stored "First line\nSecond line")] r.state
+      case screenLines loaded.state of
+        title : _ : first : second : _ -> do
+          assertBool ("the title: " <> T.unpack title) ("Lyrics: A - One" `T.isPrefixOf` title)
+          assertEqual "the lyrics" ["First line", "Second line"] [first, second]
+        ls -> assertFailure $ "too few lines: " <> show ls
+      assertEqual "no message" Nothing loaded.state.message
+    other -> assertFailure $ "one request of lyrics, not " <> show other
+
+test_outcomes :: Assertion
+test_outcomes = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  token <- requestToken r
+  fetching <- runEvents 0 [LyricsFetching token "LRCLIB"] r.state
+  assertEqual
+    "fetching"
+    ["Fetching the lyrics from LRCLIB…"]
+    (take 1 (mainLines fetching.state))
+  next <- runEvents 0 [LyricsFetching token "tekstowo.pl"] fetching.state
+  assertEqual
+    "the next fetcher"
+    ["Fetching the lyrics from tekstowo.pl…"]
+    (take 1 (mainLines next.state))
+  fetched <-
+    runEvents
+      0
+      [LyricsLoaded token (LyricsFound (Fetched "LRCLIB") (plainLyrics "Words"))]
+      fetching.state
+  assertEqual "fetched" ["Words"] (take 1 (mainLines fetched.state))
+  assertEqual
+    "where from"
+    (Just "Fetched the lyrics from LRCLIB")
+    ((.text) <$> fetched.state.message)
+  let shown result =
+        filter (not . T.null) . mainLines . (.state)
+          <$> runEvents 0 [LyricsLoaded token result] r.state
+  assertEqual "instrumental" ["Instrumental"] =<< shown LyricsInstrumental
+  assertEqual "not stored" ["No lyrics stored"] =<< shown (LyricsMissing [])
+  assertEqual
+    "not found"
+    ["No lyrics found on A, B or C"]
+    =<< shown (LyricsMissing [("A", Nothing), ("B", Nothing), ("C", Nothing)])
+  assertEqual
+    "a failure"
+    ["No lyrics found on B", "A is busy"]
+    =<< shown (LyricsMissing [("A", Just "A is busy"), ("B", Nothing)])
+  assertEqual "only a failure" ["A is busy"]
+    =<< shown (LyricsMissing [("A", Just "A is busy")])
+  assertEqual
+    "unreadable"
+    ["The lyrics can't be read"]
+    =<< shown (LyricsFailed "The lyrics can't be read")
+
+test_back :: Assertion
+test_back = do
+  r <- runEvents 0 [key "l", key "l"] =<< queueShown
+  assertEqual "the queue" QueueScreen (focusedView r.state).screen
+  assertEqual "after the lyrics" (Just LyricsScreen) (focusedView r.state).previous
+  browser <- runEvents 0 [key "2"] =<< queueShown
+  listed <- case browser.pending of
+    [p] -> runEvents 0 [replyTo ["file: x.flac", "Title: X"] p] browser.state
+    ps -> assertFailure $ "one listing, not " <> show (length ps)
+  back <- runEvents 0 [key "l", key "l"] listed.state
+  assertEqual "the browser" BrowserScreen (focusedView back.state).screen
+
+-- | The queue is the first screen, so no screen was before it.
+test_nowhereBack :: Assertion
+test_nowhereBack = do
+  r <-
+    runEvents
+      0
+      (Resized 40 10 : map key [":", "b", "a", "c", "k", "enter"])
+      (initialState defaultConfig)
+  assertEqual "the queue" QueueScreen (focusedView r.state).screen
+  assertEqual
+    "the message"
+    (Just "There is no screen to go back to")
+    ((.text) <$> r.state.message)
+
+test_noSong :: Assertion
+test_noSong = do
+  visualizer <- runEvents 0 [key "8", key "l"] =<< queueShown
+  assertEqual
+    "the visualizer"
+    (Just "The visualizer screen has no songs")
+    (messageOf visualizer)
+  empty <- runEvents 0 [key "l"] =<< testState (40, 10) (statusOf Stopped Nothing 0) []
+  assertEqual "an empty queue" (Just "There is no song under the cursor") (messageOf empty)
+  browser <- runEvents 0 [key "2"] =<< queueShown
+  listed <- case browser.pending of
+    [p] -> runEvents 0 [replyTo ["directory: a"] p] browser.state
+    ps -> assertFailure $ "one listing, not " <> show (length ps)
+  onDirectory <- runEvents 0 [key "down", key "l"] listed.state
+  assertEqual
+    "a directory"
+    (Just "There is no song under the cursor")
+    (messageOf onDirectory)
+  assertEqual "no request" [] [() | FetchLyrics _ _ <- onDirectory.commands]
+
+test_stale :: Assertion
+test_stale = do
+  r <- runEvents 0 [key "l", key "1", key "down", key "l"] =<< queueShown
+  case [t | FetchLyrics t _ <- r.commands] of
+    [first, second] -> do
+      stale <-
+        runEvents 0 [LyricsFetching first "LRCLIB", LyricsLoaded first (stored "old")] r.state
+      assertEqual "the screen stays" [KeepScreen, KeepScreen] stale.commands
+      assertEqual "nothing yet" ReadingLyrics stale.state.lyrics.status
+      fresh <- runEvents 0 [LyricsLoaded second (stored "new")] stale.state
+      assertEqual "the new song" ["new"] (take 1 (mainLines fresh.state))
+    other -> assertFailure $ "two requests of lyrics, not " <> show other
+
+-- | 20 lines in a main area of 6 rows.
+test_scroll :: Assertion
+test_scroll = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  token <- requestToken r
+  let lyrics = T.unlines ["line " <> T.pack (show i) | i <- [1 .. 20 :: Int]]
+  scrolled <- runEvents 0 [LyricsLoaded token (stored lyrics), key "down"] r.state
+  assertEqual "a line down" ["line 2"] (take 1 (mainLines scrolled.state))
+  end <- runEvents 0 [key "end"] scrolled.state
+  assertEqual "the end" ["line 15", "line 20"] (firstAndLast (mainLines end.state))
+  further <- runEvents 0 [key "down"] end.state
+  assertEqual "no further" ["line 15", "line 20"] (firstAndLast (mainLines further.state))
+  home <- runEvents 0 [key "home"] further.state
+  assertEqual "the start" ["line 1"] (take 1 (mainLines home.state))
+
+test_refetch :: Assertion
+test_refetch = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  token <- requestToken r
+  loaded <- runEvents 0 [LyricsLoaded token (stored "old")] r.state
+  again <- runEvents 0 [key "`"] loaded.state
+  case [q | FetchLyrics _ q <- again.commands] of
+    [requested] -> do
+      assertEqual "the song" "A - One" (songName requested.song)
+      assertBool "again" requested.refetch
+    other -> assertFailure $ "one request, not " <> show other
+  assertEqual "until they come" [] (filter (not . T.null) (mainLines again.state))
+  back <- runEvents 0 [key "l"] again.state
+  assertEqual "still back to the queue" QueueScreen (focusedView back.state).screen
+  onQueue <- runEvents 0 [key "`"] =<< queueShown
+  assertEqual "not on the queue" [] [() | FetchLyrics _ _ <- onQueue.commands]
+  let withoutFetchers = testAppEnv & #config % #lyrics % #fetchers .~ []
+  nowhere <- runEventsWith withoutFetchers 0 [key "`"] loaded.state
+  assertEqual "no request without fetchers" [] [() | FetchLyrics _ _ <- nowhere.commands]
+  againToken <- requestToken again
+  kept <-
+    runEvents
+      0
+      [ LyricsLoaded
+          againToken
+          ( LyricsFound
+              (Kept "A - One.txt" [("LRCLIB", Nothing), ("B", Just "B is down")])
+              (plainLyrics "old")
+          )
+      ]
+      again.state
+  assertEqual "the stored lyrics" ["old"] (filter (not . T.null) (mainLines kept.state))
+  assertEqual
+    "why they stay"
+    (Just "No lyrics found on LRCLIB. B is down. The stored lyrics stay")
+    (messageOf kept)
+
+-- | 20 timed lines, a second apart, in a main area of 6 rows, while the
+-- song is paused at 10 s.
+test_sung :: Assertion
+test_sung = do
+  shown <- timedShown Paused
+  assertEqual "the line" (Just 10) (sungLine shown)
+  assertEqual "in the middle" ["line 7", "line 12"] (firstAndLast (mainLines shown))
+  assertEqual "the style" ["line 10"] (boldTexts shown)
+  assertEqual
+    "the text's style"
+    [V.SetTo (V.ISOColor 3)]
+    ( L.nub
+        [ V.attrForeColor a
+        | (a, t) <- imageSpans (renderScreen testAppEnv shown)
+        , "line" `T.isPrefixOf` t
+        ]
+    )
+  other <- runEvents 0 [key "1", key "down", key "l"] shown
+  token <- requestToken other
+  loaded <-
+    runEvents
+      0
+      [LyricsLoaded token (LyricsFound (Stored "A - One.lrc") timedTwenty)]
+      other.state
+  assertEqual "not of a song that doesn't play" Nothing (sungLine loaded.state)
+  assertEqual "from the top" ["line 0"] (take 1 (mainLines loaded.state))
+  where
+    boldTexts :: AppState -> [T.Text]
+    boldTexts s =
+      [ t
+      | (a, t) <- imageSpans (renderScreen testAppEnv s)
+      , V.SetTo st <- [V.attrStyle a]
+      , V.hasStyle st V.bold
+      , "line" `T.isPrefixOf` t
+      ]
+
+test_stopFollowing :: Assertion
+test_stopFollowing = do
+  shown <- timedShown Paused
+  scrolled <- runEvents 0 [key "down"] shown
+  assertEqual "from where it showed" ["line 8"] (take 1 (mainLines scrolled.state))
+  assertBool "not following" (not scrolled.state.lyrics.following)
+  again <- runEvents 0 [key "l", key "l"] scrolled.state
+  assertBool "following the next time" again.state.lyrics.following
+  jumped <- runEvents 0 [key "o"] scrolled.state
+  assertBool "following after o" jumped.state.lyrics.following
+  assertEqual
+    "the line being sung in the middle"
+    ["line 7"]
+    (take 1 (mainLines jumped.state))
+
+-- | The 6 rows show line 15 in their middle, and its 15 in the style of
+-- found items.
+test_findStopsFollowing :: Assertion
+test_findStopsFollowing = do
+  shown <- timedShown Paused
+  let find ks = runEvents 0 (map key ks) shown
+  found <- find ["/", "1", "5", "enter"]
+  assertBool "not following" (not found.state.lyrics.following)
+  assertEqual "in the middle" ["line 12", "line 13", "line 14", "line 15"]
+    . take 4
+    $ mainLines found.state
+  assertBool
+    "the match"
+    ( not $
+        null
+          [ t
+          | (a, t) <- imageSpans (renderScreen testAppEnv found.state)
+          , t == "15"
+          , V.attrStyle a /= V.Default
+          ]
+    )
+  cancelled <- find ["/", "1", "5", "escape"]
+  assertEqual "a cancel goes back to where it showed" (take 1 (mainLines shown))
+    . take 1
+    $ mainLines cancelled.state
+
+-- | On another song's lyrics, o asks for those of the song that plays.
+test_jumpToPlayingLyrics :: Assertion
+test_jumpToPlayingLyrics = do
+  shown <- timedShown Paused
+  other <- runEvents 0 [key "1", key "down", key "l"] shown
+  token <- requestToken other
+  loaded <- runEvents 0 [LyricsLoaded token (stored "Other words")] other.state
+  jumped <- runEvents 0 [key "o"] loaded.state
+  assertEqual
+    "the song that plays"
+    [Just ["One"]]
+    [M.lookup Title r.song.tags | FetchLyrics _ r <- jumped.commands]
+
+-- | Playing, 0.25 s after the status of 10 s: the next line at 11 s.
+test_nextLine :: Assertion
+test_nextLine = do
+  shown <- timedShown Playing
+  r <- runEvents 0.25 [Tick 0] shown
+  assertEqual "at the next line" (Just 1) (nextLyricsLine r.state)
+
+-- | While One plays, the lyrics of Two show, until Three plays.
+test_followPlaying :: Assertion
+test_followPlaying = do
+  s <- testState (40, 10) (statusOf Playing (Just 0) 3) threeSongs
+  let following = s & #toggles % #lyricsFollowPlaying .~ True
+  assertBool
+    "from the config"
+    (initialState (defaultConfig & #lyrics % #followPlaying .~ True)).toggles.lyricsFollowPlaying
+  two <- runEvents 0 [key "down", key "l"] following
+  assertEqual "the song under the cursor" ["A - Two"] (askedFor two)
+  three <- runEvents 0 [StatusFetched (statusOf Playing (Just 2) 3)] two.state
+  assertEqual "the next song" ["A - Three"] (askedFor three)
+  assertEqual
+    "the same screen to go back to"
+    (Just QueueScreen)
+    (focusedView three.state).previous
+  notFollowing <-
+    runEvents 0 [key "down", key "l", StatusFetched (statusOf Playing (Just 2) 3)] s
+  assertEqual "not unless it follows" ["A - Two"] (askedFor notFollowing)
+  elsewhere <-
+    runEvents 0 [key "l", key "l", StatusFetched (statusOf Playing (Just 2) 3)] following
+  assertEqual "not on another screen" ["A - One"] (askedFor elsewhere)
+
+-- | The next song's lyrics show from their top, wherever the last song's
+-- were scrolled to.
+test_followFromTop :: Assertion
+test_followFromTop = do
+  s <- testState (40, 10) (statusOf Playing (Just 0) 3) threeSongs
+  two <- runEvents 0 [key "down", key "l"] (s & #toggles % #lyricsFollowPlaying .~ True)
+  twoToken <- requestToken two
+  scrolled <-
+    runEvents 0 [LyricsLoaded twoToken (stored (numbered 20)), key "end"] two.state
+  three <- runEvents 0 [StatusFetched (statusOf Playing (Just 2) 3)] scrolled.state
+  threeToken <- requestToken three
+  shown <- runEvents 0 [LyricsLoaded threeToken (stored (numbered 3))] three.state
+  assertEqual "from the top" ["line 1"] (take 1 (mainLines shown.state))
+  where
+    numbered :: Int -> T.Text
+    numbered n = T.unlines ["line " <> T.pack (show i) | i <- [1 .. n]]
+
+-- | A tab doesn't move the rest of the line out of the screen.
+test_controlCharacters :: Assertion
+test_controlCharacters = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  token <- requestToken r
+  shown <- runEvents 0 [LyricsLoaded token (stored "a\tb\nc")] r.state
+  assertEqual "the lines" ["a b", "c"] (take 2 (mainLines shown.state))
+
+test_followTitle :: Assertion
+test_followTitle = do
+  s <- testState (40, 10) (statusOf Playing (Just 0) 3) threeSongs
+  two <- runEvents 0 [key "down", key "l"] (s & #toggles % #lyricsFollowPlaying .~ True)
+  three <- runEvents 10 [StatusFetched (statusOf Playing (Just 2) 3)] two.state
+  assertEqual "since the next song" (Just 10) (snd <$> three.state.titleShown)
+
+test_toggleFollowing :: Assertion
+test_toggleFollowing = do
+  s <- testState (40, 10) (statusOf Playing (Just 0) 3) threeSongs
+  on <- runEvents 0 [key "down", key "l", key "space"] s
+  assertEqual "on" (Just "Lyrics follow playing: on") ((.text) <$> on.state.message)
+  assertEqual "the song that plays at once" ["A - Two", "A - One"] (askedFor on)
+  assertBool "not the queue's" (not on.state.toggles.followPlaying)
+  off <- runEvents 0 [key "space"] on.state
+  assertEqual "off" (Just "Lyrics follow playing: off") ((.text) <$> off.state.message)
+
+test_edit :: Assertion
+test_edit = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  token <- requestToken r
+  loading <- runEvents 0 [key "e", key "e"] r.state
+  assertEqual "not while loading" [] (edits loading)
+  assertEqual
+    "says why"
+    (Just "The lyrics are still loading")
+    ((.text) <$> loading.state.message)
+  missing <- runEvents 0 [LyricsLoaded token (LyricsMissing [])] r.state
+  asked <- runEvents 0 [key "e", key "e"] missing.state
+  assertEqual "nothing yet" [] (edits asked)
+  assertEqual
+    "the choice"
+    (Just "Edit which lyrics?")
+    ((.question) <$> asked.state.prompt)
+  assertEqual "unsynced" [Edit "edit" ("lyrics" </> "A - One.txt")] . edits
+    =<< runEvents 0 [key "u"] asked.state
+  assertEqual "synced" [Edit "edit" ("lyrics" </> "A - One.lrc")] . edits
+    =<< runEvents 0 [key "s"] asked.state
+  timed <-
+    runEvents
+      0
+      [LyricsLoaded token (LyricsFound (Stored "A - One.lrc") timedTwenty), key "e", key "e"]
+      r.state
+  assertEqual "the times" [Edit "edit" ("lyrics" </> "A - One.lrc")] (edits timed)
+  untimedLrc <-
+    runEvents
+      0
+      [ LyricsLoaded token (LyricsFound (Stored "A - One.lrc") (plainLyrics "Words"))
+      , key "e"
+      , key "e"
+      ]
+      r.state
+  assertEqual
+    "the file they came from"
+    [Edit "edit" ("lyrics" </> "A - One.lrc")]
+    (edits untimedLrc)
+  noEditor <-
+    runEventsWith (testAppEnv & #editor .~ Nothing) 0 [key "e", key "e"] missing.state
+  assertEqual "no editor" [] (edits noEditor)
+  assertBool
+    "says how to set one"
+    (maybe False ("editor.command" `T.isInfixOf`) ((.text) <$> noEditor.state.message))
+  where
+    edits :: Result -> [UiCommand]
+    edits r = [c | c@(Edit _ _) <- r.commands]
+
+test_edited :: Assertion
+test_edited = do
+  r <- runEvents 0 [key "l"] =<< queueShown
+  token <- requestToken r
+  shown <- runEvents 0 [LyricsLoaded token (LyricsMissing [])] r.state
+  edited <- runEvents 0 [Edited ("lyrics" </> "A - One.txt") Nothing] shown.state
+  assertEqual "again" ["A - One"] (askedFor edited)
+  other <- runEvents 0 [Edited ("lyrics" </> "A - Two.txt") Nothing] shown.state
+  assertEqual "not of another file" [] (askedFor other)
+  failed <-
+    runEvents
+      0
+      [Edited ("lyrics" </> "A - One.txt") (Just "The editor exited with 1")]
+      shown.state
+  assertEqual
+    "the failure"
+    (Just ("The editor exited with 1", True))
+    ((\m -> (m.text, m.isError)) <$> failed.state.message)
+
+-- | A stream has no lyrics: the songs that it plays would share one file.
+test_stream :: Assertion
+test_stream = do
+  let stream = song 1 [(Title, ["A - Two"])] 60 & #file .~ "http://example.com/radio.mp3"
+      songs = [song 0 [(Artist, ["A"]), (Title, ["One"])] 60, stream]
+  s <- testState (40, 10) (statusOf Playing (Just 0) 2) songs
+  shown <- runEvents 0 [key "down", key "l"] s
+  assertEqual "not asked for" [] (askedFor shown)
+  assertEqual "the error" (Just True) ((.isError) <$> shown.state.message)
+  assertEqual "the queue stays" QueueScreen (focusedView shown.state).screen
+  onFirst <- runEvents 0 [key "l"] (s & #toggles % #lyricsFollowPlaying .~ True)
+  followed <- runEvents 0 [StatusFetched (statusOf Playing (Just 1) 2)] onFirst.state
+  assertEqual "not followed" [] (askedFor followed)
+  assertEqual "the screen stays" (Just "A - One") (songName <$> followed.state.lyrics.song)
+  let env = testAppEnv & #config % #lyrics % #fetchInBackground .~ True
+  streaming <- testState (40, 10) (statusOf Playing (Just 1) 2) songs
+  background <- runEventsWith env 0 [Tick 0] streaming
+  assertEqual
+    "not in the background"
+    []
+    [() | FetchLyricsInBackground _ <- background.commands]
+
+test_fetchInBackground :: Assertion
+test_fetchInBackground = do
+  let env = testAppEnv & #config % #lyrics % #fetchInBackground .~ True
+      songs =
+        [ song 0 [(Artist, ["A"]), (Title, ["One"])] 60
+        , song 1 [(Artist, ["A"]), (Title, ["Two"])] 60
+        ]
+      fetched r = [songName s | FetchLyricsInBackground s <- r.commands]
+  s <- testState (40, 10) (statusOf Playing (Just 0) 2) songs
+  first <- runEventsWith env 0 [Tick 0, Tick 0] s
+  assertEqual "once" ["A - One"] (fetched first)
+  next <- runEventsWith env 0 [StatusFetched (statusOf Playing (Just 1) 2)] first.state
+  assertEqual "the next song" ["A - Two"] (fetched next)
+  off <- runEvents 0 [Tick 0] s
+  assertEqual "not unless the config says so" [] (fetched off)
+
+-- | From the browser, which the queue showed, by the action, which no key
+-- of the browser is bound to.
+test_backAnywhere :: Assertion
+test_backAnywhere = do
+  r <- runEvents 0 (map key ["2", ":", "b", "a", "c", "k", "enter"]) =<< queueShown
+  assertEqual "the queue" QueueScreen (focusedView r.state).screen
+  assertEqual "after the browser" (Just BrowserScreen) (focusedView r.state).previous
+
+----------------------------------------
+-- Helpers
+
+threeSongs :: [Song]
+threeSongs =
+  [ song 0 [(Artist, ["A"]), (Title, ["One"])] 60
+  , song 1 [(Artist, ["A"]), (Title, ["Two"])] 60
+  , song 2 [(Artist, ["A"]), (Title, ["Three"])] 60
+  ]
+
+-- | The songs whose lyrics the screen asked for.
+askedFor :: Result -> [T.Text]
+askedFor r = [songName q.song | FetchLyrics _ q <- r.commands]
+
+-- | The lyrics screen of the first song, which plays, with 'timedTwenty'.
+timedShown :: PlayerState -> IO AppState
+timedShown st = do
+  s <-
+    testState
+      (40, 10)
+      (statusOf st (Just 0) 2)
+      [ song 0 [(Artist, ["A"]), (Title, ["One"])] 60
+      , song 1 [(Artist, ["A"]), (Title, ["Two"])] 60
+      ]
+  r <- runEvents 0 [key "l"] s
+  token <- requestToken r
+  (.state)
+    <$> runEvents 0 [LyricsLoaded token (LyricsFound (Stored "A - One.lrc") timedTwenty)] r.state
+
+-- | 20 lines, @line 0@ to @line 19@, a second apart.
+timedTwenty :: Lyrics
+timedTwenty =
+  fromMaybe (error "not timed") . timedLyrics $
+    T.unlines
+      [ "[00:" <> T.justifyRight 2 '0' (T.pack (show i)) <> ".00]line " <> T.pack (show i)
+      | i <- [0 .. 19 :: Int]
+      ]
+
+firstAndLast :: [T.Text] -> [T.Text]
+firstAndLast ls = take 1 ls <> take 1 (reverse ls)
+
+-- | The token of the one request of lyrics.
+requestToken :: Result -> IO Int
+requestToken r = case [t | FetchLyrics t _ <- r.commands] of
+  [t] -> pure t
+  other -> assertFailure $ "one request of lyrics, not " <> show (length other)
+
+messageOf :: Result -> Maybe T.Text
+messageOf r = (.text) <$> r.state.message
+
+-- | The queue of two songs on a terminal of 40 by 10.
+queueShown :: IO AppState
+queueShown =
+  testState
+    (40, 10)
+    (statusOf Stopped Nothing 2)
+    [ song 0 [(Artist, ["A"]), (Title, ["One"])] 60
+    , song 1 [(Artist, ["A"]), (Title, ["Two"])] 60
+    ]
+
+screenLines :: AppState -> [T.Text]
+screenLines = imageLines . renderScreen testAppEnv
+
+-- | The lines of the main area, after the header's two.
+mainLines :: AppState -> [T.Text]
+mainLines s = take (mainHeight s.terminalSize) . drop 2 $ screenLines s
+
+key :: T.Text -> AppEvent
+key = KeyPressed . either (error . T.unpack) id . parseKeySpec
