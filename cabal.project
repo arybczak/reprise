@@ -1,5 +1,17 @@
 packages: .
 
+-- vty with spans that reuse the known width of a text, and vty-unix with a
+-- faster output of decimal numbers. Until releases of both have them.
+source-repository-package
+  type: git
+  location: https://github.com/jtdaugherty/vty.git
+  tag: b1772f5c4ff55e98682ec116b592d16a13405194
+
+source-repository-package
+  type: git
+  location: https://github.com/jtdaugherty/vty-unix.git
+  tag: 39a2a5db120e130d4ae06ea55cb6c5951154b6c2
+
 constraints:
   , any.cryptonite <0
   , any.memory <0
