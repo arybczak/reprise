@@ -175,13 +175,13 @@ test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
   createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
   events <- newTQueueIO
   reading <- newTVarIO (Just Ellipse)
-  let pattern = samples (replicate 100 (1000, -1000))
+  let pcm = samples (replicate 100 (1000, -1000))
   bracket (forkIO . realWorker path $ source reading events) killThread $ \_ -> do
-    frame <- withWriting path pattern . expectWithin $ firstSamples events
+    frame <- withWriting path pcm . expectWithin $ firstSamples events
     assertBool
       ("whole samples: " <> show (BS.length frame))
       (BS.length frame `mod` frameBytes == 0)
-    assertBool "the samples" (frame `BS.isPrefixOf` BS.concat (replicate 100 pattern))
+    assertBool "the samples" (frame `BS.isPrefixOf` BS.concat (replicate 100 pcm))
     atomically $ writeTVar reading Nothing
     threadDelay frameInterval
     void . atomically $ flushTQueue events
@@ -429,10 +429,10 @@ test_workerRestart = withSystemTempDirectory "visualizer" $ \dir -> do
   createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
   events <- newTQueueIO
   reading <- newTVarIO (Just Ellipse)
-  let pattern = samples (replicate 100 (1000, -1000))
+  let pcm = samples (replicate 100 (1000, -1000))
   bracket (forkIO . realWorker path $ source reading events) killThread $ \_ -> do
-    void . withWriting path pattern . expectWithin $ someSamples events
-    void . withWriting path pattern . expectWithin $ someSamples events
+    void . withWriting path pcm . expectWithin $ someSamples events
+    void . withWriting path pcm . expectWithin $ someSamples events
 
 -- | Once the writer went, a wait on the fifo says so. On the fifo opened
 -- again, it waits for the next writer instead of finding it gone at once.

@@ -161,14 +161,14 @@ textRow colorMode width spans =
 -- @styles.text.found@: of the find that the user types on the screen, else
 -- of the last find on it.
 highlightFound :: AppEnv -> AppState -> ScreenName -> [[Span Style]] -> [[Span Style]]
-highlightFound env s screen = case pattern of
+highlightFound env s screen = case highlighted of
   Just p -> map $ \spans ->
     either (const spans) (\ranges -> highlightSpans env.config.styles.text.found ranges spans) $
       matchRanges p (spansText spans)
   Nothing -> id
   where
-    pattern :: Maybe Pattern
-    pattern = case s.prompt of
+    highlighted :: Maybe Pattern
+    highlighted = case s.prompt of
       Just (Prompt _ (Line edit (ForFind _) _))
         | (focusedView s).screen == screen ->
             either (const Nothing) Just (compilePattern (lineEditText edit))
