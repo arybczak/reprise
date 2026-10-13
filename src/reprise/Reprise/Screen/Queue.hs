@@ -196,6 +196,12 @@ moveSongs t = do
                   then middle + delta
                   else middle
         _ -> pure ()
+
+      -- The songs end up together, in their order, from a position. The
+      -- cursor jumps to the first one, as to an album, so that the songs
+      -- before them show too.
+      jumpToMoved :: App es => Int -> Eff es ()
+      jumpToMoved = modifyWithEnv . jumpTo
   case t of
     MoveSongsUp -> do
       editQueue $ moveUp ps
@@ -208,13 +214,20 @@ moveSongs t = do
       selected -> case moveBefore selected c of
         Just cmd -> editQueue cmd
         Nothing -> showMessage "The cursor is among the selected songs"
-    MoveSongsToEnd -> forM_ (moveBefore ps n) editQueue
-    MoveSongsToBeginning -> editQueue (moveToStart ps)
+    MoveSongsToEnd -> forM_ (moveBefore ps n) $ \edits -> do
+      editQueue edits
+      jumpToMoved (n - length ps)
+    MoveSongsToBeginning -> do
+      editQueue (moveToStart ps)
+      jumpToMoved 0
     MoveSongsToNext -> case currentPosition s.mirror of
       Nothing -> noCurrentSong
       Just current
         | current `elem` ps -> showMessage "The current song is among the songs to move"
-        | otherwise -> editQueue (moveAfter current ps)
+        | otherwise -> do
+            editQueue (moveAfter current ps)
+            -- The songs above the current song move below it.
+            jumpToMoved (current - length (filter (< current) ps) + 1)
 
 ----------------------------------------
 -- Finding

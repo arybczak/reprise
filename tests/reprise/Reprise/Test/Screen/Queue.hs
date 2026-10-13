@@ -257,6 +257,17 @@ test_moveSongsTo = do
     (Just "The current song is among the songs to move")
     . message
     =<< keys ["home", "down", "insert", "e", "m", "n"] playing
+  -- The cursor jumps to the first one of the songs. 24 rows leave 20 for
+  -- the list.
+  long <- testState (80, 24) (statusOf Stopped Nothing 50) (songs 50)
+  let selectFive = replicate 5 "space"
+  assertEqual "the cursor at the beginning" (0, 0) . position
+    =<< keys (replicate 30 "down" <> selectFive <> ["e", "m", "b"]) long
+  assertEqual "the cursor at the end" (45, 30) . position
+    =<< keys (selectFive <> ["e", "m", "e"]) long
+  playingLong <- testState (80, 24) (statusOf Playing (Just 30) 50) (songs 50)
+  assertEqual "the cursor after the playing song" (28, 18) . position
+    =<< keys (["home"] <> replicate 3 "space" <> ["e", "m", "n"]) playingLong
 
 test_shuffleSelection :: Assertion
 test_shuffleSelection = do
