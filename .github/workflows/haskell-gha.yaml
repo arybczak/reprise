@@ -65,11 +65,28 @@ jobs:
         sudo apt-get update
         sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends mpd flac libicu-dev
 
-    - uses: haskell-actions/setup@v2
+    - name: Install GHC and cabal
       id: setup
-      with:
-        ghc-version: ${{ matrix.ghc }}
-        cabal-version: '3.16.1.0'
+      run: |
+        mkdir -p "$RUNNER_TEMP"/.ghcup/bin
+        curl -fsSL -o "$RUNNER_TEMP"/.ghcup/bin/ghcup "https://downloads.haskell.org/ghcup/$(uname -m)-linux-ghcup"
+        chmod +x "$RUNNER_TEMP"/.ghcup/bin/ghcup
+        export GHCUP_INSTALL_BASE_PREFIX="$RUNNER_TEMP" PATH="$RUNNER_TEMP/.ghcup/bin:$PATH"
+        echo "GHCUP_INSTALL_BASE_PREFIX=$RUNNER_TEMP" >> "$GITHUB_ENV"
+        echo "$RUNNER_TEMP/.ghcup/bin" >> "$GITHUB_PATH"
+        versions=$(ghcup -s vanilla list -t ghc -r)
+        if grep -qF -e 'ghc ${{ matrix.ghc }} ' -e 'ghc ${{ matrix.ghc }}.' <<< "$versions"; then
+          channel=vanilla
+        else
+          echo 'The vanilla channel of GHCup has no GHC ${{ matrix.ghc }}, so the step uses the prerelease channel.'
+          channel=prereleases
+        fi
+        ghcup -s "$channel" install ghc '${{ matrix.ghc }}' --set
+        ghcup -s vanilla install cabal 3.16.1.0 --set
+        cabal update
+        echo "ghc-version=$(ghc --numeric-version)" >> "$GITHUB_OUTPUT"
+        echo "cabal-version=$(cabal --numeric-version)" >> "$GITHUB_OUTPUT"
+        echo "cabal-store=$(cabal path -z --store-dir)" >> "$GITHUB_OUTPUT"
 
     - name: Show the versions
       id: versions
@@ -101,7 +118,7 @@ jobs:
         tests: True
         benchmarks: True
 
-        package reprise
+        program-options
           ghc-options: -Werror
         EOF
 
@@ -110,7 +127,7 @@ jobs:
       working-directory: ${{ runner.temp }}/haskell-gha
       run: |
         cat >> cabal.project.local <<'EOF'
-        package reprise
+        program-options
           ghc-options: -j4
         EOF
 
@@ -121,7 +138,7 @@ jobs:
         if ghc --info | grep -F '("Semaphore version","2")' > /dev/null; then
         echo 'GHC uses version 2 of the semaphore protocol and cabal version 1, so GHC uses -j4.'
         cat >> cabal.project.local <<'EOF'
-        package reprise
+        program-options
           ghc-options: -j4
         EOF
         else
@@ -142,8 +159,8 @@ jobs:
       id: cache
       with:
         path: ${{ steps.setup.outputs.cabal-store }}
-        key: haskell-gha.yaml-${{ runner.os }}-${{ runner.arch }}-${{ steps.versions.outputs.image }}-ghc-${{ steps.setup.outputs.ghc-version }}-newest-${{ steps.plan.outputs.hash }}
-        restore-keys: haskell-gha.yaml-${{ runner.os }}-${{ runner.arch }}-${{ steps.versions.outputs.image }}-ghc-${{ steps.setup.outputs.ghc-version }}-newest-
+        key: haskell-gha.yaml-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.versions.outputs.image }}-ghc-${{ steps.setup.outputs.ghc-version }}-newest-${{ steps.plan.outputs.hash }}
+        restore-keys: haskell-gha.yaml-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.versions.outputs.image }}-ghc-${{ steps.setup.outputs.ghc-version }}-newest-
 
     - name: Build the dependencies
       working-directory: ${{ runner.temp }}/haskell-gha
