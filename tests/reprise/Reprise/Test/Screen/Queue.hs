@@ -211,8 +211,21 @@ test_moveSongs = do
   down <- keys ["down", "insert", "n"] s
   assertEqual "down" (editRequests [Request "move" ["2:3", "1"]]) down.requests
   assertEqual "the cursor follows down" 2 (cursor down)
-  assertEqual "the cursor stays" 3 . cursor
+  assertEqual "a cursor off the selection goes to it" 0 . cursor
     =<< keys ["down", "insert", "down", "down", "m"] s
+  assertEqual "to the middle selected song" 3 . cursor
+    =<< keys ["down", "space", "space", "space", "n"] s
+  assertEqual "also from another selected song" 3 . cursor
+    =<< keys ["down", "insert", "down", "insert", "down", "insert", "n"] s
+  assertEqual "nowhere if nothing moves" 2 . cursor
+    =<< keys ["insert", "down", "down", "m"] s
+  -- 24 rows leave 20 for the list, and 30 downs leave the cursor at its
+  -- bottom.
+  long <- testState (80, 24) (statusOf Stopped Nothing 50) (songs 50)
+  assertEqual "a song scrolls the list as a step" (31, 12) . position
+    =<< keys (replicate 30 "down" <> ["n"]) long
+  assertEqual "so does a selection" (32, 14) . position
+    =<< keys (replicate 30 "down" <> ["space", "space", "space", "n"]) long
   assertEqual "under the cursor" (editRequests [Request "move" ["1:2", "2"]]) . (.requests)
     =<< keys ["down", "down", "m"] s
   top <- keys ["insert", "m"] s

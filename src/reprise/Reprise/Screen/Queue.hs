@@ -185,11 +185,17 @@ moveSongs t = do
   let ps = markedPositions s
       n = queueLength s.mirror
       c = (focusedView s).cursor
-      -- The cursor moves with its song if the song's run moves.
+      -- The cursor goes to the middle one of the songs, as in ncmpcpp, so
+      -- that they show as they move. The song moves if its run moves.
       follow :: App es => [(Int, Int)] -> Int -> Eff es ()
-      follow moved delta =
-        when (or [c >= a && c <= b | (a, b) <- moved]) $
-          modifyWithEnv (setCursor (c + delta))
+      follow moved delta = case drop (length ps `div` 2) ps of
+        middle : _
+          | not (null moved) ->
+              modifyWithEnv . setCursor $
+                if or [middle >= a && middle <= b | (a, b) <- moved]
+                  then middle + delta
+                  else middle
+        _ -> pure ()
   case t of
     MoveSongsUp -> do
       editQueue $ moveUp ps
