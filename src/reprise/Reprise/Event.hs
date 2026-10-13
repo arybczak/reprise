@@ -15,6 +15,7 @@ import Data.Vector.Storable qualified as VS
 import Reprise.Action
 import Reprise.Keys
 import Reprise.Lyrics
+import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
@@ -42,8 +43,11 @@ data AppEvent
   | -- | The status and the songs of the queue that changed since its version
     -- in the mirror.
     QueueChangesFetched (Status, [Song])
-  | -- | The status and the changes of the queue after an edit of the queue,
-    -- which came in one command list with them.
+  | -- | The edits of the queue and the status after them, which came in one
+    -- command list with them.
+    QueueEditStatus [QueueEdit] Status
+  | -- | The status and the changes of the queue after an edit of the queue
+    -- that the mirror couldn't make itself.
     QueueEdited (Status, [Song])
   | -- | An edit of the queue failed. MPD made the commands before the one
     -- that failed.

@@ -28,6 +28,7 @@ mirrorTests =
     , testCase "a gap is an error" test_gap
     , testCase "elapsed time" test_elapsed
     , testCase "lengths follow the queue and the current song" test_lengths
+    , testCase "the mirror makes the edits only without other changes" test_edits
     , withResource (startTestServer testSongs) stopTestServer $ \getServer ->
         testProperty "the mirror follows a real queue" (prop_sync getServer)
     ]
@@ -90,9 +91,40 @@ test_lengths = do
   assertEqual "total after a cut" 120 r.totalLength
   assertEqual "from the current song after a cut" 60 r.lengthFromCurrent
 
--- | Random queue operations on a real server, in batches. After each batch,
--- the mirror fetches the changes since its version as reprise does, and must
--- equal the server's queue.
+test_edits :: Assertion
+test_edits = do
+  let m =
+        setQueue
+          0
+          (statusOf Stopped Nothing 3)
+          [queued 0 "a", queued 1 "b", queued 2 "c"]
+          emptyMirror
+      versioned v n = statusOf Stopped Nothing n & #playlistVersion .~ PlaylistVersion v
+      edits =
+        [ MoveRange (onePosition (SongPos 0)) (SongPos 2)
+        , DeleteRange (onePosition (SongPos 0))
+        ]
+  assertEqual
+    "edited"
+    (Just ["c", "a"])
+    (files <$> applyQueueEdits 0 (versioned 3 2) edits m)
+  assertEqual "another change" Nothing (files <$> applyQueueEdits 0 (versioned 4 2) edits m)
+  assertEqual
+    "a move in place changes nothing"
+    (Just ["a", "b", "c"])
+    ( files
+        <$> applyQueueEdits 0 (versioned 1 3) [MoveRange (onePosition (SongPos 1)) (SongPos 1)] m
+    )
+  assertEqual
+    "a shuffle"
+    Nothing
+    (files <$> applyQueueEdits 0 (versioned 2 3) [ShuffleRange Nothing] m)
+
+-- | Random queue operations on a real server, in batches. A batch of edits
+-- runs as reprise edits the queue: in one command list with the status,
+-- after which the mirror makes the edits itself unless they shuffle. After
+-- any other batch, the mirror fetches the changes since its version as
+-- reprise does. Either way, it must equal the server's queue.
 prop_sync :: IO TestServer -> Property
 prop_sync getServer = forAllShrink (listOf genBatch) shrinkList' $ \batches ->
   QC.monadicIO $ do
@@ -107,30 +139,49 @@ prop_sync getServer = forAllShrink (listOf genBatch) shrinkList' $ \batches ->
               AckError _ -> pure ()
               err -> throwIO err
 
+          fetched :: Mirror -> IO Mirror
+          fetched m = do
+            (st, changes) <-
+              run conn $
+                (,)
+                  <$> Reprise.Mpd.Protocol.Command.status
+                  <*> maybe playlistInfo plChanges m.queueVersion
+            either (fail . T.unpack) pure $ applyQueueChanges 0 st changes m
+
+          -- A failed edit ends its command list, after the edits before it.
+          edited :: Mirror -> [QueueEdit] -> IO (Either String Mirror)
+          edited m edits =
+            try (run conn (editCommands edits *> Reprise.Mpd.Protocol.Command.status)) >>= \case
+              Left (AckError _) -> Right <$> fetched m
+              Left err -> throwIO err
+              Right st -> case applyQueueEdits 0 st edits m of
+                Just m' -> pure (Right m')
+                Nothing
+                  | any isShuffle edits -> Right <$> fetched m
+                  | otherwise -> pure (Left "the mirror didn't make the edits")
+
           loop :: Mirror -> [[Operation]] -> IO (Either String ())
           loop m = \case
             [] -> pure (Right ())
             batch : rest -> do
-              mapM_ apply batch
-              (st, changes) <-
-                run conn $
-                  (,)
-                    <$> Reprise.Mpd.Protocol.Command.status
-                    <*> maybe playlistInfo plChanges m.queueVersion
-              m' <- either (fail . T.unpack) pure $ applyQueueChanges 0 st changes m
-              actual <- run conn playlistInfo
+              synced <- case traverse editOf batch of
+                Just edits -> edited m edits
+                Nothing -> Right <$> (mapM_ apply batch >> fetched m)
+              actual <- map unplaced <$> run conn playlistInfo
               let actualLength = sum [d | Just d <- map (.duration) actual]
-              if
-                | toList m'.queue /= actual ->
-                    pure . Left $
-                      "mirror: "
-                        <> show (map (.file) (toList m'.queue))
-                        <> "\nserver: "
-                        <> show (map (.file) actual)
-                | m'.totalLength /= actualLength ->
-                    pure . Left $
-                      "total length: " <> show m'.totalLength <> ", server: " <> show actualLength
-                | otherwise -> loop m' rest
+              case synced of
+                Left err -> pure (Left err)
+                Right m'
+                  | toList m'.queue /= actual ->
+                      pure . Left $
+                        "mirror: "
+                          <> show (map (.file) (toList m'.queue))
+                          <> "\nserver: "
+                          <> show (map (.file) actual)
+                  | m'.totalLength /= actualLength ->
+                      pure . Left $
+                        "total length: " <> show m'.totalLength <> ", server: " <> show actualLength
+                  | otherwise -> loop m' rest
       (st, q) <- run conn $ (,) <$> Reprise.Mpd.Protocol.Command.status <*> playlistInfo
       loop (setQueue 0 st q emptyMirror) batches
     case r of
@@ -145,15 +196,25 @@ prop_sync getServer = forAllShrink (listOf genBatch) shrinkList' $ \batches ->
     shrinkList' :: [[Operation]] -> [[[Operation]]]
     shrinkList' = shrinkList (shrinkList (const []))
 
+    editOf :: Operation -> Maybe QueueEdit
+    editOf = \case
+      Edit e -> Just e
+      _ -> Nothing
+
+    isShuffle :: QueueEdit -> Bool
+    isShuffle = \case
+      ShuffleRange _ -> True
+      _ -> False
+
+    unplaced :: Song -> Song
+    unplaced = #position .~ Nothing
+
 ----------------------------------------
 -- Queue operations
 
 data Operation
   = AddSong Int (Maybe Int)
-  | DeleteRange Int Int
-  | MoveRange Int Int Int
-  | ShuffleAll
-  | Clear
+  | Edit QueueEdit
   | Priority Int Int
   deriving stock (Show)
 
@@ -171,21 +232,23 @@ genBatch = do
               <$> chooseInt (0, length testSongs - 1)
               <*> oneof [pure Nothing, Just <$> chooseInt (0, 3)]
           )
-        , (2, DeleteRange <$> chooseInt (0, 4) <*> chooseInt (1, 2))
-        , (2, MoveRange <$> chooseInt (0, 4) <*> chooseInt (1, 2) <*> chooseInt (0, 4))
-        , (1, pure ShuffleAll)
-        , (1, pure Clear)
+        , (2, Edit . DeleteRange <$> genRange)
+        , (2, Edit <$> (MoveRange <$> genRange <*> (SongPos <$> chooseInt (0, 4))))
+        , (1, pure (Edit (ShuffleRange Nothing)))
+        , (1, pure (Edit ClearQueue))
         , (1, Priority <$> chooseInt (0, 255) <*> chooseInt (0, 4))
         ]
+
+    genRange :: Gen Range
+    genRange = do
+      start <- chooseInt (0, 4)
+      len <- chooseInt (1, 2)
+      pure $ Range (SongPos start) (Just (SongPos (start + len)))
 
 operation :: Operation -> Command ()
 operation = \case
   AddSong i pos -> add (T.pack (testSongs !! i).path) (At . SongPos <$> pos)
-  DeleteRange start len -> delete (Range (SongPos start) (Just (SongPos (start + len))))
-  MoveRange start len target ->
-    move (Range (SongPos start) (Just (SongPos (start + len)))) (At (SongPos target))
-  ShuffleAll -> shuffle Nothing
-  Clear -> clear
+  Edit e -> editCommands [e]
   Priority p pos -> prio p [onePosition (SongPos pos)]
 
 ----------------------------------------

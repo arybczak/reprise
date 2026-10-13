@@ -18,6 +18,7 @@ module Reprise.State
   , LinePurpose (..)
   , Finding (..)
   , Message (..)
+  , PendingEdit (..)
   , PendingKeys (..)
   , SeekState (..)
   , QueueState (..)
@@ -119,11 +120,7 @@ data AppEnv = AppEnv
 data AppState = AppState
   { connection :: ConnectionState
   , mirror :: Mirror
-  , heldInput :: Maybe (Seq.Seq AppEvent)
-  -- ^ While an edit of the queue waits for its reply, the input that came
-  -- meanwhile, in order. It waits until the mirror has the edit, as an
-  -- action plans from the positions in the mirror: a second delete would
-  -- delete the songs after the first one's.
+  , pendingEdit :: Maybe PendingEdit
   , queueState :: QueueState
   , browser :: BrowserState
   , visualizer :: VisualizerState
@@ -228,6 +225,19 @@ data Message = Message
   { text :: T.Text
   , isError :: Bool
   , token :: Int
+  }
+  deriving stock (Eq, Show, Generic)
+
+-- | An edit of the queue that waits for its reply.
+data PendingEdit = PendingEdit
+  { heldInput :: Seq.Seq AppEvent
+  -- ^ The input that came meanwhile, in order. It waits until the mirror
+  -- has the edit, as an action plans from the positions in the mirror: a
+  -- second delete would delete the songs after the first one's.
+  , queueChanged :: Bool
+  -- ^ MPD said that the queue changed meanwhile. The changes are fetched
+  -- after the edit, from the version after it: fetched before, they would
+  -- be from the version before it, with every song that the edit moved.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -476,7 +486,7 @@ initialState config =
   AppState
     { connection = Connecting
     , mirror = emptyMirror
-    , heldInput = Nothing
+    , pendingEdit = Nothing
     , queueState = QueueState noSelection Nothing
     , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
     , visualizer = newVisualizer Nothing

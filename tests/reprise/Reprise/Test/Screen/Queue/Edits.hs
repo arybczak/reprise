@@ -8,6 +8,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import Reprise.Groups
+import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Request
@@ -29,6 +30,9 @@ queueEditsTests =
         testProperty "MPD gives the queue of the model" (prop_model getServer)
     ]
 
+requests :: [QueueEdit] -> [Request]
+requests = commandRequests . editCommands
+
 test_runs :: Assertion
 test_runs = do
   assertEqual "empty" [] (runs [])
@@ -39,45 +43,45 @@ test_delete =
   assertEqual
     "requests"
     [Request "delete" ["5:6"], Request "delete" ["1:3"]]
-    (commandRequests $ deletePositions [1, 2, 5])
+    (requests $ deletePositions [1, 2, 5])
 
 test_moveUpDown :: Assertion
 test_moveUpDown = do
   assertEqual
     "up, with a run at the top that stays"
     [Request "move" ["2:3", "3"]]
-    (commandRequests $ moveUp [0, 3])
+    (requests $ moveUp [0, 3])
   assertEqual
     "down, with a run at the bottom that stays"
     [Request "move" ["2:3", "1"]]
-    (commandRequests $ moveDown 5 [1, 4])
+    (requests $ moveDown 5 [1, 4])
 
 test_moveBefore :: Assertion
 test_moveBefore = do
-  assertEqual "inside the songs" Nothing (commandRequests <$> moveBefore [1, 3] 2)
+  assertEqual "inside the songs" Nothing (requests <$> moveBefore [1, 3] 2)
   assertEqual
     "down, from the last song"
     (Just [Request "move" ["3:4", "4"], Request "move" ["1:2", "3"]])
-    (commandRequests <$> moveBefore [1, 3] 5)
+    (requests <$> moveBefore [1, 3] 5)
   assertEqual
     "up, from the first song"
     (Just [Request "move" ["2:3", "0"], Request "move" ["4:5", "1"]])
-    (commandRequests <$> moveBefore [2, 4] 0)
+    (requests <$> moveBefore [2, 4] 0)
   assertEqual
     "a run as one range"
     (Just [Request "move" ["4:5", "5"], Request "move" ["1:3", "3"]])
-    (commandRequests <$> moveBefore [1, 2, 4] 6)
-  assertEqual "in place already" (Just []) (commandRequests <$> moveBefore [3, 4] 5)
+    (requests <$> moveBefore [1, 2, 4] 6)
+  assertEqual "in place already" (Just []) (requests <$> moveBefore [3, 4] 5)
 
 -- | A song at the start already stays, and the others join it, where
 -- 'moveBefore' with the first position does nothing.
 test_moveToStart :: Assertion
 test_moveToStart = do
-  assertEqual "before the first song" Nothing (commandRequests <$> moveBefore [0, 3] 0)
+  assertEqual "before the first song" Nothing (requests <$> moveBefore [0, 3] 0)
   assertEqual
     "the others join"
     [Request "move" ["3:4", "1"]]
-    (commandRequests $ moveToStart [0, 3])
+    (requests $ moveToStart [0, 3])
 
 -- | Songs on both sides of the current song at 2: the one below moves up
 -- first, and then the one above moves down.
@@ -86,7 +90,7 @@ test_moveAfter =
   assertEqual
     "below, then above"
     [Request "move" ["4:5", "3"], Request "move" ["0:1", "2"]]
-    (commandRequests $ moveAfter 2 [0, 4])
+    (requests $ moveAfter 2 [0, 4])
 
 ----------------------------------------
 -- Model
@@ -166,10 +170,10 @@ prop_model getServer = forAll genCase $ \c -> ioProperty $ do
       positions = [p | (p, (_, True)) <- zip [0 ..] c.queue]
   actual <- withConnection settings $ \conn -> do
     run conn $ clear *> traverse_ (\(i, _) -> add (file i) Nothing) c.queue
-    run conn $ case c.operation of
+    run conn . editCommands $ case c.operation of
       MoveUp -> moveUp positions
       MoveDown -> moveDown (length c.queue) positions
-      MoveBefore target -> sequenceA_ (moveBefore positions target)
+      MoveBefore target -> fold (moveBefore positions target)
       MoveToStart -> moveToStart positions
       MoveAfter current -> moveAfter current positions
       Delete -> deletePositions positions

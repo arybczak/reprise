@@ -223,16 +223,18 @@ confirm question onYes =
 ----------------------------------------
 -- Editing the queue
 
--- | Change the queue at positions. The changes of the queue come in the
--- same command list, and input waits for them, see 'heldInput'. Without a
--- queue in the mirror there are no positions, and so nothing to wait for.
-editQueue :: App es => Command () -> Eff es ()
-editQueue cmd =
+-- | Change the queue at positions. The status comes in the same command
+-- list, so that the mirror can make the edits itself, and input waits for
+-- it, see 'PendingEdit'. Without a queue in the mirror there are no
+-- positions, and so nothing to wait for.
+editQueue :: App es => [QueueEdit] -> Eff es ()
+editQueue edits =
   getsS (.mirror.queueVersion) >>= \case
-    Just v | not (null (commandRequests cmd)) -> do
-      modifyS $ #heldInput %~ Just . fromMaybe Seq.empty
-      requestOr (cmd *> ((,) <$> status <*> plChanges v)) QueueEditFailed QueueEdited
-    _ -> mutate cmd
+    Just _ | not (null edits) -> do
+      let waiting = PendingEdit {heldInput = Seq.empty, queueChanged = False}
+      modifyS $ #pendingEdit %~ Just . fromMaybe waiting
+      requestOr (editCommands edits *> status) QueueEditFailed (QueueEditStatus edits)
+    _ -> mutate (editCommands edits)
 
 ----------------------------------------
 -- Saving

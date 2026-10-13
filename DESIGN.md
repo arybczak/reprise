@@ -956,7 +956,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors, the order of text, the directory of lyrics and the editor. What the code under the screens knows of each screen, e.g. its length, its songs and its title, in one table. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
 | `Reprise.Header` | What the header's first line shows: the focused screen's title, which scrolls if it doesn't fit, and the volume |
 | `Reprise.StatusBar` | What the status bar shows: a prompt, the keys of a pending sequence, a message or the player, and where the player's state is for a click |
-| `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength` |
+| `Reprise.Mpd.Mirror` | Pure updates of the mirror from MPD replies, such as `plchanges` plus truncation to `playlistlength`, and from reprise's own edits of the queue |
 | `Reprise.Mpd.Worker` | Connection threads. They read a request queue and write to the queue of events |
 | `Reprise.Visualizer.Worker` | The thread that reads MPD's fifo output while the visualizer shows, and sends the samples of each frame |
 | `Reprise.Visualizer.Samples` | The format of the samples that the worker reads and the visualizer draws |
@@ -1054,9 +1054,22 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
     are the exception: input waits for them. An action plans from the
     positions in the mirror, so a second `delete` before the reply would
     delete the songs after the first one's. Each edit fetches the status
-    and `plchanges` in its own command list, and keys, clicks and wheel
-    steps that come meanwhile are handled in order once the mirror has
-    them, as ncmpc's blocking commands do.
+    in its own command list, and keys, clicks and wheel steps that come
+    meanwhile are handled in order once the mirror has the edit, as ncmpc's
+    blocking commands do.
+    - **The mirror makes the edit itself,** as ncmpc does, when the
+      version in the status shows that no other client changed the queue:
+      MPD increments the version once for each command that changes the
+      queue, also in a command list. Otherwise, and after a shuffle, whose
+      order only MPD knows, the edit fetches the status and `plchanges`.
+      After a delete in the middle of a queue of 100,000 songs, the
+      `plchanges` that this saves has 50,000 songs, which took 164 ms to
+      parse and 15 ms to apply. The edit in the mirror takes 1.1 ms.
+    - **A change of the queue that `idle` reports while an edit waits** is
+      fetched after it, from the version after it. Fetched at once, it
+      would be from the version before it, with every song that the edit
+      moved. The report comes on the idle connection, so it may come before
+      the edit's reply, also for the edit itself.
     - A prompt still takes keys. As the keys wait, an open one is one that
       an event opened: the password prompt, which the edit may wait for,
       or e.g. a choice that MPD's reply opened, which the password prompt
@@ -1071,11 +1084,6 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
   on its reply, once the worker ran the requests before it. While MPD
   waits for the password, the requests wait for its answer, so reprise
   quits at once, as it does for a second quit, e.g. when MPD hangs.
-    - ncmpc also makes the edit in its copy of the queue when the version
-      in the status shows that no other client changed it, instead of
-      fetching `plchanges`. That saves 4.6 ms of parsing after a delete in
-      the middle of a queue of 4254 songs, which isn't worth the
-      bookkeeping yet.
 - Queries (`lsinfo`, `find`, ...) deliver their result to the screen that asked
   for it. A reply to a query that a newer one has replaced, e.g. the listing
   of a directory the user has already left, is dropped.
@@ -2103,7 +2111,8 @@ The layers, from cheapest to most expensive:
    - List logic: selection, find, scrolling, "ignore leading the"
      sorting.
    - The mirror: applying `plchanges` results and truncating to
-     `playlistlength`.
+     `playlistlength`, and making reprise's edits only when no other change
+     came between.
 2. **Actions: no MPD mock needed.** Actions only *request* MPD commands
    through the `MpdRequest` effect, and the requests are data. A test runs an
    action with a pure handler and checks two things:
@@ -2163,7 +2172,8 @@ songs and a terminal of 160×45:
   song after the deleted one.
 - **`bench`** reads a full history of the prompts, as at the start and at
   each line saved to it. It handles a key, the change of the queue after
-  such a delete, and the keys of a find that matches nothing, which goes
+  such a delete, the status after reprise's own delete there, which the
+  mirror makes itself, and the keys of a find that matches nothing, which goes
   through the whole queue. It handles the listing of a directory as long as
   the queue, sorted by name. It computes what the visualizer worker does for
   each of 60 frames a second: the spectra of both channels, and where the

@@ -36,10 +36,9 @@ key = either (error . T.unpack) id . parseKeySpec
 key' :: T.Text -> AppEvent
 key' = KeyPressed . key
 
--- | The requests of an edit of the queue, which end in the changes of the
--- queue since the version of 'testState'.
+-- | The requests of an edit of the queue, which end in the status.
 editRequests :: [Request] -> [[Request]]
-editRequests rs = [rs <> [Request "status" [], Request "plchanges" ["1"]]]
+editRequests rs = [rs <> [Request "status" []]]
 
 keys :: [T.Text] -> AppState -> IO Result
 keys ks = runEvents 0 (map key' ks)

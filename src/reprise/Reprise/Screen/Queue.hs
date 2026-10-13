@@ -94,7 +94,7 @@ shuffleSelected =
   getsS (runs . selectedSongPositions) >>= \case
     [] -> shuffleQueue
     [run@(a, b)] -> do
-      editQueue . shuffle . Just $ runRange run
+      editQueue [ShuffleRange (Just (runRange run))]
       showMessage $ "Shuffled " <> countSongs (b - a + 1)
     _ -> showError "Only selected songs next to each other can be shuffled"
 

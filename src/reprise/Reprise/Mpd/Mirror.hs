@@ -1,5 +1,5 @@
 -- | The mirror: reprise's copy of MPD's status and queue, and its pure
--- updates from MPD's replies.
+-- updates from MPD's replies and from reprise's own edits of the queue.
 module Reprise.Mpd.Mirror
   ( -- * Mirror
     Mirror (..)
@@ -10,6 +10,11 @@ module Reprise.Mpd.Mirror
   , forgetStatus
   , seekTo
 
+    -- * Edits
+  , QueueEdit (..)
+  , editCommands
+  , applyQueueEdits
+
     -- * Queries
   , currentSong
   , currentPosition
@@ -17,15 +22,18 @@ module Reprise.Mpd.Mirror
   , queueLength
   ) where
 
+import Control.Monad
 import Data.Foldable
 import Data.List qualified as L
 import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
+import Data.Word
 import GHC.Generics
 import Optics.Core
 
+import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
 
 data Mirror = Mirror
@@ -33,6 +41,8 @@ data Mirror = Mirror
   , statusTime :: Double
   -- ^ The monotonic time when the status arrived, for the elapsed time.
   , queue :: Seq.Seq Song
+  -- ^ The songs have no position, which an edit that the mirror makes
+  -- itself would leave stale: the position of a song is its index.
   , queueVersion :: Maybe PlaylistVersion
   -- ^ The version of the queue that 'queue' mirrors. The status may be
   -- newer, until the changes of the queue arrive.
@@ -58,7 +68,7 @@ setQueue :: Double -> Status -> [Song] -> Mirror -> Mirror
 setQueue now st songs m =
   setStatus now st $
     m
-      & withQueue (Seq.fromList songs)
+      & withQueue (Seq.fromList (map unplaced songs))
       & #queueVersion ?~ st.playlistVersion
 
 -- | Apply the reply to @plchanges@, which MPD sent with the status in one
@@ -75,8 +85,8 @@ applyQueueChanges now st changes m = do
     apply :: Seq.Seq Song -> Song -> Either T.Text (Seq.Seq Song)
     apply q song = case song.position of
       Just (SongPos p)
-        | p < Seq.length q -> Right $ Seq.update p song q
-        | p == Seq.length q -> Right $ q Seq.|> song
+        | p < Seq.length q -> Right $ Seq.update p (unplaced song) q
+        | p == Seq.length q -> Right $ q Seq.|> unplaced song
         | otherwise ->
             Left $ "a changed song at position " <> T.pack (show p) <> " is past the end of the queue"
       Nothing -> Left "a changed song has no position"
@@ -102,6 +112,71 @@ seekTo now target m =
   m
     & #status % _Just % #elapsed ?~ target
     & #statusTime .~ now
+
+-- | An edit of the queue at positions.
+data QueueEdit
+  = DeleteRange Range
+  | -- | Move the songs of the range so that the first one is at the
+    -- position.
+    MoveRange Range SongPos
+  | ClearQueue
+  | ShuffleRange (Maybe Range)
+  deriving stock (Eq, Show)
+
+-- | The commands of the edits, in one command list.
+editCommands :: [QueueEdit] -> Command ()
+editCommands = traverse_ $ \case
+  DeleteRange r -> delete r
+  MoveRange r target -> move r (At target)
+  ClearQueue -> clear
+  ShuffleRange r -> shuffle r
+
+-- | Make the edits in the mirror, with the status that MPD sent after them
+-- in one command list. 'Nothing' if the status shows that the queue isn't
+-- the mirror's after the edits: another client changed it too, or the
+-- edits shuffle it.
+--
+-- Each command that changes the queue increments its version by one, also
+-- in a command list, so a version as many changes past the mirror's one
+-- means that no other change came between.
+applyQueueEdits :: Double -> Status -> [QueueEdit] -> Mirror -> Maybe Mirror
+applyQueueEdits now st edits m = do
+  PlaylistVersion v <- m.queueVersion
+  (q, changes) <- foldlM edit (m.queue, 0) edits
+  guard $ st.playlistVersion == PlaylistVersion (v + changes)
+  guard $ Seq.length q == st.playlistLength
+  pure . setStatus now st $
+    m
+      & withQueue q
+      & #queueVersion ?~ st.playlistVersion
+  where
+    -- The queue after an edit, and how many changes of the version it adds.
+    -- For MPD, a delete of no songs and a move in place change nothing.
+    edit :: (Seq.Seq Song, Word32) -> QueueEdit -> Maybe (Seq.Seq Song, Word32)
+    edit (q, changes) = \case
+      DeleteRange r
+        | (a, b) <- bounds q r
+        , a < b ->
+            Just (Seq.take a q <> Seq.drop b q, changes + 1)
+        | otherwise -> Just (q, changes)
+      MoveRange r (SongPos target)
+        | (a, b) <- bounds q r
+        , a /= target ->
+            let (moved, rest) = Seq.splitAt (b - a) (Seq.drop a q)
+                (before, after) = Seq.splitAt target (Seq.take a q <> rest)
+            in Just (before <> moved <> after, changes + 1)
+        | otherwise -> Just (q, changes)
+      ClearQueue -> Just (Seq.empty, changes + 1)
+      ShuffleRange _ -> Nothing
+
+    -- MPD cuts the end of a range to the length of the queue.
+    bounds :: Seq.Seq Song -> Range -> (Int, Int)
+    bounds q r =
+      let SongPos a = r.start
+      in (a, maybe (Seq.length q) (\(SongPos b) -> min b (Seq.length q)) r.end)
+
+unplaced :: Song -> Song
+unplaced = #position .~ Nothing
 
 withQueue :: Seq.Seq Song -> Mirror -> Mirror
 withQueue q m =

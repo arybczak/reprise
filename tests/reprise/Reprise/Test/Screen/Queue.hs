@@ -10,6 +10,7 @@ import Test.Tasty.HUnit
 import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Mpd.Mirror
+import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 import Reprise.Save
@@ -29,6 +30,8 @@ queueTests =
     , testCase "jump to playing centers the cursor" test_jumpCenters
     , testCase "delete the marked songs" test_delete
     , testCase "input waits for an edit of the queue" test_heldInput
+    , testCase "an edit after another client's change fetches the changes" test_editFetched
+    , testCase "a change during an edit is fetched after it" test_editChanges
     , testCase "the password prompt takes keys during an edit" test_heldPassword
     , testCase "a choice takes keys during an edit" test_heldChoice
     , testCase "move the marked songs up and down" test_moveSongs
@@ -97,28 +100,25 @@ test_heldInput :: Assertion
 test_heldInput = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   let st n = statusOf Stopped Nothing n & #playlistVersion .~ PlaylistVersion 2
-      movedTo p i = (songs 5 !! i) & #position ?~ SongPos p
-      files = map (.file) . toList . (.mirror.queue)
   -- Songs 1 and 2 selected, the cursor on 3.
   twice <- keys ["down", "space", "space", "delete", "delete"] s
   assertEqual "the first delete" (editRequests [Request "delete" ["1:3"]]) twice.requests
-  replied <- runEvents 0 [QueueEdited (st 3, [movedTo 1 3, movedTo 2 4])] twice.state
-  assertEqual "the queue" ["dir/0.flac", "dir/3.flac", "dir/4.flac"] (files replied.state)
+  replied <- runEvents 0 [QueueEditStatus (deletedAt 1 3) (st 3)] twice.state
+  assertEqual
+    "the queue"
+    ["dir/0.flac", "dir/3.flac", "dir/4.flac"]
+    (queueFiles replied.state)
   -- The cursor stays on its row, the last one of the shorter queue, as if
   -- the key had come after the reply.
   assertEqual
     "the second delete, of the song under the cursor"
-    [[Request "delete" ["2:3"], Request "status" [], Request "plchanges" ["2"]]]
+    (editRequests [Request "delete" ["2:3"]])
     replied.requests
   -- A click that changes nothing waits too, and doesn't keep the reply's
   -- changes from being drawn.
   clicked <- runEvents 0 [MouseClick LeftButton 0 0] =<< (.state) <$> keys ["delete"] s
-  released <-
-    runEvents
-      0
-      [QueueEdited (st 4, map (uncurry movedTo) [(0, 1), (1, 2), (2, 3), (3, 4)])]
-      clicked.state
-  assertEqual "the click's turn" Nothing released.state.heldInput
+  released <- runEvents 0 [QueueEditStatus (deletedAt 0 1) (st 4)] clicked.state
+  assertEqual "the click's turn" Nothing released.state.pendingEdit
   assertBool "a redraw" (KeepScreen `notElem` released.commands)
   -- The input was meant for the queue after the edit.
   failed <-
@@ -127,9 +127,56 @@ test_heldInput = do
       [QueueEditFailed (AckError (Ack AckArg 0 "delete" "Bad song index"))]
       twice.state
   assertEqual "a failure drops it" [] failed.requests
-  assertEqual "nothing waits" Nothing failed.state.heldInput
+  assertEqual "nothing waits" Nothing failed.state.pendingEdit
   reconnected <- runEvents 0 [MpdConnected (Version 0 24 0)] twice.state
-  assertEqual "a new connection drops it" Nothing reconnected.state.heldInput
+  assertEqual "a new connection drops it" Nothing reconnected.state.pendingEdit
+
+-- | After another client's change, the status of an edit doesn't follow the
+-- mirror's version, and the changes since it come instead.
+test_editFetched :: Assertion
+test_editFetched = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  deleted <- keys ["delete", "down"] s
+  let st = statusOf Stopped Nothing 4 & #playlistVersion .~ PlaylistVersion 3
+  replied <- runEvents 0 [QueueEditStatus (deletedAt 0 1) st] deleted.state
+  assertEqual
+    "the changes"
+    [[Request "status" [], Request "plchanges" ["1"]]]
+    replied.requests
+  assertEqual "the key waits" (Just 1) (heldCount replied)
+  let movedTo p i = (songs 5 !! i) & #position ?~ SongPos p
+  fetched <-
+    runEvents 0 [QueueEdited (st, [movedTo p (p + 1) | p <- [0 .. 3]])] replied.state
+  assertEqual
+    "the queue"
+    ["dir/1.flac", "dir/2.flac", "dir/3.flac", "dir/4.flac"]
+    (queueFiles fetched.state)
+  assertEqual "the key's turn" Nothing fetched.state.pendingEdit
+
+-- | A change that MPD reports while an edit waits is fetched after the
+-- edit, from the version after it, instead of with every song that the
+-- edit moved.
+test_editChanges :: Assertion
+test_editChanges = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  deleted <- keys ["delete"] s
+  changed <- runEvents 0 [MpdChanged [PlaylistSubsystem]] deleted.state
+  assertEqual "nothing fetched yet" [] changed.requests
+  let st = statusOf Stopped Nothing 4 & #playlistVersion .~ PlaylistVersion 2
+  replied <- runEvents 0 [QueueEditStatus (deletedAt 0 1) st] changed.state
+  assertEqual
+    "the changes after the edit"
+    [[Request "status" [], Request "plchanges" ["2"]]]
+    replied.requests
+  failed <-
+    runEvents
+      0
+      [QueueEditFailed (AckError (Ack AckArg 0 "delete" "Bad song index"))]
+      changed.state
+  assertEqual
+    "the changes after a failed edit"
+    [[Request "status" [], Request "plchanges" ["1"]]]
+    failed.requests
 
 -- | The password prompt takes keys while an edit waits, as the edit may
 -- wait for the password.
@@ -141,7 +188,7 @@ test_heldPassword = do
   asked <- runEvents 0 [PasswordNeeded refusal] deleted.state
   answered <- keys (typed "secret" <> ["enter"]) asked.state
   assertEqual "the answer" [Just "secret"] (passwordAnswers answered)
-  assertEqual "nothing held" (Just Seq.empty) answered.state.heldInput
+  assertEqual "nothing held" (Just 0) (heldCount answered)
 
 -- | While an edit of the queue waits, a choice that MPD's reply opened
 -- takes keys, as the prompt for the password, which the edit may wait for,
@@ -225,3 +272,17 @@ test_shuffleConfirm = do
     "the whole queue from another screen"
     (Just "Shuffle 5 songs in the queue?")
     ((.question) <$> elsewhere.state.prompt)
+
+----------------------------------------
+-- Helpers
+
+-- | The delete of the songs from the first position up to the second one.
+deletedAt :: Int -> Int -> [QueueEdit]
+deletedAt a b = [DeleteRange (Range (SongPos a) (Just (SongPos b)))]
+
+queueFiles :: AppState -> [T.Text]
+queueFiles = map (.file) . toList . (.mirror.queue)
+
+-- | The number of the events that wait for an edit, if one waits.
+heldCount :: Result -> Maybe Int
+heldCount r = Seq.length . (.heldInput) <$> r.state.pendingEdit

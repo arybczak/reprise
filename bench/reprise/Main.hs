@@ -30,6 +30,7 @@ import Reprise.Handler
 import Reprise.History
 import Reprise.Keys
 import Reprise.Mpd.Mirror hiding (queueLength)
+import Reprise.Mpd.Protocol.Command hiding (currentSong, next)
 import Reprise.Mpd.Protocol.Types
 import Reprise.Selection
 import Reprise.State
@@ -57,6 +58,9 @@ main = do
         , afterKeys [] $ \s ->
             bench "the queue's changes after a delete in the middle" . whnfIO $
               settled <$> handle deletedInTheMiddle s
+        , afterKeys [] $ \s ->
+            bench "the status after a delete in the middle" . whnfIO $
+              settled <$> handle statusAfterDelete s
         , -- The first key makes the text of the rows, which the next keys
           -- reuse. With no match, the find goes through the whole queue.
           afterKeys ["/"] $ \s ->
@@ -242,6 +246,14 @@ noise = [frame (take frameLength (drop (i * frameLength) samples)) | i <- [0 .. 
 
     frameLength :: Int
     frameLength = 44100 `div` fps
+
+-- | The status after reprise deleted the song in the middle of the queue,
+-- which the mirror deletes itself.
+statusAfterDelete :: AppEvent
+statusAfterDelete =
+  QueueEditStatus
+    [DeleteRange (onePosition (SongPos (queueLength `div` 2)))]
+    (statusOf 2 (queueLength - 1))
 
 -- | The reply to @plchanges@ after the song in the middle of the queue was
 -- deleted: every song after it moved up.

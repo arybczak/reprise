@@ -79,9 +79,9 @@ holdOrHandle event = do
         MouseWheel {} -> True
         MouseClick {} -> True
         _ -> False
-  case s.heldInput of
-    Just held | isInput && isNothing s.prompt -> do
-      modifyS $ #heldInput ?~ (held Seq.|> event)
+  case s.pendingEdit of
+    Just _ | isInput && isNothing s.prompt -> do
+      modifyS $ #pendingEdit % _Just % #heldInput %~ (Seq.|> event)
       keepScreen
     _ -> handleEvent event
 
@@ -90,8 +90,7 @@ holdOrHandle event = do
 -- again.
 releaseInput :: App es => Eff es ()
 releaseInput = do
-  held <- getsS (fromMaybe Seq.empty . (.heldInput))
-  modifyS $ #heldInput .~ Nothing
+  held <- endEdit
   -- The held input runs within the event of the reply, and a 'KeepScreen'
   -- anywhere in an event skips its redraw, which the reply needs. A key
   -- that changes nothing, e.g. a click outside a list, would send one.
@@ -139,7 +138,7 @@ handleEvent = \case
     modifyS $ \s ->
       s
         & #connection .~ Connected v
-        & #heldInput .~ Nothing
+        & #pendingEdit .~ Nothing
         & #queueState % #selection .~ noSelection
     fetchQueue
     relistBrowser
@@ -153,10 +152,16 @@ handleEvent = \case
         & #mirror %~ forgetStatus
         & #seek .~ Nothing
   MpdChanged subsystems -> do
+    editing <- getsS (isJust . (.pendingEdit))
+    let queueChanged = PlaylistSubsystem `elem` subsystems
+        statusChanged = any (`elem` statusSubsystems) subsystems
     -- The changes of the queue come with the status.
     if
-      | PlaylistSubsystem `elem` subsystems -> fetchQueueChanges
-      | any (`elem` statusSubsystems) subsystems -> request status StatusFetched
+      | queueChanged && editing -> do
+          modifyS $ #pendingEdit % _Just % #queueChanged .~ True
+          when statusChanged $ request status StatusFetched
+      | queueChanged -> fetchQueueChanges
+      | statusChanged -> request status StatusFetched
       | otherwise -> pure ()
     browserChanged subsystems
     when (OutputSubsystem `elem` subsystems) refreshOutputs
@@ -164,13 +169,21 @@ handleEvent = \case
     now <- getsS (.now)
     updateMirror $ setQueue now st songs
   QueueChangesFetched changes -> applyChanges changes
+  QueueEditStatus edits st -> do
+    s <- getS
+    case applyQueueEdits s.now st edits s.mirror of
+      Just m -> do
+        updateMirror (const m)
+        releaseInput
+      Nothing -> forM_ s.mirror.queueVersion $ \v ->
+        requestOr ((,) <$> status <*> plChanges v) QueueEditFailed QueueEdited
   QueueEdited changes -> do
     applyChanges changes
     releaseInput
   -- The input was meant for the queue after the edit.
   QueueEditFailed err -> do
     showError $ exceptionText err
-    modifyS $ #heldInput .~ Nothing
+    void endEdit
   StatusFetched st -> do
     now <- getsS (.now)
     updateMirror $ setStatus now st
@@ -298,6 +311,15 @@ fetchQueueChanges =
   getsS (.mirror.queueVersion) >>= \case
     Just v -> request ((,) <$> status <*> plChanges v) QueueChangesFetched
     Nothing -> fetchQueue
+
+-- | End the edit that waited for its reply: fetch the changes of the queue
+-- that MPD reported meanwhile, and return the input that waited.
+endEdit :: App es => Eff es (Seq.Seq AppEvent)
+endEdit = do
+  edit <- getsS (.pendingEdit)
+  modifyS $ #pendingEdit .~ Nothing
+  when (any (.queueChanged) edit) fetchQueueChanges
+  pure $ maybe Seq.empty (.heldInput) edit
 
 -- | Change the mirror and react to the changes: keep the cursors in the
 -- list, follow the playing song, and report changed options.
@@ -640,8 +662,8 @@ cycleScreens screens = do
 -- | Run a destructive action that the user confirmed.
 runConfirmed :: App es => Confirmation -> Eff es ()
 runConfirmed = \case
-  ConfirmClear -> editQueue clear
-  ConfirmShuffle -> editQueue $ shuffle Nothing
+  ConfirmClear -> editQueue [ClearQueue]
+  ConfirmShuffle -> editQueue [ShuffleRange Nothing]
 
 ----------------------------------------
 -- Saving as a stored playlist
