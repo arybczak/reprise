@@ -435,7 +435,10 @@ runScene sc = do
     -- A read takes the writes that came until the time.
     runScriptedFifo
       :: IOE :> es
-      => S.IORef Double -> S.IORef [(Double, BS.ByteString)] -> Eff (Fifo : es) a -> Eff es a
+      => S.IORef Double
+      -> S.IORef [(Double, BS.ByteString)]
+      -> Eff (Fifo : es) a
+      -> Eff es a
     runScriptedFifo timeRef writesRef = interpret_ $ \case
       OpenFifo -> pure ()
       ReadFifo -> liftIO $ do

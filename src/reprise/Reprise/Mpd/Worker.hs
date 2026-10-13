@@ -117,7 +117,11 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
     -- wait for it.
     askPassword
       :: (Mpd :> es, IOE :> es)
-      => MpdError -> (MpdError -> AppEvent) -> PendingRequest -> [PendingRequest] -> Eff es ()
+      => MpdError
+      -> (MpdError -> AppEvent)
+      -> PendingRequest
+      -> [PendingRequest]
+      -> Eff es ()
     askPassword err onFailure r held = do
       emitEvent w $ PasswordNeeded err
       waitForAnswer held

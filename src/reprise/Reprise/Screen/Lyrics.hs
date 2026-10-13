@@ -104,7 +104,9 @@ playingTimedLyrics s = do
 
 -- | How the lyrics screen does a verb, if it does it.
 lyricsVerb
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Action -> Maybe (Eff es ())
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Action
+  -> Maybe (Eff es ())
 lyricsVerb = \case
   Move t -> Just $ scrollLyrics t
   JumpToPlaying -> Just jumpToPlayingLyrics
@@ -115,7 +117,9 @@ lyricsVerb = \case
 
 -- | Scroll the lyrics from where they show, which stops following the song.
 scrollLyrics
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => MoveTarget -> Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => MoveTarget
+  -> Eff es ()
 scrollLyrics t = do
   stopFollowing
   scrollLines t
@@ -135,7 +139,9 @@ showLyrics = showSongScreen LyricsScreen showSongLyrics
 -- | Show the lyrics of a song, if it can have any. A stream can't: the
 -- songs that it plays would share one file of lyrics, named after its URL.
 showSongLyrics
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Song -> Eff es Bool
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Song
+  -> Eff es Bool
 showSongLyrics song
   | isStream song = False <$ showError "A stream has no lyrics"
   | otherwise = True <$ request song False
@@ -183,7 +189,9 @@ editLyrics = do
 
 -- | Edit a file of lyrics that the user chose.
 editLyricsFile
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => FilePath -> Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => FilePath
+  -> Eff es ()
 editLyricsFile file = do
   env <- getAppEnv
   maybe (showMessage noEditor) (`editFile` file) env.editor
@@ -195,7 +203,9 @@ noEditor = "There is no editor: set editor.command in the config, or $VISUAL or 
 -- screen, they show again as the editor left them.
 lyricsEdited
   :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
-  => FilePath -> Maybe T.Text -> Eff es ()
+  => FilePath
+  -> Maybe T.Text
+  -> Eff es ()
 lyricsEdited file failure = do
   env <- getAppEnv
   s <- getS
@@ -210,7 +220,10 @@ lyricsEdited file failure = do
 -- | Ask for the lyrics of a song, which the screen shows from their top
 -- when they come.
 request
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Song -> Bool -> Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Song
+  -> Bool
+  -> Eff es ()
 request song refetch = do
   token <- newToken
   modifyS $ \s ->
@@ -225,7 +238,8 @@ request song refetch = do
 -- | Follow the line being sung again, or show the lyrics of the song that
 -- plays if the screen shows another song's.
 jumpToPlayingLyrics
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Eff es ()
 jumpToPlayingLyrics = do
   s <- getS
   case currentSong s.mirror of
@@ -237,7 +251,8 @@ jumpToPlayingLyrics = do
 -- | Turn following the song that plays on or off. On, the screen shows the
 -- lyrics of the song that plays at once.
 toggleLyricsFollowing
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Eff es ()
 toggleLyricsFollowing = do
   toggleSetting "Lyrics follow playing" #lyricsFollowPlaying
   s <- getS
@@ -285,7 +300,10 @@ lyricsFetching token fetcher =
 -- | The lyrics of the request with the token. Those of a song that the
 -- screen showed before are dropped.
 lyricsLoaded
-  :: (State AppState :> es, UiRequest :> es) => Int -> LyricsResult -> Eff es ()
+  :: (State AppState :> es, UiRequest :> es)
+  => Int
+  -> LyricsResult
+  -> Eff es ()
 lyricsLoaded token result = forRequest token $ do
   modifyS $ #lyrics % #status .~ ShowingLyrics result
   case result of

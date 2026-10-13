@@ -63,7 +63,11 @@ request cmd = requestOr cmd (MpdFailed (commandRequests cmd))
 -- | Request a command, with an event for its failure, for a requester that
 -- can recover from it.
 requestOr
-  :: MpdRequest :> es => Command a -> (MpdError -> AppEvent) -> (a -> AppEvent) -> Eff es ()
+  :: MpdRequest :> es
+  => Command a
+  -> (MpdError -> AppEvent)
+  -> (a -> AppEvent)
+  -> Eff es ()
 requestOr cmd onFailure k = send $ RequestCommand cmd onFailure k
 
 -- | Request a command that changes MPD's state. Its effect comes back

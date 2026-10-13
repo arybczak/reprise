@@ -40,7 +40,9 @@ helpRows env =
 
 -- | How the help screen does a verb, if it does it.
 helpVerb
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Action -> Maybe (Eff es ())
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Action
+  -> Maybe (Eff es ())
 helpVerb = \case
   Move t -> Just $ scrollLines t
   _ -> Nothing

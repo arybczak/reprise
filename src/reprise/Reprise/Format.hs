@@ -295,7 +295,12 @@ data RenderContext s = RenderContext
 -- | Render a format for a song. The styles of nested spans combine with
 -- '<>', the inner one laid over the outer one.
 renderFormat
-  :: forall s. (Eq s, Semigroup s) => RenderContext s -> Song -> Format s -> [Span s]
+  :: forall s
+   . (Eq s, Semigroup s)
+  => RenderContext s
+  -> Song
+  -> Format s
+  -> [Span s]
 renderFormat ctx song (Format items) = mergeSpans . fromMaybe [] $ renderItems True Nothing items
   where
     -- Nothing means that a field is missing. At the top level, a missing

@@ -73,7 +73,8 @@ runEvent env now event s = do
 -- MPD's reply opened, which the prompt for the password may wait for.
 holdOrHandle
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => AppEvent -> Eff es ()
+  => AppEvent
+  -> Eff es ()
 holdOrHandle event = do
   s <- getS
   let isInput = case event of
@@ -91,7 +92,8 @@ holdOrHandle event = do
 -- the mirror has now. If it edits the queue again, the rest of it waits
 -- again.
 releaseInput
-  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Eff es ()
 releaseInput = do
   held <- endEdit
   -- The held input runs within the event of the reply, and a 'KeepScreen'
@@ -123,7 +125,8 @@ seekAccelerationPeriod = 2
 
 handleEvent
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => AppEvent -> Eff es ()
+  => AppEvent
+  -> Eff es ()
 handleEvent = \case
   Started -> showScreen . (.config.startupScreen) =<< getAppEnv
   KeyPressed k -> handleKey k
@@ -241,7 +244,8 @@ handleEvent = \case
 
     applyChanges
       :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-      => (Status, [Song]) -> Eff es ()
+      => (Status, [Song])
+      -> Eff es ()
     applyChanges (st, changes) = do
       s <- getS
       case applyQueueChanges s.now st changes s.mirror of
@@ -332,7 +336,8 @@ endEdit = do
 -- list, follow the playing song, and report changed options.
 updateMirror
   :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
-  => (Mirror -> Mirror) -> Eff es ()
+  => (Mirror -> Mirror)
+  -> Eff es ()
 updateMirror f = do
   old <- getsS (.mirror)
   modifyS $ #mirror %~ f
@@ -388,7 +393,8 @@ reportOptions a b =
 
 handleKey
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => KeySpec -> Eff es ()
+  => KeySpec
+  -> Eff es ()
 handleKey k = do
   env <- getAppEnv
   s <- getS
@@ -404,7 +410,9 @@ handleKey k = do
   where
     continue
       :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-      => Layers -> [KeySpec] -> Eff es ()
+      => Layers
+      -> [KeySpec]
+      -> Eff es ()
     continue layers keys = case lookupKey layers k of
       Bound a -> do
         modifyS $ #pendingKeys .~ Nothing
@@ -421,7 +429,10 @@ handleKey k = do
 -- without moves, it does nothing.
 handleWheel
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => MoveTarget -> Int -> Int -> Eff es ()
+  => MoveTarget
+  -> Int
+  -> Int
+  -> Eff es ()
 handleWheel t col row = do
   env <- getAppEnv
   s <- getS
@@ -445,7 +456,10 @@ handleWheel t col row = do
 -- a key sequence is open, which the panel would cover.
 handleClick
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => MouseButton -> Int -> Int -> Eff es ()
+  => MouseButton
+  -> Int
+  -> Int
+  -> Eff es ()
 handleClick button col row = do
   env <- getAppEnv
   s <- getS
@@ -479,7 +493,9 @@ isCancel k = k `elem` [plain Escape, ctrl 'g']
 
 handlePromptKey
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => Prompt -> KeySpec -> Eff es ()
+  => Prompt
+  -> KeySpec
+  -> Eff es ()
 handlePromptKey p k = case p.input of
   Choice options
     | Just o <- find (\o -> k == char o.letter) options -> do
@@ -536,7 +552,9 @@ handlePromptKey p k = case p.input of
 -- | Run what a line prompt asked for. An empty line of @:@ does nothing.
 answer
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => LinePurpose -> T.Text -> Eff es ()
+  => LinePurpose
+  -> T.Text
+  -> Eff es ()
 answer purpose text = case purpose of
   ForFind f -> acceptFind f text
   ForSave source -> saveNamed source (T.strip text)
@@ -552,7 +570,8 @@ answer purpose text = case purpose of
 -- does it its own way.
 runAction
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => Action -> Eff es ()
+  => Action
+  -> Eff es ()
 runAction action = case action of
   Move _ -> verb action
   JumpToPlaying -> verb action
@@ -616,7 +635,8 @@ runAction action = case action of
 -- doesn't implement it says so, instead of acting on another screen.
 verb
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => Action -> Eff es ()
+  => Action
+  -> Eff es ()
 verb action = do
   screen <- getsS ((.screen) . focusedView)
   verbOr (screenHasNo screen (renderAction action)) action
@@ -625,7 +645,9 @@ verb action = do
 -- way.
 verbOr
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => Eff es () -> Action -> Eff es ()
+  => Eff es ()
+  -> Action
+  -> Eff es ()
 verbOr otherwise' action = do
   screen <- getsS ((.screen) . focusedView)
   fromMaybe otherwise' (screenVerb screen action)
@@ -634,7 +656,9 @@ verbOr otherwise' action = do
 -- to find in.
 screenVerb
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => ScreenName -> Action -> Maybe (Eff es ())
+  => ScreenName
+  -> Action
+  -> Maybe (Eff es ())
 screenVerb screen = \case
   Find t ->
     screenRows screen <&> \rows -> do
@@ -662,7 +686,8 @@ screenVerb screen = \case
 -- shows, e.g. load the lyrics of the song under the cursor.
 showScreen
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => ScreenName -> Eff es ()
+  => ScreenName
+  -> Eff es ()
 showScreen = \case
   QueueScreen -> switchTo QueueScreen
   BrowserScreen -> switchTo BrowserScreen >> openBrowser
@@ -683,7 +708,8 @@ showScreen = \case
 -- so that a list can name them ahead.
 cycleScreens
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => [ScreenName] -> Eff es ()
+  => [ScreenName]
+  -> Eff es ()
 cycleScreens screens = do
   current <- getsS ((.screen) . focusedView)
   case filter (\s -> (screenInfo s).built) screens of
@@ -730,7 +756,10 @@ saveNamed source name
 -- name or to append to it.
 saveChecked
   :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
-  => T.Text -> SaveSource -> Bool -> Eff es ()
+  => T.Text
+  -> SaveSource
+  -> Bool
+  -> Eff es ()
 saveChecked name source exists
   | Just why <- nothingToSave source = showMessage why
   | exists =
@@ -744,7 +773,10 @@ saveChecked name source exists
 
 saveTo
   :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
-  => T.Text -> SaveSource -> SaveMode -> Eff es ()
+  => T.Text
+  -> SaveSource
+  -> SaveMode
+  -> Eff es ()
 saveTo name source mode = do
   mutate $ case source of
     SaveQueue -> save name mode
@@ -772,7 +804,9 @@ saveTo name source mode = do
       SavePart -> pure ()
 
 withStatus
-  :: (State AppState :> es, UiRequest :> es) => (Status -> Eff es ()) -> Eff es ()
+  :: (State AppState :> es, UiRequest :> es)
+  => (Status -> Eff es ())
+  -> Eff es ()
 withStatus k =
   getsS (.mirror.status) >>= \case
     Just st -> k st
@@ -780,7 +814,8 @@ withStatus k =
 
 toggle
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => ToggleTarget -> Eff es ()
+  => ToggleTarget
+  -> Eff es ()
 toggle = \case
   ToggleRepeat -> withStatus $ \st -> mutate $ setRepeat (not st.repeat)
   ToggleRandom -> withStatus $ \st -> mutate $ setRandom (not st.random)
@@ -818,7 +853,10 @@ startFind direction s =
 -- that the result doesn't depend on how the pattern was typed. Returns the
 -- find with a note on what it found.
 findAsYouType
-  :: (State AppState :> es, Input AppEnv :> es) => Finding -> T.Text -> Eff es Finding
+  :: (State AppState :> es, Input AppEnv :> es)
+  => Finding
+  -> T.Text
+  -> Eff es Finding
 findAsYouType f text = do
   rows <- focusedRows
   start <- searchStart f.direction f.origin
@@ -840,7 +878,9 @@ findAsYouType f text = do
 -- An empty pattern forgets the last one, and what it found.
 acceptFind
   :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
-  => Finding -> T.Text -> Eff es ()
+  => Finding
+  -> T.Text
+  -> Eff es ()
 acceptFind f text
   | T.null text = do
       modifyS $ \s ->
@@ -864,7 +904,9 @@ acceptFind f text
 -- the focused list.
 findAgain
   :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
-  => Eff es (Seq.Seq Folded) -> Direction -> Eff es ()
+  => Eff es (Seq.Seq Folded)
+  -> Direction
+  -> Eff es ()
 findAgain getRows direction = withFindPattern $ \text p -> do
   rows <- getRows
   v <- getsS focusedView
@@ -882,7 +924,10 @@ findAgain getRows direction = withFindPattern $ \text p -> do
 -- find puts it on its match. While that shows, a search starts there, else
 -- at the edge of the view where it goes from.
 searchStart
-  :: (State AppState :> es, Input AppEnv :> es) => Direction -> (Int, Int) -> Eff es Int
+  :: (State AppState :> es, Input AppEnv :> es)
+  => Direction
+  -> (Int, Int)
+  -> Eff es Int
 searchStart direction (c, o) = do
   env <- getAppEnv
   s <- getS
@@ -913,7 +958,8 @@ focusedRows = do
 -- find.
 screenRows
   :: (State AppState :> es, Input AppEnv :> es)
-  => ScreenName -> Maybe (Eff es (Seq.Seq Folded))
+  => ScreenName
+  -> Maybe (Eff es (Seq.Seq Folded))
 screenRows = \case
   QueueScreen -> Just queueRows
   BrowserScreen -> Just $ getsS (.browser.rows)
@@ -929,7 +975,8 @@ screenRows = \case
     -- The rows of a screen of text at the focused view's width.
     textRows
       :: (State AppState :> es, Input AppEnv :> es)
-      => (AppEnv -> AppState -> Int -> [[Span Style]]) -> Eff es (Seq.Seq Folded)
+      => (AppEnv -> AppState -> Int -> [[Span Style]])
+      -> Eff es (Seq.Seq Folded)
     textRows spansOf = do
       env <- getAppEnv
       s <- getS
@@ -939,7 +986,9 @@ screenRows = \case
 -- Seeking
 
 seekAction
-  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => SeekStep -> Eff es ()
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => SeekStep
+  -> Eff es ()
 seekAction = \case
   SeekBy n -> do
     s <- getS
@@ -975,7 +1024,9 @@ seekAction = \case
 
 -- | Send the seek that the keys moved, if its song still plays or pauses.
 commitSeek
-  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Int -> Eff es ()
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Int
+  -> Eff es ()
 commitSeek token = whenCurrent (.seek) (.token) token $ \sk -> do
   s <- getS
   case s.mirror.status of
@@ -1045,7 +1096,8 @@ elapsedRedraw s = do
   pure $ s.now + delay
 
 updateWindowTitle
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Eff es ()
 updateWindowTitle = do
   env <- getAppEnv
   s <- getS

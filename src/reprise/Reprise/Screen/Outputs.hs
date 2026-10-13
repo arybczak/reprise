@@ -52,7 +52,8 @@ outputsView env s v =
 -- | How the outputs screen does a verb, if it does it.
 outputsVerb
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => Action -> Maybe (Eff es ())
+  => Action
+  -> Maybe (Eff es ())
 outputsVerb = \case
   Move t -> Just $ modifyWithEnv (moveListCursor t)
   Activate -> Just toggleOutput

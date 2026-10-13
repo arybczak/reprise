@@ -293,7 +293,11 @@ registry =
     namedSpec
       :: forall a
        . (Enum a, Bounded a)
-      => T.Text -> T.Text -> (a -> T.Text) -> (a -> Action) -> ActionSpec
+      => T.Text
+      -> T.Text
+      -> (a -> T.Text)
+      -> (a -> Action)
+      -> ActionSpec
     namedSpec name what argumentName f =
       spec name (alternatives (map fst values)) $ one (fmap f . choice what values)
       where

@@ -106,7 +106,8 @@ getAppEnv = input
 -- | Change the state with a function that reads the settings too.
 modifyWithEnv
   :: (State AppState :> es, Input AppEnv :> es)
-  => (AppEnv -> AppState -> AppState) -> Eff es ()
+  => (AppEnv -> AppState -> AppState)
+  -> Eff es ()
 modifyWithEnv f = getAppEnv >>= modifyS . f
 
 newToken :: State AppState :> es => Eff es Int
@@ -117,7 +118,11 @@ newToken = state @AppState $ \s -> (s.nextToken, s & #nextToken %~ (+ 1))
 -- one that a newer one replaced changes nothing on the screen.
 whenCurrent
   :: (State AppState :> es, UiRequest :> es)
-  => (AppState -> Maybe a) -> (a -> Int) -> Int -> (a -> Eff es ()) -> Eff es ()
+  => (AppState -> Maybe a)
+  -> (a -> Int)
+  -> Int
+  -> (a -> Eff es ())
+  -> Eff es ()
 whenCurrent current tokenOf token k =
   getsS current >>= \case
     Just a | tokenOf a == token -> k a
@@ -156,7 +161,10 @@ screenText screen = screenWords screen <> " screen"
 
 -- | Say that a screen has no such thing, e.g. no songs or no action.
 screenHasNo
-  :: (State AppState :> es, UiRequest :> es) => ScreenName -> T.Text -> Eff es ()
+  :: (State AppState :> es, UiRequest :> es)
+  => ScreenName
+  -> T.Text
+  -> Eff es ()
 screenHasNo screen what = showMessage $ "The " <> screenText screen <> " has no " <> what
 
 -- | MPD has no current song, e.g. before anything played. A song that
@@ -172,7 +180,10 @@ onOff b = if b then "on" else "off"
 
 -- | Turn a setting of reprise on or off, and say which it is now.
 toggleSetting
-  :: (State AppState :> es, UiRequest :> es) => T.Text -> Lens' Toggles Bool -> Eff es ()
+  :: (State AppState :> es, UiRequest :> es)
+  => T.Text
+  -> Lens' Toggles Bool
+  -> Eff es ()
 toggleSetting name field = do
   modifyS $ #toggles % field %~ not
   v <- getsS (view (#toggles % field))
@@ -181,7 +192,8 @@ toggleSetting name field = do
 -- | Show the songs of a list in the other display.
 toggleDisplay
   :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
-  => Lens' Toggles Display -> Eff es ()
+  => Lens' Toggles Display
+  -> Eff es ()
 toggleDisplay field = do
   modifyS $
     #toggles % field %~ \case
@@ -427,7 +439,9 @@ selectInList selection items findRows count = \case
 -- | Run with the pattern of the last find, and its text, or say why there
 -- is none.
 withFindPattern
-  :: (State AppState :> es, UiRequest :> es) => (T.Text -> Pattern -> Eff es ()) -> Eff es ()
+  :: (State AppState :> es, UiRequest :> es)
+  => (T.Text -> Pattern -> Eff es ())
+  -> Eff es ()
 withFindPattern k =
   getsS (.findPattern) >>= \case
     Nothing -> showMessage "No find pattern"
@@ -467,7 +481,9 @@ switchTo = modifyWithEnv . modifyView . switchScreen
 
 -- | Scroll the focused screen of text.
 scrollLines
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => MoveTarget -> Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => MoveTarget
+  -> Eff es ()
 scrollLines t = do
   env <- getAppEnv
   s <- getS
@@ -489,7 +505,9 @@ scrollLines t = do
 -- from the top, after an action that opens it for the song, if it can.
 showSongScreen
   :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
-  => ScreenName -> (Song -> Eff es Bool) -> Eff es ()
+  => ScreenName
+  -> (Song -> Eff es Bool)
+  -> Eff es ()
 showSongScreen target open = do
   s <- getS
   let screen = (focusedView s).screen

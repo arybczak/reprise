@@ -99,7 +99,8 @@ visualizerView env s v = case env.config.visualizer.dataSource of
 -- | Read the samples while the visualizer shows, and only then. It runs
 -- after every event.
 updateVisualizer
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Eff es ()
 updateVisualizer = do
   env <- getAppEnv
   s <- getS
@@ -120,7 +121,9 @@ nextVisualization = do
 -- | Add the samples of a frame to those of the ellipse on the screen.
 -- Samples that come after the ellipse stopped reading are dropped.
 visualizerSamples
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => BS.ByteString -> Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => BS.ByteString
+  -> Eff es ()
 visualizerSamples samples = do
   env <- getAppEnv
   showFrame $ \case
@@ -135,7 +138,9 @@ visualizerSamples samples = do
 -- stopped reading is dropped.
 visualizerSpectrum
   :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
-  => VS.Vector Double -> VS.Vector Double -> Eff es ()
+  => VS.Vector Double
+  -> VS.Vector Double
+  -> Eff es ()
 visualizerSpectrum left right = showFrame $ \case
   SpectrumFrame _ -> Just $ SpectrumFrame (Just (left, right))
   _ -> Nothing
@@ -143,7 +148,9 @@ visualizerSpectrum left right = showFrame $ \case
 -- | Show the wave of a frame. A wave that comes after the wave stopped
 -- reading is dropped.
 visualizerWave
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => BS.ByteString -> Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => BS.ByteString
+  -> Eff es ()
 visualizerWave samples = showFrame $ \case
   WaveFrame _ -> Just $ WaveFrame (Just samples)
   _ -> Nothing
@@ -152,7 +159,8 @@ visualizerWave samples = showFrame $ \case
 -- reads the samples, if it changes anything.
 showFrame
   :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
-  => (VisualizerPicture -> Maybe VisualizerPicture) -> Eff es ()
+  => (VisualizerPicture -> Maybe VisualizerPicture)
+  -> Eff es ()
 showFrame next =
   getsS (.visualizer.reading) >>= \case
     Just picture | Just picture' <- next picture -> do

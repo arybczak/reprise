@@ -74,7 +74,8 @@ queueView env s v =
 -- | How the queue does a verb, if it does it.
 queueVerb
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => Action -> Maybe (Eff es ())
+  => Action
+  -> Maybe (Eff es ())
 queueVerb = \case
   Move t -> Just $ modifyWithEnv (moveListCursor t)
   JumpToPlaying -> Just $ do
@@ -114,7 +115,8 @@ shuffleQueue = do
         confirm ("Shuffle " <> countSongs n <> " in the queue?") (Confirmed ConfirmShuffle)
 
 toggleFollowPlaying
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Eff es ()
 toggleFollowPlaying = do
   toggleSetting "Follow playing" #followPlaying
   follow <- getsS (.toggles.followPlaying)
@@ -153,7 +155,9 @@ markedPositions s =
   marked ((.songId) <$> s.mirror.queue) s.queueState.selection (focusedView s).cursor
 
 select
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => SelectTarget -> Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => SelectTarget
+  -> Eff es ()
 select t = do
   q <- getsS (.mirror.queue)
   selectInList
@@ -178,7 +182,9 @@ deleteMarked = do
   editQueue $ deletePositions ps
 
 prioritize
-  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Int -> Eff es ()
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Int
+  -> Eff es ()
 prioritize p = do
   s <- getS
   case mapMaybe (\i -> Seq.lookup i s.mirror.queue >>= (.songId)) (markedPositions s) of
@@ -189,7 +195,8 @@ prioritize p = do
 
 moveSongs
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => MoveSongsTarget -> Eff es ()
+  => MoveSongsTarget
+  -> Eff es ()
 moveSongs t = do
   s <- getS
   let ps = markedPositions s

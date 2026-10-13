@@ -121,7 +121,8 @@ itemRows env display = fmap $ \item -> case rowContent env item of
 -- | How the browser does a verb, if it does it.
 browserVerb
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => Action -> Maybe (Eff es ())
+  => Action
+  -> Maybe (Eff es ())
 browserVerb = \case
   Move t -> Just $ modifyWithEnv (moveListCursor t)
   JumpToPlaying ->
@@ -143,7 +144,8 @@ browserVerb = \case
 
 -- | Show the songs in the other display, which finds match too.
 toggleBrowserDisplay
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Eff es ()
 toggleBrowserDisplay = do
   toggleDisplay #browserDisplay
   modifyWithEnv $ \env s -> setItems s.browser.items env s
@@ -215,7 +217,9 @@ goUp location =
 -- | List the directory of a song, with the cursor on the song, as ncmpcpp's
 -- @jump_to_browser@ does. A stream isn't in the database, and fails.
 locateSong
-  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Song -> Eff es Bool
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Song
+  -> Eff es Bool
 locateSong song
   | isStream song = do
       showError "The song isn't in MPD's database"
@@ -248,7 +252,10 @@ list location cursor = do
 -- listing that a lost connection failed stays, so that the next connection
 -- lists it again.
 browserFailed
-  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Int -> MpdError -> Eff es ()
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Int
+  -> MpdError
+  -> Eff es ()
 browserFailed token err = whenCurrent (.browser.listing) (.token) token $ \l ->
   case (err, parentOf l.location) of
     (AckError ack, Just up) | ack.code == AckNoExist -> list up AtTop
@@ -261,7 +268,10 @@ browserFailed token err = whenCurrent (.browser.listing) (.token) token $ \l ->
 -- newer one replaced changes nothing. The selection stays in a listing of
 -- the same, without the items that are gone.
 browserListed
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Int -> [Entry] -> Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Int
+  -> [Entry]
+  -> Eff es ()
 browserListed token entries = whenCurrent (.browser.listing) (.token) token $ \l -> do
   env <- getAppEnv
   s <- getS
@@ -283,7 +293,9 @@ browserListed token entries = whenCurrent (.browser.listing) (.token) token $ \l
 -- Selection
 
 selectInBrowser
-  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => SelectTarget -> Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => SelectTarget
+  -> Eff es ()
 selectInBrowser t = do
   items <- getsS (.browser.items)
   selectInList
@@ -319,7 +331,8 @@ activateItem = do
 -- | Add the marked items to the queue.
 addMarked
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-  => AddPosition -> Eff es ()
+  => AddPosition
+  -> Eff es ()
 addMarked p = do
   s <- getS
   forM_ s.browser.location $ \location -> case markedItems s of
@@ -338,7 +351,9 @@ addAndPlay :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 addAndPlay = getsS markedItems >>= addAndPlayItems
 
 addAndPlayItems
-  :: (State AppState :> es, MpdRequest :> es) => [(Int, BrowserItem)] -> Eff es ()
+  :: (State AppState :> es, MpdRequest :> es)
+  => [(Int, BrowserItem)]
+  -> Eff es ()
 addAndPlayItems items = do
   s <- getS
   forM_ s.browser.location $ \location -> case items of
@@ -353,7 +368,8 @@ addAndPlayItems items = do
 -- | Add the item under the cursor, or remove its song if it is in the
 -- queue, then move down.
 addOrRemove
-  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Eff es ()
 addOrRemove = do
   s <- getS
   env <- getAppEnv
@@ -448,7 +464,9 @@ songText env song =
 
 -- | Update a directory in the database, or with Nothing the whole database.
 updateDatabase
-  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Maybe T.Text -> Eff es ()
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Maybe T.Text
+  -> Eff es ()
 updateDatabase path = do
   mutate . void $ update path
   showMessage $ "Updating " <> maybe "the database" ("/" <>) path
