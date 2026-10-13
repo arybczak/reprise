@@ -11,6 +11,7 @@ import Data.Text qualified as T
 import Data.Vector.Storable qualified as VS
 import Effectful
 import Effectful.Dispatch.Dynamic
+import System.Directory
 import System.FilePath
 import System.IO
 import System.IO.Temp
@@ -47,6 +48,11 @@ visualizerWorkerTests =
     , testCase "the worker reports a data source that it can't read" test_workerFails
     , testCase "a data source that isn't a fifo" test_workerRegularFile
     , testCase "the worker sends what happened to its frames" test_workerStats
+    , testCase "the worker waits through a pause" test_workerPause
+    , testCase "the worker waits for the first samples" test_workerFirstSamples
+    , testCase "the worker stops waiting when the visualizer hides" test_workerHidden
+    , testCase "the worker reads MPD's fifo again after MPD restarts" test_workerRestart
+    , testCase "a wait on the fifo after its writer went" test_fifoWriterGone
     ]
 
 -- | MPD writes 503 samples at a time, as the author's does, which is longer
@@ -193,13 +199,13 @@ test_worker = withSystemTempDirectory "visualizer" $ \dir -> do
     frameInterval = 1000000 `div` 60
 
 -- | The buffer holds a frame and the writes ahead before the frames show
--- samples.
+-- samples. The frames before show nothing, so they aren't sent.
 test_workerFrames :: Assertion
 test_workerFrames = do
   events <- runScene (scene Ellipse steadyWrites) {seconds = 6 / 60}
   assertEqual
     "the frames"
-    (map VisualizerSamples ["", "", write 0, write 1, write 2, write 3])
+    (map VisualizerSamples [write 0, write 1, write 2, write 3])
     (map snd events)
 
 -- | The worker wakes for the third frame when the fifth is due. The sixth
@@ -215,8 +221,8 @@ test_workerLate = do
         }
   assertEqual
     "the frames"
-    (map VisualizerSamples ["", "", write 0, BS.concat (map write [1 .. 3]), write 4])
-    (take 5 [e | (_, e@(VisualizerSamples _)) <- events])
+    (map VisualizerSamples [write 0, BS.concat (map write [1 .. 3]), write 4])
+    (take 3 [e | (_, e@(VisualizerSamples _)) <- events])
   assertEqual
     "what happened in the second"
     [ FrameStats
@@ -229,12 +235,14 @@ test_workerLate = do
     ]
     [st | (_, VisualizerStats st) <- events]
 
+-- | The first two frames show nothing, so they aren't sent, and nothing
+-- drops them.
 test_workerDropped :: Assertion
 test_workerDropped = do
   events <- runScene (scene Ellipse steadyWrites) {taken = False, debug = True, seconds = 1}
   assertEqual
     "frames and dropped"
-    [(59, 59)]
+    [(59, 57)]
     [(st.frames, st.dropped) | (_, VisualizerStats st) <- events]
 
 test_workerSpectrum :: Assertion
@@ -357,13 +365,130 @@ test_workerStats = do
     ]
     [st | (_, VisualizerStats st) <- events]
 
+-- | MPD writes for half a second, pauses for a second and plays again. The
+-- trail of the ellipse falls through silence, the worker sleeps through
+-- the rest of the pause, and the frames show the new samples once the
+-- buffer holds a frame and the writes ahead.
+test_workerPause :: Assertion
+test_workerPause = do
+  let resumed = 1.5
+      writes =
+        take 30 steadyWrites
+          <> [(resumed + time k, write (30 + k)) | k <- [0 .. 29]]
+  (events, wakes) <- runSceneWakes (scene Ellipse writes) {seconds = 2.2}
+  let frames = [(t, pcm) | (t, VisualizerSamples pcm) <- events]
+      (paused, played) = span ((< resumed) . fst) frames
+  assertEqual
+    "the trail falls through silence"
+    (replicate sceneTrail "")
+    (reverse . takeWhile BS.null . reverse $ map snd paused)
+  assertEqual "no wakes during the pause" [] [w | w <- wakes, w > 0.7, w < resumed]
+  case played of
+    (t, pcm) : _ -> do
+      assertEqual "the new samples" (write 30) pcm
+      assertBool ("the first new frame at " <> show t) (t <= resumed + 4 / 60)
+    [] -> assertFailure "no frames after the pause"
+
+-- | The worker doesn't wake before the first samples, e.g. while MPD is
+-- paused when the visualizer shows.
+test_workerFirstSamples :: Assertion
+test_workerFirstSamples = do
+  let writes = [(1 + time k, write k) | k <- [0 ..]]
+  (events, wakes) <- runSceneWakes (scene Ellipse writes) {seconds = 1.2}
+  assertEqual "no wakes before the samples" [] (filter (< 1) wakes)
+  assertBool
+    "the samples"
+    (not (null [() | (_, VisualizerSamples pcm) <- events, not (BS.null pcm)]))
+
+-- | MPD keeps the fifo open, and writes nothing while it is paused. The
+-- worker, which waits for the samples, closes the fifo once the visualizer
+-- hides. A write would wake it, so the test counts the descriptors open on
+-- the fifo instead.
+test_workerHidden :: Assertion
+test_workerHidden = withSystemTempDirectory "visualizer" $ \dir -> do
+  let path = dir </> "fifo"
+  createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
+  events <- newTQueueIO
+  reading <- newTVarIO (Just Ellipse)
+  bracket (forkIO . realWorker path $ source reading events) killThread $ \_ ->
+    bracket (openWriter path) hClose $ \_ -> do
+      threadDelay 100000
+      assertEqual "the worker's and MPD's" 2 =<< openOn path
+      atomically $ writeTVar reading Nothing
+      expectWithin $ untilOpen path 1
+  where
+    untilOpen :: FilePath -> Int -> IO ()
+    untilOpen path n = do
+      open <- openOn path
+      unless (open == n) $ threadDelay 10000 >> untilOpen path n
+
+-- | MPD closes the fifo when it quits, and opens it when it starts again.
+test_workerRestart :: Assertion
+test_workerRestart = withSystemTempDirectory "visualizer" $ \dir -> do
+  let path = dir </> "fifo"
+  createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
+  events <- newTQueueIO
+  reading <- newTVarIO (Just Ellipse)
+  let pattern = samples (replicate 100 (1000, -1000))
+  bracket (forkIO . realWorker path $ source reading events) killThread $ \_ -> do
+    void . withWriting path pattern . expectWithin $ someSamples events
+    void . withWriting path pattern . expectWithin $ someSamples events
+
+-- | Once the writer went, a wait on the fifo says so. On the fifo opened
+-- again, it waits for the next writer instead of finding it gone at once.
+test_fifoWriterGone :: Assertion
+test_fifoWriterGone = withSystemTempDirectory "visualizer" $ \dir -> do
+  let path = dir </> "fifo"
+  createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
+  runEff . runFifo path $ do
+    openFifo
+    liftIO $ writeOnce path "first"
+    assertWaited "the samples" SamplesCame =<< waitFifo retry
+    liftIO . assertEqual "the first samples" "first" =<< readFifo
+    assertWaited "the writer went" WriterGone =<< waitFifo retry
+    openFifo
+    soon <- liftIO $ registerDelay 100000
+    assertWaited "a wait for the next writer" Cancelled
+      =<< waitFifo (readTVar soon >>= check)
+    liftIO $ writeOnce path "second"
+    assertWaited "the next samples" SamplesCame =<< waitFifo retry
+    liftIO . assertEqual "the next samples" "second" =<< readFifo
+  where
+    assertWaited :: IOE :> es => String -> Waited -> Waited -> Eff es ()
+    assertWaited what expected = liftIO . assertEqual what expected
+
+    writeOnce :: FilePath -> BS.ByteString -> IO ()
+    writeOnce path bytes = bracket (openBinaryFile path WriteMode) hClose (`BS.hPut` bytes)
+
 ----------------------------------------
 -- Helpers
+
+-- | The first frame with samples.
+someSamples :: TQueue AppEvent -> IO BS.ByteString
+someSamples events =
+  atomically (readTQueue events) >>= \case
+    VisualizerSamples bytes | not (BS.null bytes) -> pure bytes
+    _ -> someSamples events
+
+-- | The descriptors of the process that are open on a file.
+openOn :: FilePath -> IO Int
+openOn path = do
+  fds <- listDirectory "/proc/self/fd"
+  links <- mapM (try @IOException . readSymbolicLink . ("/proc/self/fd" </>)) fds
+  pure $ length [() | Right link <- links, link == path]
+
+-- | Open the fifo for writing, once the worker opened it for reading.
+openWriter :: FilePath -> IO Handle
+openWriter path =
+  try @IOException (openBinaryFile path WriteMode) >>= \case
+    Left _ -> threadDelay 10000 >> openWriter path
+    Right h -> pure h
 
 source :: TVar (Maybe Visualization) -> TQueue AppEvent -> VisualizerSource
 source reading events =
   VisualizerSource
     { fps = 60
+    , trail = sceneTrail
     , reading = reading
     , emit = \e -> True <$ atomically (writeTQueue events e)
     , debug = False
@@ -399,16 +524,23 @@ scene v ws =
     }
 
 -- | The worker's events in a scene, with their times. Time passes only when
--- the worker sleeps, so the scene runs at once.
+-- the worker sleeps or waits for the samples, so the scene runs at once.
 runScene :: Scene -> IO [(Double, AppEvent)]
-runScene sc = do
+runScene = fmap fst . runSceneWakes
+
+-- | The worker's events in a scene, and the times that it slept until. The
+-- scene ends when the worker waits for samples that don't come.
+runSceneWakes :: Scene -> IO ([(Double, AppEvent)], [Double])
+runSceneWakes sc = do
   timeRef <- S.newIORef 0
   writesRef <- S.newIORef sc.writes
   eventsRef <- S.newIORef []
+  wakesRef <- S.newIORef []
   reading <- newTVarIO (Just sc.visualization)
   let src =
         VisualizerSource
           { fps = 60
+          , trail = sceneTrail
           , reading = reading
           , emit = \e -> do
               t <- S.readIORef timeRef
@@ -419,20 +551,28 @@ runScene sc = do
   void
     . try @SceneEnded
     . runEff
-    . runScriptedClock timeRef
+    . runScriptedClock timeRef wakesRef
     . runScriptedFifo timeRef writesRef
     $ visualizerWorker src
-  reverse <$> S.readIORef eventsRef
+  (,) <$> (reverse <$> S.readIORef eventsRef) <*> (reverse <$> S.readIORef wakesRef)
   where
     -- A sleep moves the time to its end, or ends the scene.
-    runScriptedClock :: IOE :> es => S.IORef Double -> Eff (Clock : es) a -> Eff es a
-    runScriptedClock timeRef = interpret_ $ \case
+    runScriptedClock
+      :: IOE :> es
+      => S.IORef Double
+      -> S.IORef [Double]
+      -> Eff (Clock : es) a
+      -> Eff es a
+    runScriptedClock timeRef wakesRef = interpret_ $ \case
       MonotonicTime -> liftIO $ S.readIORef timeRef
       SleepUntil t
         | t > sc.seconds -> liftIO $ throwIO SceneEnded
-        | otherwise -> liftIO . S.modifyIORef timeRef $ \now -> max now t + sc.lateness t
+        | otherwise -> liftIO $ do
+            S.modifyIORef wakesRef (t :)
+            S.modifyIORef timeRef $ \now -> max now t + sc.lateness t
 
-    -- A read takes the writes that came until the time.
+    -- A read takes the writes that came until the time, and a wait moves
+    -- the time to the next write.
     runScriptedFifo
       :: IOE :> es
       => S.IORef Double
@@ -446,11 +586,20 @@ runScene sc = do
         (came, later) <- span ((<= now) . fst) <$> S.readIORef writesRef
         S.writeIORef writesRef later
         pure . BS.concat $ map snd came
+      WaitFifo _ ->
+        liftIO $
+          S.readIORef writesRef >>= \case
+            (t, _) : _ | t <= sc.seconds -> SamplesCame <$ S.modifyIORef timeRef (max t)
+            _ -> throwIO SceneEnded
       CloseFifo -> pure ()
 
 data SceneEnded = SceneEnded
   deriving stock (Show)
   deriving anyclass (Exception)
+
+-- | The frames whose samples the ellipse of a scene shows.
+sceneTrail :: Int
+sceneTrail = 3
 
 -- | MPD writes a frame's samples each frame, half a frame after it.
 steadyWrites :: [(Double, BS.ByteString)]

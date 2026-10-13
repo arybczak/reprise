@@ -143,6 +143,7 @@ main = withOpenSSL $ do
     pure . runEff . runClock . runFifo path . visualizerWorker $
       VisualizerSource
         { fps = fps
+        , trail = trailFrames config.visualizer
         , reading = visualizing
         , emit = \e -> atomically $ do
             full <- isFullTBQueue events

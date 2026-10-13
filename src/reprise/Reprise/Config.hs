@@ -28,6 +28,7 @@ module Reprise.Config
   , ProgressBarConfig (..)
   , ProgressChars (..)
   , VisualizerConfig (..)
+  , trailFrames
   , LyricsConfig (..)
   , LyricsFetcher (..)
   , EditorConfig (..)
@@ -283,6 +284,13 @@ data VisualizerConfig = VisualizerConfig
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml VisualizerConfig
+
+-- | The number of frames whose samples are on the screen.
+trailFrames :: VisualizerConfig -> Int
+trailFrames cfg =
+  let FrameRate fps = cfg.fps
+      Duration trail = cfg.trail
+  in max 1 (round (realToFrac @_ @Double trail * fromIntegral fps))
 
 data LyricsConfig = LyricsConfig
   { directory :: Maybe FilePath

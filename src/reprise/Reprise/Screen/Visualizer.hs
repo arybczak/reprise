@@ -204,10 +204,3 @@ countDrawn = do
 -- | The times of the last second.
 lastSecond :: Double -> Seq.Seq Double -> Seq.Seq Double
 lastSecond now = Seq.dropWhileL (<= now - 1)
-
--- | The number of frames whose samples are on the screen.
-trailFrames :: VisualizerConfig -> Int
-trailFrames cfg =
-  let FrameRate fps = cfg.fps
-      Duration trail = cfg.trail
-  in max 1 (round (realToFrac @_ @Double trail * fromIntegral fps))

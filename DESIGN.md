@@ -502,6 +502,25 @@ ncmpcpp.
   - **The samples that the fifo held before the visualizer showed are
     old,** so the worker drops them. ncmpcpp resets the output for that,
     which needs its name in the config.
+- **While MPD doesn't write, the worker waits for the samples,** instead of
+  waking for each frame to read nothing: before the first samples, and once
+  the picture is silent after the last ones, e.g. while MPD is paused.
+  - **MPD writes nothing while it is paused,** but it keeps the fifo open
+    from its start until it quits. So the wait ends with the next samples,
+    or when the visualizer hides.
+  - **The picture falls through silence before the wait:** the spectrum
+    for its window, the wave for its history and the ellipse for its trail.
+    The ellipse sends no frames without samples otherwise, as the screen
+    keeps its trail.
+  - **The frames keep their times** from when the fifo opened. The first
+    frame after a wait shows only its own samples, from a buffer that
+    starts anew, as at the start.
+  - **When MPD quits, the fifo opens again.** A fifo whose writer went
+    counts as readable, with nothing to read, so the wait would spin. On
+    Linux, a fifo opened anew doesn't count as readable until a writer
+    comes and goes, so the wait on it waits for MPD to start again. If MPD
+    removed the fifo, which it does with one that it made, the visualizer
+    shows why it can't open it.
 - A frame that the UI can't take in time is dropped: the worker doesn't
   wait for the queue of events.
 - **A frame** (see [Benchmarks](#benchmarks)), at 160×45 with 24-bit
