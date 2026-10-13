@@ -1122,6 +1122,9 @@ places:
 
 1. **Actions are `Eff` code with a small, mostly pure stack,** for example
    `(State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()`.
+   - Each function lists only the effects that it uses, which
+     `-Wredundant-constraints` checks. So a function without
+     `MpdRequest :> es` sends nothing to MPD.
    - `AppState` is what changes while reprise runs. `AppEnv` is what doesn't:
      the config, the keymaps, the colors of the terminal and the collator of
      the locale. The handlers
@@ -2277,6 +2280,8 @@ Settings that effectful doesn't have:
 - `StrictData`. yamlet's `requiredField` throws when it is evaluated, so a
   config field whose `yamlDefault` uses it must be marked lazy with `~`. This
   is rare, because every config field has a real default.
+- `-Wredundant-constraints`, so that each function lists only the effects
+  that it uses (see [Effects](#effects)).
 - `ghc-options: -threaded` for the `reprise` executable and both test suites.
   The MPD worker threads and the real-server tests need it.
 - `-with-rtsopts=-maxN4` for both test suites, which run their tests on a

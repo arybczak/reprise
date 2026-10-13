@@ -71,7 +71,9 @@ runEvent env now event s = do
 -- As the keys wait, an open one is one that an event opened: the prompt
 -- for the password, which the edit may wait for, or e.g. a choice that
 -- MPD's reply opened, which the prompt for the password may wait for.
-holdOrHandle :: App es => AppEvent -> Eff es ()
+holdOrHandle
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => AppEvent -> Eff es ()
 holdOrHandle event = do
   s <- getS
   let isInput = case event of
@@ -88,7 +90,8 @@ holdOrHandle event = do
 -- | Handle the input that waited for an edit of the queue, whose changes
 -- the mirror has now. If it edits the queue again, the rest of it waits
 -- again.
-releaseInput :: App es => Eff es ()
+releaseInput
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 releaseInput = do
   held <- endEdit
   -- The held input runs within the event of the reply, and a 'KeepScreen'
@@ -118,7 +121,9 @@ seekAccelerationPeriod = 2
 ----------------------------------------
 -- Events
 
-handleEvent :: App es => AppEvent -> Eff es ()
+handleEvent
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => AppEvent -> Eff es ()
 handleEvent = \case
   Started -> showScreen . (.config.startupScreen) =<< getAppEnv
   KeyPressed k -> handleKey k
@@ -234,7 +239,9 @@ handleEvent = \case
     statusSubsystems :: [Subsystem]
     statusSubsystems = [PlayerSubsystem, MixerSubsystem, OptionsSubsystem, UpdateSubsystem, DatabaseSubsystem]
 
-    applyChanges :: App es => (Status, [Song]) -> Eff es ()
+    applyChanges
+      :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+      => (Status, [Song]) -> Eff es ()
     applyChanges (st, changes) = do
       s <- getS
       case applyQueueChanges s.now st changes s.mirror of
@@ -247,7 +254,7 @@ handleEvent = \case
 -- schedule the next redraw of the elapsed time, update the window title,
 -- and read the visualizer's samples while it shows. The lyrics go first, as
 -- the header's title can show their song.
-afterEvent :: App es => Eff es ()
+afterEvent :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 afterEvent = do
   -- The prompt for the password that waited for another one.
   s <- getS
@@ -269,7 +276,7 @@ afterEvent = do
 -- point in the queue of requests. While MPD waits for the password, the
 -- requests wait for its answer, so reprise quits at once, as it does for a
 -- second quit.
-quit :: App es => Eff es ()
+quit :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 quit = do
   s <- getS
   let askingPassword = case s.prompt of
@@ -294,19 +301,19 @@ askPassword err = openLine (reason <> ". Password: ") emptyLineEdit ForPassword
       _ -> exceptionText err
 
 -- | Scroll the header's title from its start when it shows another subject.
-restartTitle :: App es => Eff es ()
+restartTitle :: State AppState :> es => Eff es ()
 restartTitle = do
   s <- getS
   when (fmap fst s.titleShown /= Just (titleSubject s))
     $ modifyS
     $ #titleShown ?~ (titleSubject s, s.now)
 
-fetchQueue :: App es => Eff es ()
+fetchQueue :: MpdRequest :> es => Eff es ()
 fetchQueue = request ((,) <$> status <*> playlistInfo) QueueFetched
 
 -- | The status and the changes of the queue come in one command list, so
 -- the changes match the length in the status.
-fetchQueueChanges :: App es => Eff es ()
+fetchQueueChanges :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 fetchQueueChanges =
   getsS (.mirror.queueVersion) >>= \case
     Just v -> request ((,) <$> status <*> plChanges v) QueueChangesFetched
@@ -314,7 +321,7 @@ fetchQueueChanges =
 
 -- | End the edit that waited for its reply: fetch the changes of the queue
 -- that MPD reported meanwhile, and return the input that waited.
-endEdit :: App es => Eff es (Seq.Seq AppEvent)
+endEdit :: (State AppState :> es, MpdRequest :> es) => Eff es (Seq.Seq AppEvent)
 endEdit = do
   edit <- getsS (.pendingEdit)
   modifyS $ #pendingEdit .~ Nothing
@@ -323,7 +330,9 @@ endEdit = do
 
 -- | Change the mirror and react to the changes: keep the cursors in the
 -- list, follow the playing song, and report changed options.
-updateMirror :: App es => (Mirror -> Mirror) -> Eff es ()
+updateMirror
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => (Mirror -> Mirror) -> Eff es ()
 updateMirror f = do
   old <- getsS (.mirror)
   modifyS $ #mirror %~ f
@@ -348,7 +357,7 @@ updateMirror f = do
     (Just a, Just b) -> reportOptions a b
     _ -> pure ()
 
-reportOptions :: App es => Status -> Status -> Eff es ()
+reportOptions :: (State AppState :> es, UiRequest :> es) => Status -> Status -> Eff es ()
 reportOptions a b =
   case catMaybes changes of
     [] -> pure ()
@@ -377,7 +386,9 @@ reportOptions a b =
 ----------------------------------------
 -- Keys
 
-handleKey :: App es => KeySpec -> Eff es ()
+handleKey
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => KeySpec -> Eff es ()
 handleKey k = do
   env <- getAppEnv
   s <- getS
@@ -391,7 +402,9 @@ handleKey k = do
         | otherwise -> continue pending.layers (pending.keys <> [k])
       Nothing -> continue (startLayers (focusedView s).screen env.keymaps) [k]
   where
-    continue :: App es => Layers -> [KeySpec] -> Eff es ()
+    continue
+      :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+      => Layers -> [KeySpec] -> Eff es ()
     continue layers keys = case lookupKey layers k of
       Bound a -> do
         modifyS $ #pendingKeys .~ Nothing
@@ -406,7 +419,9 @@ handleKey k = do
 -- the focused view, it moves the cursor of a list, or scrolls text, by its
 -- lines, as the screen's moves do. Elsewhere, in a prompt, or over a screen
 -- without moves, it does nothing.
-handleWheel :: App es => MoveTarget -> Int -> Int -> Eff es ()
+handleWheel
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => MoveTarget -> Int -> Int -> Eff es ()
 handleWheel t col row = do
   env <- getAppEnv
   s <- getS
@@ -428,7 +443,9 @@ handleWheel t col row = do
 -- moves the cursor to it, and a right click activates it then. All are as
 -- in ncmpcpp. The list doesn't take clicks while a prompt or the panel of
 -- a key sequence is open, which the panel would cover.
-handleClick :: App es => MouseButton -> Int -> Int -> Eff es ()
+handleClick
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => MouseButton -> Int -> Int -> Eff es ()
 handleClick button col row = do
   env <- getAppEnv
   s <- getS
@@ -449,7 +466,7 @@ handleClick button col row = do
     | otherwise -> keepScreen
 
 -- | The user did something, which shows the cursor until it is idle again.
-noteInput :: App es => Eff es ()
+noteInput :: (State AppState :> es, UiRequest :> es) => Eff es ()
 noteInput = do
   s <- getS
   modifyS $ #lastInput .~ s.now
@@ -460,7 +477,9 @@ noteInput = do
 isCancel :: KeySpec -> Bool
 isCancel k = k `elem` [plain Escape, ctrl 'g']
 
-handlePromptKey :: App es => Prompt -> KeySpec -> Eff es ()
+handlePromptKey
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Prompt -> KeySpec -> Eff es ()
 handlePromptKey p k = case p.input of
   Choice options
     | Just o <- find (\o -> k == char o.letter) options -> do
@@ -492,7 +511,7 @@ handlePromptKey p k = case p.input of
             other -> pure other
           modifyS $ #prompt ?~ Prompt p.question (Line edit' purpose' recall')
   where
-    close :: App es => Eff es ()
+    close :: State AppState :> es => Eff es ()
     close = modifyS $ #prompt .~ Nothing
 
     -- The line after a key that edits it or recalls a line of the history.
@@ -515,7 +534,9 @@ handlePromptKey p k = case p.input of
         edited = (,Nothing) <$> editLine k edit
 
 -- | Run what a line prompt asked for. An empty line of @:@ does nothing.
-answer :: App es => LinePurpose -> T.Text -> Eff es ()
+answer
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => LinePurpose -> T.Text -> Eff es ()
 answer purpose text = case purpose of
   ForFind f -> acceptFind f text
   ForSave source -> saveNamed source (T.strip text)
@@ -529,7 +550,9 @@ answer purpose text = case purpose of
 
 -- | Run an action. A verb, e.g. activate, goes to the focused screen, which
 -- does it its own way.
-runAction :: App es => Action -> Eff es ()
+runAction
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Action -> Eff es ()
 runAction action = case action of
   Move _ -> verb action
   JumpToPlaying -> verb action
@@ -591,21 +614,27 @@ runAction action = case action of
 
 -- | Run a verb the way the focused screen implements it. A screen that
 -- doesn't implement it says so, instead of acting on another screen.
-verb :: App es => Action -> Eff es ()
+verb
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Action -> Eff es ()
 verb action = do
   screen <- getsS ((.screen) . focusedView)
   verbOr (screenHasNo screen (renderAction action)) action
 
 -- | Run a verb the way the focused screen implements it, else the other
 -- way.
-verbOr :: App es => Eff es () -> Action -> Eff es ()
+verbOr
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Eff es () -> Action -> Eff es ()
 verbOr otherwise' action = do
   screen <- getsS ((.screen) . focusedView)
   fromMaybe otherwise' (screenVerb screen action)
 
 -- | How a screen does a verb, if it does it. A screen finds if it has rows
 -- to find in.
-screenVerb :: App es => ScreenName -> Action -> Maybe (Eff es ())
+screenVerb
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => ScreenName -> Action -> Maybe (Eff es ())
 screenVerb screen = \case
   Find t ->
     screenRows screen <&> \rows -> do
@@ -631,7 +660,9 @@ screenVerb screen = \case
 
 -- | Show a screen in the focused view, with what the screen does when it
 -- shows, e.g. load the lyrics of the song under the cursor.
-showScreen :: App es => ScreenName -> Eff es ()
+showScreen
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => ScreenName -> Eff es ()
 showScreen = \case
   QueueScreen -> switchTo QueueScreen
   BrowserScreen -> switchTo BrowserScreen >> openBrowser
@@ -644,13 +675,15 @@ showScreen = \case
   SongInfoScreen -> showSongInfo
   HelpScreen -> switchTo HelpScreen
   where
-    notBuilt :: App es => ScreenName -> Eff es ()
+    notBuilt :: (State AppState :> es, UiRequest :> es) => ScreenName -> Eff es ()
     notBuilt screen = notAvailable $ "The " <> screenText screen
 
 -- | Show the screen after the focused one in a list, or the first one if the
 -- focused one isn't in the list. Screens that aren't built yet are skipped,
 -- so that a list can name them ahead.
-cycleScreens :: App es => [ScreenName] -> Eff es ()
+cycleScreens
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => [ScreenName] -> Eff es ()
 cycleScreens screens = do
   current <- getsS ((.screen) . focusedView)
   case filter (\s -> (screenInfo s).built) screens of
@@ -660,7 +693,7 @@ cycleScreens screens = do
       _ -> first
 
 -- | Run a destructive action that the user confirmed.
-runConfirmed :: App es => Confirmation -> Eff es ()
+runConfirmed :: (State AppState :> es, MpdRequest :> es) => Confirmation -> Eff es ()
 runConfirmed = \case
   ConfirmClear -> editQueue [ClearQueue]
   ConfirmShuffle -> editQueue [ShuffleRange Nothing]
@@ -670,7 +703,7 @@ runConfirmed = \case
 
 -- | Ask MPD which stored playlists there are, with the songs of those to
 -- save, before a save to the one of a name. An empty name saves nothing.
-saveNamed :: App es => SaveSource -> T.Text -> Eff es ()
+saveNamed :: MpdRequest :> es => SaveSource -> T.Text -> Eff es ()
 saveNamed source name
   | T.null name = pure ()
   | otherwise =
@@ -695,7 +728,9 @@ saveNamed source name
 
 -- | Save to a new stored playlist, or ask whether to replace the one of the
 -- name or to append to it.
-saveChecked :: App es => T.Text -> SaveSource -> Bool -> Eff es ()
+saveChecked
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => T.Text -> SaveSource -> Bool -> Eff es ()
 saveChecked name source exists
   | Just why <- nothingToSave source = showMessage why
   | exists =
@@ -707,7 +742,9 @@ saveChecked name source exists
           ]
   | otherwise = saveTo name source CreatePlaylist
 
-saveTo :: App es => T.Text -> SaveSource -> SaveMode -> Eff es ()
+saveTo
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => T.Text -> SaveSource -> SaveMode -> Eff es ()
 saveTo name source mode = do
   mutate $ case source of
     SaveQueue -> save name mode
@@ -734,13 +771,16 @@ saveTo name source mode = do
       SavePlaylist _ -> pure ()
       SavePart -> pure ()
 
-withStatus :: App es => (Status -> Eff es ()) -> Eff es ()
+withStatus
+  :: (State AppState :> es, UiRequest :> es) => (Status -> Eff es ()) -> Eff es ()
 withStatus k =
   getsS (.mirror.status) >>= \case
     Just st -> k st
     Nothing -> showError "Not connected to MPD"
 
-toggle :: App es => ToggleTarget -> Eff es ()
+toggle
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => ToggleTarget -> Eff es ()
 toggle = \case
   ToggleRepeat -> withStatus $ \st -> mutate $ setRepeat (not st.repeat)
   ToggleRandom -> withStatus $ \st -> mutate $ setRandom (not st.random)
@@ -777,7 +817,8 @@ startFind direction s =
 -- | Move to the first match from where the find started, on every key, so
 -- that the result doesn't depend on how the pattern was typed. Returns the
 -- find with a note on what it found.
-findAsYouType :: App es => Finding -> T.Text -> Eff es Finding
+findAsYouType
+  :: (State AppState :> es, Input AppEnv :> es) => Finding -> T.Text -> Eff es Finding
 findAsYouType f text = do
   rows <- focusedRows
   start <- searchStart f.direction f.origin
@@ -797,7 +838,9 @@ findAsYouType f text = do
 
 -- | Keep the pattern for the next and the previous match, in every screen.
 -- An empty pattern forgets the last one, and what it found.
-acceptFind :: App es => Finding -> T.Text -> Eff es ()
+acceptFind
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Finding -> T.Text -> Eff es ()
 acceptFind f text
   | T.null text = do
       modifyS $ \s ->
@@ -819,7 +862,9 @@ acceptFind f text
 
 -- | Move to the next or the previous match of the last pattern in rows of
 -- the focused list.
-findAgain :: App es => Eff es (Seq.Seq Folded) -> Direction -> Eff es ()
+findAgain
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Eff es (Seq.Seq Folded) -> Direction -> Eff es ()
 findAgain getRows direction = withFindPattern $ \text p -> do
   rows <- getRows
   v <- getsS focusedView
@@ -836,7 +881,8 @@ findAgain getRows direction = withFindPattern $ \text p -> do
 -- focused view: the cursor of a list. A screen of text has no cursor; a
 -- find puts it on its match. While that shows, a search starts there, else
 -- at the edge of the view where it goes from.
-searchStart :: App es => Direction -> (Int, Int) -> Eff es Int
+searchStart
+  :: (State AppState :> es, Input AppEnv :> es) => Direction -> (Int, Int) -> Eff es Int
 searchStart direction (c, o) = do
   env <- getAppEnv
   s <- getS
@@ -858,14 +904,16 @@ wrapNote direction found
 
 -- | The rows of the focused list as finds match them. A find opens only on
 -- a screen with rows, and its prompt keeps the screen until it closes.
-focusedRows :: App es => Eff es (Seq.Seq Folded)
+focusedRows :: (State AppState :> es, Input AppEnv :> es) => Eff es (Seq.Seq Folded)
 focusedRows = do
   screen <- getsS ((.screen) . focusedView)
   fromMaybe (pure Seq.empty) (screenRows screen)
 
 -- | The rows of a screen's list as finds match them, on the screens that
 -- find.
-screenRows :: App es => ScreenName -> Maybe (Eff es (Seq.Seq Folded))
+screenRows
+  :: (State AppState :> es, Input AppEnv :> es)
+  => ScreenName -> Maybe (Eff es (Seq.Seq Folded))
 screenRows = \case
   QueueScreen -> Just queueRows
   BrowserScreen -> Just $ getsS (.browser.rows)
@@ -880,7 +928,8 @@ screenRows = \case
   where
     -- The rows of a screen of text at the focused view's width.
     textRows
-      :: App es => (AppEnv -> AppState -> Int -> [[Span Style]]) -> Eff es (Seq.Seq Folded)
+      :: (State AppState :> es, Input AppEnv :> es)
+      => (AppEnv -> AppState -> Int -> [[Span Style]]) -> Eff es (Seq.Seq Folded)
     textRows spansOf = do
       env <- getAppEnv
       s <- getS
@@ -889,7 +938,8 @@ screenRows = \case
 ----------------------------------------
 -- Seeking
 
-seekAction :: App es => SeekStep -> Eff es ()
+seekAction
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => SeekStep -> Eff es ()
 seekAction = \case
   SeekBy n -> do
     s <- getS
@@ -917,14 +967,15 @@ seekAction = \case
       Nothing -> noLength
   where
     -- MPD's status has no length while nothing plays, nor for a stream.
-    noLength :: App es => Eff es ()
+    noLength :: (State AppState :> es, UiRequest :> es) => Eff es ()
     noLength =
       getsS (.mirror.status) >>= \case
         Just st | st.state /= Stopped -> showError "The current song has no length"
         _ -> showMessage "Nothing plays"
 
 -- | Send the seek that the keys moved, if its song still plays or pauses.
-commitSeek :: App es => Int -> Eff es ()
+commitSeek
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Int -> Eff es ()
 commitSeek token = whenCurrent (.seek) (.token) token $ \sk -> do
   s <- getS
   case s.mirror.status of
@@ -933,7 +984,7 @@ commitSeek token = whenCurrent (.seek) (.token) token $ \sk -> do
 
 -- | Seek in the current song, and show its new time at once. A seek that
 -- the keys moved ends.
-seekNow :: App es => Seconds -> Eff es ()
+seekNow :: (State AppState :> es, MpdRequest :> es) => Seconds -> Eff es ()
 seekNow target = do
   dropSeek
   now <- getsS (.now)
@@ -942,7 +993,7 @@ seekNow target = do
 
 -- | Drop the seek that the keys moved, e.g. for a command that moves the
 -- song itself.
-dropSeek :: App es => Eff es ()
+dropSeek :: State AppState :> es => Eff es ()
 dropSeek = modifyS $ #seek .~ Nothing
 
 currentDuration :: AppState -> Maybe Seconds
@@ -954,7 +1005,7 @@ currentDuration s = s.mirror.status >>= (.duration)
 -- | Schedule a redraw for the next change of the screen with time: of the
 -- elapsed time, the next whole second or the next cell of the progress bar,
 -- or of the header's title while it scrolls.
-scheduleTick :: App es => Eff es ()
+scheduleTick :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 scheduleTick = do
   env <- getAppEnv
   s <- getS
@@ -993,7 +1044,8 @@ elapsedRedraw s = do
       | otherwise -> Just nextSecond
   pure $ s.now + delay
 
-updateWindowTitle :: App es => Eff es ()
+updateWindowTitle
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 updateWindowTitle = do
   env <- getAppEnv
   s <- getS

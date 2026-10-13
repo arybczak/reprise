@@ -116,7 +116,7 @@ visualizerWorker src = do
               send . VisualizerWave =<< waveOf wave
       where
         -- A frame that came late doesn't make the next ones late.
-        frames' :: (Clock :> es, Fifo :> es, IOE :> es) => Double -> Playout -> Int -> Eff es ()
+        frames' :: Double -> Playout -> Int -> Eff es ()
         frames' sent =
           frames
             transform

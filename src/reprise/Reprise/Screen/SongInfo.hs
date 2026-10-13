@@ -12,12 +12,15 @@ import Control.Monad
 import Data.Maybe
 import Data.Text qualified as T
 import Effectful
+import Effectful.Input.Static
+import Effectful.State.Static.Local
 import Graphics.Vty qualified as V
 import Optics.Core
 
 import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.MpdRequest
+import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Format
 import Reprise.Handler.Core
@@ -54,13 +57,15 @@ songInfoSpans env s width = map row (songInfoRows env s width)
       ]
 
 -- | How the song info screen does a verb, if it does it.
-songInfoVerb :: App es => Action -> Maybe (Eff es ())
+songInfoVerb
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Action -> Maybe (Eff es ())
 songInfoVerb = \case
   Move t -> Just $ scrollLines t
   _ -> Nothing
 
 -- | Show the info of the song under the cursor, from the top.
-showSongInfo :: App es => Eff es ()
+showSongInfo
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 showSongInfo = showSongScreen SongInfoScreen $ \song -> do
   token <- newToken
   modifyS $ #songInfo .~ SongInfoState (Just song) token []
@@ -74,7 +79,8 @@ showSongInfo = showSongScreen SongInfoScreen $ \song -> do
 
 -- | The comments of the file of the request with the token. Without them,
 -- e.g. if MPD can't read the file, the screen shows the rest.
-songCommentsFetched :: App es => Int -> [(T.Text, T.Text)] -> Eff es ()
+songCommentsFetched
+  :: (State AppState :> es, UiRequest :> es) => Int -> [(T.Text, T.Text)] -> Eff es ()
 songCommentsFetched token comments =
   whenCurrent (Just . (.songInfo)) (.token) token $ \_ ->
     modifyS $ #songInfo % #comments .~ comments

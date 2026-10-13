@@ -39,6 +39,7 @@ source-repository head
 common language
     ghc-options:        -Wall
                         -Wcompat
+                        -Wredundant-constraints
                         -Werror=missing-deriving-strategies
                         -Werror=name-shadowing
                         -Werror=prepositive-qualified-module

@@ -31,6 +31,8 @@ import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Data.Vector.Storable qualified as VS
 import Effectful
+import Effectful.Input.Static
+import Effectful.State.Static.Local
 import Graphics.Vty qualified as V
 import Optics.Core
 
@@ -96,7 +98,8 @@ visualizerView env s v = case env.config.visualizer.dataSource of
 
 -- | Read the samples while the visualizer shows, and only then. It runs
 -- after every event.
-updateVisualizer :: App es => Eff es ()
+updateVisualizer
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 updateVisualizer = do
   env <- getAppEnv
   s <- getS
@@ -108,7 +111,7 @@ updateVisualizer = do
     modifyS $ #visualizer .~ newVisualizer wanted
     visualize wanted
 
-nextVisualization :: App es => Eff es ()
+nextVisualization :: (State AppState :> es, UiRequest :> es) => Eff es ()
 nextVisualization = do
   modifyS $ #toggles % #visualization %~ cycleNext
   v <- getsS (.toggles.visualization)
@@ -116,7 +119,8 @@ nextVisualization = do
 
 -- | Add the samples of a frame to those of the ellipse on the screen.
 -- Samples that come after the ellipse stopped reading are dropped.
-visualizerSamples :: App es => BS.ByteString -> Eff es ()
+visualizerSamples
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => BS.ByteString -> Eff es ()
 visualizerSamples samples = do
   env <- getAppEnv
   showFrame $ \case
@@ -129,21 +133,26 @@ visualizerSamples samples = do
 
 -- | Show the spectrum of a frame. A spectrum that comes after the spectrum
 -- stopped reading is dropped.
-visualizerSpectrum :: App es => VS.Vector Double -> VS.Vector Double -> Eff es ()
+visualizerSpectrum
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => VS.Vector Double -> VS.Vector Double -> Eff es ()
 visualizerSpectrum left right = showFrame $ \case
   SpectrumFrame _ -> Just $ SpectrumFrame (Just (left, right))
   _ -> Nothing
 
 -- | Show the wave of a frame. A wave that comes after the wave stopped
 -- reading is dropped.
-visualizerWave :: App es => BS.ByteString -> Eff es ()
+visualizerWave
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => BS.ByteString -> Eff es ()
 visualizerWave samples = showFrame $ \case
   WaveFrame _ -> Just $ WaveFrame (Just samples)
   _ -> Nothing
 
 -- | Show what a frame changes in the picture of the visualization that
 -- reads the samples, if it changes anything.
-showFrame :: App es => (VisualizerPicture -> Maybe VisualizerPicture) -> Eff es ()
+showFrame
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => (VisualizerPicture -> Maybe VisualizerPicture) -> Eff es ()
 showFrame next =
   getsS (.visualizer.reading) >>= \case
     Just picture | Just picture' <- next picture -> do
@@ -157,7 +166,7 @@ showFrame next =
 
 -- | Show why the worker can't read the samples, while the visualizer
 -- shows.
-visualizerFailed :: App es => T.Text -> Eff es ()
+visualizerFailed :: (State AppState :> es, UiRequest :> es) => T.Text -> Eff es ()
 visualizerFailed reason = do
   reading <- getsS (.visualizer.reading)
   if isNothing reading
@@ -165,7 +174,7 @@ visualizerFailed reason = do
     else modifyS $ #visualizer % #failure ?~ reason
 
 -- | Show what happened to the worker's frames in the last second.
-visualizerStats :: App es => FrameStats -> Eff es ()
+visualizerStats :: (State AppState :> es, UiRequest :> es) => FrameStats -> Eff es ()
 visualizerStats stats = do
   v <- getsS (.visualizer)
   now <- getsS (.now)
@@ -177,7 +186,7 @@ visualizerStats stats = do
         & #visualizer % #drawn %~ lastSecond now
 
 -- | Count a frame that the screen draws, with @visualizer.debug@.
-countDrawn :: App es => Eff es ()
+countDrawn :: (State AppState :> es, Input AppEnv :> es) => Eff es ()
 countDrawn = do
   env <- getAppEnv
   when env.config.visualizer.debug $ do

@@ -30,6 +30,8 @@ import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Time
 import Effectful
+import Effectful.Input.Static
+import Effectful.State.Static.Local
 import Graphics.Vty qualified as V
 import Optics.Core
 
@@ -37,6 +39,7 @@ import Reprise.Action
 import Reprise.Collation
 import Reprise.Config
 import Reprise.Effect.MpdRequest
+import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Exception
 import Reprise.Find
@@ -116,7 +119,9 @@ itemRows env display = fmap $ \item -> case rowContent env item of
 -- Verbs
 
 -- | How the browser does a verb, if it does it.
-browserVerb :: App es => Action -> Maybe (Eff es ())
+browserVerb
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Action -> Maybe (Eff es ())
 browserVerb = \case
   Move t -> Just $ modifyWithEnv (moveListCursor t)
   JumpToPlaying ->
@@ -137,7 +142,8 @@ browserVerb = \case
   _ -> Nothing
 
 -- | Show the songs in the other display, which finds match too.
-toggleBrowserDisplay :: App es => Eff es ()
+toggleBrowserDisplay
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 toggleBrowserDisplay = do
   toggleDisplay #browserDisplay
   modifyWithEnv $ \env s -> setItems s.browser.items env s
@@ -154,7 +160,7 @@ setItems items env s =
 -- Listing
 
 -- | List the root the first time the browser shows.
-openBrowser :: App es => Eff es ()
+openBrowser :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 openBrowser = do
   location <- getsS (.browser.location)
   case location of
@@ -165,7 +171,7 @@ openBrowser = do
 -- e.g. after a new connection. A listing on its way is requested again, as
 -- its reply may be lost or out of date. A browser that never showed lists
 -- nothing.
-relistBrowser :: App es => Eff es ()
+relistBrowser :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 relistBrowser = do
   s <- getS
   case (s.browser.listing, s.browser.location) of
@@ -175,7 +181,7 @@ relistBrowser = do
 
 -- | List again after a change of the database, or of the stored playlists,
 -- which show at the root and open as playlists.
-browserChanged :: App es => [Subsystem] -> Eff es ()
+browserChanged :: (State AppState :> es, MpdRequest :> es) => [Subsystem] -> Eff es ()
 browserChanged subsystems = do
   location <- getsS (.browser.location)
   let storedPlaylists = case location of
@@ -193,14 +199,14 @@ browserChanged subsystems = do
 -- | Go up to the directory of what the browser lists, with the cursor on
 -- where it came from. It goes up from a listing on its way, too, so that
 -- keys typed ahead of a reply add up.
-leave :: App es => Eff es ()
+leave :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 leave = do
   b <- getsS (.browser)
   forM_ (maybe b.location (Just . (.location)) b.listing) goUp
 
 -- | Go up to the directory of a directory or a playlist, with the cursor on
 -- it.
-goUp :: App es => Location -> Eff es ()
+goUp :: (State AppState :> es, MpdRequest :> es) => Location -> Eff es ()
 goUp location =
   forM_ (parentOf location) $ \up -> list up . JumpTo $ case location of
     InDirectory path -> DirectoryKey path
@@ -208,7 +214,8 @@ goUp location =
 
 -- | List the directory of a song, with the cursor on the song, as ncmpcpp's
 -- @jump_to_browser@ does. A stream isn't in the database, and fails.
-locateSong :: App es => Song -> Eff es Bool
+locateSong
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Song -> Eff es Bool
 locateSong song
   | isStream song = do
       showError "The song isn't in MPD's database"
@@ -224,7 +231,7 @@ parentOf = \case
   InDirectory path -> Just $ InDirectory (directoryOf path)
   InPlaylist path -> Just $ InDirectory (directoryOf path)
 
-list :: App es => Location -> ListingCursor -> Eff es ()
+list :: (State AppState :> es, MpdRequest :> es) => Location -> ListingCursor -> Eff es ()
 list location cursor = do
   token <- newToken
   modifyS $ #browser % #listing ?~ Listing token location cursor
@@ -240,7 +247,8 @@ list location cursor = do
 -- ncmpcpp does. Another error shows, and the browser stays as it was. A
 -- listing that a lost connection failed stays, so that the next connection
 -- lists it again.
-browserFailed :: App es => Int -> MpdError -> Eff es ()
+browserFailed
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Int -> MpdError -> Eff es ()
 browserFailed token err = whenCurrent (.browser.listing) (.token) token $ \l ->
   case (err, parentOf l.location) of
     (AckError ack, Just up) | ack.code == AckNoExist -> list up AtTop
@@ -252,7 +260,8 @@ browserFailed token err = whenCurrent (.browser.listing) (.token) token $ \l ->
 -- | Show the entries of the latest listing. The reply to a listing that a
 -- newer one replaced changes nothing. The selection stays in a listing of
 -- the same, without the items that are gone.
-browserListed :: App es => Int -> [Entry] -> Eff es ()
+browserListed
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Int -> [Entry] -> Eff es ()
 browserListed token entries = whenCurrent (.browser.listing) (.token) token $ \l -> do
   env <- getAppEnv
   s <- getS
@@ -273,7 +282,8 @@ browserListed token entries = whenCurrent (.browser.listing) (.token) token $ \l
 ----------------------------------------
 -- Selection
 
-selectInBrowser :: App es => SelectTarget -> Eff es ()
+selectInBrowser
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => SelectTarget -> Eff es ()
 selectInBrowser t = do
   items <- getsS (.browser.items)
   selectInList
@@ -297,7 +307,7 @@ selectInBrowser t = do
 -- @..@, or play the song. @..@ goes up from the listing that it is in, not
 -- from one on its way, so that enter held on it goes up once: until the
 -- reply, the screen still shows it.
-activateItem :: App es => Eff es ()
+activateItem :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 activateItem = do
   s <- getS
   forM_ (cursorItem s) $ \case
@@ -307,7 +317,9 @@ activateItem = do
     item@(_, EntryItem (SongEntry _)) -> addAndPlayItems [item]
 
 -- | Add the marked items to the queue.
-addMarked :: App es => AddPosition -> Eff es ()
+addMarked
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => AddPosition -> Eff es ()
 addMarked p = do
   s <- getS
   forM_ s.browser.location $ \location -> case markedItems s of
@@ -322,10 +334,11 @@ addMarked p = do
 
 -- | Add the marked items and play the first. A single song that is already
 -- in the queue plays there instead.
-addAndPlay :: App es => Eff es ()
+addAndPlay :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 addAndPlay = getsS markedItems >>= addAndPlayItems
 
-addAndPlayItems :: App es => [(Int, BrowserItem)] -> Eff es ()
+addAndPlayItems
+  :: (State AppState :> es, MpdRequest :> es) => [(Int, BrowserItem)] -> Eff es ()
 addAndPlayItems items = do
   s <- getS
   forM_ s.browser.location $ \location -> case items of
@@ -339,7 +352,8 @@ addAndPlayItems items = do
 
 -- | Add the item under the cursor, or remove its song if it is in the
 -- queue, then move down.
-addOrRemove :: App es => Eff es ()
+addOrRemove
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 addOrRemove = do
   s <- getS
   env <- getAppEnv
@@ -433,7 +447,8 @@ songText env song =
     renderFormat (plainContext env.config.songs) song env.config.statusBar.song
 
 -- | Update a directory in the database, or with Nothing the whole database.
-updateDatabase :: App es => Maybe T.Text -> Eff es ()
+updateDatabase
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Maybe T.Text -> Eff es ()
 updateDatabase path = do
   mutate . void $ update path
   showMessage $ "Updating " <> maybe "the database" ("/" <>) path
@@ -454,7 +469,7 @@ browserDirectory s = case s.browser.location of
 -- Sorting
 
 -- | Sort the entries by the next sort mode, with the cursor on the same item.
-nextSortMode :: App es => Eff es ()
+nextSortMode :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 nextSortMode = do
   modifyS $ #toggles % #browserSort %~ cycleNext
   env <- getAppEnv

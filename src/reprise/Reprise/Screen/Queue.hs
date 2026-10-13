@@ -21,11 +21,14 @@ import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Effectful
+import Effectful.Input.Static
+import Effectful.State.Static.Local
 import Graphics.Vty qualified as V
 import Optics.Core
 
 import Reprise.Action
 import Reprise.Effect.MpdRequest
+import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Find
 import Reprise.Groups
@@ -69,7 +72,9 @@ queueView env s v =
 -- Verbs
 
 -- | How the queue does a verb, if it does it.
-queueVerb :: App es => Action -> Maybe (Eff es ())
+queueVerb
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Action -> Maybe (Eff es ())
 queueVerb = \case
   Move t -> Just $ modifyWithEnv (moveListCursor t)
   JumpToPlaying -> Just $ do
@@ -89,7 +94,7 @@ queueVerb = \case
 -- | Shuffle the selected songs, which must be next to each other, else the
 -- whole queue. Shuffling the selected songs loses nothing the user didn't
 -- point at, so only shuffling the whole queue asks first.
-shuffleSelected :: App es => Eff es ()
+shuffleSelected :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 shuffleSelected =
   getsS (runs . selectedSongPositions) >>= \case
     [] -> shuffleQueue
@@ -99,7 +104,7 @@ shuffleSelected =
     _ -> showError "Only selected songs next to each other can be shuffled"
 
 -- | Ask whether to shuffle the whole queue.
-shuffleQueue :: App es => Eff es ()
+shuffleQueue :: (State AppState :> es, UiRequest :> es) => Eff es ()
 shuffleQueue = do
   n <- getsS (queueLength . (.mirror))
   if n < 2
@@ -108,7 +113,8 @@ shuffleQueue = do
       modifyS $
         confirm ("Shuffle " <> countSongs n <> " in the queue?") (Confirmed ConfirmShuffle)
 
-toggleFollowPlaying :: App es => Eff es ()
+toggleFollowPlaying
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 toggleFollowPlaying = do
   toggleSetting "Follow playing" #followPlaying
   follow <- getsS (.toggles.followPlaying)
@@ -146,7 +152,8 @@ markedPositions :: AppState -> [Int]
 markedPositions s =
   marked ((.songId) <$> s.mirror.queue) s.queueState.selection (focusedView s).cursor
 
-select :: App es => SelectTarget -> Eff es ()
+select
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => SelectTarget -> Eff es ()
 select t = do
   q <- getsS (.mirror.queue)
   selectInList
@@ -160,17 +167,18 @@ select t = do
 -- Changes
 
 -- | Play the song under the cursor.
-activate :: App es => Eff es ()
+activate :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 activate = do
   song <- getsS songUnderCursor
   forM_ (song >>= (.songId)) (mutate . playId)
 
-deleteMarked :: App es => Eff es ()
+deleteMarked :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 deleteMarked = do
   ps <- getsS markedPositions
   editQueue $ deletePositions ps
 
-prioritize :: App es => Int -> Eff es ()
+prioritize
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Int -> Eff es ()
 prioritize p = do
   s <- getS
   case mapMaybe (\i -> Seq.lookup i s.mirror.queue >>= (.songId)) (markedPositions s) of
@@ -179,7 +187,9 @@ prioritize p = do
       mutate $ prioId p ids
       showMessage $ "Priority " <> T.pack (show p) <> " set for " <> countSongs (length ids)
 
-moveSongs :: App es => MoveSongsTarget -> Eff es ()
+moveSongs
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => MoveSongsTarget -> Eff es ()
 moveSongs t = do
   s <- getS
   let ps = markedPositions s
@@ -187,7 +197,7 @@ moveSongs t = do
       c = (focusedView s).cursor
       -- The cursor goes to the middle one of the songs, as in ncmpcpp, so
       -- that they show as they move. The song moves if its run moves.
-      follow :: App es => [(Int, Int)] -> Int -> Eff es ()
+      follow :: (State AppState :> es, Input AppEnv :> es) => [(Int, Int)] -> Int -> Eff es ()
       follow moved delta = case drop (length ps `div` 2) ps of
         middle : _
           | not (null moved) ->
@@ -200,7 +210,7 @@ moveSongs t = do
       -- The songs end up together, in their order, from a position. The
       -- cursor jumps to the first one, as to an album, so that the songs
       -- before them show too.
-      jumpToMoved :: App es => Int -> Eff es ()
+      jumpToMoved :: (State AppState :> es, Input AppEnv :> es) => Int -> Eff es ()
       jumpToMoved = modifyWithEnv . jumpTo
   case t of
     MoveSongsUp -> do
@@ -234,7 +244,7 @@ moveSongs t = do
 
 -- | The rows of the queue as finds match them: the ones of the last find,
 -- unless the queue or its display changed since.
-queueRows :: App es => Eff es (Seq.Seq Folded)
+queueRows :: (State AppState :> es, Input AppEnv :> es) => Eff es (Seq.Seq Folded)
 queueRows = do
   env <- getAppEnv
   s <- getS

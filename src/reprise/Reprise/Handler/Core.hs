@@ -3,11 +3,8 @@
 -- screens import this module, and it imports no screen, so that
 -- "Reprise.Handler" can pass actions on to the screens.
 module Reprise.Handler.Core
-  ( -- * Effects
-    App
-
-    -- * State
-  , getS
+  ( -- * State
+    getS
   , getsS
   , modifyS
   , getAppEnv
@@ -91,37 +88,36 @@ import Reprise.Save
 import Reprise.Selection
 import Reprise.State
 
--- | The effects of the handlers.
-type App es =
-  (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
-
 ----------------------------------------
 -- State
 
-getS :: App es => Eff es AppState
+getS :: State AppState :> es => Eff es AppState
 getS = get @AppState
 
-getsS :: App es => (AppState -> a) -> Eff es a
+getsS :: State AppState :> es => (AppState -> a) -> Eff es a
 getsS = gets @AppState
 
-modifyS :: App es => (AppState -> AppState) -> Eff es ()
+modifyS :: State AppState :> es => (AppState -> AppState) -> Eff es ()
 modifyS = modify @AppState
 
-getAppEnv :: App es => Eff es AppEnv
+getAppEnv :: Input AppEnv :> es => Eff es AppEnv
 getAppEnv = input
 
 -- | Change the state with a function that reads the settings too.
-modifyWithEnv :: App es => (AppEnv -> AppState -> AppState) -> Eff es ()
+modifyWithEnv
+  :: (State AppState :> es, Input AppEnv :> es)
+  => (AppEnv -> AppState -> AppState) -> Eff es ()
 modifyWithEnv f = getAppEnv >>= modifyS . f
 
-newToken :: App es => Eff es Int
+newToken :: State AppState :> es => Eff es Int
 newToken = state @AppState $ \s -> (s.nextToken, s & #nextToken %~ (+ 1))
 
 -- | Run what the event of a request or of a timer does, if it is of the
 -- newest one: the state holds what it is for, with its token. An event of
 -- one that a newer one replaced changes nothing on the screen.
 whenCurrent
-  :: App es => (AppState -> Maybe a) -> (a -> Int) -> Int -> (a -> Eff es ()) -> Eff es ()
+  :: (State AppState :> es, UiRequest :> es)
+  => (AppState -> Maybe a) -> (a -> Int) -> Int -> (a -> Eff es ()) -> Eff es ()
 whenCurrent current tokenOf token k =
   getsS current >>= \case
     Just a | tokenOf a == token -> k a
@@ -130,16 +126,16 @@ whenCurrent current tokenOf token k =
 ----------------------------------------
 -- Messages
 
-showMessage :: App es => T.Text -> Eff es ()
+showMessage :: (State AppState :> es, UiRequest :> es) => T.Text -> Eff es ()
 showMessage = message False
 
-notAvailable :: App es => T.Text -> Eff es ()
+notAvailable :: (State AppState :> es, UiRequest :> es) => T.Text -> Eff es ()
 notAvailable what = showMessage $ what <> " isn't available yet"
 
-showError :: App es => T.Text -> Eff es ()
+showError :: (State AppState :> es, UiRequest :> es) => T.Text -> Eff es ()
 showError = message True
 
-message :: App es => Bool -> T.Text -> Eff es ()
+message :: (State AppState :> es, UiRequest :> es) => Bool -> T.Text -> Eff es ()
 message isError text = do
   token <- newToken
   modifyS $ #message ?~ Message text isError token
@@ -159,12 +155,13 @@ screenText :: ScreenName -> T.Text
 screenText screen = screenWords screen <> " screen"
 
 -- | Say that a screen has no such thing, e.g. no songs or no action.
-screenHasNo :: App es => ScreenName -> T.Text -> Eff es ()
+screenHasNo
+  :: (State AppState :> es, UiRequest :> es) => ScreenName -> T.Text -> Eff es ()
 screenHasNo screen what = showMessage $ "The " <> screenText screen <> " has no " <> what
 
 -- | MPD has no current song, e.g. before anything played. A song that
 -- stopped stays current.
-noCurrentSong :: App es => Eff es ()
+noCurrentSong :: (State AppState :> es, UiRequest :> es) => Eff es ()
 noCurrentSong = showMessage "There is no current song"
 
 onOff :: Bool -> T.Text
@@ -174,14 +171,17 @@ onOff b = if b then "on" else "off"
 -- Toggles
 
 -- | Turn a setting of reprise on or off, and say which it is now.
-toggleSetting :: App es => T.Text -> Lens' Toggles Bool -> Eff es ()
+toggleSetting
+  :: (State AppState :> es, UiRequest :> es) => T.Text -> Lens' Toggles Bool -> Eff es ()
 toggleSetting name field = do
   modifyS $ #toggles % field %~ not
   v <- getsS (view (#toggles % field))
   showMessage $ name <> ": " <> onOff v
 
 -- | Show the songs of a list in the other display.
-toggleDisplay :: App es => Lens' Toggles Display -> Eff es ()
+toggleDisplay
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Lens' Toggles Display -> Eff es ()
 toggleDisplay field = do
   modifyS $
     #toggles % field %~ \case
@@ -227,7 +227,7 @@ confirm question onYes =
 -- list, so that the mirror can make the edits itself, and input waits for
 -- it, see 'PendingEdit'. Without a queue in the mirror there are no
 -- positions, and so nothing to wait for.
-editQueue :: App es => [QueueEdit] -> Eff es ()
+editQueue :: (State AppState :> es, MpdRequest :> es) => [QueueEdit] -> Eff es ()
 editQueue edits =
   getsS (.mirror.queueVersion) >>= \case
     Just _ | not (null edits) -> do
@@ -241,7 +241,7 @@ editQueue edits =
 
 -- | Ask for the name of the stored playlist to save to, which
 -- "Reprise.Handler" saves to.
-askSaveName :: App es => SaveSource -> Eff es ()
+askSaveName :: (State AppState :> es, UiRequest :> es) => SaveSource -> Eff es ()
 askSaveName source
   | Just why <- nothingToSave source = showMessage why
   | otherwise =
@@ -372,7 +372,7 @@ moveListCursor t env s =
 -- albums and artists apart. An item without a key can't be selected.
 selectInList
   :: forall k es
-   . (App es, Ord k)
+   . (State AppState :> es, Input AppEnv :> es, UiRequest :> es, Ord k)
   => Lens' AppState (Selection k)
   -> Seq.Seq (Maybe k, Maybe Song)
   -> Eff es (Seq.Seq Folded)
@@ -413,7 +413,7 @@ selectInList selection items findRows count = \case
     itemKeys = fst <$> items
 
     -- The items next to each other around the cursor with its song's key.
-    selectGroup :: (App es, Eq g) => (Song -> g) -> T.Text -> Eff es ()
+    selectGroup :: Eq g => (Song -> g) -> T.Text -> Eff es ()
     selectGroup key name = do
       c <- getsS ((.cursor) . focusedView)
       forM_ (Seq.lookup c items >>= snd) $ \song -> do
@@ -426,7 +426,8 @@ selectInList selection items findRows count = \case
 
 -- | Run with the pattern of the last find, and its text, or say why there
 -- is none.
-withFindPattern :: App es => (T.Text -> Pattern -> Eff es ()) -> Eff es ()
+withFindPattern
+  :: (State AppState :> es, UiRequest :> es) => (T.Text -> Pattern -> Eff es ()) -> Eff es ()
 withFindPattern k =
   getsS (.findPattern) >>= \case
     Nothing -> showMessage "No find pattern"
@@ -461,11 +462,12 @@ modifyView f env s =
            & #offset .~ max 0 (min (n - h) o)
 
 -- | Show another screen in the focused view.
-switchTo :: App es => ScreenName -> Eff es ()
+switchTo :: (State AppState :> es, Input AppEnv :> es) => ScreenName -> Eff es ()
 switchTo = modifyWithEnv . modifyView . switchScreen
 
 -- | Scroll the focused screen of text.
-scrollLines :: App es => MoveTarget -> Eff es ()
+scrollLines
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => MoveTarget -> Eff es ()
 scrollLines t = do
   env <- getAppEnv
   s <- getS
@@ -480,12 +482,14 @@ scrollLines t = do
     MoveLast -> modifyWithEnv . modifyView $ #offset .~ (screenInfo v.screen).size env s v
     _ -> screenHasNo v.screen $ renderAction (Move t)
   where
-    scroll :: App es => Int -> Eff es ()
+    scroll :: (State AppState :> es, Input AppEnv :> es) => Int -> Eff es ()
     scroll delta = modifyWithEnv . modifyView $ #offset %~ (+ delta)
 
 -- | Show a screen of a song, e.g. its lyrics, for the song under the cursor,
 -- from the top, after an action that opens it for the song, if it can.
-showSongScreen :: App es => ScreenName -> (Song -> Eff es Bool) -> Eff es ()
+showSongScreen
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => ScreenName -> (Song -> Eff es Bool) -> Eff es ()
 showSongScreen target open = do
   s <- getS
   let screen = (focusedView s).screen
@@ -507,7 +511,7 @@ songUnderCursor s =
   in (screenInfo v.screen).songAt s v.cursor
 
 -- | Show the screen that the view showed before.
-goBack :: App es => Eff es ()
+goBack :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 goBack =
   getsS ((.previous) . focusedView) >>= \case
     Just previous -> switchTo previous

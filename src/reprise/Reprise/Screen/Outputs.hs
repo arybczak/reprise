@@ -14,12 +14,15 @@ import Data.Foldable
 import Data.Maybe
 import Data.Sequence qualified as Seq
 import Effectful
+import Effectful.Input.Static
+import Effectful.State.Static.Local
 import Graphics.Vty qualified as V
 import Optics.Core
 
 import Reprise.Action
 import Reprise.Config
 import Reprise.Effect.MpdRequest
+import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Format
 import Reprise.Handler.Core
@@ -47,7 +50,9 @@ outputsView env s v =
        visibleItems env s v (fromMaybe Seq.empty s.outputs)
 
 -- | How the outputs screen does a verb, if it does it.
-outputsVerb :: App es => Action -> Maybe (Eff es ())
+outputsVerb
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Action -> Maybe (Eff es ())
 outputsVerb = \case
   Move t -> Just $ modifyWithEnv (moveListCursor t)
   Activate -> Just toggleOutput
@@ -56,7 +61,7 @@ outputsVerb = \case
 -- | Show the outputs, which are fetched the first time. They count as
 -- shown before they come, so that a new connection fetches them again
 -- after a failed fetch.
-showOutputs :: App es => Eff es ()
+showOutputs :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es) => Eff es ()
 showOutputs = do
   switchTo OutputsScreen
   loaded <- getsS (isJust . (.outputs))
@@ -66,12 +71,12 @@ showOutputs = do
 
 -- | Fetch the outputs again, once the screen showed them, e.g. after a
 -- change of them or a new connection.
-refreshOutputs :: App es => Eff es ()
+refreshOutputs :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 refreshOutputs = do
   loaded <- getsS (isJust . (.outputs))
   when loaded $ request outputs OutputsFetched
 
-outputsFetched :: App es => [Output] -> Eff es ()
+outputsFetched :: (State AppState :> es, Input AppEnv :> es) => [Output] -> Eff es ()
 outputsFetched fetched = do
   modifyS $ #outputs ?~ Seq.fromList fetched
   -- Fewer outputs can leave the cursor past the last.
@@ -80,7 +85,7 @@ outputsFetched fetched = do
 
 -- | Enable the output under the cursor, or disable it. Its new state comes
 -- back as a change of the outputs.
-toggleOutput :: App es => Eff es ()
+toggleOutput :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 toggleOutput = do
   s <- getS
   forM_ (s.outputs >>= Seq.lookup (focusedView s).cursor) $ \o -> do

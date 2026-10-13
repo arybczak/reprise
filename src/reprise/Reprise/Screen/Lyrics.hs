@@ -20,6 +20,8 @@ import Data.List qualified as L
 import Data.Maybe
 import Data.Text qualified as T
 import Effectful
+import Effectful.Input.Static
+import Effectful.State.Static.Local
 import Graphics.Vty qualified as V
 import Optics.Core
 import System.FilePath
@@ -101,7 +103,8 @@ playingTimedLyrics s = do
   pure (timed, elapsed)
 
 -- | How the lyrics screen does a verb, if it does it.
-lyricsVerb :: App es => Action -> Maybe (Eff es ())
+lyricsVerb
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Action -> Maybe (Eff es ())
 lyricsVerb = \case
   Move t -> Just $ scrollLyrics t
   JumpToPlaying -> Just jumpToPlayingLyrics
@@ -111,32 +114,34 @@ lyricsVerb = \case
   _ -> Nothing
 
 -- | Scroll the lyrics from where they show, which stops following the song.
-scrollLyrics :: App es => MoveTarget -> Eff es ()
+scrollLyrics
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => MoveTarget -> Eff es ()
 scrollLyrics t = do
   stopFollowing
   scrollLines t
 
 -- | Stop following the song, with the lyrics where they show, e.g. before
 -- they scroll.
-stopFollowing :: App es => Eff es ()
+stopFollowing :: (State AppState :> es, Input AppEnv :> es) => Eff es ()
 stopFollowing = do
   s <- getS
   modifyS $ #lyrics % #following .~ False
   modifyWithEnv . modifyView $ #offset .~ lyricsOffset s (focusedView s)
 
 -- | Show the lyrics of the song under the cursor, from the top.
-showLyrics :: App es => Eff es ()
+showLyrics :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 showLyrics = showSongScreen LyricsScreen showSongLyrics
 
 -- | Show the lyrics of a song, if it can have any. A stream can't: the
 -- songs that it plays would share one file of lyrics, named after its URL.
-showSongLyrics :: App es => Song -> Eff es Bool
+showSongLyrics
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Song -> Eff es Bool
 showSongLyrics song
   | isStream song = False <$ showError "A stream has no lyrics"
   | otherwise = True <$ request song False
 
 -- | Fetch the lyrics of the song on the screen again, and store them anew.
-refetchLyrics :: App es => Eff es ()
+refetchLyrics :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 refetchLyrics = do
   env <- getAppEnv
   s <- getS
@@ -151,7 +156,7 @@ refetchLyrics = do
 -- came from, or for fetched ones the times if they show, else the text.
 -- Without stored lyrics, a choice asks which file to make. Lyrics on their
 -- way would be stored over the file, so they are waited for.
-editLyrics :: App es => Eff es ()
+editLyrics :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 editLyrics = do
   env <- getAppEnv
   s <- getS
@@ -177,7 +182,8 @@ editLyrics = do
       _ -> showMessage "The lyrics are still loading"
 
 -- | Edit a file of lyrics that the user chose.
-editLyricsFile :: App es => FilePath -> Eff es ()
+editLyricsFile
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => FilePath -> Eff es ()
 editLyricsFile file = do
   env <- getAppEnv
   maybe (showMessage noEditor) (`editFile` file) env.editor
@@ -187,7 +193,9 @@ noEditor = "There is no editor: set editor.command in the config, or $VISUAL or 
 
 -- | The editor of a file exited. If the file is of the lyrics on the
 -- screen, they show again as the editor left them.
-lyricsEdited :: App es => FilePath -> Maybe T.Text -> Eff es ()
+lyricsEdited
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => FilePath -> Maybe T.Text -> Eff es ()
 lyricsEdited file failure = do
   env <- getAppEnv
   s <- getS
@@ -201,7 +209,8 @@ lyricsEdited file failure = do
 
 -- | Ask for the lyrics of a song, which the screen shows from their top
 -- when they come.
-request :: App es => Song -> Bool -> Eff es ()
+request
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Song -> Bool -> Eff es ()
 request song refetch = do
   token <- newToken
   modifyS $ \s ->
@@ -215,7 +224,8 @@ request song refetch = do
 
 -- | Follow the line being sung again, or show the lyrics of the song that
 -- plays if the screen shows another song's.
-jumpToPlayingLyrics :: App es => Eff es ()
+jumpToPlayingLyrics
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 jumpToPlayingLyrics = do
   s <- getS
   case currentSong s.mirror of
@@ -226,7 +236,8 @@ jumpToPlayingLyrics = do
 
 -- | Turn following the song that plays on or off. On, the screen shows the
 -- lyrics of the song that plays at once.
-toggleLyricsFollowing :: App es => Eff es ()
+toggleLyricsFollowing
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 toggleLyricsFollowing = do
   toggleSetting "Lyrics follow playing" #lyricsFollowPlaying
   s <- getS
@@ -237,7 +248,7 @@ toggleLyricsFollowing = do
 -- | Fetch the lyrics of each new song that plays in the background, if the
 -- config says so, and show them on the lyrics screen while it follows the
 -- song that plays. It runs after every event.
-updateLyrics :: App es => Eff es ()
+updateLyrics :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 updateLyrics = do
   env <- getAppEnv
   s <- getS
@@ -267,13 +278,14 @@ updateLyrics = do
 
 -- | The lyrics of the request with the token aren't stored, so a fetcher
 -- with the name is asked for them.
-lyricsFetching :: App es => Int -> T.Text -> Eff es ()
+lyricsFetching :: (State AppState :> es, UiRequest :> es) => Int -> T.Text -> Eff es ()
 lyricsFetching token fetcher =
   forRequest token $ modifyS (#lyrics % #status .~ FetchingLyrics fetcher)
 
 -- | The lyrics of the request with the token. Those of a song that the
 -- screen showed before are dropped.
-lyricsLoaded :: App es => Int -> LyricsResult -> Eff es ()
+lyricsLoaded
+  :: (State AppState :> es, UiRequest :> es) => Int -> LyricsResult -> Eff es ()
 lyricsLoaded token result = forRequest token $ do
   modifyS $ #lyrics % #status .~ ShowingLyrics result
   case result of
@@ -283,5 +295,5 @@ lyricsLoaded token result = forRequest token $ do
     _ -> pure ()
 
 -- | Run what a reply of the worker does, if it is of the newest request.
-forRequest :: App es => Int -> Eff es () -> Eff es ()
+forRequest :: (State AppState :> es, UiRequest :> es) => Int -> Eff es () -> Eff es ()
 forRequest token = whenCurrent (Just . (.lyrics)) (.token) token . const

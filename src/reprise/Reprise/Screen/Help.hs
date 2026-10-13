@@ -9,10 +9,13 @@ module Reprise.Screen.Help
 
 import Data.Text qualified as T
 import Effectful
+import Effectful.Input.Static
+import Effectful.State.Static.Local
 import Graphics.Vty qualified as V
 
 import Reprise.Action
 import Reprise.Config
+import Reprise.Effect.UiRequest
 import Reprise.Format
 import Reprise.Handler.Core
 import Reprise.Keymap
@@ -36,7 +39,8 @@ helpRows env =
   in map (helpLineSpans env.config.styles (keyColumnWidth ls)) ls
 
 -- | How the help screen does a verb, if it does it.
-helpVerb :: App es => Action -> Maybe (Eff es ())
+helpVerb
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Action -> Maybe (Eff es ())
 helpVerb = \case
   Move t -> Just $ scrollLines t
   _ -> Nothing
