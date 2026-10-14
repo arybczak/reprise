@@ -518,6 +518,8 @@ instance Exception MpdError where
         Closed -> "MPD closed the connection"
         NoReply ->
           "MPD closed the connection without a reply, as it does for a reply larger than its max_output_buffer_size"
+        CommandListTooLarge ->
+          "MPD closed the connection without running the commands, as it does for a list of them larger than its max_command_list_size"
         Broken reason -> "The connection to MPD broke: " <> reason
         TimedOut -> "MPD didn't reply in time"
     where
@@ -571,6 +573,10 @@ data ConnectionError
     -- can't tell how long a connection was unused. A client that opens a
     -- connection for a request turns 'Closed' into it.
     NoReply
+  | -- | 'NoReply' of a command list larger than the default of MPD's
+    -- @max_command_list_size@, for which MPD closes the connection without
+    -- running any of the list.
+    CommandListTooLarge
   | -- | An I/O error, or the connection closed in the middle of a reply.
     Broken T.Text
   | TimedOut

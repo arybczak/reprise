@@ -44,9 +44,13 @@ workerTests =
     , testCase "a failed command connection reopens the idle one" test_idleAfterCommandFailed
     , testCase "a command without requests needs no connection" test_noConnection
     , withResource oversizedServer stopTestServer $ \getServer ->
-        testCase
-          "a reply that MPD refuses fails without a reconnect"
-          (test_oversizedReply getServer)
+        testGroup
+          "MPD's limits"
+          [ testCase
+              "a reply that MPD refuses fails without a reconnect"
+              (test_oversizedReply getServer)
+          , testCase "a command list too large for MPD" (test_largeCommandList getServer)
+          ]
     ]
 
 test_retryClosed :: Assertion
@@ -205,14 +209,8 @@ test_idleAfterCommandFailed = withIdleWorker [] Nothing $ \events callsRef worke
 test_oversizedReply :: IO TestServer -> Assertion
 test_oversizedReply getServer = do
   server <- getServer
-  let settings =
-        Settings
-          { address = UnixAddress server.socketPath
-          , password = Nothing
-          , timeout = Just 5
-          }
-      mpd :: Eff [Mpd, IOE] a -> IO a
-      mpd = runEff . runMpd (settings NE.:| [])
+  let mpd :: Eff [Mpd, IOE] a -> IO a
+      mpd = runEff . runMpd (serverSettings server NE.:| [])
       fetch = (,) <$> status <*> playlistInfo
   mpd . runCommand $ replicateM_ songs (add "a.flac" Nothing)
   events <- newTQueueIO
@@ -243,6 +241,18 @@ test_oversizedReply getServer = do
     songs :: Int
     songs = 1000
 
+-- | MPD closes the connection of a command list larger than its
+-- @max_command_list_size@, 2 MiB by default, e.g. of the adds of a large
+-- selection, without running any of it. A connection that opened for the
+-- list fails with the setting to raise.
+test_largeCommandList :: IO TestServer -> Assertion
+test_largeCommandList getServer = do
+  server <- getServer
+  -- Each ping is 5 bytes with its line break.
+  let pings = replicateM_ (2 * 1024 * 1024 `div` 5 + 1) ping
+  r <- E.try @MpdError . runEff . runMpd (serverSettings server NE.:| []) $ runCommand pings
+  assertEqual "the error" (Left (ConnectionError CommandListTooLarge)) r
+
 -- | A server whose output buffer takes 17 kB: 16 kB of each client's
 -- buffer, and 1 kB more that @max_output_buffer_size@ allows.
 oversizedServer :: IO TestServer
@@ -250,6 +260,10 @@ oversizedServer = startTestServerWith ["max_output_buffer_size \"1\""] [testSong
 
 ----------------------------------------
 -- Helpers
+
+serverSettings :: TestServer -> Settings
+serverSettings server =
+  Settings {address = UnixAddress server.socketPath, password = Nothing, timeout = Just 5}
 
 -- | The next event that fits, after the events before it.
 untilEvent :: TQueue AppEvent -> (AppEvent -> Bool) -> IO AppEvent

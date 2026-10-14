@@ -1238,12 +1238,16 @@ new connection.
 
 MPD also closes the connection of a command list larger than its
 `max_command_list_size`, 2 MiB by default, e.g. the adds of a large
-selection. So a larger list runs as several, one after another, each within
-the default, as a client can't ask MPD for the value that it uses. The index
-of an ACK counts the commands of the whole list. Another client's command can
-come between the parts, which a list that MPD never ran can't avoid either.
-Once a part ran, a closed connection doesn't run the list again, as that
-would run the parts before twice.
+selection, without running any of it.
+- **The list fails, with the setting to raise.** A new connection's close of
+  a list larger than the default is `CommandListTooLarge`, and it keeps the
+  idle connection, as `NoReply` does. reprise doesn't split the list into
+  smaller ones: another client's commands could come between them, a
+  failure in the middle would leave the commands before it done, and MPD's
+  limit is the user's to set, as for its output buffer.
+- A list smaller than the default that MPD's lower limit refused is
+  `NoReply`, whose hint names the output buffer, as a client can't ask MPD
+  for the value that it uses.
 
 The timeout of a command, `mpd.timeout`, is for each read and write of the
 socket, as libmpdclient's is, not for the whole reply. A long reply, e.g.

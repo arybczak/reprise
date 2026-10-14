@@ -19,20 +19,11 @@ import Test.Tasty.HUnit
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Idle
-import Reprise.Mpd.Protocol.Internal.Connection
-import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 import Reprise.Mpd.TestServer
 
 connectionTests :: TestTree
-connectionTests =
-  testGroup
-    "connection"
-    [ realServerTests
-    , closedTests
-    , timeoutTests
-    , testCase "splitting a command list" test_splitRequests
-    ]
+connectionTests = testGroup "connection" [realServerTests, closedTests, timeoutTests]
 
 realServerTests :: TestTree
 realServerTests =
@@ -290,20 +281,17 @@ test_ackInCommandList server = withConn server $ \conn -> do
   assertEqual "the command after the error didn't run" False s.random
 
 -- | MPD closes the connection of a command list larger than its
--- @max_command_list_size@, 2 MiB by default, so it runs as several. The
--- index of an ACK counts the commands of the whole.
+-- @max_command_list_size@, 2 MiB by default, without running any of it.
 test_largeCommandList :: TestServer -> Assertion
-test_largeCommandList server = withConn server $ \conn -> do
+test_largeCommandList server = do
+  resetTestServer server
   -- Each ping is 5 bytes with its line break.
   let pings = replicateM_ (2 * 1024 * 1024 `div` 5 + 1) ping
-  run conn pings
-  r <- try @MpdError . run conn $ pings *> play (Just 99)
-  case r of
-    Left (AckError ack) -> do
-      assertEqual "index" (2 * 1024 * 1024 `div` 5 + 1) ack.index
-      assertEqual "command" "play" ack.command
-    _ -> assertFailure $ "unexpected result: " <> show r
-  run conn ping
+  r <- withConn server $ \conn -> try @MpdError . run conn $ setRepeat True *> pings
+  assertEqual "the error" (Left (ConnectionError Closed)) r
+  withConn server $ \conn -> do
+    s <- run conn status
+    assertEqual "nothing ran" False s.repeat
 
 -- | MPD's @playlistadd@ looks up a path without a scheme in its database,
 -- which has no local file, so a local file goes as a @file://@ URI.
@@ -318,20 +306,6 @@ test_localFileInPlaylist server = withSystemTempDirectory "local" $ \dir -> do
       _ -> assertFailure $ "a plain path: " <> show plain
     run conn $ playlistAdd "uri" ("file://" <> file)
     assertEqual "a file URI" [file] . map (.file) =<< run conn (listPlaylistInfo "uri")
-
--- | Each list is at most the size, as MPD counts it: the bytes of each line
--- with its line break. A request larger than the size is a list of its own.
-test_splitRequests :: Assertion
-test_splitRequests = do
-  let ping' = Request "ping" []
-      long = Request "add" ["a long path"]
-  assertEqual "nothing" [] (splitRequests 10 [])
-  assertEqual "one list" [[ping', ping']] (splitRequests 10 [ping', ping'])
-  assertEqual "two lists" [[ping', ping'], [ping']] (splitRequests 10 [ping', ping', ping'])
-  assertEqual
-    "a large request"
-    [[ping'], [long], [ping']]
-    (splitRequests 10 [ping', long, ping'])
 
 test_songTags :: TestServer -> Assertion
 test_songTags server = withConn server $ \conn -> do

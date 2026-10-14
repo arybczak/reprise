@@ -185,6 +185,7 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
 reconnectsAfter :: MpdError -> Bool
 reconnectsAfter = \case
   ConnectionError NoReply -> False
+  ConnectionError CommandListTooLarge -> False
   ConnectionError _ -> True
   _ -> False
 

@@ -4,6 +4,7 @@ module Reprise.Mpd.Protocol.Request
     Request (..)
   , renderRequest
   , renderRequests
+  , exceedsDefaultListSize
 
     -- * Arguments
   , Argument (..)
@@ -12,7 +13,9 @@ module Reprise.Mpd.Protocol.Request
   ) where
 
 import Data.ByteString.Builder qualified as B
+import Data.ByteString.Lazy qualified as BL
 import Data.Fixed
+import Data.Int
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 
@@ -38,6 +41,23 @@ renderRequests :: [Request] -> B.Builder
 renderRequests = \case
   [r] -> renderRequest r
   rs -> "command_list_ok_begin\n" <> foldMap renderRequest rs <> "command_list_end\n"
+
+-- | Whether requests are a command list larger than the default of MPD's
+-- @max_command_list_size@, which counts the bytes of the list's lines,
+-- each with its line break. MPD closes the connection of a larger list,
+-- without running any of it, and a client can't ask MPD for the value that
+-- it uses.
+exceedsDefaultListSize :: [Request] -> Bool
+exceedsDefaultListSize = \case
+  [_] -> False
+  rs -> sum (map lineSize rs) > defaultMaxCommandListSize
+  where
+    lineSize :: Request -> Int64
+    lineSize = BL.length . B.toLazyByteString . renderRequest
+
+    -- @CLIENT_MAX_COMMAND_LIST_DEFAULT@ of MPD's @src/client/Config.cxx@.
+    defaultMaxCommandListSize :: Int64
+    defaultMaxCommandListSize = 2048 * 1024
 
 -- | Quote an argument. MPD accepts any argument in double quotes, with
 -- backslashes before double quotes and backslashes.

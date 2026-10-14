@@ -27,6 +27,7 @@ import Effectful.Exception
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Idle
+import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 
 data Mpd :: Effect where
@@ -75,7 +76,10 @@ runMpd candidates action = do
                     run conn cmd `E.catch` \case
                       ConnectionError Closed -> do
                         disconnect
-                        E.throwIO $ ConnectionError NoReply
+                        E.throwIO . ConnectionError $
+                          if exceedsDefaultListSize (commandRequests cmd)
+                            then CommandListTooLarge
+                            else NoReply
                       err -> E.throwIO err
         WaitIdle interrupted ->
           liftIO . withConnection' $ \conn ->

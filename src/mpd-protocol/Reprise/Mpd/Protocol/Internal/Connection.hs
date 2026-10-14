@@ -13,7 +13,6 @@ module Reprise.Mpd.Protocol.Internal.Connection
     -- * Round trips
   , exchange
   , exchangeCommand
-  , splitRequests
   , checkRequest
   , withTimeout
   , sendRaw
@@ -173,62 +172,16 @@ exchange timeout conn request = do
           then throwIO $ ConnectionError Closed
           else throwIO e
 
--- | Run a command, with the connection's timeout for each part of it. A
--- command list too large for MPD runs as several, one after another, and
--- the index of an 'AckError' counts the commands of the whole. Throws
--- 'MpdError'.
+-- | Run a command, with the connection's timeout for each part of it.
+-- Throws 'MpdError'.
 exchangeCommand :: Connection -> Command a -> IO a
 exchangeCommand conn cmd = do
   parts <- case commandRequests cmd of
     [] -> pure []
     requests -> do
       traverse_ checkRequest requests
-      case splitRequests maxCommandListSize requests of
-        [whole] -> exchange conn.timeout conn (renderRequests whole)
-        lists -> (<> [[]]) <$> exchangeLists 0 lists
+      exchange conn.timeout conn (renderRequests requests)
   either throwIO pure $ parseCommandReply cmd parts
-  where
-    -- The parts of the commands of the lists, which ran before.
-    exchangeLists :: Int -> [[Request]] -> IO [[Field]]
-    exchangeLists ran = \case
-      [] -> pure []
-      list : rest -> do
-        parts <- exchange conn.timeout conn (renderRequests list) `catch` shifted ran
-        (take (length list) parts <>) <$> exchangeLists (ran + length list) rest
-
-    -- MPD ran the lists before, so a command list that it closed the
-    -- connection for can't run again.
-    shifted :: Int -> MpdError -> IO a
-    shifted ran = \case
-      AckError ack -> throwIO $ AckError ack {index = ack.index + ran}
-      ConnectionError Closed
-        | ran > 0 -> throwIO . ConnectionError $ Broken "the connection closed in a command list"
-      err -> throwIO err
-
--- | Split requests into command lists of at most a size, as MPD counts it:
--- the bytes of each line with its line break. A request larger than the
--- size is a list of its own.
-splitRequests :: Int64 -> [Request] -> [[Request]]
-splitRequests limit = \case
-  [] -> []
-  requests -> let (list, rest) = fill 0 requests in list : splitRequests limit rest
-  where
-    fill :: Int64 -> [Request] -> ([Request], [Request])
-    fill size = \case
-      r : rs
-        | size == 0 || size + lineSize r <= limit ->
-            let (list, rest) = fill (size + lineSize r) rs in (r : list, rest)
-      rs -> ([], rs)
-
-    lineSize :: Request -> Int64
-    lineSize = BL.length . B.toLazyByteString . renderRequest
-
--- | The most bytes of the lines of a command list that MPD reads: the
--- default of its @max_command_list_size@, @CLIENT_MAX_COMMAND_LIST_DEFAULT@
--- of MPD's @src/client/Config.cxx@. MPD closes the connection of a larger
--- list. A client can't ask MPD for the value that it uses.
-maxCommandListSize :: Int64
-maxCommandListSize = 2048 * 1024
 
 -- | Throw 'ProtocolError' for a request that MPD would read as something
 -- else.
