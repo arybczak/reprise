@@ -329,6 +329,11 @@ test_errors = do
     "bad format"
     "at character 1 of the format: %a is not a tag"
     (decode "status_bar:\n  song: '%a'\n")
+  forM_ ["5", "0.15"] $ \number ->
+    assertError
+      ("a duration without a unit: " <> number)
+      "expected a duration with a unit, e.g. 5s or 500ms"
+      (decode $ "mpd:\n  timeout: " <> T.pack number <> "\n")
   assertError
     "bad key"
     "ctrl-i is the same key as tab"

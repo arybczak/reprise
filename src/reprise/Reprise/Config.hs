@@ -795,13 +795,21 @@ instance FromYaml KeysConfig where
 -- Decoders of the small languages
 
 instance FromYaml Duration where
-  parseYaml n = withText (either (failAt n . T.unpack) (pure . Duration) . parseDuration) n
+  parseYaml n = case view n of
+    StringView t -> either (failAt n . T.unpack) (pure . Duration) (parseDuration t)
+    -- YAML reads a number without a unit as a number, not as text.
+    IntView _ -> failAt n (T.unpack withoutUnit)
+    FloatView _ -> failAt n (T.unpack withoutUnit)
+    _ -> typeMismatch "a duration, e.g. 5s or 500ms" n
     where
       parseDuration :: T.Text -> Either T.Text Seconds
       parseDuration t
         | Just ms <- T.stripSuffix "ms" t, Just v <- number ms = Right (v / 1000)
         | Just s <- T.stripSuffix "s" t, Just v <- number s = Right v
-        | otherwise = Left "expected a duration with a unit, e.g. 5s or 500ms"
+        | otherwise = Left withoutUnit
+
+      withoutUnit :: T.Text
+      withoutUnit = "expected a duration with a unit, e.g. 5s or 500ms"
 
       number :: T.Text -> Maybe Seconds
       number = Response.readSeconds . T.encodeUtf8
