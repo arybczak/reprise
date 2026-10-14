@@ -84,8 +84,11 @@ renderRow ctx flags song = case ctx.display of
          , padded attr styles AlignLeft (ctx.width - leftWidth - gap) right
          ]
   Columns ->
-    V.horizCat . L.intersperse (padded attr styles AlignLeft 1 []) $
-      zipWith column ctx.songs.columns.list (columnWidths ctx.width ctx.songs.columns.list)
+    let cells =
+          V.horizCat . L.intersperse (padded attr styles AlignLeft 1 []) $
+            zipWith column ctx.songs.columns.list (columnWidths ctx.width ctx.songs.columns.list)
+    in -- Columns of fixed widths may leave room after them.
+       cells V.<|> padded attr styles AlignLeft (ctx.width - V.imageWidth cells) []
   where
     attr :: Style -> V.Attr
     attr = toAttr ctx.colorMode

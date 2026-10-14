@@ -48,6 +48,7 @@ layoutTests =
     , testCase "the title has its own style" test_titleStyle
     , testCase "the queue's title scrolls" test_queueTitleScrolls
     , testCase "the marker of a missing tag in columns" test_markerInColumns
+    , testCase "columns of fixed widths" test_fixedColumns
     , testCase "the marker of a missing tag in the classic display" test_markerInClassic
     , testCase "a song without a length" test_noLength
     , testCase "a selected song has the selected style" test_selected
@@ -165,6 +166,31 @@ test_helpStyles = do
         [V.attrForeColor a | (a, t') <- imageSpans (renderScreen testAppEnv s), T.strip t' == t]
   assertEqual "the key" [V.SetTo (V.ISOColor 2)] (colorOf "/")
   assertEqual "the description" [V.SetTo (V.ISOColor 3)] (colorOf "find forward")
+
+-- | Columns of fixed widths leave room after them, which the row's style
+-- fills to its end, e.g. the cursor's.
+test_fixedColumns :: Assertion
+test_fixedColumns = do
+  title <- either (assertFailure . show) pure $ parseStyledFormat "%{title}"
+  let fixed w =
+        Column
+          { width = FixedWidth w
+          , style = mempty
+          , format = title
+          , title = ""
+          , align = AlignLeft
+          }
+      env = testAppEnv & #config % #songs % #columns % #list .~ [fixed 10, fixed 20]
+  s <- testState (80, 6) (statusOf Stopped Nothing 1) [song 0 [(Title, ["x"])] 60]
+  assertEqual
+    "the cursor's columns"
+    80
+    ( sum
+        [ T.length t
+        | (a, t) <- imageSpans (renderScreen env s)
+        , V.attrStyle a == V.SetTo V.reverseVideo
+        ]
+    )
 
 -- | The marker takes the style of its column, not the marker's style.
 test_markerInColumns :: Assertion
