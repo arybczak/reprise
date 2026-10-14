@@ -201,6 +201,9 @@ handleEvent = \case
   BrowserFailed token err -> browserFailed token err
   DecodersFetched token ds -> decodersFetched token ds
   LocalListed token result -> localListed token result
+  LocalWalked token files -> localWalked token files
+  LocalAdded token -> localAdded token
+  LocalAddFailed token err -> localAddFailed token err
   ReplayGainFetched mode -> do
     let nextMode = cycleNext mode
     mutate $ setReplayGainMode nextMode

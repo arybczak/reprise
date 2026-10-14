@@ -17,6 +17,11 @@ module Reprise.Screen.Browser
   , localListed
   , locateSong
 
+    -- * Adding local files
+  , localWalked
+  , localAdded
+  , localAddFailed
+
     -- * Updating
   , updateDatabase
   ) where
@@ -439,7 +444,9 @@ selectInBrowser t = do
 -- @..@, or play the song. @..@ goes up from the listing that it is in, not
 -- from one on its way, so that enter held on it goes up once: until the
 -- reply, the screen still shows it.
-activateItem :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
+activateItem
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Eff es ()
 activateItem = do
   s <- getS
   forM_ (cursorItem s) $ \case
@@ -457,21 +464,22 @@ addMarked p = do
   s <- getS
   forM_ s.browser.location $ \location -> case markedItems s of
     [] -> pure ()
-    items -> do
-      mutate . addItems location items $ case p of
-        AddEnd -> Nothing
-        AddNext -> Just (AfterCurrent 0)
-        AddBeginning -> Just (At 0)
-      env <- getAppEnv
-      showMessage $ addedText env items
+    items
+      | isLocal location -> addLocal items p False
+      | otherwise -> do
+          mutate . addItems location items $ positionOf p
+          env <- getAppEnv
+          showMessage $ addedText env items
 
 -- | Add the marked items and play the first. A single song that is already
 -- in the queue plays there instead.
-addAndPlay :: (State AppState :> es, MpdRequest :> es) => Eff es ()
+addAndPlay
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Eff es ()
 addAndPlay = getsS markedItems >>= addAndPlayItems
 
 addAndPlayItems
-  :: (State AppState :> es, MpdRequest :> es)
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
   => [(Int, BrowserItem)]
   -> Eff es ()
 addAndPlayItems items = do
@@ -479,6 +487,7 @@ addAndPlayItems items = do
   forM_ s.browser.location $ \location -> case items of
     [] -> pure ()
     [(_, EntryItem (SongEntry song))] | i : _ <- queuedIds song s -> mutate $ playId i
+    _ | isLocal location -> addLocal items AddEnd True
     _ -> do
       -- In one command list, which no other client's command interrupts, so
       -- the songs start at the length even if the mirror missed a change.
@@ -498,10 +507,127 @@ addOrRemove = do
     (_, (_, EntryItem (SongEntry song))) | ids@(_ : _) <- queuedIds song s -> do
       mutate $ traverse_ deleteId ids
       showMessage $ "Removed: " <> songText env song
-    (location, item) -> do
-      mutate $ addItems location [item] Nothing
-      showMessage $ addedText env [item]
+    (location, item)
+      | isLocal location -> addLocal [item] AddEnd False
+      | otherwise -> do
+          mutate $ addItems location [item] Nothing
+          showMessage $ addedText env [item]
   modifyWithEnv $ moveListCursor MoveDown
+
+positionOf :: AddPosition -> Maybe Position
+positionOf = \case
+  AddEnd -> Nothing
+  AddNext -> Just (AfterCurrent 0)
+  AddBeginning -> Just (At 0)
+
+-- | Add local items after the walk of their directories, as MPD doesn't add
+-- a local directory, and play from the first, for add and play. Songs
+-- alone go the same way, so that a file that MPD can't read leaves out only
+-- itself.
+addLocal
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => [(Int, BrowserItem)]
+  -> AddPosition
+  -> Bool
+  -> Eff es ()
+addLocal items p andPlay = do
+  token <- newToken
+  queued <- getsS (queueLength . (.mirror))
+  let entries = [e | (_, EntryItem e) <- items]
+  modifyS $
+    #browser
+      % #localAdd
+      ?~ LocalAdd
+        { token = token
+        , entries = entries
+        , position = p
+        , playFrom = if andPlay then Just (SongPos queued) else Nothing
+        , files = []
+        , added = 0
+        , skipped = 0
+        }
+  case [T.unpack d.path | DirectoryEntry d <- entries] of
+    [] -> localWalked token []
+    dirs -> do
+      -- The local listing of the items fetched the suffixes.
+      suffixes <- getsS (.browser.suffixes)
+      forM_ suffixes $ \s -> walkLocal token s dirs
+
+-- | Add the songs and the music files of the walked directories, in the
+-- order of the items.
+localWalked
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Int
+  -> [[FilePath]]
+  -> Eff es ()
+localWalked token walkedFiles = whenCurrent (.browser.localAdd) (.token) token $ \la -> do
+  let files = merge la.entries walkedFiles
+  sendLocalAdd $ la & #files .~ maybe files (const (reverse files)) (positionOf la.position)
+  where
+    merge :: [Entry] -> [[FilePath]] -> [T.Text]
+    merge entries ws = case (entries, ws) of
+      (DirectoryEntry _ : es, w : rest) -> map T.pack w <> merge es rest
+      (SongEntry s : es, _) -> s.file : merge es ws
+      (_ : es, _) -> merge es ws
+      ([], _) -> []
+
+-- | Send the adds of the files that are left, which go in at a position in
+-- reverse, as each goes before the ones after it.
+sendLocalAdd
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => LocalAdd
+  -> Eff es ()
+sendLocalAdd la
+  | null la.files = finishLocalAdd la
+  | otherwise = do
+      modifyS $ #browser % #localAdd ?~ la
+      requestOr
+        (traverse_ (`add` positionOf la.position) la.files)
+        (LocalAddFailed la.token)
+        (const (LocalAdded la.token))
+
+localAdded
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Int
+  -> Eff es ()
+localAdded token = whenCurrent (.browser.localAdd) (.token) token $ \la ->
+  finishLocalAdd $ la & #added %~ (+ length la.files) & #files .~ []
+
+-- | A file that MPD can't read is left out, and the adds after it are sent
+-- again. Another error ends the add.
+localAddFailed
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Int
+  -> MpdError
+  -> Eff es ()
+localAddFailed token err = whenCurrent (.browser.localAdd) (.token) token $ \la -> case err of
+  AckError ack
+    | ack.code == AckNoExist ->
+        sendLocalAdd $
+          la
+            & #added %~ (+ ack.index)
+            & #skipped %~ (+ 1)
+            & #files %~ drop (ack.index + 1)
+  _ -> do
+    modifyS $ #browser % #localAdd .~ Nothing
+    showError $ exceptionText err
+
+finishLocalAdd
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => LocalAdd
+  -> Eff es ()
+finishLocalAdd la = do
+  modifyS $ #browser % #localAdd .~ Nothing
+  forM_ la.playFrom $ \from -> when (la.added > 0) . mutate $ play (Just from)
+  env <- getAppEnv
+  showMessage $ case (la.entries, la.skipped) of
+    ([SongEntry song], 0) -> "Added: " <> songText env song
+    _ ->
+      "Added "
+        <> countSongs la.added
+        <> if la.skipped > 0
+          then ", left out " <> T.pack (show la.skipped) <> " that MPD can't read"
+          else ""
 
 -- | The commands that add items to the queue in their order, at the end or
 -- from a position. Each item at a position goes before the ones after it,

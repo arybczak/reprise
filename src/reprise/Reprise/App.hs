@@ -144,6 +144,8 @@ runApp env channels buildVty initial = do
         -- In the loop, as listing a local directory is quick.
         ListLocal token suffixes dir ->
           dispatch current s . LocalListed token =<< listLocalDirectory suffixes dir
+        WalkLocal token suffixes dirs ->
+          dispatch current s . LocalWalked token =<< walkLocalDirectories suffixes dirs
         Edit cmd file -> do
           V.shutdown =<< S.readIORef current
           failure <- runEditor cmd file

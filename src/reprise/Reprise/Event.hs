@@ -62,6 +62,14 @@ data AppEvent
     DecodersFetched Int [Decoder]
   | -- | The entries of the local directory of the listing with the token.
     LocalListed Int (Either ListingError [LocalFile])
+  | -- | The files of each local directory of the browser's add with the
+    -- token.
+    LocalWalked Int [[FilePath]]
+  | -- | MPD added the files of the add with the token that it was sent.
+    LocalAdded Int
+  | -- | The add with the token failed. MPD added the files before the one
+    -- that failed.
+    LocalAddFailed Int MpdError
   | ReplayGainFetched ReplayGainMode
   | -- | The reply to a command that changes MPD's state. The new state comes
     -- through idle.

@@ -13,11 +13,15 @@ module Reprise.LocalFiles
   , LocalFile (..)
   , ListingError (..)
   , listLocalDirectory
+  , walkLocalDirectories
   ) where
 
 import Control.Applicative
 import Control.Exception
+import Control.Monad
 import Data.Either
+import Data.Functor
+import Data.IORef
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
@@ -148,3 +152,37 @@ listLocalDirectory suffixes dir =
                 , tags = tags
                 }
           else Nothing
+
+-- | The music files of each directory and of the directories in it, depth
+-- first and by name, after symbolic links. Hidden entries, files that
+-- aren't regular, e.g. FIFOs, and what can't be read are left out, and a
+-- directory that two paths lead to, e.g. through a link back to a parent,
+-- is walked once.
+walkLocalDirectories :: Suffixes -> [FilePath] -> IO [[FilePath]]
+walkLocalDirectories suffixes dirs = do
+  seen <- newIORef S.empty
+  traverse (walk seen) dirs
+  where
+    walk :: IORef (S.Set FilePath) -> FilePath -> IO [FilePath]
+    walk seen dir =
+      try @IOException (canonicalizePath dir) >>= \case
+        Left _ -> pure []
+        Right real -> do
+          new <- atomicModifyIORef' seen $ \s -> (S.insert real s, S.notMember real s)
+          names <- if new then try @IOException (listDirectory dir) else pure (Right [])
+          fmap concat . forM (L.sort [n | n <- fromRight [] names, not ("." `L.isPrefixOf` n)]) $
+            \name -> do
+              let path = dir </> name
+              status <- try @IOException (getFileStatus path)
+              case status of
+                Right st
+                  | isDirectory st -> walk seen path
+                  | isRegularFile st -> musicFile path (T.pack name)
+                _ -> pure []
+
+    -- TagLib reads only the files that FFmpeg's plugin alone decodes.
+    musicFile :: FilePath -> T.Text -> IO [FilePath]
+    musicFile path name
+      | not (decodes suffixes name) = pure []
+      | isMusic suffixes name Nothing = pure [path]
+      | otherwise = readFileTags path <&> \tags -> [path | isMusic suffixes name tags]

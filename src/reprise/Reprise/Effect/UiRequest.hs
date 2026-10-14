@@ -1,7 +1,7 @@
 -- | What only the UI loop can do: halt, set the terminal's title, send an
 -- event later, skip a redraw, start the samples of the visualizer, ask for
--- lyrics, edit a file, save the history of the prompts and list a local
--- directory.
+-- lyrics, edit a file, save the history of the prompts, and list and walk
+-- local directories.
 module Reprise.Effect.UiRequest
   ( -- * Effect
     UiRequest (..)
@@ -21,6 +21,7 @@ module Reprise.Effect.UiRequest
   , editFile
   , saveToHistory
   , listLocal
+  , walkLocal
   ) where
 
 import Data.Text qualified as T
@@ -62,6 +63,9 @@ data UiCommand
   | -- | List a local directory for the browser's listing with the token,
     -- with the tags of the files whose suffixes MPD decodes.
     ListLocal Int Suffixes FilePath
+  | -- | Walk local directories for the music files of the browser's add
+    -- with the token.
+    WalkLocal Int Suffixes [FilePath]
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -107,3 +111,8 @@ saveToHistory = send . UiRequest . SaveToHistory
 -- | List a local directory for the browser's listing with the token.
 listLocal :: UiRequest :> es => Int -> Suffixes -> FilePath -> Eff es ()
 listLocal token suffixes = send . UiRequest . ListLocal token suffixes
+
+-- | Walk local directories for the music files of the browser's add with
+-- the token.
+walkLocal :: UiRequest :> es => Int -> Suffixes -> [FilePath] -> Eff es ()
+walkLocal token suffixes = send . UiRequest . WalkLocal token suffixes

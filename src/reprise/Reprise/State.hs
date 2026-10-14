@@ -32,6 +32,7 @@ module Reprise.State
   , LyricsStatus (..)
   , SongInfoState (..)
   , Location (..)
+  , LocalAdd (..)
   , BrowserItem (..)
   , Listing (..)
   , ListingCursor (..)
@@ -303,6 +304,25 @@ data BrowserState = BrowserState
   , otherMode :: Maybe (Location, ListingCursor)
   -- ^ What the other browse mode listed last, and where its cursor was,
   -- which a change of the mode lists again.
+  , localAdd :: Maybe LocalAdd
+  }
+  deriving stock (Eq, Show, Generic)
+
+-- | An add of local items with directories, whose files reprise walks
+-- and adds, as MPD doesn't add a local directory.
+data LocalAdd = LocalAdd
+  { token :: Int
+  , entries :: [Entry]
+  -- ^ What the user added, in order.
+  , position :: AddPosition
+  , playFrom :: Maybe SongPos
+  -- ^ Where to play after the add, for add and play.
+  , files :: [T.Text]
+  -- ^ The files whose adds MPD wasn't sent or didn't answer yet, in the
+  -- order of the commands.
+  , added :: Int
+  , skipped :: Int
+  -- ^ The files that MPD refused, as it can't read them.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -514,6 +534,7 @@ initialState config =
           , listing = Nothing
           , suffixes = Nothing
           , otherMode = Nothing
+          , localAdd = Nothing
           }
     , visualizer = newVisualizer Nothing
     , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing

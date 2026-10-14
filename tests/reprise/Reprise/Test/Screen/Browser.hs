@@ -80,6 +80,10 @@ browserTests =
         , testCase "updating the current directory" test_localUpdate
         , testCase "saving a directory" test_localSaveDirectory
         , testCase "jump to the browser" test_localJump
+        , testCase "adding a directory" test_localAddDirectory
+        , testCase "adding a directory at a position" test_localAddDirectoryNext
+        , testCase "adding and playing a directory" test_localAddAndPlay
+        , testCase "MPD refuses local files" test_localAddRefused
         ]
     ]
 
@@ -535,11 +539,22 @@ test_localReconnect = do
   decoded <- answerLast decodersReply r
   assertEqual "the listing of home" ["/home/user"] (localListings decoded)
 
+-- | A song that MPD can't read leaves out only itself, as in a directory.
 test_localAdd :: Assertion
-test_localAdd =
-  assertEqual "the song" [[Request "add" ["/home/user/a.flac"]]] . (.requests)
-    =<< press ["down", "down", "a", "e"]
-    =<< inHome
+test_localAdd = do
+  r <- press ["down", "down", "a", "e"] =<< inHome
+  assertEqual "the song" [[Request "add" ["/home/user/a.flac"]]] r.requests
+  added <- answerLast [] r
+  assertEqual "the message" (Just "Added: a.flac") (message added.state)
+  two <- press ["down", "down", "insert", "down", "insert", "a", "e"] =<< inHome
+  let refused = AckError (Ack AckNoExist 0 "add" "No such song")
+  failed <- failLast refused two
+  assertEqual "the song after it" [[Request "add" ["/home/user/b.mod"]]] failed.requests
+  done <- answerLast [] failed
+  assertEqual
+    "the message"
+    (Just "Added 1 song, left out 1 that MPD can't read")
+    (message done.state)
 
 test_localUpdate :: Assertion
 test_localUpdate = do
@@ -577,8 +592,93 @@ test_localJump = do
     localSong :: Song
     localSong = song 0 [] 60 & #file .~ "/home/user/Music/1.flac"
 
+-- | MPD doesn't add a local directory, so reprise walks it and adds its
+-- files. A file that MPD can't read ends the command list, so the adds
+-- after it are sent again.
+test_localAddDirectory :: Assertion
+test_localAddDirectory = do
+  r <- press ["down", "insert", "down", "insert", "a", "e"] =<< inHome
+  assertEqual "the walk" [["/home/user/Music"]] [dirs | WalkLocal _ _ dirs <- r.commands]
+  walked <- runEvents 0 [LocalWalked (lastWalkToken r) [musicFiles]] r.state
+  let adds = map (\f -> Request "add" [f])
+  assertEqual
+    "the files of the walk, then the song"
+    [ adds
+        [ "/home/user/Music/a.flac"
+        , "/home/user/Music/broken.flac"
+        , "/home/user/Music/cd2/b.flac"
+        , "/home/user/a.flac"
+        ]
+    ]
+    walked.requests
+  let refused = AckError (Ack AckNoExist 1 "add" "No such song")
+  failed <- failLast refused walked
+  assertEqual
+    "the adds after the file that MPD can't read"
+    [adds ["/home/user/Music/cd2/b.flac", "/home/user/a.flac"]]
+    failed.requests
+  done <- answerLast ["list_OK", "list_OK"] failed
+  assertEqual
+    "the message"
+    (Just "Added 3 songs, left out 1 that MPD can't read")
+    (message done.state)
+  assertEqual "nothing left" Nothing done.state.browser.localAdd
+
+-- | Each file goes before the ones after it, so they go in reverse.
+test_localAddDirectoryNext :: Assertion
+test_localAddDirectoryNext = do
+  r <- press ["down", "a", "n"] =<< inHome
+  walked <-
+    runEvents
+      0
+      [LocalWalked (lastWalkToken r) [take 1 musicFiles <> drop 2 musicFiles]]
+      r.state
+  assertEqual
+    "in reverse"
+    [
+      [ Request "add" ["/home/user/Music/cd2/b.flac", "+0"]
+      , Request "add" ["/home/user/Music/a.flac", "+0"]
+      ]
+    ]
+    walked.requests
+
+test_localAddAndPlay :: Assertion
+test_localAddAndPlay = do
+  r <- press ["down", "a", "p"] =<< inHome
+  walked <- runEvents 0 [LocalWalked (lastWalkToken r) [take 1 musicFiles]] r.state
+  assertEqual "the add" [[Request "add" ["/home/user/Music/a.flac"]]] walked.requests
+  added <- answerLast [] walked
+  assertEqual "play from the first" [[Request "play" ["0"]]] added.requests
+
+-- | MPD refuses local files to a client that isn't on its socket.
+test_localAddRefused :: Assertion
+test_localAddRefused = do
+  r <- press ["down", "a", "e"] =<< inHome
+  walked <- runEvents 0 [LocalWalked (lastWalkToken r) [take 1 musicFiles]] r.state
+  let refused = AckError (Ack AckPermission 0 "add" "Access to local files via TCP is not allowed")
+  failed <- failLast refused walked
+  assertEqual
+    "the error"
+    (Just "add: Access to local files via TCP is not allowed")
+    (message failed.state)
+  assertEqual "the add ended" Nothing failed.state.browser.localAdd
+
 ----------------------------------------
 -- Helpers
+
+-- | The music files of the walk of Music: a song, one that MPD can't read
+-- and a song in a directory.
+musicFiles :: [FilePath]
+musicFiles =
+  [ "/home/user/Music/a.flac"
+  , "/home/user/Music/broken.flac"
+  , "/home/user/Music/cd2/b.flac"
+  ]
+
+lastWalkToken :: Result -> Int
+lastWalkToken r = case reverse [token | WalkLocal token _ _ <- r.commands] of
+  token : _ -> token
+  [] -> error "no walk"
 
 -- | MPD's decoders: FLAC's, a tracker's, and FFmpeg's, which since MPD
 -- 0.24 has the suffixes of formats that aren't audio too.

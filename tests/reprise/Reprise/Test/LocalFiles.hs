@@ -25,6 +25,7 @@ localFilesTests =
     , testCase "TagLib's names as MPD's" test_mpdTags
     , testCase "the entries of a directory" test_entries
     , testCase "a directory that is gone" test_missing
+    , testCase "walking directories" test_walk
     ]
 
 -- | FFmpeg's plugin lists suffixes of formats that aren't audio too, so its
@@ -111,6 +112,30 @@ test_missing :: Assertion
 test_missing = withSystemTempDirectory "local" $ \dir ->
   assertEqual "gone" (Left DirectoryMissing)
     =<< listLocalDirectory suffixes (dir </> "gone")
+
+-- | A link back to a parent would walk forever. A directory that an earlier
+-- one walked through has nothing left. A FIFO is left out, as TagLib's open
+-- of it would wait for a writer.
+test_walk :: Assertion
+test_walk = withSystemTempDirectory "local" $ \dir -> do
+  let album = dir </> "album"
+  mapM_
+    (writeSong album . testSong)
+    ["b.flac", "a.flac", "cd2" </> "c.flac", ".hidden" </> "d.flac"]
+  BS.writeFile (album </> "notes.txt") "not a song"
+  BS.writeFile (album </> "cover.jpg") ""
+  createDirectoryLink ".." (album </> "cd2" </> "up")
+  createNamedPipe (album </> "pipe.m4a") ownerModes
+  walked <-
+    maybe (assertFailure "the walk waits") pure
+      =<< timeout 10000000 (walkLocalDirectories suffixes [album, album </> "cd2", dir </> "gone"])
+  assertEqual
+    "the music files of each directory, depth first, by name"
+    [ [album </> "a.flac", album </> "b.flac", album </> "cd2" </> "c.flac"]
+    , []
+    , []
+    ]
+    walked
 
 -- | FLAC's suffix, and FFmpeg's, which include text files.
 suffixes :: Suffixes

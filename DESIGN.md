@@ -221,6 +221,17 @@ ncmpcpp.
 - Playlist files don't show yet. MPD lists no suffixes of its playlist
   plugins, so reprise would have to ask about each file.
 - Songs are added with `add` and their absolute path.
+- **MPD doesn't add a local directory,** so reprise walks it, depth first and
+  by name, and adds the files that show in a listing, in one command list.
+  The walk follows symbolic links, and walks a directory that two paths
+  lead to once, so a link back to a parent can't loop. Songs alone go the
+  same way.
+  - A file that MPD can't read fails its `add`, which ends the command
+    list. MPD added the files before it, and the index of the failure says
+    which ones, so the adds after it are sent again. The message counts the
+    files that MPD left out.
+  - Add and play plays from the first file after the last add, so another
+    client's add in between can come first.
 - `jump_to_browser`, and the browser's `jump_to_playing`, open the local
   directory of a song that MPD keeps by its absolute path, as it keeps a
   local file. A change of the mode then goes back to what the other mode
