@@ -118,6 +118,7 @@ Options whose choice is fixed in reprise:
   `.` and `,` go to the next and the previous one, as in a list. ncmpcpp
   only highlights them there.
 - Clearing and shuffling the whole queue always ask first.
+- Seeking speeds up while the key is held, as with `incremental_seeking`.
 - Colors are on unless the `NO_COLOR` environment variable is set.
 - The header, the status bar and the volume always show.
 - The cursor jumps to the playing song when reprise starts.
