@@ -147,6 +147,7 @@ test_heldClick = do
   gone <- runEvents 0 [MouseClick RightButton 10 2, reply] deleted.state
   assertEqual "a song that the edit deleted" [] gone.requests
 
+-- | After another client's change, the status of an edit doesn't follow the
 -- mirror's version, and the changes since it come instead.
 test_editFetched :: Assertion
 test_editFetched = do
