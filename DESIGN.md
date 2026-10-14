@@ -1142,7 +1142,8 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
     delete the songs after the first one's. Each edit fetches the status
     in its own command list, and keys, clicks and wheel steps that come
     meanwhile are handled in order once the mirror has the edit, as ncmpc's
-    blocking commands do.
+    blocking commands do. `ctrl-q` doesn't wait, as the reply may never
+    come, e.g. on a connection that hangs.
     - **The mirror makes the edit itself,** as ncmpc does, when the
       version in the status shows that no other client changed the queue:
       MPD increments the version once for each command that changes the
@@ -1996,8 +1997,8 @@ A user's keymap is merged with the default one key by key:
 - `null` (written `~`) removes a default binding, e.g. `p: ~`, or a whole
   group, e.g. `d: ~`.
 
-**`ctrl-q` always quits,** on every screen, in a prompt and after a prefix,
-and no keymap can bind it, so that no keymap leaves reprise without a way
+**`ctrl-q` always quits,** on every screen, in a prompt, after a prefix and
+while an edit of the queue waits for its reply, and no keymap can bind it, so that no keymap leaves reprise without a way
 out. A keymap that binds it is an error. `q` is the quit of the default
 keymap, as in ncmpcpp, and can be changed. `ctrl-q` rather than `ctrl-c`:
 in a prompt, `ctrl-c` is what a shell user presses to drop the line, and

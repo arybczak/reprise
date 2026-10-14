@@ -554,7 +554,8 @@ test_promptAnswers = do
   assertEqual "empty" ([], Nothing) . (\r -> (r.requests, r.state.message))
     =<< answer [":"] ""
 
--- | ctrl-q quits on a screen, in a prompt and after a prefix alike.
+-- | ctrl-q quits on a screen, in a prompt and after a prefix alike, and
+-- while an edit of the queue waits for its reply, which may never come.
 test_alwaysQuit :: Assertion
 test_alwaysQuit = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
@@ -562,6 +563,7 @@ test_alwaysQuit = do
     r <- keys (before <> ["ctrl-q"]) s
     assertEqual (show before) [[]] r.requests
     assertEqual (show before) [()] . halts =<< runEvents 0 [QuitReady] r.state
+  assertEqual "during an edit" [()] . halts =<< keys ["delete", "ctrl-q", "ctrl-q"] s
 
 -- | A quit waits for the requests before it, e.g. of the key right before
 -- it, as a command without requests after them. A second quit, or a quit

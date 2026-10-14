@@ -78,7 +78,8 @@ holdOrHandle
 holdOrHandle event = do
   s <- getS
   let isInput = case event of
-        KeyPressed _ -> True
+        -- The reply may never come, e.g. on a connection that hangs.
+        KeyPressed k -> k /= alwaysQuit
         MouseWheel {} -> True
         MouseClick {} -> True
         _ -> False
