@@ -39,6 +39,7 @@ the search engine and the media library come later.
 
 reprise needs:
 
+- Linux, as it isn't built or tested on other systems yet;
 - [GHC](https://www.haskell.org/ghcup/) 9.6 or newer and cabal;
 - the [ICU](https://icu.unicode.org) libraries and headers, found through
   pkg-config, e.g. `libicu-dev` on Debian and Ubuntu, or `icu` on Arch;

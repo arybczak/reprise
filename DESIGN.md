@@ -2550,6 +2550,10 @@ Then the [later features](#later), in the order the author misses them.
 
 ## Postponed decisions
 
+- **Other systems than Linux** wait until someone needs them. CI builds and
+  tests on Linux only, and some code relies on it, e.g. the visualizer's
+  wait on a fifo whose writer went: on BSD and macOS, such a fifo counts as
+  readable, so the wait would spin. A port starts with CI on the system.
 - **The media library's mtime sort** gets redesigned when the media library
   arrives.
 - **Reloading the config while reprise runs** is not planned for the core. A
