@@ -70,6 +70,7 @@ browserTests =
         "local files"
         [ testCase "the home directory, after MPD's decoders" test_localHome
         , testCase "back to the database and again" test_localModeAgain
+        , testCase "a listing in the other mode fails" test_localModeFailed
         , testCase "the local directory is remembered" test_localModeRemembered
         , testCase "entering a directory and leaving it" test_localEnterAndLeave
         , testCase "nothing is above the root" test_localRoot
@@ -478,6 +479,20 @@ test_localModeAgain = do
   assertEqual "the root" [[Request "lsinfo" []]] database.requests
   again <- press ["2"] =<< answer rootReply database
   assertEqual "no request" [] again.requests
+  assertEqual "the home directory" ["/home/user"] (localListings again)
+
+-- | A listing of the other mode that fails leaves the browser in its mode,
+-- and the next change of the mode tries the other mode again.
+test_localModeFailed :: Assertion
+test_localModeFailed = do
+  local <- answerLast decodersReply =<< press ["2"] =<< root
+  failed <-
+    runEvents
+      0
+      [LocalListed (lastLocalToken local) (Left (DirectoryUnreadable "Permission denied"))]
+      local.state
+  again <- press ["2"] failed.state
+  assertEqual "no listing of the root" [] again.requests
   assertEqual "the home directory" ["/home/user"] (localListings again)
 
 -- | A local directory that the user entered is listed again after the

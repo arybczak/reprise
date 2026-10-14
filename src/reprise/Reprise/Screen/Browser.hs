@@ -367,10 +367,12 @@ changeBrowseMode
 changeBrowseMode = do
   env <- getAppEnv
   b <- getsS (.browser)
-  let other = case maybe b.location (Just . (.location)) b.listing of
-        Just (InLocal _) -> InDirectory ""
-        _ -> InLocal (T.pack env.home)
-  uncurry list $ fromMaybe (other, AtTop) b.otherMode
+  let local = maybe False isLocal $ maybe b.location (Just . (.location)) b.listing
+      other = if local then InDirectory "" else InLocal (T.pack env.home)
+  -- After a listing of the other mode failed, the place that it kept for
+  -- a change back is of this mode.
+  uncurry list . fromMaybe (other, AtTop) $
+    mfilter ((/= local) . isLocal . fst) b.otherMode
 
 -- | Go up from a directory or a playlist that is gone, until one exists, as
 -- ncmpcpp does. Another error shows, and the browser stays as it was. A

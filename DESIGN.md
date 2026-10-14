@@ -186,7 +186,9 @@ ncmpcpp.
   last, with the cursor on the same item and the list scrolled as it was,
   which ncmpcpp doesn't do. The local mode starts in the home directory.
   The header shows `Browse local:` and the path, with `~` for the home
-  directory.
+  directory. A listing of the other mode that fails, e.g. of a home
+  directory that can't be read, leaves the browser in its mode, and the
+  next switch tries the other mode again.
 - **reprise lists the directories itself.** MPD's `listfiles` leaves out
   symbolic links, without an option, so a music directory that is a link,
   e.g. `~/Music` on another disk, wouldn't show.
