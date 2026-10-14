@@ -1229,6 +1229,12 @@ new connection.
 - **`NoReply` keeps the idle connection.** MPD answered the new connection,
   so it isn't a peer that is gone, and a new idle connection would fetch the
   queue again.
+- **A fetch of the queue that fails empties the mirror's queue,** unless a
+  new connection follows, which fetches it again, so that the queue of a
+  lost connection stays to look at. Kept after `NoReply`, e.g. of the
+  changes of a large add, the queue would be stale, and an edit would act
+  on its positions. The next change of the queue fetches the whole queue
+  again.
 
 MPD also closes the connection of a command list larger than its
 `max_command_list_size`, 2 MiB by default, e.g. the adds of a large

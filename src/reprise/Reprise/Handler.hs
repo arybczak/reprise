@@ -177,6 +177,7 @@ handleEvent = \case
     now <- getsS (.now)
     updateMirror $ setQueue now st songs
   QueueChangesFetched changes -> applyChanges changes
+  QueueFetchFailed err -> queueFetchFailed err
   QueueEditStatus edits st -> do
     s <- getS
     case applyQueueEdits s.now st edits s.mirror of

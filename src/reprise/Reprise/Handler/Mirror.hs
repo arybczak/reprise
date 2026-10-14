@@ -3,6 +3,7 @@
 module Reprise.Handler.Mirror
   ( fetchQueue
   , fetchQueueChanges
+  , queueFetchFailed
   , applyChanges
   , endEdit
   , updateMirror
@@ -22,25 +23,38 @@ import Optics.Core
 import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
+import Reprise.Exception
 import Reprise.Handler.Core
 import Reprise.Handler.Seek
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
+import Reprise.Mpd.Worker
 import Reprise.Screen.Queue
 import Reprise.Selection
 import Reprise.State
 
 fetchQueue :: MpdRequest :> es => Eff es ()
-fetchQueue = request ((,) <$> status <*> playlistInfo) QueueFetched
+fetchQueue = requestOr ((,) <$> status <*> playlistInfo) QueueFetchFailed QueueFetched
 
 -- | The status and the changes of the queue come in one command list, so
 -- the changes match the length in the status.
 fetchQueueChanges :: (State AppState :> es, MpdRequest :> es) => Eff es ()
 fetchQueueChanges =
   getsS (.mirror.queueVersion) >>= \case
-    Just v -> request ((,) <$> status <*> plChanges v) QueueChangesFetched
+    Just v -> requestOr ((,) <$> status <*> plChanges v) QueueFetchFailed QueueChangesFetched
     Nothing -> fetchQueue
+
+-- | A queue that didn't come leaves the mirror's stale, which an edit
+-- would act on the positions of. A new connection, which a lost one
+-- brings, fetches it again, so it shows until then.
+queueFetchFailed
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => MpdError
+  -> Eff es ()
+queueFetchFailed err = do
+  showError $ exceptionText err
+  unless (reconnectsAfter err) $ updateMirror forgetQueue
 
 applyChanges
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)

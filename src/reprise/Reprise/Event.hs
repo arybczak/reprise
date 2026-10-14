@@ -44,6 +44,8 @@ data AppEvent
   | -- | The status and the songs of the queue that changed since its version
     -- in the mirror.
     QueueChangesFetched (Status, [Song])
+  | -- | A fetch of the whole queue, or of its changes, failed.
+    QueueFetchFailed MpdError
   | -- | The edits of the queue and the status after them, which came in one
     -- command list with them.
     QueueEditStatus [QueueEdit] Status

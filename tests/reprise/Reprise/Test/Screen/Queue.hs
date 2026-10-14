@@ -31,6 +31,7 @@ queueTests =
     , testCase "delete the marked songs" test_delete
     , testCase "input waits for an edit of the queue" test_heldInput
     , testCase "a click during an edit goes to its song" test_heldClick
+    , testCase "a fetch of the queue fails" test_fetchFailed
     , testCase "an edit after another client's change fetches the changes" test_editFetched
     , testCase "a change during an edit is fetched after it" test_editChanges
     , testCase "the password prompt takes keys during an edit" test_heldPassword
@@ -146,6 +147,26 @@ test_heldClick = do
   assertEqual "the cursor on it" 1 (focusedView played.state).cursor
   gone <- runEvents 0 [MouseClick RightButton 10 2, reply] deleted.state
   assertEqual "a song that the edit deleted" [] gone.requests
+
+-- | A fetch of the queue that fails, e.g. as its reply is larger than MPD's
+-- buffer, leaves no queue, as an edit would act on the positions of a stale
+-- one. A lost connection keeps it, as the next connection fetches it.
+test_fetchFailed :: Assertion
+test_fetchFailed = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  changed <- runEvents 0 [MpdChanged [PlaylistSubsystem]] s
+  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0)] s
+  forM_ [("the changes", changed), ("the whole queue", reconnected)] $ \(what, r) -> do
+    refused <- failLastWith (ConnectionError NoReply) r
+    assertEqual (what <> ": no queue") [] (queueFiles refused.state)
+    assertEqual (what <> ": an error") (Just True) (isError refused)
+    lost <- failLastWith (ConnectionError (Broken "reset")) r
+    assertEqual (what <> ": a lost connection") 5 (length (queueFiles lost.state))
+  where
+    failLastWith :: MpdError -> Result -> IO Result
+    failLastWith err r = case reverse r.pending of
+      p : _ -> runEvents 0 [failureOf err p] r.state
+      [] -> assertFailure "no request to fail"
 
 -- | After another client's change, the status of an edit doesn't follow the
 -- mirror's version, and the changes since it come instead.

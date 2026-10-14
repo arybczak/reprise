@@ -6,6 +6,7 @@ module Reprise.Mpd.Worker
   , idleWorker
   , commandWorker
   , retryInterval
+  , reconnectsAfter
   ) where
 
 import Control.Concurrent.STM
@@ -159,12 +160,10 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
     failed :: (Mpd :> es, IOE :> es) => MpdError -> (MpdError -> AppEvent) -> Eff es ()
     failed err onFailure = do
       case err of
-        ConnectionError e -> do
+        ConnectionError _ -> do
           logError w err
           disconnectMpd
-          -- MPD answered the new connection, so its peer is there, and a
-          -- new idle connection would fetch the queue again.
-          unless (e == NoReply) . liftIO . atomically $
+          when (reconnectsAfter err) . liftIO . atomically $
             writeTVar w.commandConnectionFailed True
         ProtocolError _ -> logError w err
         AckError _ -> pure ()
@@ -178,6 +177,16 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
         disconnectMpd
         runCommand cmd
       err -> throwIO err
+
+-- | Whether the workers connect again after a command failed with an
+-- error, and so fetch the queue again. A command that MPD gave no reply on
+-- a new connection fails the same way on another, and MPD answered the
+-- connection, so its peer is there.
+reconnectsAfter :: MpdError -> Bool
+reconnectsAfter = \case
+  ConnectionError NoReply -> False
+  ConnectionError _ -> True
+  _ -> False
 
 emitEvent :: IOE :> es => Workers -> AppEvent -> Eff es ()
 emitEvent w = liftIO . w.emit

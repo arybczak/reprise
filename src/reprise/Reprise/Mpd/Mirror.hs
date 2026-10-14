@@ -8,6 +8,7 @@ module Reprise.Mpd.Mirror
   , applyQueueChanges
   , setStatus
   , forgetStatus
+  , forgetQueue
   , seekTo
 
     -- * Edits
@@ -104,6 +105,14 @@ setStatus now st m =
 -- would look as if it went on.
 forgetStatus :: Mirror -> Mirror
 forgetStatus = #status .~ Nothing
+
+-- | No queue, until the next whole queue arrives.
+forgetQueue :: Mirror -> Mirror
+forgetQueue m =
+  m
+    & withQueue Seq.empty
+    & #queueVersion .~ Nothing
+    & #lengthFromCurrent .~ 0
 
 -- | Move the current song to a point at a monotonic time, before MPD's
 -- status says that it moved.
