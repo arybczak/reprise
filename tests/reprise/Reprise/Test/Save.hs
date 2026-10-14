@@ -2,6 +2,7 @@ module Reprise.Test.Save (saveTests) where
 
 import Data.ByteString qualified as BS
 import Data.Text qualified as T
+import Optics.Core
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -9,6 +10,7 @@ import Reprise.Event
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
+import Reprise.Save
 import Reprise.State
 import Reprise.Test.Helpers
 import Reprise.UI.Layout
@@ -24,6 +26,7 @@ saveTests =
     , testCase "a playlist of items is replaced" test_replaceItems
     , testCase "the items of the browser" test_browserItems
     , testCase "parts of files are left out" test_parts
+    , testCase "a local song saves as a file URI" test_localSong
     , testCase "an empty queue saves nothing" test_emptyQueue
     , testCase "an empty name saves nothing" test_emptyName
     ]
@@ -92,6 +95,14 @@ test_replaceItems = do
 
 -- | A directory goes in with its songs, and a stored playlist with the
 -- songs that MPD lists for it.
+-- | MPD's @playlistadd@ looks up a path without a scheme in its database,
+-- which has no local file.
+test_localSong :: Assertion
+test_localSong = do
+  let local = song 0 [] 60 & #file .~ "/home/user/a b.flac"
+  assertEqual "a file URI" (SaveSong "file:///home/user/a b.flac") (songToSave local)
+  assertEqual "a song of the database" (SaveSong "dir/0.flac") (songToSave (song 0 [] 60))
+
 test_browserItems :: Assertion
 test_browserItems = do
   root <- browserRoot

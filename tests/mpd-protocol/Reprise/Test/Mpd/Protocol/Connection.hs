@@ -49,6 +49,7 @@ realServerTests =
         , ("ACK", test_ack)
         , ("ACK in a command list", test_ackInCommandList)
         , ("a command list too large for MPD", test_largeCommandList)
+        , ("a local file in a stored playlist", test_localFileInPlaylist)
         , ("an argument with a line break", test_lineBreak)
         , ("a line too long for MPD", test_longLine)
         , ("song tags", test_songTags)
@@ -303,6 +304,20 @@ test_largeCommandList server = withConn server $ \conn -> do
       assertEqual "command" "play" ack.command
     _ -> assertFailure $ "unexpected result: " <> show r
   run conn ping
+
+-- | MPD's @playlistadd@ looks up a path without a scheme in its database,
+-- which has no local file, so a local file goes as a @file://@ URI.
+test_localFileInPlaylist :: TestServer -> Assertion
+test_localFileInPlaylist server = withSystemTempDirectory "local" $ \dir -> do
+  writeSong dir (testSong "local.flac")
+  let file = T.pack (dir </> "local.flac")
+  (`finally` rawCommand server "rm uri") . withConn server $ \conn -> do
+    plain <- try @MpdError . run conn $ playlistAdd "plain" file
+    case plain of
+      Left (AckError ack) -> assertEqual "a plain path" AckNoExist ack.code
+      _ -> assertFailure $ "a plain path: " <> show plain
+    run conn $ playlistAdd "uri" ("file://" <> file)
+    assertEqual "a file URI" [file] . map (.file) =<< run conn (listPlaylistInfo "uri")
 
 -- | Each list is at most the size, as MPD counts it: the bytes of each line
 -- with its line break. A request larger than the size is a list of its own.

@@ -239,7 +239,9 @@ ncmpcpp.
 - **Other songs go in with `playlistadd`,** after a `playlistclear` to
   replace. A directory goes in with `searchaddpl` and a `base` filter, with
   the songs of the directories in it. A stored playlist goes in with its
-  songs, which the request that checks the name fetches too.
+  songs, which the request that checks the name fetches too. A local file
+  goes in as a `file://` URI, as `playlistadd` looks up a path without a
+  scheme in MPD's database.
 - **A part of a file, e.g. a track of a cue sheet, is left out,** and the
   message says how many. A stored playlist has no ranges, so it would get
   the whole file.

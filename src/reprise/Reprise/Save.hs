@@ -30,10 +30,13 @@ data SaveItem
     SavePart
   deriving stock (Eq, Show)
 
--- | A song to save, or a part of a file, which can't be saved.
+-- | A song to save, or a part of a file, which can't be saved. MPD's
+-- @playlistadd@ looks up a path without a scheme in its database, which
+-- has no local file, so that goes as a @file://@ URI.
 songToSave :: Song -> SaveItem
 songToSave song
   | isJust song.range = SavePart
+  | "/" `T.isPrefixOf` song.file = SaveSong ("file://" <> song.file)
   | otherwise = SaveSong song.file
 
 -- | The items that a save saves: all but the parts of files.
