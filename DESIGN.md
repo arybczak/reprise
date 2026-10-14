@@ -1377,6 +1377,11 @@ never use it directly; they go through `MpdRequest`.
 - **Logging.** Unexpected exceptions and protocol errors go to
   `$XDG_STATE_HOME/reprise/reprise.log`, never to the terminal while the UI is
   running. Each run appends to the file.
+  - **The log is in UTF-8,** as the locale's encoding may lack characters of
+    e.g. a song's name, e.g. ASCII's with `LANG=C`.
+  - **A line that can't be written is lost,** e.g. on a full disk. A worker
+    logs its errors, also the error of a failed line, so a log that threw
+    would stop the workers, and the UI would show what they last sent.
 
 Without effectful, the same design would work with actions as plain functions
 `AppState -> (AppState, [Request])`. The effectful version reads better once

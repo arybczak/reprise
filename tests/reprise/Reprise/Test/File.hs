@@ -1,9 +1,13 @@
 module Reprise.Test.File (fileTests) where
 
+import Control.Exception
 import Data.ByteString qualified as BS
+import Data.Text.Encoding qualified as T
 import System.Directory
 import System.FilePath
 import System.IO.Temp
+import System.Posix.IO
+import System.Posix.IO.ByteString qualified as PB
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -15,7 +19,30 @@ fileTests =
     "file"
     [ testCase "write a file whole" test_writeFileAtomically
     , testCase "write through a symbolic link" test_symlink
+    , testCase "the log is in UTF-8" test_logUtf8
+    , testCase "a line that can't be logged is lost" test_logFull
     ]
+
+-- | The locale's encoding may lack characters of e.g. a song's name, such
+-- as ASCII's with @LANG=C@.
+test_logUtf8 :: Assertion
+test_logUtf8 = withSystemTempDirectory "file" $ \dir -> do
+  let path = dir </> "reprise.log"
+  logLine <- openLog path
+  logLine "Zażółć"
+  -- GHC locks the file of the log's handle, which stays open, against its
+  -- handles in the same process.
+  size <- getFileSize path
+  logged <-
+    bracket (openFd path ReadOnly defaultFileFlags) closeFd (`PB.fdRead` fromIntegral size)
+  assertBool "the line" $ T.encodeUtf8 "Zażółć\n" `BS.isSuffixOf` logged
+
+-- | Each worker logs its errors, also the error of its own log, so a log
+-- that throws would end the worker.
+test_logFull :: Assertion
+test_logFull = do
+  logLine <- openLog "/dev/full"
+  logLine "lost"
 
 -- | A link to a file, e.g. of a repository of dotfiles, stays a link, and
 -- the file that it points to gets the bytes.

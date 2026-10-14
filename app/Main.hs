@@ -6,7 +6,6 @@ module Main
 import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Concurrent.MVar.Strict qualified as S
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
@@ -16,7 +15,6 @@ import Data.List qualified as L
 import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
-import Data.Time
 import Data.Version
 import Effectful
 import Graphics.Vty qualified as V
@@ -40,6 +38,7 @@ import Reprise.Effect.Clock
 import Reprise.Effect.Fifo
 import Reprise.Effect.Mpd
 import Reprise.Exception
+import Reprise.File
 import Reprise.History
 import Reprise.Lyrics.Http
 import Reprise.Lyrics.Lrclib
@@ -258,15 +257,6 @@ logFile = do
   dir <- getXdgDirectory XdgState "reprise"
   createDirectoryIfMissing True dir
   pure (dir </> "reprise.log")
-
-openLog :: FilePath -> IO (T.Text -> IO ())
-openLog file = do
-  h <- openFile file AppendMode
-  hSetBuffering h LineBuffering
-  lock <- S.newMVar ()
-  pure $ \msg -> S.withMVar lock $ \() -> do
-    time <- getZonedTime
-    T.hPutStrLn h $ T.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S %z " time) <> msg
 
 -- | Run an action with what C libraries write to stderr in the log, e.g.
 -- TagLib's debug messages, as they would garble the UI.
