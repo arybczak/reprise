@@ -646,7 +646,7 @@ describeAction = \case
   Save -> "save as a playlist"
   Toggle t -> "toggle " <> T.replace "_" " " (toggleName t)
   Update s -> case s of
-    UpdateCurrent -> "update the database here"
+    UpdateCurrent -> "update the current directory"
     UpdateAll -> "update the whole database"
   MoveSongs t -> case t of
     MoveSongsUp -> "move up"

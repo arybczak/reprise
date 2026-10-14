@@ -387,15 +387,18 @@ test_tickWithoutDuration = do
     [d] -> assertBool ("delay " <> show d) (abs (d - 0.75) < 1e-9)
     _ -> assertFailure $ "expected one tick, got " <> show ticks
 
--- | Outside the browser, there is no current directory.
 test_updateCurrentElsewhere :: Assertion
 test_updateCurrentElsewhere = do
-  r <- keys ["u"] =<< testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
-  assertEqual "the whole database" [[Request "update" []]] r.requests
+  s <- testState (80, 24) (statusOf Stopped Nothing 1) (songs 1)
+  assertEqual "unbound" [] . (.requests) =<< keys ["u"] s
+  r <- keys ([":"] <> typed "update current" <> ["enter"]) s
+  assertEqual "no update" [] r.requests
+  assertEqual "a message" (Just "The queue screen has no update current") (message r)
+  assertEqual "the whole database" [[Request "update" []]] . (.requests) =<< keys ["U"] s
   assertBool "the whole database, also in the browser"
     . elem [Request "update" []]
     . (.requests)
-    =<< keys ["2", "U"] r.state
+    =<< keys ["2", "U"] s
 
 test_disconnectClears :: Assertion
 test_disconnectClears = do

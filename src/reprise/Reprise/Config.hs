@@ -1033,8 +1033,6 @@ defaultKeymaps =
               , -- ncmpcpp's g.
                 char 's' ~> CommandPrompt "seek"
               ]
-          , -- As ncmpcpp's u.
-            char 'u' ~> Update UpdateCurrent
           , char 'U' ~> Update UpdateAll
           ]
     , screens =
@@ -1073,6 +1071,8 @@ defaultKeymaps =
             , keymap
                 [ plain Backspace ~> Parent
                 , char 'o' ~> JumpToPlaying
+                , -- As ncmpcpp's u.
+                  char 'u' ~> Update UpdateCurrent
                 , group (char 't') "toggle" [char 'd' ~> Toggle ToggleDisplay, char 'o' ~> NextSortMode]
                 ]
             )

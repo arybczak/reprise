@@ -623,7 +623,8 @@ runAction action = case action of
   Quit -> quit
   Clear -> verb action
   Shuffle -> verb action
-  Update _ -> verbOr (updateDatabase Nothing) action
+  Update UpdateCurrent -> verb action
+  Update UpdateAll -> updateDatabase Nothing
 
 -- | Run a verb the way the focused screen implements it. A screen that
 -- doesn't implement it says so, instead of acting on another screen.

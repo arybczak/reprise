@@ -243,7 +243,6 @@ keys:
       name: go
       b: jump_to_browser         # the directory of the song under the cursor
       s: command seek            # asks for [h:]m:ss, N% or ±Ns
-    u: update current            # the browser's directory; elsewhere all of it
     U: update all                # the whole database
 
   queue:
@@ -268,6 +267,7 @@ keys:
   browser:
     backspace: parent
     o: jump_to_playing           # the directory of the playing song
+    u: update current            # the directory that the browser lists
     t:
       d: toggle display          # columns or classic
       o: next_sort_mode
