@@ -1041,7 +1041,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Config` | Config types, yamlet decoders, defaults, the default keymaps |
 | `Reprise.Format` | The format language: parser and renderer to styled spans, and the plain name of a song. Pure, with golden tests |
 | `Reprise.Style` | Parsing styles into vty `Attr` |
-| `Reprise.Keys` | Key spec parsing (`ctrl-x`, `alt-shift-tab`, ...) |
+| `Reprise.Keys` | Key spec parsing (`ctrl-x`, `alt-shift-up`, ...) |
 | `Reprise.Keymap` | Keymaps, key sequences and lookup, and the listings of keymaps: the which-key entries and the lines of the help screen |
 | `Reprise.Action` | The action registry: actions as data, with their names, argument parsers and descriptions |
 | `Reprise.Handler` | The handlers of events, keys, prompts and the actions of every screen, e.g. playback and toggles. It passes the actions of a screen on to the screen's module |
@@ -1486,7 +1486,8 @@ Key sequences, e.g. `t r`, are supported from the start:
 - The status bar shows the prefix (`t -`), and the
   [which-key panel](#which-key-panel) lists the possible next keys.
 - `escape` or `ctrl-g` cancels. An unbound next key cancels with a message.
-  There is no timeout.
+  There is no timeout. A group can't bind `escape` or `ctrl-g`, as the
+  binding would never run.
 - Layering works one key at a time. The screen's and the global keymaps are
   walked in parallel:
   - if both bind the key to a prefix, the walk continues into both groups, so
@@ -1498,6 +1499,22 @@ Key sequences, e.g. `t r`, are supported from the start:
   parser rejects these names with a hint ("`ctrl-i` is the same key as `tab`
   in a terminal; use `tab`"). It doesn't silently convert them, because then
   two different-looking entries could collide.
+  - **The rules are vty-unix's,** which reads the keys from the bytes of a
+    terminal's legacy input with the same tables on every terminal. It maps
+    a carriage return to a line feed, which it reads as `enter`, so
+    `ctrl-j` is `enter` too, and `ctrl-?` is `backspace`. `ctrl-space` is
+    `ctrl-@`, and `ctrl` and `shift` don't change `enter`, `escape`,
+    `backspace` and `space`, nor `ctrl` `tab`.
+  - **A key that a terminal doesn't send as one key is rejected too,** as
+    its binding would never run: `ctrl` with a character other than a
+    letter or one of `@ \ ] ^ _`, e.g. `ctrl-1`, `alt-[`, which begins
+    the bytes of other keys, `alt` with a character outside ASCII, and
+    `alt-shift-tab`.
+  - A test checks the parser against vty-unix's tables: for the keys
+    that are control characters, with every modifier, and the ASCII
+    characters, a key parses if and only if vty-unix reads it. The arrows,
+    the function keys and the like depend on terminfo, so the parser
+    takes them all.
 
 **2. Verbs that each screen implements,** e.g. `activate`, `delete`,
 `add_or_remove`, `parent`, `next_column`/`previous_column`.

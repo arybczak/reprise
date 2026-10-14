@@ -1,4 +1,4 @@
--- | Key specs, e.g. @ctrl-x@, @alt-shift-tab@ or @page_down@.
+-- | Key specs, e.g. @ctrl-x@, @alt-shift-up@ or @page_down@.
 module Reprise.Keys
   ( -- * Keys
     KeySpec (..)
@@ -110,38 +110,69 @@ parseKeySpec input = do
     maxFunctionKey = 63
 
     -- Reject keys that a terminal sends as other keys, so that two entries
-    -- that look different can't be the same key.
+    -- that look different can't be the same key, and keys that a terminal
+    -- doesn't send as one key, whose bindings would never run.
     check :: KeySpec -> Either T.Text KeySpec
-    check spec = case (S.toList spec.modifiers, spec.key) of
-      (_, CharKey c)
+    check spec = case (spec.key, sentAs spec) of
+      (CharKey c, _)
         | Shift `S.member` spec.modifiers ->
             Left $
               "shift-"
                 <> T.singleton c
                 <> " can't be told apart from other keys in a terminal; write the character it types, e.g. "
                 <> T.singleton (toUpper c)
-        | Ctrl `S.member` spec.modifiers
-        , Just same <- lookup (toLower c) ctrlAliases ->
+      (_, Right same)
+        | same == spec -> Right spec
+        | otherwise ->
             Left $
-              "ctrl-"
-                <> T.singleton c
+              renderKeySpec spec
                 <> " is the same key as "
-                <> same
+                <> renderKeySpec same
                 <> " in a terminal; use "
-                <> same
-        | Ctrl `S.member` spec.modifiers
-        , isUpper c ->
-            Left $
-              "ctrl-"
-                <> T.singleton c
-                <> " is the same key as ctrl-"
-                <> T.singleton (toLower c)
-                <> " in a terminal; use ctrl-"
-                <> T.singleton (toLower c)
-      _ -> Right spec
+                <> renderKeySpec same
+      (_, Left why) -> Left $ renderKeySpec spec <> " " <> why
 
-    ctrlAliases :: [(Char, T.Text)]
-    ctrlAliases = [('i', "tab"), ('m', "enter"), ('[', "escape"), ('h', "backspace")]
+    -- The key that vty-unix reads from the bytes that a terminal sends for
+    -- a key, or why it reads no such key. Its tables are the same for
+    -- every terminal. It maps a carriage return to a line feed.
+    sentAs :: KeySpec -> Either T.Text KeySpec
+    sentAs spec =
+      let has m = m `S.member` spec.modifiers
+          without ms = S.difference spec.modifiers (S.fromList ms)
+      in case spec.key of
+           CharKey c
+             | has Ctrl -> case toLower c of
+                 'i' -> Right $ KeySpec (without [Ctrl]) Tab
+                 'j' -> Right $ KeySpec (without [Ctrl]) Enter
+                 'm' -> Right $ KeySpec (without [Ctrl]) Enter
+                 '[' -> Right $ KeySpec (without [Ctrl]) Escape
+                 '?' -> Right $ KeySpec (without [Ctrl]) Backspace
+                 'h'
+                   | has Alt -> Left "reaches reprise as escape and then backspace"
+                   | otherwise -> Right $ KeySpec (without [Ctrl]) Backspace
+                 l
+                   | l `elem` ('@' : ['a' .. 'z'] <> "\\]^_") ->
+                       Right $ KeySpec spec.modifiers (CharKey l)
+                   | otherwise ->
+                       Left
+                         "doesn't reach reprise, as a terminal sends ctrl only with a letter or one of @ \\ ] ^ _"
+             | has Alt
+             , c == '[' ->
+                 Left "reaches reprise as escape and then [, which begins the bytes of other keys"
+             | has Alt
+             , not (isAscii c) ->
+                 Left $
+                   "reaches reprise as escape and then "
+                     <> T.singleton c
+                     <> ", as a terminal sends alt as one key only with an ASCII character"
+           Space
+             | has Ctrl -> Right $ KeySpec (without [Shift]) (CharKey '@')
+             | otherwise -> Right $ KeySpec (without [Shift]) Space
+           Tab
+             | has Alt && has Shift -> Left "doesn't reach reprise as one key"
+             | otherwise -> Right $ KeySpec (without [Ctrl]) Tab
+           k | k `elem` [Enter, Backspace, Escape] -> Right $ KeySpec (without [Ctrl, Shift]) k
+           _ -> Right spec
 
 -- | The text of a key spec, which 'parseKeySpec' reads back.
 renderKeySpec :: KeySpec -> T.Text

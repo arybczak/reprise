@@ -497,7 +497,7 @@ noteInput = do
     after cursorHideDelay HideCursor
 
 isCancel :: KeySpec -> Bool
-isCancel k = k `elem` [plain Escape, ctrl 'g']
+isCancel k = k `elem` cancelKeys
 
 handlePromptKey
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)

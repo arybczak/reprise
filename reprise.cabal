@@ -304,6 +304,7 @@ test-suite test
                     , unix
                     , vector
                     , vty
+                    , vty-unix
                     , yamlet
 
     hs-source-dirs: tests/reprise

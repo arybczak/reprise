@@ -346,6 +346,12 @@ test_errors = do
     "ctrl-q always quits, so a keymap can't bind it"
     (decode "keys:\n  queue:\n    t:\n      ctrl-q: pause\n")
   assertError
+    "a key that cancels in a group"
+    "escape cancels the keys before it, so a group can't bind it"
+    (decode "keys:\n  global:\n    t:\n      escape: pause\n")
+  assertBool "a key that cancels outside a group" . isRight $
+    decode "keys:\n  global:\n    escape: pause\n"
+  assertError
     "missing column format"
     "missing key \"format\""
     (decode "songs:\n  columns:\n    list:\n    - {width: 5}\n")

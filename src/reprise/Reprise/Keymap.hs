@@ -6,6 +6,7 @@ module Reprise.Keymap
   , Keymaps (..)
   , emptyKeymap
   , alwaysQuit
+  , cancelKeys
   , screenKeymap
 
     -- * Overrides
@@ -68,6 +69,11 @@ emptyKeymap = Keymap Nothing M.empty
 alwaysQuit :: KeySpec
 alwaysQuit = ctrl 'q'
 
+-- | The keys that cancel the keys of a sequence so far, and a prompt. No
+-- group can bind them.
+cancelKeys :: [KeySpec]
+cancelKeys = [plain Escape, ctrl 'g']
+
 screenKeymap :: ScreenName -> Keymaps -> Keymap
 screenKeymap s keymaps = M.findWithDefault emptyKeymap s keymaps.screens
 
@@ -92,27 +98,34 @@ instance FromYaml Override where
   parseYaml n = case view n of
     NullView -> pure Remove
     StringView _ -> OverrideAction <$> parseYaml n
-    _ -> OverrideGroup <$> parseYaml n
+    _ -> OverrideGroup <$> keymapOverride True n
 
--- | A mapping from keys to overrides. The key @name@ names the group.
 instance FromYaml KeymapOverride where
-  parseYaml = withMapping $ \o -> do
-    entries <- forM (objectEntries o) $ \(k, v) -> case view k of
-      StringView "name" -> Left <$> withText pure v
-      _ -> (\spec binding -> Right (k, spec, binding)) <$> parseYaml k <*> parseYaml v
-    bindings <- foldM insertUnique M.empty [b | Right b <- entries]
-    pure $ KeymapOverride (listToMaybe [t | Left t <- entries]) bindings
-    where
-      -- Different spellings of one key, e.g. 1 and "1", are a duplicate
-      -- that YAML doesn't see.
-      insertUnique
-        :: M.Map KeySpec Override -> (Node, KeySpec, Override) -> Parser (M.Map KeySpec Override)
-      insertUnique m (node, k, v)
-        | k == alwaysQuit =
-            failAt node $ T.unpack (renderKeySpec k) <> " always quits, so a keymap can't bind it"
-        | k `M.member` m =
-            failAt node $ "the key " <> T.unpack (renderKeySpec k) <> " is bound twice"
-        | otherwise = pure (M.insert k v m)
+  parseYaml = keymapOverride False
+
+-- | A mapping from keys to overrides, of a keymap or of a group. The key
+-- @name@ names the group.
+keymapOverride :: Bool -> Node -> Parser KeymapOverride
+keymapOverride group = withMapping $ \o -> do
+  entries <- forM (objectEntries o) $ \(k, v) -> case view k of
+    StringView "name" -> Left <$> withText pure v
+    _ -> (\spec binding -> Right (k, spec, binding)) <$> parseYaml k <*> parseYaml v
+  bindings <- foldM insertUnique M.empty [b | Right b <- entries]
+  pure $ KeymapOverride (listToMaybe [t | Left t <- entries]) bindings
+  where
+    -- Different spellings of one key, e.g. 1 and "1", are a duplicate
+    -- that YAML doesn't see.
+    insertUnique
+      :: M.Map KeySpec Override -> (Node, KeySpec, Override) -> Parser (M.Map KeySpec Override)
+    insertUnique m (node, k, v)
+      | k == alwaysQuit =
+          failAt node $ T.unpack (renderKeySpec k) <> " always quits, so a keymap can't bind it"
+      | group && k `elem` cancelKeys =
+          failAt node $
+            T.unpack (renderKeySpec k) <> " cancels the keys before it, so a group can't bind it"
+      | k `M.member` m =
+          failAt node $ "the key " <> T.unpack (renderKeySpec k) <> " is bound twice"
+      | otherwise = pure (M.insert k v m)
 
 -- | Merge a user's changes into a keymap.
 applyOverride :: KeymapOverride -> Keymap -> Keymap
