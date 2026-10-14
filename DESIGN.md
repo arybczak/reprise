@@ -217,8 +217,9 @@ ncmpcpp.
 - **A thread of its own lists a directory and reads its tags,** and another
   walks the directories of an add, so that a large walk, a slow disk or a
   hung network mount doesn't stop the UI. Each gets a thread when it starts,
-  as the tokens of the listings and the adds already drop the replies that
-  newer ones replaced, so no worker needs to keep only the newest request.
+  as the tokens of the listings already drop the replies that newer ones
+  replaced, and every walk of an add is needed, so no worker needs to keep
+  only the newest request.
 - Hidden entries don't show, as with ncmpcpp's default.
 - Playlist files don't show yet. MPD lists no suffixes of its playlist
   plugins, so reprise would have to ask about each file.
@@ -232,8 +233,14 @@ ncmpcpp.
     list. MPD added the files before it, and the index of the failure says
     which ones, so the adds after it are sent again. The message counts the
     files that MPD left out.
+  - **An add waits for the adds before it,** so that the songs go in in the
+    order of the keys, e.g. of space on a large directory and then on the
+    song below it, whose add has no walk to wait for.
   - Add and play plays from the first file after the last add, so another
-    client's add in between can come first.
+    client's add in between can come first. An add that waited counts the
+    songs that the adds before it added.
+  - An add with directories needs MPD's decoders, which a new connection
+    asks for again. Until they come, the add says so and adds nothing.
 - `jump_to_browser`, and the browser's `jump_to_playing`, open the local
   directory of a song that MPD keeps by its absolute path, as it keeps a
   local file. A change of the mode then goes back to what the other mode

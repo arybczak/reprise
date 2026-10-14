@@ -83,6 +83,8 @@ browserTests =
         , testCase "adding a directory" test_localAddDirectory
         , testCase "adding a directory at a position" test_localAddDirectoryNext
         , testCase "adding and playing a directory" test_localAddAndPlay
+        , testCase "adds go in in order" test_localAddsInOrder
+        , testCase "adding before MPD's decoders are known" test_localAddWithoutDecoders
         , testCase "MPD refuses local files" test_localAddRefused
         ]
     ]
@@ -622,7 +624,7 @@ test_localAddDirectory = do
     "the message"
     (Just "Added 3 songs, left out 1 that MPD can't read")
     (message done.state)
-  assertEqual "nothing left" Nothing done.state.browser.localAdd
+  assertEqual "nothing left" [] (toList done.state.browser.localAdds)
 
 -- | Each file goes before the ones after it, so they go in reverse.
 test_localAddDirectoryNext :: Assertion
@@ -650,6 +652,38 @@ test_localAddAndPlay = do
   added <- answerLast [] walked
   assertEqual "play from the first" [[Request "play" ["0"]]] added.requests
 
+-- | An add waits for the adds before it, also when it has no walk, so the
+-- songs go in in the order of the keys. Add and play then plays from the
+-- first of its own songs.
+test_localAddsInOrder :: Assertion
+test_localAddsInOrder = do
+  r <- press ["down", "a", "e", "down", "a", "p"] =<< inHome
+  assertEqual "the song waits for the walk" [] r.requests
+  walked <-
+    runEvents
+      0
+      [LocalWalked (lastWalkToken r) [take 1 musicFiles <> drop 2 musicFiles]]
+      r.state
+  assertEqual
+    "the files of the walk"
+    [ [Request "add" ["/home/user/Music/a.flac"], Request "add" ["/home/user/Music/cd2/b.flac"]]
+    ]
+    walked.requests
+  directory <- answerLast ["list_OK", "list_OK"] walked
+  assertEqual "the song" [[Request "add" ["/home/user/a.flac"]]] directory.requests
+  added <- answerLast [] directory
+  assertEqual "play the song" [[Request "play" ["2"]]] added.requests
+  assertEqual "nothing left" [] (toList added.state.browser.localAdds)
+
+-- | A walk needs MPD's decoders, which a new connection asks for again.
+test_localAddWithoutDecoders :: Assertion
+test_localAddWithoutDecoders = do
+  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0)] =<< inHome
+  r <- press ["down", "a", "e"] reconnected.state
+  assertEqual "no walk" [] [dirs | WalkLocal _ _ dirs <- r.commands]
+  assertEqual "why" (Just "MPD's decoders aren't known yet") (message r.state)
+  assertEqual "nothing waits" [] (toList r.state.browser.localAdds)
+
 -- | MPD refuses local files to a client that isn't on its socket.
 test_localAddRefused :: Assertion
 test_localAddRefused = do
@@ -661,7 +695,7 @@ test_localAddRefused = do
     "the error"
     (Just "add: Access to local files via TCP is not allowed")
     (message failed.state)
-  assertEqual "the add ended" Nothing failed.state.browser.localAdd
+  assertEqual "the add ended" [] (toList failed.state.browser.localAdds)
 
 ----------------------------------------
 -- Helpers

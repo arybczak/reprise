@@ -304,7 +304,8 @@ data BrowserState = BrowserState
   , otherMode :: Maybe (Location, ListingCursor)
   -- ^ What the other browse mode listed last, and where its cursor was,
   -- which a change of the mode lists again.
-  , localAdd :: Maybe LocalAdd
+  , localAdds :: Seq.Seq LocalAdd
+  -- ^ In the order of the keys. MPD adds the first, and the others wait.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -317,9 +318,9 @@ data LocalAdd = LocalAdd
   , position :: AddPosition
   , playFrom :: Maybe SongPos
   -- ^ Where to play after the add, for add and play.
-  , files :: [T.Text]
+  , files :: Maybe [T.Text]
   -- ^ The files whose adds MPD wasn't sent or didn't answer yet, in the
-  -- order of the commands.
+  -- order of the commands, once the walk ended.
   , added :: Int
   , skipped :: Int
   -- ^ The files that MPD refused, as it can't read them.
@@ -534,7 +535,7 @@ initialState config =
           , listing = Nothing
           , suffixes = Nothing
           , otherMode = Nothing
-          , localAdd = Nothing
+          , localAdds = Seq.empty
           }
     , visualizer = newVisualizer Nothing
     , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing
