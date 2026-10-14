@@ -828,9 +828,21 @@ progressDuration s = do
   pure d
 
 -- | The time in a song of a length where a cell of a progress bar of a
--- width begins to fill.
+-- width begins to fill, to the millisecond that 'progressCells' puts in the
+-- cell. The division rounds down to a millisecond before the cell, and the
+-- cell's exact start can come out just before it in floating point.
 cellTime :: Int -> Int -> Seconds -> Seconds
-cellTime width cell duration = duration * fromIntegral cell / fromIntegral width
+cellTime width cell duration
+  | progressCells width (realToFrac start) (realToFrac duration) < cell =
+      start + millisecond
+  | otherwise = start
+  where
+    start :: Seconds
+    start = duration * fromIntegral cell / fromIntegral width
+
+    -- The resolution of 'Seconds'.
+    millisecond :: Seconds
+    millisecond = 0.001
 
 -- | The cells of a progress bar of a width that the elapsed time of a song
 -- of a length fills.

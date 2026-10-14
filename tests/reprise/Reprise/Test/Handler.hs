@@ -457,6 +457,15 @@ test_clickSeek = do
   assertEqual "paused" [[Request "seekcur" ["30"]]] . (.requests) =<< click 40 22 paused
   assertEqual "stopped" [] . (.requests) =<< click 20 22 stopped
   assertEqual "past the bar" [] . (.requests) =<< click 80 22 playing
+  -- The cells of 201 s on 80 columns don't begin at whole milliseconds.
+  long <-
+    testState (80, 24) (statusOf Paused (Just 0) 1 & #duration ?~ 201) [song 0 [] 201]
+  forM_ [0 .. 79] $ \col -> do
+    clicked <- click col 22 long
+    assertEqual
+      ("the cell of the click at " <> show col)
+      (Just col)
+      ((\e -> progressCells 80 (realToFrac e) 201) <$> displayedElapsed clicked.state)
   seeking <- keys ["f"] playing
   sought <- click 20 22 seeking.state
   assertEqual "ends a seek of the keys" Nothing sought.state.seek
