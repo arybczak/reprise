@@ -76,18 +76,28 @@ holdOrHandle
   => AppEvent
   -> Eff es ()
 holdOrHandle event = do
+  env <- getAppEnv
   s <- getS
-  let isInput = case event of
+  let toHold = case event of
         -- The reply may never come, e.g. on a connection that hangs.
-        KeyPressed k -> k /= alwaysQuit
-        MouseWheel {} -> True
-        MouseClick {} -> True
-        _ -> False
-  case s.pendingEdit of
-    Just _ | isInput && isNothing s.prompt -> do
-      modifyS $ #pendingEdit % _Just % #heldInput %~ (Seq.|> event)
-      keepScreen
+        KeyPressed k | k /= alwaysQuit -> Just (HeldEvent event)
+        MouseWheel {} -> Just (HeldEvent event)
+        MouseClick button col row
+          | (focusedView s).screen == QueueScreen
+          , Just i <- listItemAt env s col row
+          , Just songId <- (.songId) =<< Seq.lookup i s.mirror.queue ->
+              Just (HeldQueueClick button songId)
+          | otherwise -> Just (HeldEvent event)
+        _ -> Nothing
+  case (s.pendingEdit, toHold) of
+    (Just _, Just held) | isNothing s.prompt -> hold held
     _ -> handleEvent event
+
+-- | Keep input until the edit of the queue that waits gets its reply.
+hold :: (State AppState :> es, UiRequest :> es) => HeldInput -> Eff es ()
+hold held = do
+  modifyS $ #pendingEdit % _Just % #heldInput %~ (Seq.|> held)
+  keepScreen
 
 -- | Handle the input that waited for an edit of the queue, whose changes
 -- the mirror has now. If it edits the queue again, the rest of it waits
@@ -104,7 +114,19 @@ releaseInput = do
       redrawn = interpose_ $ \case
         UiRequest KeepScreen -> pure ()
         UiRequest c -> send (UiRequest c)
-  redrawn $ traverse_ holdOrHandle held
+  redrawn $ traverse_ release held
+  where
+    release
+      :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+      => HeldInput
+      -> Eff es ()
+    release = \case
+      HeldEvent event -> holdOrHandle event
+      click@(HeldQueueClick button songId) -> do
+        s <- getS
+        case s.pendingEdit of
+          Just _ | isNothing s.prompt -> hold click
+          _ -> clickSong button songId
 
 ----------------------------------------
 -- Constants
@@ -333,7 +355,7 @@ fetchQueueChanges =
 
 -- | End the edit that waited for its reply: fetch the changes of the queue
 -- that MPD reported meanwhile, and return the input that waited.
-endEdit :: (State AppState :> es, MpdRequest :> es) => Eff es (Seq.Seq AppEvent)
+endEdit :: (State AppState :> es, MpdRequest :> es) => Eff es (Seq.Seq HeldInput)
 endEdit = do
   edit <- getsS (.pendingEdit)
   modifyS $ #pendingEdit .~ Nothing
@@ -481,11 +503,39 @@ handleClick button col row = do
         seekNow (cellTime width col d)
     | isNothing s.prompt
     , isNothing s.pendingKeys
-    , Just i <- listItemAt env s col row -> do
-        noteInput
-        modifyWithEnv (setCursor i)
-        when (button == RightButton) $ runAction Activate
+    , Just i <- listItemAt env s col row ->
+        clickItem button i
     | otherwise -> keepScreen
+
+-- | A click on a song of the queue that waited for an edit, which the edit
+-- may have moved or deleted. The keys before it may have shown another
+-- screen, or opened a prompt or a key sequence, which take no clicks.
+clickSong
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => MouseButton
+  -> SongId
+  -> Eff es ()
+clickSong button songId = do
+  s <- getS
+  case Seq.findIndexL ((== Just songId) . (.songId)) s.mirror.queue of
+    Just i
+      | (focusedView s).screen == QueueScreen
+      , isNothing s.prompt
+      , isNothing s.pendingKeys ->
+          clickItem button i
+    _ -> keepScreen
+
+-- | A click on an item of a list moves the cursor to it, and a right click
+-- activates it.
+clickItem
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => MouseButton
+  -> Int
+  -> Eff es ()
+clickItem button i = do
+  noteInput
+  modifyWithEnv (setCursor i)
+  when (button == RightButton) $ runAction Activate
 
 -- | The user did something, which shows the cursor until it is idle again.
 noteInput :: (State AppState :> es, UiRequest :> es) => Eff es ()

@@ -19,6 +19,7 @@ module Reprise.State
   , Finding (..)
   , Message (..)
   , PendingEdit (..)
+  , HeldInput (..)
   , PendingKeys (..)
   , SeekState (..)
   , QueueState (..)
@@ -235,7 +236,7 @@ data Message = Message
 
 -- | An edit of the queue that waits for its reply.
 data PendingEdit = PendingEdit
-  { heldInput :: Seq.Seq AppEvent
+  { heldInput :: Seq.Seq HeldInput
   -- ^ The input that came meanwhile, in order. It waits until the mirror
   -- has the edit, as an action plans from the positions in the mirror: a
   -- second delete would delete the songs after the first one's.
@@ -245,6 +246,15 @@ data PendingEdit = PendingEdit
   -- be from the version before it, with every song that the edit moved.
   }
   deriving stock (Eq, Show, Generic)
+
+-- | Input that waits for an edit of the queue.
+data HeldInput
+  = HeldEvent AppEvent
+  | -- | A click on a song of the queue. Until the edit, the screen shows
+    -- the queue before it, so the click goes to the song that it showed,
+    -- not to the row, which the edit may give to another song.
+    HeldQueueClick MouseButton SongId
+  deriving stock (Eq, Show)
 
 -- | The keys of an unfinished key sequence and where they lead.
 data PendingKeys = PendingKeys

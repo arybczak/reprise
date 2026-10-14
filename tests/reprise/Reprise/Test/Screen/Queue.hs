@@ -30,6 +30,7 @@ queueTests =
     , testCase "jump to playing centers the cursor" test_jumpCenters
     , testCase "delete the marked songs" test_delete
     , testCase "input waits for an edit of the queue" test_heldInput
+    , testCase "a click during an edit goes to its song" test_heldClick
     , testCase "an edit after another client's change fetches the changes" test_editFetched
     , testCase "a change during an edit is fetched after it" test_editChanges
     , testCase "the password prompt takes keys during an edit" test_heldPassword
@@ -131,7 +132,21 @@ test_heldInput = do
   reconnected <- runEvents 0 [MpdConnected (Version 0 24 0)] twice.state
   assertEqual "a new connection drops it" Nothing reconnected.state.pendingEdit
 
--- | After another client's change, the status of an edit doesn't follow the
+-- | A click on the queue during an edit goes to the song that the screen
+-- showed under it, which the edit may move or delete. Row 2 shows the first
+-- song.
+test_heldClick :: Assertion
+test_heldClick = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  deleted <- keys ["delete"] s
+  let st = statusOf Stopped Nothing 4 & #playlistVersion .~ PlaylistVersion 2
+      reply = QueueEditStatus (deletedAt 0 1) st
+  played <- runEvents 0 [MouseClick RightButton 10 4, reply] deleted.state
+  assertEqual "the song under the click" [[Request "playid" ["3"]]] played.requests
+  assertEqual "the cursor on it" 1 (focusedView played.state).cursor
+  gone <- runEvents 0 [MouseClick RightButton 10 2, reply] deleted.state
+  assertEqual "a song that the edit deleted" [] gone.requests
+
 -- mirror's version, and the changes since it come instead.
 test_editFetched :: Assertion
 test_editFetched = do

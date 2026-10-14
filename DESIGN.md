@@ -1153,6 +1153,12 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
     meanwhile are handled in order once the mirror has the edit, as ncmpc's
     blocking commands do. `ctrl-q` doesn't wait, as the reply may never
     come, e.g. on a connection that hangs.
+    - **A click on the queue waits as its song,** not as its row. Until the
+      reply, the screen shows the queue before the edit, which the click
+      aimed at, and the edit may give the row to another song. The click
+      then goes to the song where the edit put it, and a song that the
+      edit deleted takes no click. Keys stay keys, as they act on the queue
+      after the edit, and so does the wheel, whose steps are relative.
     - **The mirror makes the edit itself,** as ncmpc does, when the
       version in the status shows that no other client changed the queue:
       MPD increments the version once for each command that changes the
