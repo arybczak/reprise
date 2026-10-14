@@ -1073,6 +1073,9 @@ defaultKeymaps =
                 , char 'o' ~> JumpToPlaying
                 , -- As ncmpcpp's u.
                   char 'u' ~> Update UpdateCurrent
+                , -- As in ncmpcpp, where 2 shows the browser, then changes its
+                  -- mode.
+                  char '2' ~> ChangeBrowseMode
                 , group (char 't') "toggle" [char 'd' ~> Toggle ToggleDisplay, char 'o' ~> NextSortMode]
                 ]
             )

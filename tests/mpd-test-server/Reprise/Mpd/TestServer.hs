@@ -6,6 +6,7 @@ module Reprise.Mpd.TestServer
   ( -- * Songs
     TestSong (..)
   , testSong
+  , writeSong
 
     -- * Server
   , TestServer (..)
@@ -181,6 +182,7 @@ readLine (RawConnection sock buffer) = S.modifyMVar buffer go
     chunkSize :: Int
     chunkSize = 4096
 
+-- | Write a song as a FLAC file of silence, with @flac@, under a directory.
 writeSong :: FilePath -> TestSong -> IO ()
 writeSong musicDir song = do
   let file = musicDir </> song.path

@@ -142,6 +142,7 @@ library
                      Reprise.Keymap
                      Reprise.Keys
                      Reprise.LineEdit
+                     Reprise.LocalFiles
                      Reprise.Lyrics
                      Reprise.Lyrics.Http
                      Reprise.Lyrics.Lrclib
@@ -165,6 +166,7 @@ library
                      Reprise.State
                      Reprise.StatusBar
                      Reprise.Style
+                     Reprise.TagLib
                      Reprise.UI.Layout
                      Reprise.UI.SongList
                      Reprise.Visualizer.Draw
@@ -181,6 +183,9 @@ library
     c-sources:       cbits/pocketfft/pocketfft.c
                      cbits/spectrum.c
                      cbits/width.c
+
+    -- The C API reads all tags through the property map since 2.0.
+    pkgconfig-depends: taglib_c >= 2.0
 
 executable reprise
     import:         language
@@ -324,6 +329,7 @@ test-suite test
                     Reprise.Test.Keys
                     Reprise.Test.Layers
                     Reprise.Test.LineEdit
+                    Reprise.Test.LocalFiles
                     Reprise.Test.Lyrics
                     Reprise.Test.Lyrics.Helpers
                     Reprise.Test.Lyrics.Http

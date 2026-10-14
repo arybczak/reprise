@@ -14,6 +14,7 @@ import Data.Vector.Storable qualified as VS
 
 import Reprise.Action
 import Reprise.Keys
+import Reprise.LocalFiles
 import Reprise.Lyrics
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command
@@ -57,6 +58,10 @@ data AppEvent
     BrowserListed Int [Entry]
   | -- | The browser's listing with the token failed.
     BrowserFailed Int MpdError
+  | -- | MPD's decoders, which the local listing with the token waited for.
+    DecodersFetched Int [Decoder]
+  | -- | The entries of the local directory of the listing with the token.
+    LocalListed Int (Either ListingError [LocalFile])
   | ReplayGainFetched ReplayGainMode
   | -- | The reply to a command that changes MPD's state. The new state comes
     -- through idle.

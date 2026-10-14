@@ -2,8 +2,11 @@ module Reprise.Test.Screen.Browser (browserTests) where
 
 import Data.ByteString qualified as BS
 import Data.Foldable
+import Data.List qualified as L
+import Data.Map.Strict qualified as M
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Time
 import Optics.Core
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -13,10 +16,12 @@ import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Header
 import Reprise.Keys
+import Reprise.LocalFiles
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 import Reprise.Selection
 import Reprise.State
+import Reprise.TagLib
 import Reprise.Test.Helpers
 
 browserTests :: TestTree
@@ -61,6 +66,20 @@ browserTests =
     , testCase "jump to the playing song" test_jumpToPlaying
     , testCase "a stream isn't in the browser" test_jumpWithStream
     , testCase "a long path scrolls" test_longPath
+    , testGroup
+        "local files"
+        [ testCase "the home directory, after MPD's decoders" test_localHome
+        , testCase "back to the database and again" test_localModeAgain
+        , testCase "the local directory is remembered" test_localModeRemembered
+        , testCase "entering a directory and leaving it" test_localEnterAndLeave
+        , testCase "nothing is above the root" test_localRoot
+        , testCase "the browser goes up from a directory that is gone" test_localGone
+        , testCase "a change of the database lists nothing" test_localDatabaseChanged
+        , testCase "a new connection asks for the decoders again" test_localReconnect
+        , testCase "adding a song" test_localAdd
+        , testCase "updating the current directory" test_localUpdate
+        , testCase "saving a directory" test_localSaveDirectory
+        ]
     ]
 
 test_showLists :: Assertion
@@ -411,8 +430,203 @@ test_longPath = do
         ("Browse: very-long" `T.isPrefixOf` title later)
     [] -> assertFailure "no listing"
 
+-- | Hidden entries and the files whose suffixes MPD doesn't decode are left
+-- out. A file whose suffix only FFmpeg's plugin decodes shows if TagLib
+-- reads it, as the plugin lists formats that aren't audio too. A file of
+-- another plugin shows also without tags, e.g. a tracker module.
+test_localHome :: Assertion
+test_localHome = do
+  r <- press ["2"] =<< root
+  assertEqual "the decoders" [[Request "decoders" []]] r.requests
+  decoded <- answerLast decodersReply r
+  assertEqual "the listing" ["/home/user"] (localListings decoded)
+  listed <- listedWith homeFiles decoded
+  assertEqual "no request" [] listed.requests
+  let s = listed.state
+  assertEqual
+    "items"
+    [ ".."
+    , "directory /home/user/Music"
+    , "song /home/user/a.flac"
+    , "song /home/user/b.mod"
+    , "song /home/user/video.mp4"
+    ]
+    (L.sort (items s))
+  assertEqual
+    "the song of TagLib's tags"
+    [(M.fromList [(Artist, ["A"]), (Track, ["1"])], Just 61)]
+    [ (entry.tags, entry.duration)
+    | EntryItem (SongEntry entry) <- toList s.browser.items
+    , entry.file == "/home/user/a.flac"
+    ]
+  assertBool
+    ("the title: " <> T.unpack (shownTitle testAppEnv s))
+    ("Browse local: ~" `T.isPrefixOf` shownTitle testAppEnv s)
+
+-- | Each mode lists what it listed last, and MPD's decoders are asked for
+-- once.
+test_localModeAgain :: Assertion
+test_localModeAgain = do
+  database <- press ["2"] =<< inHome
+  assertEqual "the root" [[Request "lsinfo" []]] database.requests
+  again <- press ["2"] =<< answer rootReply database
+  assertEqual "no request" [] again.requests
+  assertEqual "the home directory" ["/home/user"] (localListings again)
+
+-- | A local directory that the user entered is listed again after the
+-- database, and each mode's cursor goes back to its item.
+test_localModeRemembered :: Assertion
+test_localModeRemembered = do
+  entered <- press ["down", "enter"] =<< inHome
+  inMusic <-
+    press ["down"] . (.state)
+      =<< listedWith (map (`localFile` Nothing) ["x.flac", "y.flac"]) entered
+  database <- answer rootReply =<< press ["2"] inMusic.state
+  assertEqual "the root's cursor" 0 (focusedView database).cursor
+  onB <- press ["down", "2"] database
+  assertEqual "the listing of Music" ["/home/user/Music"] (localListings onB)
+  back <-
+    (.state) <$> listedWith (map (`localFile` Nothing) ["x.flac", "y.flac"]) onB
+  assertEqual "the cursor is on x" 1 (focusedView back).cursor
+  database' <- answer rootReply =<< press ["2"] back
+  assertEqual "the cursor is on b" 1 (focusedView database').cursor
+
+test_localEnterAndLeave :: Assertion
+test_localEnterAndLeave = do
+  entered <- press ["down", "enter"] =<< inHome
+  assertEqual "the listing of Music" ["/home/user/Music"] (localListings entered)
+  inMusic <- (.state) <$> listedWith [] entered
+  assertEqual "items" [".."] (items inMusic)
+  left <- press ["backspace"] inMusic
+  assertEqual "the listing of home" ["/home/user"] (localListings left)
+  back <- (.state) <$> listedWith homeFiles left
+  assertEqual "the cursor is on Music" 1 (focusedView back).cursor
+
+test_localRoot :: Assertion
+test_localRoot = do
+  up <- press ["backspace"] =<< inHome
+  assertEqual "the listing of /home" ["/home"] (localListings up)
+  top <- press ["backspace"] . (.state) =<< listedWith [localDirectory "user"] up
+  assertEqual "the listing of /" ["/"] (localListings top)
+  atRoot <- (.state) <$> listedWith [localDirectory "home"] top
+  assertEqual "items" ["directory /home"] (items atRoot)
+  assertEqual "nothing above it" [] . localListings =<< press ["backspace"] atRoot
+
+test_localGone :: Assertion
+test_localGone = do
+  entered <- press ["down", "enter"] =<< inHome
+  r <-
+    runEvents 0 [LocalListed (lastLocalToken entered) (Left DirectoryMissing)] entered.state
+  assertEqual "the listing of home" ["/home/user"] (localListings r)
+  assertEqual "no error" Nothing (message r.state)
+
+test_localDatabaseChanged :: Assertion
+test_localDatabaseChanged = do
+  r <- runEvents 0 [MpdChanged [DatabaseSubsystem]] =<< inHome
+  assertBool "no listing" (all (all ((/= "lsinfo") . (.command))) r.requests)
+  assertEqual "no local listing" [] (localListings r)
+
+-- | MPD may have restarted with other decoders.
+test_localReconnect :: Assertion
+test_localReconnect = do
+  r <- runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0)] =<< inHome
+  assertBool "the decoders" ([Request "decoders" []] `elem` r.requests)
+  decoded <- answerLast decodersReply r
+  assertEqual "the listing of home" ["/home/user"] (localListings decoded)
+
+test_localAdd :: Assertion
+test_localAdd =
+  assertEqual "the song" [[Request "add" ["/home/user/a.flac"]]] . (.requests)
+    =<< press ["down", "down", "a", "e"]
+    =<< inHome
+
+test_localUpdate :: Assertion
+test_localUpdate = do
+  r <- press ["u"] =<< inHome
+  assertEqual "no request" [] r.requests
+  assertEqual "the message" (Just "Local files aren't in MPD's database") (message r.state)
+
+-- | MPD saves only the directories of its database.
+test_localSaveDirectory :: Assertion
+test_localSaveDirectory = do
+  r <- press ["down", "e", "w"] =<< inHome
+  assertEqual "no prompt" Nothing r.state.prompt
+  assertEqual
+    "the message"
+    (Just "A local directory can't be saved as a playlist")
+    (message r.state)
+  asked <- press ["down", "down", "e", "w"] =<< inHome
+  assertEqual "a song" (Just "Save 1 song as: ") ((.question) <$> asked.state.prompt)
+
 ----------------------------------------
 -- Helpers
+
+-- | MPD's decoders: FLAC's, a tracker's, and FFmpeg's, which since MPD
+-- 0.24 has the suffixes of formats that aren't audio too.
+decodersReply :: [BS.ByteString]
+decodersReply =
+  [ "plugin: flac"
+  , "suffix: flac"
+  , "plugin: openmpt"
+  , "suffix: mod"
+  , "plugin: ffmpeg"
+  , "suffix: flac"
+  , "suffix: txt"
+  , "suffix: mp4"
+  ]
+
+-- | The home directory: a hidden directory, a directory, a song, a tracker
+-- module, which TagLib doesn't read, a picture, a text file and a video.
+homeFiles :: [LocalFile]
+homeFiles =
+  [ localDirectory ".config"
+  , localDirectory "Music"
+  , localFile "a.flac" . Just $
+      FileTags
+        { properties = [("ARTIST", ["A"]), ("TRACKNUMBER", ["1"]), ("UNKNOWN", ["X"])]
+        , seconds = Just 61
+        }
+  , localFile "b.mod" Nothing
+  , localFile "cover.jpg" Nothing
+  , localFile "notes.txt" Nothing
+  , localFile "video.mp4" (Just FileTags {properties = [], seconds = Just 0})
+  ]
+
+localDirectory :: T.Text -> LocalFile
+localDirectory name =
+  LocalFile {name = name, isDirectory = True, lastModified = someTime, tags = Nothing}
+
+localFile :: T.Text -> Maybe FileTags -> LocalFile
+localFile name tags =
+  LocalFile {name = name, isDirectory = False, lastModified = someTime, tags = tags}
+
+someTime :: UTCTime
+someTime = UTCTime (fromGregorian 2026 1 1) 0
+
+-- | The browser in the home directory, with the cursor on its @..@.
+inHome :: IO AppState
+inHome =
+  fmap (.state) $
+    listedWith homeFiles =<< answerLast decodersReply =<< press ["2"] =<< root
+
+-- | The local directories that a result asked to list.
+localListings :: Result -> [FilePath]
+localListings r = [dir | ListLocal _ _ dir <- r.commands]
+
+lastLocalToken :: Result -> Int
+lastLocalToken r = case reverse [token | ListLocal token _ _ <- r.commands] of
+  token : _ -> token
+  [] -> error "no local listing"
+
+-- | Give the last local listing of a result its entries.
+listedWith :: [LocalFile] -> Result -> IO Result
+listedWith files r = runEvents 0 [LocalListed (lastLocalToken r) (Right files)] r.state
+
+-- | Answer the last request of a result, and keep what it asked for.
+answerLast :: [BS.ByteString] -> Result -> IO Result
+answerLast ls r = case reverse r.pending of
+  p : _ -> runEvents 0 [replyTo ls p] r.state
+  [] -> assertFailure "no request to answer"
 
 -- | The queue with one song, @dir/0.flac@, with the id 1.
 queued :: IO AppState

@@ -32,6 +32,7 @@ import Reprise.Event
 import Reprise.Exception
 import Reprise.Handler
 import Reprise.Keys
+import Reprise.LocalFiles
 import Reprise.Lyrics
 import Reprise.Mpd.Protocol.Types
 import Reprise.State
@@ -140,6 +141,9 @@ runApp env channels buildVty initial = do
         SaveToHistory line -> do
           channels.saveToHistoryFile line
           pure next
+        -- In the loop, as listing a local directory is quick.
+        ListLocal token suffixes dir ->
+          dispatch current s . LocalListed token =<< listLocalDirectory suffixes dir
         Edit cmd file -> do
           V.shutdown =<< S.readIORef current
           failure <- runEditor cmd file

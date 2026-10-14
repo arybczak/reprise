@@ -179,6 +179,54 @@ ncmpcpp.
 - `jump_to_browser` opens the directory of the song under the cursor, with
   the cursor on that song, as ncmpcpp's `G` does.
 
+**Browser (local files)**
+- `change_browse_mode` switches the browser between MPD's database and the
+  local file system. The browser binds it to `2`, as ncmpcpp does, so `2`
+  shows the browser and then switches. Each mode lists again what it listed
+  last, with the cursor on the same item and the list scrolled as it was,
+  which ncmpcpp doesn't do. The local mode starts in the home directory.
+  The header shows `Browse local:` and the path, with `~` for the home
+  directory.
+- **reprise lists the directories itself.** MPD's `listfiles` leaves out
+  symbolic links, without an option, so a music directory that is a link,
+  e.g. `~/Music` on another disk, wouldn't show.
+- **TagLib reads the tags,** through its C API, as ncmpcpp does. MPD's
+  `lsinfo` of an absolute path reads them too, but its FFmpeg plugin probes
+  the streams of a video: the 148 files of a home directory took MPD 0.4 s,
+  0.25 s of it for 9 MP4 videos, while TagLib listed the directory in 9 ms.
+  The tag editor will need TagLib anyway.
+  - TagLib's property names are MPD's tag names up to case, except for the
+    names of Vorbis comments that MPD maps itself, e.g. `TRACKNUMBER`.
+  - The C API has the length in whole seconds only.
+  - TagLib prints debug messages to stderr, e.g. for an MP4 file without
+    audio, so stderr goes to the log while the UI runs.
+- **Which files show:** the ones whose suffixes MPD's `decoders` list. Since
+  MPD 0.24, FFmpeg's plugin lists the suffixes of all of FFmpeg's formats,
+  also `txt`, `lrc`, `srt`, `gif` and `bin`. So a file whose suffix only
+  FFmpeg's plugin lists shows only if TagLib reads it. A file of another
+  plugin shows also without tags, e.g. a tracker module, which TagLib
+  doesn't read. Only FFmpeg plays `ac3`, `dts` and `tak`, and TagLib reads
+  none of them, so they don't show. The suffixes come with the first local
+  listing, and again after a new connection, as MPD may have restarted with
+  other plugins.
+- **Only directories and regular files show.** TagLib's open of a FIFO,
+  e.g. a named pipe in `/tmp`, would wait for a writer, and freeze the UI.
+- MPD plays local files only for a client on its unix socket that runs as
+  MPD's user, or owns the file, or for a file that everyone can read.
+  Another client gets MPD's error when it adds them.
+- **The UI loop lists a directory and reads its tags,** as that's quick. A
+  hung network mount would freeze the UI, and a thread for the listing can
+  come if that turns out to matter.
+- Hidden entries don't show, as with ncmpcpp's default.
+- Playlist files don't show yet. MPD lists no suffixes of its playlist
+  plugins, so reprise would have to ask about each file.
+- Songs are added with `add` and their absolute path.
+- An idle `database` event doesn't list a local directory again, and nothing
+  tells reprise about changes of local files.
+- `update current` says that local files aren't in MPD's database.
+- `save` of a local directory says that it can't be saved, as MPD's
+  `searchaddpl` searches its database.
+
 **Saving as a stored playlist**
 - `save` asks for a name in the status bar, and saves what the focused
   screen marks: in the queue, the selected songs, or the whole queue
@@ -795,7 +843,8 @@ Implemented when the author misses them.
 
 **Tag editor and tiny tag editor**
 - They write tags into the files with TagLib, so the music directory option
-  comes back with them.
+  comes back with them. `Reprise.TagLib` binds its C API already, for the
+  browser of local files.
 - The tag editor's screen key is `6`, as in ncmpcpp.
 
 **Lyrics in the files' tags**, ncmpcpp's `tags` fetcher. It comes with the
@@ -849,9 +898,6 @@ tag editor, which needs the same two things.
   `startup_slave_screen_focus`.
 - If something comes back, it is a general window framework (see
   [Screens and views](#screens-and-views)).
-
-**Local filesystem browse mode.** It needs TagLib and only works with a unix
-socket.
 
 **Deleting files from disk** (`allow_for_physical_item_deletion`). No screen
 implements it.
@@ -999,6 +1045,8 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
 | `Reprise.History` | The history that the line prompts share, recalling its lines, and its file |
 | `Reprise.File` | Writing a file whole, through a temporary file that takes its name |
+| `Reprise.LocalFiles` | The entries of a local directory, after symbolic links, with their tags, and which of them are music, for the browser of local files |
+| `Reprise.TagLib` | Reading the tags of a file with TagLib's C API |
 | `Reprise.Width` | The width of text in terminal columns, cutting and wrapping text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
 | `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
@@ -2040,8 +2088,10 @@ section keeps the reasons.
 #### Dropped options
 
 Options for dropped features go with them: the clock and split screen
-options, `allow_for_physical_item_deletion`,
-`show_hidden_files_in_local_browser`.
+options, `allow_for_physical_item_deletion`.
+
+`show_hidden_files_in_local_browser`: hidden entries never show, as with
+ncmpcpp's default.
 
 **The visualizer's other options**
 - `visualizer_spectrum_dft_size` and `visualizer_spectrum_gain`: the

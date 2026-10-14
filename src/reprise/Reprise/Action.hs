@@ -86,6 +86,7 @@ data Action
   | MoveSongs MoveSongsTarget
   | Priority Int
   | NextSortMode
+  | ChangeBrowseMode
   | RefetchLyrics
   | EditLyrics
   deriving stock (Eq, Show)
@@ -281,6 +282,7 @@ registry =
   , namedSpec "move_songs" "target" moveSongsName MoveSongs
   , spec "priority" ("0-" <> priorityText) $ one (fmap Priority . priority)
   , spec "next_sort_mode" "" $ none NextSortMode
+  , spec "change_browse_mode" "" $ none ChangeBrowseMode
   , spec "refetch_lyrics" "" $ none RefetchLyrics
   , spec "edit_lyrics" "" $ none EditLyrics
   ]
@@ -506,6 +508,7 @@ renderAction = \case
   MoveSongs t -> "move_songs " <> moveSongsName t
   Priority p -> "priority " <> T.pack (show p)
   NextSortMode -> "next_sort_mode"
+  ChangeBrowseMode -> "change_browse_mode"
   RefetchLyrics -> "refetch_lyrics"
   EditLyrics -> "edit_lyrics"
   where
@@ -657,6 +660,7 @@ describeAction = \case
     MoveSongsToNext -> "move after the playing song"
   Priority p -> "set priority " <> T.pack (show p)
   NextSortMode -> "next sort mode"
+  ChangeBrowseMode -> "switch between the database and local files"
   RefetchLyrics -> "fetch the lyrics again"
   EditLyrics -> "edit the lyrics"
 

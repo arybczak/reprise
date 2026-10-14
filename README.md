@@ -19,7 +19,8 @@ the search engine and the media library come later.
   save them as a stored playlist.
 - **The browser** of MPD's database, sorted by type, name, modification
   time or a format. It opens stored playlists and playlist files such as cue
-  sheets, and adds, plays or saves what is selected.
+  sheets, and adds, plays or saves what is selected. It browses local files
+  too, when reprise connects to MPD's socket.
 - **Lyrics** from [LRCLIB](https://lrclib.net) and
   [tekstowo.pl](https://www.tekstowo.pl), stored for later. Synced lyrics
   follow the song line by line. Edit them in your editor, with or without
@@ -43,6 +44,9 @@ reprise needs:
   pkg-config, e.g. `libicu-dev` on Debian and Ubuntu, or `icu` on Arch;
 - the [OpenSSL](https://openssl.org) libraries and headers, e.g.
   `libssl-dev` on Debian and Ubuntu, or `openssl` on Arch;
+- [TagLib](https://taglib.org) 2.0 or newer with its C bindings, found
+  through pkg-config, e.g. `libtag-c-dev` on Debian and Ubuntu, or `taglib`
+  on Arch;
 - MPD 0.24 or newer to connect to.
 
 ```
@@ -100,6 +104,11 @@ In the browser, `enter` enters a directory and plays a song, and
 removes it if it is there already. The group `a` adds the selection at a
 place: `a e` at the end, `a b` at the beginning, `a n` after the playing
 song, and `a p` adds and plays it.
+
+`2` in the browser switches to the local files, starting in your home
+directory, and back to MPD's database. MPD plays local files only for a
+client on its socket. If MPD runs as another user, the files must be yours
+or readable by everyone.
 
 ### Selecting and editing the queue
 

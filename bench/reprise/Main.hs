@@ -123,6 +123,7 @@ defaultEnv =
     , collator = rootCollator
     , lyricsDirectory = "lyrics"
     , editor = Nothing
+    , home = "/home/user"
     }
 
 -- | The default config with a data source of the visualizer.

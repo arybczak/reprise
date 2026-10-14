@@ -1,6 +1,6 @@
 branches:
 - master
-apt: [mpd, flac, libicu-dev]
+apt: [mpd, flac, libicu-dev, libtag-c-dev]
 fourmolu:
   enabled: true
   version: 0.21.0.0

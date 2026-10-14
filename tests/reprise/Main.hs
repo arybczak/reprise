@@ -15,6 +15,7 @@ import Reprise.Test.Keymap
 import Reprise.Test.Keys
 import Reprise.Test.Layers
 import Reprise.Test.LineEdit
+import Reprise.Test.LocalFiles
 import Reprise.Test.Lyrics
 import Reprise.Test.Main
 import Reprise.Test.Mpd.Address
@@ -58,6 +59,7 @@ main = do
       , keysTests
       , layerTests
       , lineEditTests
+      , localFilesTests
       , lyricsTests
       , testGroup "mpd" [addressTests, mirrorTests, workerTests]
       , saveTests

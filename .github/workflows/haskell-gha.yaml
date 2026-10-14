@@ -63,7 +63,7 @@ jobs:
     - name: Install the system packages
       run: |
         sudo apt-get update
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends mpd flac libicu-dev
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends mpd flac libicu-dev libtag-c-dev
 
     - name: Install GHC and cabal
       id: setup

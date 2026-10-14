@@ -168,6 +168,7 @@ main = withOpenSSL $ do
       (getXdgDirectory XdgData ("reprise" </> "lyrics"))
       expandHome
       config.lyrics.directory
+  home <- getHomeDirectory
   manager <- newOpenSSLManager
   let userAgent = "reprise/" <> T.pack (showVersion Paths.version) <> " (" <> repository <> ")"
       fetcher = \case
@@ -210,6 +211,7 @@ main = withOpenSSL $ do
             , collator = sortOrder
             , lyricsDirectory = lyricsDirectory
             , editor = editor
+            , home = home
             }
           Channels
             { requests = requests

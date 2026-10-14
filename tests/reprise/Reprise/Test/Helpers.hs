@@ -105,6 +105,7 @@ testAppEnv =
     , collator = rootCollator
     , lyricsDirectory = "lyrics"
     , editor = Just "edit"
+    , home = "/home/user"
     }
 
 -- | The state with a terminal of the given size and a queue that MPD sent.

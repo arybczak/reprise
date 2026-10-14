@@ -148,6 +148,8 @@ handleEvent = \case
         & #connection .~ Connected v
         & #pendingEdit .~ Nothing
         & #queueState % #selection .~ noSelection
+        -- MPD may have restarted with other decoders.
+        & #browser % #suffixes .~ Nothing
     fetchQueue
     relistBrowser
     refreshOutputs
@@ -197,6 +199,8 @@ handleEvent = \case
     updateMirror $ setStatus now st
   BrowserListed token entries -> browserListed token entries
   BrowserFailed token err -> browserFailed token err
+  DecodersFetched token ds -> decodersFetched token ds
+  LocalListed token result -> localListed token result
   ReplayGainFetched mode -> do
     let nextMode = cycleNext mode
     mutate $ setReplayGainMode nextMode
@@ -583,6 +587,7 @@ runAction action = case action of
   EditLyrics -> verb action
   RefetchLyrics -> verb action
   NextSortMode -> verb action
+  ChangeBrowseMode -> verb action
   Add _ -> verb action
   AddAndPlay -> verb action
   AddOrRemove -> verb action

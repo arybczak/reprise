@@ -81,6 +81,7 @@ import Data.Text qualified as T
 import Data.Vector.Storable qualified as VS
 import GHC.Generics
 import Optics.Core
+import System.FilePath
 
 import Reprise.Action
 import Reprise.Collation
@@ -92,6 +93,7 @@ import Reprise.History
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.LineEdit
+import Reprise.LocalFiles
 import Reprise.Lyrics
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
@@ -114,6 +116,8 @@ data AppEnv = AppEnv
   -- ^ Where the lyrics are stored, from the config.
   , editor :: Maybe T.Text
   -- ^ The command that edits a file, from the config or the environment.
+  , home :: FilePath
+  -- ^ Where the browser of local files starts.
   }
   deriving stock (Show, Generic)
 
@@ -293,6 +297,12 @@ data BrowserState = BrowserState
   -- ^ Of the items of what the browser lists.
   , listing :: Maybe Listing
   -- ^ The listing that was requested last, until its reply comes.
+  , suffixes :: Maybe Suffixes
+  -- ^ The suffixes of the files that MPD decodes, from when a local listing
+  -- first needed them.
+  , otherMode :: Maybe (Location, ListingCursor)
+  -- ^ What the other browse mode listed last, and where its cursor was,
+  -- which a change of the mode lists again.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -302,6 +312,8 @@ data Location
     InDirectory T.Text
   | -- | The songs of a playlist.
     InPlaylist T.Text
+  | -- | A directory of the local file system, by its absolute path.
+    InLocal T.Text
   deriving stock (Eq, Show)
 
 data BrowserItem
@@ -330,6 +342,10 @@ data ListingCursor
     -- the same again, e.g. after the database changed. Without the item, it
     -- stays where it was.
     StayOn ItemKey
+  | -- | To an item, with the list scrolled by the offset, when the browser
+    -- lists again what the other browse mode listed. Without the item, to
+    -- the first one.
+    ReturnTo ItemKey Int
   deriving stock (Eq, Show)
 
 -- | What an item is found by in a new listing.
@@ -488,7 +504,17 @@ initialState config =
     , mirror = emptyMirror
     , pendingEdit = Nothing
     , queueState = QueueState noSelection Nothing
-    , browser = BrowserState Nothing [] Seq.empty Seq.empty noSelection Nothing
+    , browser =
+        BrowserState
+          { location = Nothing
+          , entries = []
+          , items = Seq.empty
+          , rows = Seq.empty
+          , selection = noSelection
+          , listing = Nothing
+          , suffixes = Nothing
+          , otherMode = Nothing
+          }
     , visualizer = newVisualizer Nothing
     , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing
     , songInfo = SongInfoState Nothing 0 []
@@ -636,7 +662,9 @@ screenInfo = \case
       , songAt = \s i -> case Seq.lookup i s.browser.items of
           Just (EntryItem (SongEntry song)) -> Just song
           _ -> Nothing
-      , title = \_ s -> ("Browse: ", "/" <> fromMaybe "" (browsed s))
+      , title = \env s -> case s.browser.location of
+          Just (InLocal path) -> ("Browse local: ", tildeHome env.home path)
+          _ -> ("Browse: ", "/" <> fromMaybe "" (browsed s))
       , subject = browsed
       }
   SearchEngineScreen -> unbuilt SearchEngineScreen
@@ -705,6 +733,14 @@ screenInfo = \case
       s.browser.location <&> \case
         InDirectory path -> path
         InPlaylist path -> path
+        InLocal path -> path
+
+    -- A local path with @~@ for the home directory, as a shell shows it.
+    tildeHome :: FilePath -> T.Text -> T.Text
+    tildeHome home path
+      | path == T.pack home = "~"
+      | Just rest <- T.stripPrefix (T.pack (addTrailingPathSeparator home)) path = "~/" <> rest
+      | otherwise = path
 
     noSongs :: AppState -> Int -> Maybe Song
     noSongs _ _ = Nothing

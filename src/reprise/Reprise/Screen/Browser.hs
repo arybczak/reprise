@@ -13,6 +13,8 @@ module Reprise.Screen.Browser
   , browserChanged
   , browserListed
   , browserFailed
+  , decodersFetched
+  , localListed
   , locateSong
 
     -- * Updating
@@ -34,6 +36,7 @@ import Effectful.Input.Static
 import Effectful.State.Static.Local
 import Graphics.Vty qualified as V
 import Optics.Core
+import System.FilePath
 
 import Reprise.Action
 import Reprise.Collation
@@ -46,6 +49,7 @@ import Reprise.Find
 import Reprise.Format
 import Reprise.Groups
 import Reprise.Handler.Core
+import Reprise.LocalFiles
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
@@ -53,6 +57,7 @@ import Reprise.Save
 import Reprise.Selection
 import Reprise.State
 import Reprise.Style
+import Reprise.TagLib
 import Reprise.UI.SongList
 
 ----------------------------------------
@@ -132,14 +137,26 @@ browserVerb = \case
         Just song -> void $ locateSong song
   Activate -> Just activateItem
   Parent -> Just leave
-  Save -> Just $ askSaveName =<< getsS browserToSave
+  Save ->
+    Just $
+      getS >>= \s ->
+        -- MPD saves only the directories of its database.
+        if maybe False isLocal s.browser.location
+          && not (null [() | (_, EntryItem (DirectoryEntry _)) <- markedItems s])
+          then showMessage "A local directory can't be saved as a playlist"
+          else askSaveName (browserToSave s)
   NextSortMode -> Just nextSortMode
   Add p -> Just $ addMarked p
   AddAndPlay -> Just addAndPlay
   AddOrRemove -> Just addOrRemove
   Select t -> Just $ selectInBrowser t
   Toggle ToggleDisplay -> Just toggleBrowserDisplay
-  Update UpdateCurrent -> Just $ updateDatabase =<< getsS browserDirectory
+  Update UpdateCurrent ->
+    Just $
+      getsS (.browser.location) >>= \case
+        Just (InLocal _) -> showMessage "Local files aren't in MPD's database"
+        _ -> updateDatabase =<< getsS browserDirectory
+  ChangeBrowseMode -> Just changeBrowseMode
   _ -> Nothing
 
 -- | Show the songs in the other display, which finds match too.
@@ -162,7 +179,7 @@ setItems items env s =
 -- Listing
 
 -- | List the root the first time the browser shows.
-openBrowser :: (State AppState :> es, MpdRequest :> es) => Eff es ()
+openBrowser :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 openBrowser = do
   location <- getsS (.browser.location)
   case location of
@@ -173,7 +190,7 @@ openBrowser = do
 -- e.g. after a new connection. A listing on its way is requested again, as
 -- its reply may be lost or out of date. A browser that never showed lists
 -- nothing.
-relistBrowser :: (State AppState :> es, MpdRequest :> es) => Eff es ()
+relistBrowser :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 relistBrowser = do
   s <- getS
   case (s.browser.listing, s.browser.location) of
@@ -182,37 +199,42 @@ relistBrowser = do
     (Nothing, Nothing) -> pure ()
 
 -- | List again after a change of the database, or of the stored playlists,
--- which show at the root and open as playlists.
-browserChanged :: (State AppState :> es, MpdRequest :> es) => [Subsystem] -> Eff es ()
+-- which show at the root and open as playlists. Neither changes a local
+-- directory.
+browserChanged
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => [Subsystem]
+  -> Eff es ()
 browserChanged subsystems = do
   location <- getsS (.browser.location)
-  let storedPlaylists = case location of
-        Just (InDirectory "") -> True
-        Just (InPlaylist _) -> True
-        _ -> False
+  let (database, storedPlaylists) = case location of
+        Just (InDirectory "") -> (True, True)
+        Just (InDirectory _) -> (True, False)
+        Just (InPlaylist _) -> (True, True)
+        Just (InLocal _) -> (False, False)
+        Nothing -> (False, False)
   when
-    ( isJust location
-        && ( DatabaseSubsystem `elem` subsystems
-               || (StoredPlaylistSubsystem `elem` subsystems && storedPlaylists)
-           )
+    ( (DatabaseSubsystem `elem` subsystems && database)
+        || (StoredPlaylistSubsystem `elem` subsystems && storedPlaylists)
     )
     relistBrowser
 
 -- | Go up to the directory of what the browser lists, with the cursor on
 -- where it came from. It goes up from a listing on its way, too, so that
 -- keys typed ahead of a reply add up.
-leave :: (State AppState :> es, MpdRequest :> es) => Eff es ()
+leave :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 leave = do
   b <- getsS (.browser)
   forM_ (maybe b.location (Just . (.location)) b.listing) goUp
 
 -- | Go up to the directory of a directory or a playlist, with the cursor on
 -- it.
-goUp :: (State AppState :> es, MpdRequest :> es) => Location -> Eff es ()
+goUp :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Location -> Eff es ()
 goUp location =
   forM_ (parentOf location) $ \up -> list up . JumpTo $ case location of
     InDirectory path -> DirectoryKey path
     InPlaylist path -> PlaylistKey path
+    InLocal path -> DirectoryKey path
 
 -- | List the directory of a song, with the cursor on the song, as ncmpcpp's
 -- @jump_to_browser@ does. A stream isn't in the database, and fails.
@@ -234,11 +256,31 @@ parentOf = \case
   InDirectory "" -> Nothing
   InDirectory path -> Just $ InDirectory (directoryOf path)
   InPlaylist path -> Just $ InDirectory (directoryOf path)
+  InLocal "/" -> Nothing
+  InLocal path -> Just . InLocal . T.pack $ takeDirectory (T.unpack path)
 
-list :: (State AppState :> es, MpdRequest :> es) => Location -> ListingCursor -> Eff es ()
+-- | List a directory or a playlist. A local directory lists once MPD said
+-- which files it decodes. A listing in the other browse mode keeps what
+-- the browser listed, for a change of the mode back.
+list
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Location
+  -> ListingCursor
+  -> Eff es ()
 list location cursor = do
   token <- newToken
-  modifyS $ #browser % #listing ?~ Listing token location cursor
+  modifyS $ \s ->
+    -- A listing on its way keeps where it puts the cursor, as the screen
+    -- still shows the one before it.
+    let current = case (s.browser.listing, s.browser.location) of
+          (Just l, _) -> Just (l.location, l.cursor)
+          (Nothing, Just shown) -> Just (shown, returnToCursor s)
+          (Nothing, Nothing) -> Nothing
+    in s
+         & #browser % #listing ?~ Listing token location cursor
+         & #browser % #otherMode %~ \other -> case current of
+           Just c | isLocal (fst c) /= isLocal location -> Just c
+           _ -> other
   case location of
     InDirectory path -> requestOr (lsInfo path) (BrowserFailed token) (BrowserListed token)
     InPlaylist name ->
@@ -246,6 +288,79 @@ list location cursor = do
         (map SongEntry <$> listPlaylistInfo name)
         (BrowserFailed token)
         (BrowserListed token)
+    InLocal dir ->
+      getsS (.browser.suffixes) >>= \case
+        Just suffixes -> listLocal token suffixes (T.unpack dir)
+        Nothing -> requestOr decoders (BrowserFailed token) (DecodersFetched token)
+
+-- | Keep the suffixes of MPD's decoders, then list the local directory that
+-- waited for them.
+decodersFetched
+  :: (State AppState :> es, UiRequest :> es) => Int -> [Decoder] -> Eff es ()
+decodersFetched token ds = do
+  let suffixes = suffixesOf ds
+  modifyS $ #browser % #suffixes ?~ suffixes
+  whenCurrent (.browser.listing) (.token) token $ \l -> case l.location of
+    InLocal dir -> listLocal token suffixes (T.unpack dir)
+    _ -> pure ()
+
+-- | Show the directories and the music files of a local directory. Hidden
+-- entries are left out, as ncmpcpp does by default.
+localListed
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Int
+  -> Either ListingError [LocalFile]
+  -> Eff es ()
+localListed token result = whenCurrent (.browser.listing) (.token) token $ \l ->
+  case (result, l.location) of
+    (Left DirectoryMissing, location) | Just up <- parentOf location -> list up AtTop
+    (Left err, _) -> do
+      modifyS $ #browser % #listing .~ Nothing
+      showError $ case err of
+        DirectoryMissing -> "The directory is gone"
+        DirectoryUnreadable why -> why
+    (Right files, InLocal dir) -> do
+      suffixes <- getsS (.browser.suffixes)
+      let visible = filter (not . ("." `T.isPrefixOf`) . (.name)) files
+          path :: LocalFile -> T.Text
+          path f = T.pack (T.unpack dir </> T.unpack f.name)
+      browserListed token $
+        [DirectoryEntry (Directory (path f) (Just f.lastModified)) | f <- visible, f.isDirectory]
+          <> [ SongEntry (localSong (path f) f)
+             | f <- visible
+             , not f.isDirectory
+             , Just s <- [suffixes]
+             , isMusic s f.name f.tags
+             ]
+    (Right _, _) -> pure ()
+
+-- | The song of a local file, with the tags that TagLib read.
+localSong :: T.Text -> LocalFile -> Song
+localSong path f =
+  Song
+    { file = path
+    , tags = maybe M.empty mpdTags f.tags
+    , duration = fromIntegral <$> (mfilter (> 0) . (.seconds) =<< f.tags)
+    , range = Nothing
+    , lastModified = Just f.lastModified
+    , format = Nothing
+    , position = Nothing
+    , songId = Nothing
+    , priority = 0
+    }
+
+-- | Switch between MPD's database and local files, and list what the other
+-- mode listed last: at first the root, or the home directory.
+changeBrowseMode
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Eff es ()
+changeBrowseMode = do
+  env <- getAppEnv
+  b <- getsS (.browser)
+  let other = case maybe b.location (Just . (.location)) b.listing of
+        Just (InLocal _) -> InDirectory ""
+        _ -> InLocal (T.pack env.home)
+  uncurry list $ fromMaybe (other, AtTop) b.otherMode
 
 -- | Go up from a directory or a playlist that is gone, until one exists, as
 -- ncmpcpp does. Another error shows, and the browser stays as it was. A
@@ -319,12 +434,12 @@ selectInBrowser t = do
 -- @..@, or play the song. @..@ goes up from the listing that it is in, not
 -- from one on its way, so that enter held on it goes up once: until the
 -- reply, the screen still shows it.
-activateItem :: (State AppState :> es, MpdRequest :> es) => Eff es ()
+activateItem :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Eff es ()
 activateItem = do
   s <- getS
   forM_ (cursorItem s) $ \case
     (_, ParentItem) -> forM_ s.browser.location goUp
-    (_, EntryItem (DirectoryEntry d)) -> list (InDirectory d.path) AtTop
+    (_, EntryItem (DirectoryEntry d)) -> list (directoryIn s.browser.location d.path) AtTop
     (_, EntryItem (PlaylistEntry p)) -> list (InPlaylist p.path) AtTop
     item@(_, EntryItem (SongEntry _)) -> addAndPlayItems [item]
 
@@ -406,6 +521,7 @@ addItems location items pos = traverse_ ($ pos) $ case pos of
             PlaylistEntry p -> load p.path Nothing
         | (_, EntryItem entry) <- items
         ]
+      InLocal _ -> [add song.file | (_, EntryItem (SongEntry song)) <- items]
 
 -- | What a save saves: the marked items.
 browserToSave :: AppState -> SaveSource
@@ -448,6 +564,12 @@ cursorItem s =
 stayOnCursor :: AppState -> ListingCursor
 stayOnCursor = maybe AtTop (StayOn . itemKey . snd) . cursorItem
 
+-- | Put the cursor back on its item, with the list scrolled as it is.
+returnToCursor :: AppState -> ListingCursor
+returnToCursor s = case cursorItem s of
+  Just (_, item) -> ReturnTo (itemKey item) (snd (screenPosition BrowserScreen s))
+  Nothing -> AtTop
+
 -- | What the status bar says after an add.
 addedText :: AppEnv -> [(Int, BrowserItem)] -> T.Text
 addedText env = \case
@@ -481,7 +603,19 @@ browserDirectory s = case s.browser.location of
   Just location@(InPlaylist _) -> case parentOf location of
     Just (InDirectory path) | not (T.null path) -> Just path
     _ -> Nothing
+  Just (InLocal _) -> Nothing
   Nothing -> Nothing
+
+-- | A directory in the browse mode of a location.
+directoryIn :: Maybe Location -> T.Text -> Location
+directoryIn = \case
+  Just (InLocal _) -> InLocal
+  _ -> InDirectory
+
+isLocal :: Location -> Bool
+isLocal = \case
+  InLocal _ -> True
+  _ -> False
 
 ----------------------------------------
 -- Sorting
@@ -497,16 +631,17 @@ nextSortMode = do
     modifyWithEnv . placeCursor $ stayOnCursor s
   showMessage $ "Sort: " <> sortByName s.toggles.browserSort
 
--- | The items of a listing: @..@ unless at the root, then the entries. The
+-- | The items of a listing: @..@ unless at a root, then the entries. The
 -- songs of a playlist stay in its order.
 arrange :: AppEnv -> SortBy -> Location -> [Entry] -> Seq.Seq BrowserItem
 arrange env by location entries =
-  Seq.fromList $ [ParentItem | location /= InDirectory ""] <> map EntryItem sorted
+  Seq.fromList $ [ParentItem | isJust (parentOf location)] <> map EntryItem sorted
   where
     sorted :: [Entry]
     sorted = case location of
       InPlaylist _ -> entries
       InDirectory _ -> sortEntries env by entries
+      InLocal _ -> sortEntries env by entries
 
 -- | Entries in the order of a sort mode, as in ncmpcpp. Except without a
 -- sort, directories come first, then songs, then playlists.
@@ -564,6 +699,9 @@ placeCursor cursor env s = case cursor of
   StayOn k ->
     let (c, o) = screenPosition BrowserScreen s
     in setScreenPosition BrowserScreen (fromMaybe c (indexOf k), o) env s
+  ReturnTo k o -> case indexOf k of
+    Just i -> setScreenPosition BrowserScreen (i, o) env s
+    Nothing -> setScreenPosition BrowserScreen (0, 0) env s
   where
     indexOf :: ItemKey -> Maybe Int
     indexOf k = Seq.findIndexL ((== k) . itemKey) s.browser.items

@@ -1,6 +1,7 @@
 -- | What only the UI loop can do: halt, set the terminal's title, send an
 -- event later, skip a redraw, start the samples of the visualizer, ask for
--- lyrics, edit a file and save the history of the prompts.
+-- lyrics, edit a file, save the history of the prompts and list a local
+-- directory.
 module Reprise.Effect.UiRequest
   ( -- * Effect
     UiRequest (..)
@@ -19,6 +20,7 @@ module Reprise.Effect.UiRequest
   , fetchLyricsInBackground
   , editFile
   , saveToHistory
+  , listLocal
   ) where
 
 import Data.Text qualified as T
@@ -28,6 +30,7 @@ import Effectful.Output.Static.Local.List
 
 import Reprise.Config
 import Reprise.Event
+import Reprise.LocalFiles
 import Reprise.Lyrics
 import Reprise.Mpd.Protocol.Types
 
@@ -56,6 +59,9 @@ data UiCommand
     Edit T.Text FilePath
   | -- | Add a line of a prompt to the history file.
     SaveToHistory T.Text
+  | -- | List a local directory for the browser's listing with the token,
+    -- with the tags of the files whose suffixes MPD decodes.
+    ListLocal Int Suffixes FilePath
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -97,3 +103,7 @@ editFile command = send . UiRequest . Edit command
 -- | Add a line of a prompt to the history file.
 saveToHistory :: UiRequest :> es => T.Text -> Eff es ()
 saveToHistory = send . UiRequest . SaveToHistory
+
+-- | List a local directory for the browser's listing with the token.
+listLocal :: UiRequest :> es => Int -> Suffixes -> FilePath -> Eff es ()
+listLocal token suffixes = send . UiRequest . ListLocal token suffixes
