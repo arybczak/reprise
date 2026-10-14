@@ -16,14 +16,18 @@ module Reprise.Find
 import Control.Exception
 import Control.Monad
 import Data.Char
+import Data.List qualified as L
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Data.Text.Foreign qualified as T
 import Data.Text.ICU qualified as ICU
+import Data.Text.ICU.Char qualified as UChar
 import Data.Text.ICU.Error qualified as ICU
 import Data.Text.ICU.Regex qualified as Regex
 import GHC.Clock
 import System.IO.Unsafe
+
+import Reprise.Width
 
 -- | A valid pattern, with its diacritics folded.
 newtype Pattern = Pattern T.Text
@@ -112,11 +116,12 @@ search p direction from items = withMatcher p $ \match -> go match order
         if found then pure (Just (Found i w)) else go match rest
 
 -- | The characters of a text that the pattern matches, as the start and the
--- length of each match. A match covers a character whose folded text it
--- covers, and the combining marks after its last one, which folding drops.
+-- length of each match. The text folds by characters as people see them,
+-- e.g. a letter with its marks, which fold together as in 'foldText', and a
+-- match covers each one whose folded text it covers.
 matchRanges :: Pattern -> T.Text -> Either T.Text [(Int, Int)]
 matchRanges p t = withRegex p $ \matcher -> do
-  Regex.setText matcher (T.concat [piece | (_, piece, _) <- pieces])
+  Regex.setText matcher (T.concat [folded | (_, _, folded, _) <- pieces])
   let matchesFrom :: IO [(Int, Int)]
       matchesFrom =
         Regex.findNext matcher >>= \case
@@ -127,30 +132,37 @@ matchRanges p t = withRegex p $ \matcher -> do
             ((s, e) :) <$> matchesFrom
   bytes <- matchesFrom
   pure
-    [ (first, lastChar - first + 1)
+    [ (first, end - first)
     | (s, e) <- bytes
     , e > s
     , let covered =
-            [ i
-            | (i, piece, at) <- pieces
-            , let n = T.lengthWord8 piece
-            , if n > 0 then at < e && at + n > s else at > s && at <= e
+            [ (at, at + T.length c)
+            | (at, c, folded, byte) <- pieces
+            , let n = T.lengthWord8 folded
+            , if n > 0 then byte < e && byte + n > s else byte > s && byte <= e
             ]
-    , (first, lastChar) <- [(minimum covered, maximum covered) | not (null covered)]
+    , not (null covered)
+    , let first = minimum (map fst covered)
+          end = maximum (map snd covered)
     ]
   where
-    -- Each character with its folded text and where that starts in the
-    -- folded text, in bytes, as ICU counts it.
-    pieces :: [(Int, T.Text, Int)]
+    -- Each character where it starts in the text, with its folded text and
+    -- where that starts in the folded text, in bytes, as ICU counts it. A
+    -- mark at the start, of no letter, folds as after a letter of Latin.
+    pieces :: [(Int, T.Text, T.Text, Int)]
     pieces =
-      let folded = [foldChar c | c <- T.unpack t]
-          starts = scanl (+) 0 (map T.lengthWord8 folded)
-      in zip3 [0 ..] folded starts
+      let cs = characters t
+          folded = snd $ L.mapAccumL foldCharacter True cs
+      in L.zip4
+           (scanl (+) 0 (map T.length cs))
+           cs
+           folded
+           (scanl (+) 0 (map T.lengthWord8 folded))
 
-    foldChar :: Char -> T.Text
-    foldChar c
-      | isAscii c = T.singleton c
-      | otherwise = foldDiacritics (T.singleton c)
+    foldCharacter :: Bool -> T.Text -> (Bool, T.Text)
+    foldCharacter accents c
+      | T.all isAscii c = (True, c)
+      | otherwise = foldAfter accents c
 
 -- | Run matches with one matcher, which holds the work limit of each match.
 -- The matches together stop too once they took as long, as a pattern can
@@ -194,14 +206,67 @@ matchOptions = [ICU.CaseInsensitive, ICU.WorkLimit workLimit]
     workLimit :: Int
     workLimit = 100
 
--- | Decompose the characters and drop the combining marks, e.g. @ó@ becomes
--- @o@. A letter of its own, such as @ł@, stays. What remains is composed
--- again, so that a syllable of Hangul, which decomposes into its letters,
--- stays one character.
+-- | Decompose the characters and drop the combining marks of the letters
+-- whose marks are accents, e.g. @ó@ becomes @o@. A letter of its own, such
+-- as @ł@, stays. What remains is composed again, so that a syllable of
+-- Hangul, which decomposes into its letters, stays one character.
 foldDiacritics :: T.Text -> T.Text
 foldDiacritics t
   -- Text of ASCII has no marks, and the forms leave it as it is. Leaving
   -- it alone took the first key of a find that matches nothing in 4254
   -- songs from 8.4 ms to 4.7 ms, in reprise:bench.
   | T.all isAscii t = t
-  | otherwise = ICU.nfc . T.filter ((/= NonSpacingMark) . generalCategory) $ ICU.nfd t
+  | otherwise = snd (foldAfter True t)
+
+-- | 'foldDiacritics' after a letter whose marks are accents, or not, and
+-- whether the last letter's are. A mark at the start drops if they are.
+foldAfter :: Bool -> T.Text -> (Bool, T.Text)
+foldAfter accents t =
+  let (accents', kept) = dropAccents accents (T.unpack (ICU.nfd t))
+  in (accents', ICU.nfc (T.pack kept))
+  where
+    dropAccents :: Bool -> String -> (Bool, String)
+    dropAccents dropping = \case
+      [] -> (dropping, [])
+      c : cs
+        | generalCategory c /= NonSpacingMark -> (c :) <$> dropAccents (hasAccents c) cs
+        | dropping -> dropAccents dropping cs
+        | otherwise -> (c :) <$> dropAccents dropping cs
+
+-- | Whether a letter's combining marks are accents, which a find ignores:
+-- of Latin, Greek and Cyrillic, and the vowel points of Hebrew and Arabic,
+-- which most text leaves out. In other scripts a mark makes another letter
+-- or a vowel, e.g. the dakuten of Japanese makes が of か, and the marks of
+-- Devanagari are its vowels. ICU's blocks stand for the scripts, as
+-- text-icu has no scripts. The two newest blocks of Cyrillic and Arabic
+-- are left out, as text-icu 0.8.0.2 doesn't have them; they hold modifier
+-- letters.
+hasAccents :: Char -> Bool
+hasAccents c =
+  UChar.blockCode c
+    `elem` [ UChar.BasicLatin
+           , UChar.Latin1Supplement
+           , UChar.LatinExtendedA
+           , UChar.LatinExtendedB
+           , UChar.IPAExtensions
+           , UChar.LatinExtendedAdditional
+           , UChar.LatinExtendedC
+           , UChar.LatinExtendedD
+           , UChar.LatinExtendedE
+           , UChar.LatinExtendedF
+           , UChar.LatinExtendedG
+           , UChar.GreekAndCoptic
+           , UChar.GreekExtended
+           , UChar.Cyrillic
+           , UChar.CyrillicSupplement
+           , UChar.CyrillicExtendedA
+           , UChar.CyrillicExtendedB
+           , UChar.CyrillicExtendedC
+           , UChar.Hebrew
+           , UChar.Arabic
+           , UChar.ArabicSupplement
+           , UChar.ArabicExtendedA
+           , UChar.ArabicExtendedB
+           , UChar.ArabicPresentationFormsA
+           , UChar.ArabicPresentationFormsB
+           ]

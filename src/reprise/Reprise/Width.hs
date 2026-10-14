@@ -14,6 +14,7 @@ module Reprise.Width
   , wrapText
   , scrollText
   , sanitize
+  , characters
 
     -- * The width table
   , installWidthTable
@@ -24,6 +25,7 @@ module Reprise.Width
 import Control.Monad
 import Data.Char
 import Data.Text qualified as T
+import Data.Text.ICU qualified as ICU
 import Data.Word
 import Foreign.C.Types
 import Graphics.Text.Width qualified as W
@@ -187,3 +189,8 @@ systemWidth = do
       else Just $ \c -> do
         w <- c_wcwidth (fromIntegral (fromEnum c))
         pure $ if w >= 0 then Just (fromIntegral w) else Nothing
+
+-- | The characters of text as people see them, e.g. a letter with its
+-- accents, or emoji that a joiner joins.
+characters :: T.Text -> [T.Text]
+characters = map ICU.brkBreak . ICU.breaks (ICU.breakCharacter ICU.Root)

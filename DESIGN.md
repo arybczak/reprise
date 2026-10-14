@@ -316,7 +316,8 @@ ncmpcpp.
   pattern is shared by all screens, as in Emacs and Vim, so a pattern found
   in one screen can be found again in another. ncmpcpp keeps one for each
   screen.
-- Find always ignores diacritics.
+- Find always ignores diacritics, in the scripts whose marks are accents
+  (see [Find patterns](#find-patterns)).
 - Songs that are in the queue have `styles.list.queued` in the other
   screens, bold by default, which ncmpcpp hardcodes. A song is in the queue
   if the queue has its file, and for a track of a cue sheet, the same part
@@ -1831,7 +1832,17 @@ the pieces:
 - **Diacritics folding:** decompose with `nfd`, drop the combining marks,
   and compose what is left with `nfc`, in the pattern and in the text. A
   letter of its own, such as `ł`, stays, and so does a syllable of Hangul,
-  which `nfd` splits into its letters. Case is ignored with the
+  which `nfd` splits into its letters.
+  - **Only the marks of letters with accents drop:** of Latin, Greek and
+    Cyrillic, and the vowel points of Hebrew and Arabic, which most text
+    leaves out. In other scripts a mark makes another letter or a vowel:
+    the dakuten of Japanese makes が of か, and the marks of Devanagari are
+    its vowels and its virama, so dropping them matched other words.
+    text-icu has no scripts of characters, so ICU's blocks stand for them.
+  - **The highlights fold by characters as people see them,** a letter
+    with its marks, as the match folds the whole text. Folded alone, a mark
+    that stays, or a letter of Hangul, didn't compose with the letter
+    before it, so a match had no highlight. Case is ignored with the
   `CaseInsensitive` option, because folding the pattern's case would turn
   escapes such as `\D` into others, here `\d`. For the same reason the
   character after a backslash isn't folded, e.g. `\ñ` would become `\n`; an

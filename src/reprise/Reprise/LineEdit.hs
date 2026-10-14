@@ -10,7 +10,6 @@ module Reprise.LineEdit
 import Data.Char hiding (Space)
 import Data.Set qualified as S
 import Data.Text qualified as T
-import Data.Text.ICU qualified as ICU
 
 import Reprise.Keys
 import Reprise.Width
@@ -129,8 +128,3 @@ visibleLine room e
         fit left = \case
           c : cs | textWidth c <= left -> c : fit (left - textWidth c) cs
           _ -> []
-
--- | The characters of text as people see them, e.g. a letter with its
--- accents, or emoji that a joiner joins.
-characters :: T.Text -> [T.Text]
-characters = map ICU.brkBreak . ICU.breaks (ICU.breakCharacter ICU.Root)

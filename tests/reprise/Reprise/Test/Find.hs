@@ -41,6 +41,12 @@ test_matchRanges = do
   assertEqual "case" (Right [(0, 4)]) (ranges "beta" "BETA")
   assertEqual "diacritics" (Right [(0, 5)]) (ranges "pokoj" "Pokój")
   assertEqual "a mark after the match" (Right [(0, 2)]) (ranges "o" "o\x301x")
+  assertEqual "a mark that isn't an accent" (Right []) (ranges "か" "か\x3099")
+  -- The letters of a syllable compose into it, as in the match.
+  assertEqual
+    "a syllable of Hangul in letters"
+    (Right [(0, 3)])
+    (ranges "한" "\x1112\x1161\x11AB")
   assertEqual "after a wide character" (Right [(2, 1)]) (ranges "b" "日ab")
   assertEqual "no empty match" (Right []) (ranges "x*" "ab")
   where
@@ -66,6 +72,14 @@ test_matching = do
   -- with some of its letters.
   assertEqual "a syllable of Hangul" (Right False) (match "[가각]" "나")
   assertEqual "a class of syllables" (Right True) (match "[가각]" "각")
+  -- The marks of Greek, Cyrillic, Hebrew and Arabic are accents, as of Latin.
+  assertEqual "Greek" (Right True) (match "αθηνα" "Αθήνα")
+  assertEqual "Cyrillic" (Right True) (match "елка" "ёлка")
+  assertEqual "Hebrew" (Right True) (match "שלום" "שָׁלוֹם")
+  -- In other scripts, a mark makes another letter or a vowel.
+  assertEqual "Japanese" (Right False) (match "か" "が")
+  assertEqual "Devanagari" (Right False) (match "हन" "हिन्")
+  assertEqual "a decomposed mark after its letter" (Right False) (match "か" "か\x3099")
   where
     match :: T.Text -> T.Text -> Either T.Text Bool
     match p t = either (Left . ("compile: " <>)) (`matches` foldText t) (compilePattern p)

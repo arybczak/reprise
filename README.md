@@ -135,6 +135,9 @@ cursor in the browser.
 
 `/` finds forward and `?` backward, with a regular expression that ignores
 case and diacritics. `.` and `,` go to the next and the previous match.
+The diacritics are the accents of Latin, Greek and Cyrillic, and the vowel
+points of Hebrew and Arabic. In other scripts, e.g. Japanese or Devanagari,
+a mark is a part of its letter, so a find tells が from か.
 
 ### Toggles
 
