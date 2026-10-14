@@ -50,6 +50,7 @@ responseTests =
     , testCase "volume without a mixer" test_volumeWithoutMixer
     , testCase "parsed songs hold no thunks" test_songsEvaluated
     , testCase "parsed entries hold no thunks" test_entriesEvaluated
+    , testCase "parsed playlist names hold no thunks" test_playlistsEvaluated
     ]
 
 -- | A thunk in a parsed song would keep its slice of the reply, and with it
@@ -71,6 +72,23 @@ test_entriesEvaluated = do
       parseCommandReply (lsInfo "Album") =<< parseReply (BS8.lines reply)
   found <- thunks entries
   assertEqual "thunks" [] found
+
+test_playlistsEvaluated :: Assertion
+test_playlistsEvaluated = do
+  names <-
+    either (assertFailure . show) pure $
+      parseCommandReply listPlaylists
+        =<< parseReply
+          [ "playlist: one"
+          , "Last-Modified: 2026-01-01T00:00:00Z"
+          , "playlist: two"
+          , "Last-Modified: 2026-01-01T00:00:00Z"
+          , "OK"
+          ]
+  -- Before a comparison forces them.
+  found <- thunks names
+  assertEqual "thunks" [] found
+  assertEqual "the names" ["one", "two"] names
 
 test_parseAck :: Assertion
 test_parseAck = do

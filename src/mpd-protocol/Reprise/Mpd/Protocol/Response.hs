@@ -28,6 +28,7 @@ module Reprise.Mpd.Protocol.Response
   , parseEntries
   , parseStatus
   , parseStats
+  , parsePlaylistNames
   , parseComments
   , parseOutputs
   , parseDecoders
@@ -442,6 +443,10 @@ parseStats = parseSingle $ \fields -> do
       , dbPlaytime = dbPlaytime
       , dbUpdate = posixSecondsToUTCTime . fromIntegral <$> dbUpdate
       }
+
+-- | The names of the stored playlists, without their times.
+parsePlaylistNames :: [Field] -> Either T.Text [T.Text]
+parsePlaylistNames fields = parseAll (Right . decode . (.value)) [f | f <- fields, f.key == "playlist"]
 
 -- | The comments of a file, in the order of the reply.
 parseComments :: [Field] -> Either T.Text [(T.Text, T.Text)]

@@ -370,8 +370,7 @@ listPlaylistInfo name = command "listplaylistinfo" [name] parseSongs
 
 -- | The names of the stored playlists.
 listPlaylists :: Command [T.Text]
-listPlaylists = command "listplaylists" [] $ \fields ->
-  Right [decode f.value | f <- fields, f.key == "playlist"]
+listPlaylists = command "listplaylists" [] parsePlaylistNames
 
 -- | What @save@ does with a stored playlist of its name.
 data SaveMode
