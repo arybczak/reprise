@@ -214,9 +214,11 @@ ncmpcpp.
 - MPD plays local files only for a client on its unix socket that runs as
   MPD's user, or owns the file, or for a file that everyone can read.
   Another client gets MPD's error when it adds them.
-- **The UI loop lists a directory and reads its tags,** as that's quick. A
-  hung network mount would freeze the UI, and a thread for the listing can
-  come if that turns out to matter.
+- **A thread of its own lists a directory and reads its tags,** and another
+  walks the directories of an add, so that a large walk, a slow disk or a
+  hung network mount doesn't stop the UI. Each gets a thread when it starts,
+  as the tokens of the listings and the adds already drop the replies that
+  newer ones replaced, so no worker needs to keep only the newest request.
 - Hidden entries don't show, as with ncmpcpp's default.
 - Playlist files don't show yet. MPD lists no suffixes of its playlist
   plugins, so reprise would have to ask about each file.

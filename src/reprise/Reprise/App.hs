@@ -6,6 +6,7 @@ module Reprise.App
   , runApp
   , eventQueueSize
   , runEditor
+  , inBackground
   ) where
 
 import Control.Concurrent
@@ -141,11 +142,18 @@ runApp env channels buildVty initial = do
         SaveToHistory line -> do
           channels.saveToHistoryFile line
           pure next
-        -- In the loop, as listing a local directory is quick.
-        ListLocal token suffixes dir ->
-          dispatch current s . LocalListed token =<< listLocalDirectory suffixes dir
-        WalkLocal token suffixes dirs ->
-          dispatch current s . LocalWalked token =<< walkLocalDirectories suffixes dirs
+        ListLocal token suffixes dir -> do
+          inBackground
+            channels.events
+            (LocalListed token <$> listLocalDirectory suffixes dir)
+            (LocalListed token . Left . DirectoryUnreadable)
+          pure next
+        WalkLocal token suffixes dirs -> do
+          inBackground
+            channels.events
+            (LocalWalked token <$> walkLocalDirectories suffixes dirs)
+            (const (LocalWalked token []))
+          pure next
         Edit cmd file -> do
           V.shutdown =<< S.readIORef current
           failure <- runEditor cmd file
@@ -180,6 +188,16 @@ runApp env channels buildVty initial = do
 
     displaySize :: V.Vty -> IO (Int, Int)
     displaySize = V.displayBounds . V.outputIface
+
+-- | Run an action in a thread of its own, and send its event, or the event
+-- of its failure with the reason, so that a slow or hung disk doesn't stop
+-- the UI. The token of the event drops it if a newer request replaced its
+-- own.
+inBackground :: TBQueue AppEvent -> IO AppEvent -> (T.Text -> AppEvent) -> IO ()
+inBackground events action failed =
+  void . forkIO $
+    atomically . writeTBQueue events
+      =<< action `catchSync` (pure . failed . exceptionText)
 
 -- | What the loop does after an event.
 data Next
