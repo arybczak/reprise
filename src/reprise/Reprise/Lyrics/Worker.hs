@@ -214,12 +214,15 @@ storedLyrics dir song =
     unreadable :: IOException -> LyricsResult
     unreadable err = LyricsFailed $ "The lyrics can't be read: " <> exceptionText err
 
-    -- The text of a file, or Nothing without the file.
+    -- The text of a file, or Nothing without the file. Some editors begin
+    -- a UTF-8 file with a byte order mark.
     readText :: FilePath -> IO (Either IOException (Maybe T.Text))
     readText file =
       try (BS.readFile (dir </> file)) <&> \case
         Right bytes ->
-          Right . Just . T.stripEnd . T.replace "\r\n" "\n" $ T.decodeUtf8Lenient bytes
+          let text = T.decodeUtf8Lenient bytes
+          in Right . Just . T.stripEnd . T.replace "\r\n" "\n" $
+               fromMaybe text (T.stripPrefix "\xFEFF" text)
         Left err
           | isDoesNotExistError err -> Right Nothing
           | otherwise -> Left err

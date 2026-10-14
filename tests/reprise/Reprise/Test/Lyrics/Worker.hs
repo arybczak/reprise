@@ -34,6 +34,7 @@ lyricsWorkerTests =
     , testCase "the worker fetches the lyrics again" test_workerRefetches
     , testCase "a refetch that finds nothing keeps the stored lyrics" test_workerKeepsStored
     , testCase "LRC without times is stored lyrics" test_workerUntimedLrc
+    , testCase "a file with a byte order mark" test_workerByteOrderMark
     , testCase "the worker without fetchers" test_workerWithoutFetchers
     , testCase "the worker stores and reads the times" test_workerTimes
     , testCase "the worker fetches in the background" test_workerInBackground
@@ -152,6 +153,19 @@ test_workerUntimedLrc = withSystemTempDirectory "lyrics" $ \dir -> do
   assertEqual "no fetch" 0 =<< S.readIORef calls
   assertEqual "the file" "Pasted\nwords\n" =<< BS.readFile (dir </> "A - One.lrc")
   assertBool "no text file" . not =<< doesFileExist (dir </> "A - One.txt")
+
+-- | Some editors begin a UTF-8 file with a byte order mark.
+test_workerByteOrderMark :: Assertion
+test_workerByteOrderMark = withSystemTempDirectory "lyrics" $ \dir -> do
+  BS.writeFile (dir </> "A - One.lrc") "\xEF\xBB\xBF[00:01.00]First\n[00:02.00]Second\n"
+  withWorker dir [] $ \ask ->
+    ask 1 "One" False >>= \case
+      [LyricsLoaded 1 (LyricsFound _ lyrics)] ->
+        assertEqual
+          "the timed lines"
+          (Just [(1, "First"), (2, "Second")])
+          ((.entries) <$> lyrics.timed)
+      other -> assertFailure $ "stored lyrics, not " <> show other
 
 test_workerWithoutFetchers :: Assertion
 test_workerWithoutFetchers = withSystemTempDirectory "lyrics" $ \dir ->
