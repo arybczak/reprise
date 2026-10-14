@@ -71,6 +71,15 @@ test_words = do
   assertEqual "alt-f" (LineEdit "a/b-cd ef" " gh") (edits ["alt-f"] e)
   assertEqual "alt-d" (LineEdit "a/b-cd " " gh") (edits ["alt-d"] e)
   assertEqual "alt-backspace" (LineEdit "a/b-" "ef gh") (edits ["alt-backspace"] e)
+  -- A word's characters are as people see them.
+  assertEqual
+    "a letter with its accent"
+    (LineEdit "" " ab")
+    (edits ["alt-d"] (LineEdit "" "e\x301t ab"))
+  assertEqual
+    "a vowel sign"
+    (LineEdit "x " "")
+    (edits ["alt-backspace"] (LineEdit "x हिन्दी" ""))
 
 test_notEditing :: Assertion
 test_notEditing =

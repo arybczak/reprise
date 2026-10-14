@@ -90,17 +90,22 @@ editLine k e = case (S.toList k.modifiers, k.key) of
     -- what separates it from the cursor.
     wordBefore :: (T.Text, T.Text)
     wordBefore =
-      let gap = T.takeWhileEnd (not . isAlphaNum) e.before
-          rest = T.dropWhileEnd (not . isAlphaNum) e.before
-      in (T.dropWhileEnd isAlphaNum rest, T.takeWhileEnd isAlphaNum rest <> gap)
+      let (gap, rest) = span (not . inWord) (reverse (characters e.before))
+          (word, rest') = span inWord rest
+      in (T.concat (reverse rest'), T.concat (reverse (gap <> word)))
 
     -- The word that starts at the cursor with what separates it from the
     -- cursor, and the text after it.
     wordAfter :: (T.Text, T.Text)
     wordAfter =
-      let (gap, rest) = T.span (not . isAlphaNum) e.after
-          (word, rest') = T.span isAlphaNum rest
-      in (gap <> word, rest')
+      let (gap, rest) = span (not . inWord) (characters e.after)
+          (word, rest') = span inWord rest
+      in (T.concat (gap <> word), T.concat rest')
+
+    -- A character as people see it is of a word if it begins with a letter
+    -- or a digit, e.g. a letter with its accents.
+    inWord :: T.Text -> Bool
+    inWord = maybe False (isAlphaNum . fst) . T.uncons
 
 -- | What of the line fits in the given number of columns, with the column of
 -- the cursor. The line scrolls so that the cursor stays in view, with a

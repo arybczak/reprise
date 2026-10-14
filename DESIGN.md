@@ -1617,7 +1617,9 @@ shows where:
 The keys of single characters move over and delete characters as people see
 them, by ICU's breaks of characters: a letter with its accents, or emoji that
 a joiner joins, is one, so that a key doesn't leave an accent without its
-letter. A line too long for the prompt starts at such a character too.
+letter. A line too long for the prompt starts at such a character too. A
+word is of such characters as well, each of a word if it begins with a letter
+or a digit, so a vowel sign of Devanagari stays with its letter.
 
 The line prompts share one history, as in ncmpcpp. Separate histories would
 each hold few lines, and more prompts are coming, e.g. the search engine's.
