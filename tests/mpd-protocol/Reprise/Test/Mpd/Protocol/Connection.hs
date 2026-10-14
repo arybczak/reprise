@@ -19,11 +19,20 @@ import Test.Tasty.HUnit
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Idle
+import Reprise.Mpd.Protocol.Internal.Connection
+import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 import Reprise.Mpd.TestServer
 
 connectionTests :: TestTree
-connectionTests = testGroup "connection" [realServerTests, closedTests, timeoutTests]
+connectionTests =
+  testGroup
+    "connection"
+    [ realServerTests
+    , closedTests
+    , timeoutTests
+    , testCase "splitting a command list" test_splitRequests
+    ]
 
 realServerTests :: TestTree
 realServerTests =
@@ -39,6 +48,7 @@ realServerTests =
         , ("command list", test_commandList)
         , ("ACK", test_ack)
         , ("ACK in a command list", test_ackInCommandList)
+        , ("a command list too large for MPD", test_largeCommandList)
         , ("an argument with a line break", test_lineBreak)
         , ("a line too long for MPD", test_longLine)
         , ("song tags", test_songTags)
@@ -277,6 +287,36 @@ test_ackInCommandList server = withConn server $ \conn -> do
   s <- run conn status
   assertEqual "the command before the error ran" True s.repeat
   assertEqual "the command after the error didn't run" False s.random
+
+-- | MPD closes the connection of a command list larger than its
+-- @max_command_list_size@, 2 MiB by default, so it runs as several. The
+-- index of an ACK counts the commands of the whole.
+test_largeCommandList :: TestServer -> Assertion
+test_largeCommandList server = withConn server $ \conn -> do
+  -- Each ping is 5 bytes with its line break.
+  let pings = replicateM_ (2 * 1024 * 1024 `div` 5 + 1) ping
+  run conn pings
+  r <- try @MpdError . run conn $ pings *> play (Just 99)
+  case r of
+    Left (AckError ack) -> do
+      assertEqual "index" (2 * 1024 * 1024 `div` 5 + 1) ack.index
+      assertEqual "command" "play" ack.command
+    _ -> assertFailure $ "unexpected result: " <> show r
+  run conn ping
+
+-- | Each list is at most the size, as MPD counts it: the bytes of each line
+-- with its line break. A request larger than the size is a list of its own.
+test_splitRequests :: Assertion
+test_splitRequests = do
+  let ping' = Request "ping" []
+      long = Request "add" ["a long path"]
+  assertEqual "nothing" [] (splitRequests 10 [])
+  assertEqual "one list" [[ping', ping']] (splitRequests 10 [ping', ping'])
+  assertEqual "two lists" [[ping', ping'], [ping']] (splitRequests 10 [ping', ping', ping'])
+  assertEqual
+    "a large request"
+    [[ping'], [long], [ping']]
+    (splitRequests 10 [ping', long, ping'])
 
 test_songTags :: TestServer -> Assertion
 test_songTags server = withConn server $ \conn -> do

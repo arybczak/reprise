@@ -1116,6 +1116,15 @@ often unused that long. MPD closes it before it reads the next command, so a
 command that finds the connection closed before any reply runs once more on a
 new connection.
 
+MPD also closes the connection of a command list larger than its
+`max_command_list_size`, 2 MiB by default, e.g. the adds of a large
+selection. So a larger list runs as several, one after another, each within
+the default, as a client can't ask MPD for the value that it uses. The index
+of an ACK counts the commands of the whole list. Another client's command can
+come between the parts, which a list that MPD never ran can't avoid either.
+Once a part ran, a closed connection doesn't run the list again, as that
+would run the parts before twice.
+
 The timeout of a command, `mpd.timeout`, is for each read and write of the
 socket, as libmpdclient's is, not for the whole reply. A long reply, e.g.
 `playlistinfo` of a large queue from a slow server, takes as long as it keeps
