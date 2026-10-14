@@ -769,6 +769,13 @@ ncmpcpp.
   - **It has no API,** so the fetcher reads its pages with tagsoup, which
     parses real pages leniently and decodes their entities. It breaks when
     the site changes its pages.
+  - **A changed page is a failure, not missing lyrics.** Every page of a
+    search has the heading of its songs, "Znalezione utwory:", also
+    without songs, and every page of a song has the box of its lyrics,
+    `inner-text`, also when it is empty. A page without them fails with
+    "the site may have changed it", so that the lyrics screen doesn't say
+    "No lyrics found" for a fetcher that no longer works. A class is
+    matched among the classes of a tag, which the site adds to.
   - **The search, `/szukaj?search-query=`,** for the artist and the title
     without what follows it in brackets. The songs that it found are the
     links of their section, up to the next heading; the page links other

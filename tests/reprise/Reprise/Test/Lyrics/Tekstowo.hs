@@ -31,7 +31,7 @@ tekstowoTests =
 -- them or the artists after them.
 test_searchResults :: Assertion
 test_searchResults = do
-  results <- searchResults <$> page "search.html"
+  results <- maybe (assertFailure "no songs") pure . searchResults =<< page "search.html"
   assertEqual
     "the first songs"
     [ ("/kult/arahja", "Kult - Arahja")
@@ -41,13 +41,18 @@ test_searchResults = do
     (take 3 results)
   assertBool "only songs" $ all (\(p, _) -> T.count "/" p == 2) results
   assertBool "not the popular ones" $ all (\(p, _) -> "/kult/" `T.isPrefixOf` p) results
+  assertEqual "not a page of a search" Nothing . searchResults =<< page "song.html"
 
 -- | The page of Arahja, with other lyrics and another translation in it.
 test_songLyrics :: Assertion
 test_songLyrics = do
   lyrics <- songLyrics <$> page "song.html"
   assertEqual "the lyrics" (Just "First line\nSecond line & more…\n\nThird line") lyrics
-  assertEqual "no lyrics" Nothing (songLyrics "<html><body>No text</body></html>")
+  assertEqual "no lyrics" (Just "") . songLyrics =<< page "empty.html"
+  assertEqual
+    "not a page of a song"
+    Nothing
+    (songLyrics "<html><body>No text</body></html>")
 
 test_found :: Assertion
 test_found = do
@@ -98,11 +103,20 @@ test_failures = do
         pure (Left "tekstowo.pl can't be reached: x")
   result <- tekstowoLyrics unreachable (kult "Arahja")
   assertEqual "unreachable" (FetchFailed "tekstowo.pl can't be reached: x") result
-  (_, pageless) <-
+  -- The site changed its pages.
+  let changed = FetchFailed "tekstowo.pl's page can't be read, as the site may have changed it"
+  (_, notSearch) <- lookedUp (kult "Arahja") [("/szukaj", 200, "song.html")]
+  assertEqual "a search without its songs" changed notSearch
+  (_, notSong) <-
     lookedUp
       (kult "Arahja")
       [("/szukaj", 200, "search.html"), ("/kult/arahja", 200, "nothing.html")]
-  assertEqual "a page without lyrics" FetchedNothing pageless
+  assertEqual "a song without its lyrics" changed notSong
+  (_, empty) <-
+    lookedUp
+      (kult "Arahja")
+      [("/szukaj", 200, "search.html"), ("/kult/arahja", 200, "empty.html")]
+  assertEqual "a song whose lyrics are empty" FetchedNothing empty
 
 -- | The lyrics of a song from pages by their paths, and what was asked.
 lookedUp
