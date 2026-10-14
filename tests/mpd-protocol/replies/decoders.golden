@@ -1,0 +1,31 @@
+Right
+    [ Decoder
+        { plugin = "mpg123"
+        , suffixes = [ "mp3" ]
+        }
+    , Decoder
+        { plugin = "mad"
+        , suffixes =
+            [ "mp3"
+            , "mp2"
+            ]
+        }
+    , Decoder
+        { plugin = "vorbis"
+        , suffixes =
+            [ "ogg"
+            , "oga"
+            ]
+        }
+    , Decoder
+        { plugin = "oggflac"
+        , suffixes =
+            [ "ogg"
+            , "oga"
+            ]
+        }
+    , Decoder
+        { plugin = "flac"
+        , suffixes = [ "flac" ]
+        }
+    ]

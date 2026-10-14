@@ -84,6 +84,9 @@ module Reprise.Mpd.Protocol.Command
   , enableOutput
   , disableOutput
 
+    -- * Decoders
+  , decoders
+
     -- * Connection
   , password
   , ping
@@ -425,6 +428,13 @@ enableOutput i = command "enableoutput" [toArgument i] noReply
 
 disableOutput :: Int -> Command ()
 disableOutput i = command "disableoutput" [toArgument i] noReply
+
+----------------------------------------
+-- Decoders
+
+-- | The decoder plugins that MPD has.
+decoders :: Command [Decoder]
+decoders = command "decoders" [] parseDecoders
 
 ----------------------------------------
 -- Connection

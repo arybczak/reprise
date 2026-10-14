@@ -44,6 +44,9 @@ module Reprise.Mpd.Protocol.Types
     -- * Outputs
   , Output (..)
 
+    -- * Decoders
+  , Decoder (..)
+
     -- * Idle
   , Subsystem (..)
   , subsystemName
@@ -381,6 +384,19 @@ data Output = Output
   , plugin :: T.Text
   , enabled :: Bool
   , attributes :: M.Map T.Text T.Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
+
+----------------------------------------
+-- Decoders
+
+-- | A decoder plugin, with the suffixes of the files that it decodes.
+-- Since MPD 0.24, FFmpeg's plugin has the suffixes of all of FFmpeg's
+-- formats, also of ones that aren't audio, e.g. @txt@.
+data Decoder = Decoder
+  { plugin :: T.Text
+  , suffixes :: [T.Text]
   }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)

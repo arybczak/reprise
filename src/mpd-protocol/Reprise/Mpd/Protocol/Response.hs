@@ -30,6 +30,7 @@ module Reprise.Mpd.Protocol.Response
   , parseStats
   , parseComments
   , parseOutputs
+  , parseDecoders
   , parseSubsystems
   , parseSingleMode
   , parseConsumeMode
@@ -468,6 +469,20 @@ parseOutputs fields = parseAll parseOutput =<< splitOn (== "outputid") fields
                 | a <- M.findWithDefault [] "attribute" m
                 , let (k, v) = BS8.break (== '=') a
                 ]
+          }
+
+-- | Parse the reply to @decoders@, without the MIME types of the plugins.
+parseDecoders :: [Field] -> Either T.Text [Decoder]
+parseDecoders fields = parseAll parseDecoder =<< splitOn (== "plugin") fields
+  where
+    parseDecoder :: [Field] -> Either T.Text Decoder
+    parseDecoder entry = do
+      let m = fieldMap entry
+      plugin <- required "plugin" Just m
+      pure
+        Decoder
+          { plugin = decode plugin
+          , suffixes = map decode (M.findWithDefault [] "suffix" m)
           }
 
 -- | Parse the reply to @idle@.
