@@ -101,7 +101,27 @@ test_parseErrors = do
         (FormatError 15 "</> without a styled span open in this [...]; a span can't cross [ or ]")
     )
     (void $ parseStyledFormat "<red>[%{artist}</>]")
-  assertEqual "unbalanced span in [" (Left 7) (position $ parseStyledFormat "[<red>a|b</>]")
+  assertEqual
+    "unbalanced span in ["
+    (Left (FormatError 7 "| inside a styled span; close it with </> first"))
+    (void $ parseStyledFormat "[<red>a|b</>]")
+  -- Closing the span wouldn't help.
+  assertEqual
+    "| in a span outside ["
+    (Left (FormatError 6 "| outside [...]; use %| for |"))
+    (void $ parseStyledFormat "<red>a|b</>")
+  assertEqual
+    "] in a span outside ["
+    (Left (FormatError 6 "] without [; use %] for ]"))
+    (void $ parseStyledFormat "<red>a]</>")
+  assertEqual
+    "an unclosed tag before another"
+    (Left (FormatError 0 "%{ isn't closed with }"))
+    (void $ parseStyledFormat "%{artist - %{title}")
+  assertEqual
+    "an unclosed unknown tag"
+    (Left (FormatError 0 "%{ isn't closed with }"))
+    (void $ parseStyledFormat "%{foo")
   assertEqual "bad style" (Left 1) (position $ parseStyledFormat "<purple>x</>")
   assertEqual "bad width" (Left 8) (position $ parseStyledFormat "%{title:x}")
   assertEqual "zero width" (Left 8) (position $ parseStyledFormat "%{title:0}")

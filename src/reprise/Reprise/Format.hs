@@ -137,9 +137,17 @@ parseStyledFormat = parseFormat parseStyle
 parsePlainFormat :: T.Text -> Either FormatError (Format Void)
 parsePlainFormat = parseFormat $ \_ -> Left "this format can't contain styles"
 
--- | Where a sequence is, which decides the characters that end it.
-data Context = TopLevel | InAlternatives | InSpan
+-- | Where a sequence is, which decides the characters that end it. A span
+-- is in the context where it opened.
+data Context = TopLevel | InAlternatives | InSpan Context
   deriving stock (Eq)
+
+-- | Whether a @[...]@ is open around a sequence.
+inAlternatives :: Context -> Bool
+inAlternatives = \case
+  TopLevel -> False
+  InAlternatives -> True
+  InSpan outer -> inAlternatives outer
 
 type Input = [(Int, Char)]
 
@@ -174,15 +182,19 @@ parseSequence parseSpanStyle context = go []
           go (Alternatives alternatives : acc) rest'
         '|' -> case context of
           InAlternatives -> done acc input
-          TopLevel -> Left $ FormatError i "| outside [...]; use %| for |"
-          InSpan -> Left $ FormatError i "| inside a styled span; close it with </> first"
+          InSpan outer
+            | inAlternatives outer ->
+                Left $ FormatError i "| inside a styled span; close it with </> first"
+          _ -> Left $ FormatError i "| outside [...]; use %| for |"
         ']' -> case context of
           InAlternatives -> done acc input
-          TopLevel -> Left $ FormatError i "] without [; use %] for ]"
-          InSpan -> Left $ FormatError i "] inside a styled span; close it with </> first"
+          InSpan outer
+            | inAlternatives outer ->
+                Left $ FormatError i "] inside a styled span; close it with </> first"
+          _ -> Left $ FormatError i "] without [; use %] for ]"
         '<' -> case rest of
           (_, '/') : (_, '>') : _ -> case context of
-            InSpan -> done acc ((i, c) : rest)
+            InSpan _ -> done acc ((i, c) : rest)
             -- A span may be open outside the [...], but it can't end in it.
             InAlternatives ->
               Left $
@@ -195,7 +207,7 @@ parseSequence parseSpanStyle context = go []
               _ : rest'' -> case parseSpanStyle (T.pack (map snd styleChars)) of
                 Left err -> Left $ FormatError (i + 1) err
                 Right s -> do
-                  (items, rest''') <- parseSequence parseSpanStyle InSpan rest''
+                  (items, rest''') <- parseSequence parseSpanStyle (InSpan context) rest''
                   case rest''' of
                     (_, '<') : (_, '/') : (_, '>') : rest'''' -> go (Styled s items : acc) rest''''
                     _ -> Left $ FormatError i "a styled span isn't closed with </>"
@@ -216,25 +228,29 @@ parseSequence parseSpanStyle context = go []
 
     parseFieldItem :: Int -> Input -> Either FormatError (Item s, Input)
     parseFieldItem start input =
-      let (nameChars, rest) = break ((`elem` [':', '}']) . snd) input
+      -- A name has no special character, which would begin the next item,
+      -- e.g. the % of another tag after a tag without its }.
+      let (nameChars, rest) = break ((`elem` (":}" <> specialChars)) . snd) input
           name = T.pack (map snd nameChars)
-      in case lookup name [(fieldName f, f) | f <- fields] of
-           Nothing ->
-             Left . FormatError (start + 2) $
-               "unknown tag \""
-                 <> name
-                 <> "\", expected one of: "
-                 <> T.intercalate ", " (map fieldName fields)
-           Just field -> case rest of
-             (_, '}') : rest' -> Right (FieldItem field Nothing, rest')
-             (i, ':') : rest' ->
-               let (digits, rest'') = span (isDigit . snd) rest'
-               in case (digits, rest'') of
-                    (_ : _, (_, '}') : rest''')
-                      | Just w <- decimalIn 1 maxBound (T.pack (map snd digits)) ->
-                          Right (FieldItem field (Just w), rest''')
-                    _ -> Left $ FormatError (i + 1) "expected a width from 1 and }"
-             _ -> Left $ FormatError start "%{ isn't closed with }"
+          withField :: (Field -> Either FormatError a) -> Either FormatError a
+          withField k = case lookup name [(fieldName f, f) | f <- fields] of
+            Nothing ->
+              Left . FormatError (start + 2) $
+                "unknown tag \""
+                  <> name
+                  <> "\", expected one of: "
+                  <> T.intercalate ", " (map fieldName fields)
+            Just field -> k field
+      in case rest of
+           (_, '}') : rest' -> withField $ \field -> Right (FieldItem field Nothing, rest')
+           (i, ':') : rest' -> withField $ \field ->
+             let (digits, rest'') = span (isDigit . snd) rest'
+             in case (digits, rest'') of
+                  (_ : _, (_, '}') : rest''')
+                    | Just w <- decimalIn 1 maxBound (T.pack (map snd digits)) ->
+                        Right (FieldItem field (Just w), rest''')
+                  _ -> Left $ FormatError (i + 1) "expected a width from 1 and }"
+           _ -> Left $ FormatError start "%{ isn't closed with }"
 
 addLiteral :: T.Text -> [Item s] -> [Item s]
 addLiteral t = \case
