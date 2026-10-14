@@ -48,7 +48,9 @@ retryInterval = 1
 --
 -- A peer that is gone, e.g. after a change of the network, never ends
 -- @idle@. When the connection of the commands fails, the idle connection
--- opens anew too, since it may wait for such a peer.
+-- opens anew too, since it may wait for such a peer. It waits first, as a
+-- command may fail on every connection, e.g. one whose reply is larger
+-- than MPD's output buffer, and each connection fetches the queue again.
 idleWorker :: (Mpd :> es, IOE :> es) => Workers -> Eff es ()
 idleWorker w = forever $ do
   sent <- liftIO $ readTVarIO w.password
@@ -68,7 +70,9 @@ idleWorker w = forever $ do
         Just changed -> do
           emitEvent w $ MpdChanged changed
           watch
-        Nothing -> disconnectMpd
+        Nothing -> do
+          disconnectMpd
+          liftIO $ delaySeconds w.retryDelay
 
     -- After the password that the connection sent. Only the command worker
     -- asks for a password, so a refused connection sends it a command that

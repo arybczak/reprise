@@ -1324,6 +1324,13 @@ never use it directly; they go through `MpdRequest`.
     Linux probes only after two idle hours, and shorter times would be
     arbitrary constants. Until the user does something, a gone peer stays
     unnoticed.
+  - The idle connection opens anew after the same second as after its own
+    errors. A command can fail on every connection, and each connection
+    fetches the queue again, so without the wait they would loop. MPD
+    closes the connection rather than send a reply larger than its
+    `max_output_buffer_size`, 8 MiB by default, which a queue of tens of
+    thousands of tagged songs passes. Such a queue doesn't load, as in
+    ncmpcpp, and the fix is a larger `max_output_buffer_size`.
 - **MPD errors** (`ACK` replies) appear in the status bar, with the command
   that failed.
 - **Permission errors** (`ACK [4@...]`), and a wrong password (`ACK

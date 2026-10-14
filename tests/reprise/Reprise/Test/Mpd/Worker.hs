@@ -11,6 +11,7 @@ import Data.Text qualified as T
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Exception
+import GHC.Clock
 import System.Timeout
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -23,6 +24,7 @@ import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Connection hiding (run)
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
+import Reprise.Mpd.TestServer
 import Reprise.Mpd.Worker
 
 workerTests :: TestTree
@@ -41,6 +43,10 @@ workerTests =
     , testCase "a wrong password at the start asks for another" test_idleWrongPassword
     , testCase "a failed command connection reopens the idle one" test_idleAfterCommandFailed
     , testCase "a command without requests needs no connection" test_noConnection
+    , withResource oversizedServer stopTestServer $ \getServer ->
+        testCase
+          "a reply that MPD refuses reconnects after a wait"
+          (test_oversizedReply getServer)
     ]
 
 test_retryClosed :: Assertion
@@ -154,14 +160,11 @@ test_idleWrongPassword = do
         passwordRef <- S.newIORef (Just "wrong")
         forkIO . runEff $ mpd passwordRef worker
   E.bracket (mapM start [idleWorker workers, commandWorker workers]) (mapM_ killThread) $ \_ -> do
-    let nextEvent = atomically $ readTQueue events
-        untilEvent :: (AppEvent -> Bool) -> IO AppEvent
-        untilEvent p = nextEvent >>= \e -> if p e then pure e else untilEvent p
-    asked <- expectWithin . untilEvent $ \case PasswordNeeded _ -> True; _ -> False
+    asked <- expectWithin . untilEvent events $ \case PasswordNeeded _ -> True; _ -> False
     assertEqual "asked" (PasswordNeeded wrongPassword) asked
     atomically . writeTQueue workers.requests $ PasswordAnswer (Just "secret")
     assertEqual "connected" (MpdConnected (Version 0 24 0))
-      =<< expectWithin (untilEvent (\case MpdConnected _ -> True; _ -> False))
+      =<< expectWithin (untilEvent events (\case MpdConnected _ -> True; _ -> False))
 
 -- | A command without requests, which marks a point in the queue of
 -- requests, e.g. of a quit, runs without a connection, also when MPD can't
@@ -190,8 +193,63 @@ test_idleAfterCommandFailed = withIdleWorker [] Nothing $ \events callsRef worke
     =<< S.readIORef callsRef
   assertEqual "not failed any more" False =<< readTVarIO workers.commandConnectionFailed
 
+-- | MPD closes the connection rather than send a reply larger than its
+-- output buffer, e.g. of a long queue, so the command fails again on each
+-- new connection. The app fetches the queue on each new connection, so
+-- without a wait the workers would reconnect in a loop.
+test_oversizedReply :: IO TestServer -> Assertion
+test_oversizedReply getServer = do
+  server <- getServer
+  let settings =
+        Settings
+          { address = UnixAddress server.socketPath
+          , password = Nothing
+          , timeout = Just 5
+          }
+      mpd :: Eff [Mpd, IOE] a -> IO a
+      mpd = runEff . runMpd (settings NE.:| [])
+      fetch = (,) <$> status <*> playlistInfo
+  mpd . runCommand $ replicateM_ songs (add "a.flac" Nothing)
+  events <- newTQueueIO
+  passwordVar <- newTVarIO Nothing
+  workers <- (\w -> w {retryDelay = delay}) <$> testWorkers events passwordVar
+  let connected = expectWithin . untilEvent events $ \case MpdConnected _ -> True; _ -> False
+  E.bracket
+    (mapM (forkIO . mpd) [idleWorker workers, commandWorker workers])
+    (mapM_ killThread) $ \_ -> do
+    _ <- connected
+    atomically . writeTQueue workers.requests $
+      PendingRequest fetch (MpdFailed (commandRequests fetch)) (const MpdDone)
+    start <- getMonotonicTime
+    failure <- expectWithin . untilEvent events $ \case MpdFailed {} -> True; _ -> False
+    assertEqual
+      "the failure"
+      (MpdFailed (commandRequests fetch) (ConnectionError Closed))
+      failure
+    _ <- connected
+    end <- getMonotonicTime
+    assertBool "the idle connection waited" (end - start >= delay)
+  where
+    -- Their @playlistinfo@ takes over 100 kB, more than the 17 kB of
+    -- 'oversizedServer'.
+    songs :: Int
+    songs = 1000
+
+    -- Much longer than a reconnect on a unix socket.
+    delay :: Double
+    delay = 0.1
+
+-- | A server whose output buffer takes 17 kB: 16 kB of each client's
+-- buffer, and 1 kB more that @max_output_buffer_size@ allows.
+oversizedServer :: IO TestServer
+oversizedServer = startTestServerWith ["max_output_buffer_size \"1\""] [testSong "a.flac"]
+
 ----------------------------------------
 -- Helpers
+
+-- | The next event that fits, after the events before it.
+untilEvent :: TQueue AppEvent -> (AppEvent -> Bool) -> IO AppEvent
+untilEvent events p = atomically (readTQueue events) >>= \e -> if p e then pure e else untilEvent events p
 
 refusal :: MpdError
 refusal = AckError $ Ack AckPermission 0 "stop" "you don't have permission for \"stop\""

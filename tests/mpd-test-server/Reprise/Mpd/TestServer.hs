@@ -11,6 +11,7 @@ module Reprise.Mpd.TestServer
     -- * Server
   , TestServer (..)
   , startTestServer
+  , startTestServerWith
   , stopTestServer
   , resetTestServer
   , rawCommand
@@ -63,7 +64,12 @@ data TestServer = TestServer
 -- | Start @mpd@ in a new temporary directory, and wait until it listens and
 -- its database has the songs.
 startTestServer :: [TestSong] -> IO TestServer
-startTestServer songs = do
+startTestServer = startTestServerWith []
+
+-- | 'startTestServer' with more lines of @mpd.conf@, e.g.
+-- @max_output_buffer_size "1"@.
+startTestServerWith :: [String] -> [TestSong] -> IO TestServer
+startTestServerWith config songs = do
   tmp <- getCanonicalTemporaryDirectory
   directory <- createTempDirectory tmp "mpd-test"
   let musicDir = directory </> "music"
@@ -76,22 +82,22 @@ startTestServer songs = do
   forM_ songs $ writeSong musicDir
   port <- freePort
   let socketPath = directory </> "socket"
-  writeFile configFile $
-    unlines
-      [ "music_directory " <> show musicDir
-      , "playlist_directory " <> show playlistDir
-      , "db_file " <> show (directory </> "db")
-      , "log_file " <> show logFile
-      , "bind_to_address " <> show socketPath
-      , "bind_to_address \"127.0.0.1\""
-      , "port " <> show (show port)
-      , "auto_update \"no\""
-      , "audio_output {"
-      , "  type \"null\""
-      , "  name \"null\""
-      , "  mixer_type \"software\""
-      , "}"
-      ]
+  writeFile configFile . unlines $
+    [ "music_directory " <> show musicDir
+    , "playlist_directory " <> show playlistDir
+    , "db_file " <> show (directory </> "db")
+    , "log_file " <> show logFile
+    , "bind_to_address " <> show socketPath
+    , "bind_to_address \"127.0.0.1\""
+    , "port " <> show (show port)
+    , "auto_update \"no\""
+    , "audio_output {"
+    , "  type \"null\""
+    , "  name \"null\""
+    , "  mixer_type \"software\""
+    , "}"
+    ]
+      <> config
   -- mpd prints its first messages before it opens the log file.
   (_, _, _, process) <- withFile outputFile WriteMode $ \output ->
     createProcess
