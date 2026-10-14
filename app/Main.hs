@@ -8,6 +8,7 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.MVar.Strict qualified as S
 import Control.Concurrent.STM
+import Control.Exception
 import Control.Monad
 import Data.Foldable
 import Data.Functor
@@ -27,7 +28,9 @@ import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
+import System.Posix.IO
 import System.Posix.Signals
+import System.Posix.Types
 
 import Paths_reprise qualified as Paths
 import Reprise.App
@@ -112,7 +115,8 @@ main = withOpenSSL $ do
       Left err -> do
         T.hPutStrLn stderr err
         exitFailure
-  logLine <- openLog
+  logPath <- logFile
+  logLine <- openLog logPath
   historyFile <- getXdgDirectory XdgState ("reprise" </> "history")
   savedHistory <-
     readHistoryFile historyFile `catchSync` \e -> do
@@ -197,27 +201,28 @@ main = withOpenSSL $ do
   withAsync
     (mapConcurrently_ restarted (mpdWorkers <> toList visualizer <> [lyricsFetcher]))
     $ \_ ->
-      runApp
-        AppEnv
-          { config = config
-          , keymaps = keymapsOf config.keys
-          , colorMode = colorMode
-          , collator = sortOrder
-          , lyricsDirectory = lyricsDirectory
-          , editor = editor
-          }
-        Channels
-          { requests = requests
-          , events = events
-          , visualizing = visualizing
-          , lyrics = lyrics
-          , lyricsInBackground = lyricsInBackground
-          , saveToHistoryFile = \line ->
-              saveToHistoryFile historyFile line `catchSync` \e ->
-                logLine $ "The history of the prompts can't be saved: " <> exceptionText e
-          }
-        (V.mkVty V.defaultConfig)
-        (initialState config) {history = savedHistory}
+      withStderrInLog logPath $
+        runApp
+          AppEnv
+            { config = config
+            , keymaps = keymapsOf config.keys
+            , colorMode = colorMode
+            , collator = sortOrder
+            , lyricsDirectory = lyricsDirectory
+            , editor = editor
+            }
+          Channels
+            { requests = requests
+            , events = events
+            , visualizing = visualizing
+            , lyrics = lyrics
+            , lyricsInBackground = lyricsInBackground
+            , saveToHistoryFile = \line ->
+                saveToHistoryFile historyFile line `catchSync` \e ->
+                  logLine $ "The history of the prompts can't be saved: " <> exceptionText e
+            }
+          (V.mkVty V.defaultConfig)
+          (initialState config) {history = savedHistory}
 
 sources :: Options -> IO Sources
 sources opts = do
@@ -243,18 +248,44 @@ expandHome path = case L.stripPrefix "~/" path of
   Just rest -> (</> rest) <$> getHomeDirectory
   Nothing -> pure path
 
--- | Open the log in @$XDG_STATE_HOME/reprise/reprise.log@. Each run appends
--- to it. The UI owns the terminal, so nothing else may print there.
-openLog :: IO (T.Text -> IO ())
-openLog = do
+-- | The log, @$XDG_STATE_HOME/reprise/reprise.log@, in a directory that
+-- exists. Each run appends to it. The UI owns the terminal, so nothing else
+-- may print there.
+logFile :: IO FilePath
+logFile = do
   dir <- getXdgDirectory XdgState "reprise"
   createDirectoryIfMissing True dir
-  h <- openFile (dir </> "reprise.log") AppendMode
+  pure (dir </> "reprise.log")
+
+openLog :: FilePath -> IO (T.Text -> IO ())
+openLog file = do
+  h <- openFile file AppendMode
   hSetBuffering h LineBuffering
   lock <- S.newMVar ()
   pure $ \msg -> S.withMVar lock $ \() -> do
     time <- getZonedTime
     T.hPutStrLn h $ T.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S %z " time) <> msg
+
+-- | Run an action with what C libraries write to stderr in the log, e.g.
+-- TagLib's debug messages, as they would garble the UI.
+withStderrInLog :: FilePath -> IO a -> IO a
+withStderrInLog file ui = do
+  hFlush stderr
+  bracket redirect restore (const ui)
+  where
+    redirect :: IO Fd
+    redirect = do
+      saved <- dup stdError
+      logFd <- openFd file WriteOnly defaultFileFlags {append = True}
+      _ <- dupTo logFd stdError
+      closeFd logFd
+      pure saved
+
+    restore :: Fd -> IO ()
+    restore saved = do
+      hFlush stderr
+      _ <- dupTo saved stdError
+      closeFd saved
 
 -- | Where reprise lives, for the user agent of its requests.
 repository :: T.Text
