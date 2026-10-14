@@ -138,24 +138,34 @@ installWidthTable = do
       =<< widthRanges width V.defaultUnicodeTableUpperBound
 
 -- | The ranges of neighbouring characters with the same width, up to a
--- character, as vty's 'V.buildUnicodeWidthTable' makes them: control,
--- unassigned and surrogate characters are left out. vty's function keeps
--- every character with its width in a list first, after which reprise kept
--- 30 MB more memory (measured with an empty queue). This one keeps only the
--- ranges.
-widthRanges :: (Char -> IO Int) -> Char -> IO [V.WidthTableRange]
+-- character, as vty's 'V.buildUnicodeWidthTable' makes them, of the
+-- characters that have a width. Control characters and surrogates are left
+-- out, as vty leaves them out.
+--
+-- vty also leaves out the characters that GHC's Unicode doesn't have, but
+-- the C library may know a newer Unicode, e.g. glibc 2.44 knows the emoji
+-- of Unicode 17, which GHC 9.12 doesn't. A character that isn't in the table
+-- gets vty's built-in width.
+--
+-- vty's function keeps every character with its width in a list first,
+-- after which reprise kept 30 MB more memory (measured with an empty
+-- queue). This one keeps only the ranges.
+widthRanges :: (Char -> IO (Maybe Int)) -> Char -> IO [V.WidthTableRange]
 widthRanges width upper = go 0 0 0 0 []
   where
     go :: Int -> Word32 -> Word32 -> Word8 -> [V.WidthTableRange] -> IO [V.WidthTableRange]
     go !i !start !size !columns done
       | i > fromEnum upper = pure . reverse $ close start size columns done
       | not (considered (toEnum i)) = go (i + 1) start size columns done
-      | otherwise = do
-          w <- fromIntegral <$> width (toEnum i)
-          let code = fromIntegral i
-          if size > 0 && start + size == code && columns == w
-            then go (i + 1) start (size + 1) columns done
-            else go (i + 1) code 1 w (close start size columns done)
+      | otherwise =
+          width (toEnum i) >>= \case
+            Nothing -> go (i + 1) start size columns done
+            Just known -> do
+              let w = fromIntegral known
+                  code = fromIntegral i
+              if size > 0 && start + size == code && columns == w
+                then go (i + 1) start (size + 1) columns done
+                else go (i + 1) code 1 w (close start size columns done)
 
     -- Finish the current range, if there is one.
     close :: Word32 -> Word32 -> Word8 -> [V.WidthTableRange] -> [V.WidthTableRange]
@@ -164,11 +174,11 @@ widthRanges width upper = go 0 0 0 0 []
       | otherwise = done
 
     considered :: Char -> Bool
-    considered c = generalCategory c `notElem` [Control, NotAssigned, Surrogate]
+    considered c = generalCategory c `notElem` [Control, Surrogate]
 
--- | The width of a character by the C library, if it has a UTF-8 locale.
--- A character that the C library doesn't know gets vty's built-in width.
-systemWidth :: IO (Maybe (Char -> IO Int))
+-- | The width of a character by the C library, if it has a UTF-8 locale, or
+-- Nothing for a character that it doesn't know.
+systemWidth :: IO (Maybe (Char -> IO (Maybe Int)))
 systemWidth = do
   ok <- c_useUtf8Ctype
   pure $
@@ -176,4 +186,4 @@ systemWidth = do
       then Nothing
       else Just $ \c -> do
         w <- c_wcwidth (fromIntegral (fromEnum c))
-        pure $ if w >= 0 then fromIntegral w else W.safeWcwidth c
+        pure $ if w >= 0 then Just (fromIntegral w) else Nothing

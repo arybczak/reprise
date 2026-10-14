@@ -1585,6 +1585,14 @@ the line. At the start, reprise installs a table built from the C library's
 `wcwidth`. Building it takes about 0.1 s. Without a UTF-8 locale, vty keeps
 its built-in table.
 
+**The C library decides which characters it knows,** by a width of 0 or
+more, not GHC's Unicode. vty's own builder leaves out what GHC doesn't
+have, but the C library may know a newer Unicode, e.g. glibc 2.44 has the
+emoji of Unicode 17, which GHC 9.6 to 9.10 (Unicode 15.1) and 9.12 (16.0)
+don't. Their builds measured such an emoji as one column, so its row
+overflowed. A character that the C library doesn't know gets vty's
+built-in width.
+
 reprise doesn't read vty's own config, so a table that `vty-build-width-table`
 measured in a terminal isn't used. A terminal can disagree with the C
 library, e.g. when it draws ambiguous-width characters wide, but ncmpcpp had

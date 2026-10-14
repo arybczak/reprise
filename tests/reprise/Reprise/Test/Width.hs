@@ -2,7 +2,9 @@ module Reprise.Test.Width (widthTests) where
 
 import Control.Monad
 import Data.Char
+import Data.Maybe
 import Data.Text qualified as T
+import Graphics.Text.Width qualified as W
 import Graphics.Vty qualified as V
 import Graphics.Vty.UnicodeWidthTable.Query qualified as V
 import Graphics.Vty.UnicodeWidthTable.Types qualified as V
@@ -26,6 +28,7 @@ widthTests =
     , testCase "a row with control characters fits the terminal" test_controlRowFits
     , testCase "sequences that terminals draw differently" test_sequences
     , testCase "the ranges are vty's" test_sameRanges
+    , testCase "a Unicode newer than GHC's" test_newerUnicode
     ]
 
 test_truncate :: Assertion
@@ -54,12 +57,27 @@ test_scroll = do
   assertEqual "round" "d *" (scrollText 3 3 "abcd")
   assertEqual "again" "abc" (scrollText 3 8 "abcd")
 
+-- | vty takes only the characters that GHC's Unicode has, and the built-in
+-- width of the ones that the C library doesn't know.
 test_sameRanges :: Assertion
 test_sameRanges = do
   width <- systemWidth >>= maybe (assertFailure "no UTF-8 locale") pure
-  ours <- widthRanges width V.defaultUnicodeTableUpperBound
-  vtys <- V.buildUnicodeWidthTable width V.defaultUnicodeTableUpperBound
+  let anyWidth c = fromMaybe (W.safeWcwidth c) <$> width c
+      known c
+        | generalCategory c == NotAssigned = pure Nothing
+        | otherwise = Just <$> anyWidth c
+  ours <- widthRanges known V.defaultUnicodeTableUpperBound
+  vtys <- V.buildUnicodeWidthTable anyWidth V.defaultUnicodeTableUpperBound
   assertEqual "ranges" (V.unicodeWidthTableRanges vtys) ours
+
+-- | The C library may know a newer Unicode than GHC.
+test_newerUnicode :: Assertion
+test_newerUnicode = do
+  -- Unassigned in every Unicode so far.
+  let newer = '\xE0080'
+      width c = pure $ if c == newer then Just 2 else Nothing
+  assertEqual "GHC doesn't have it" NotAssigned (generalCategory newer)
+  assertEqual "the ranges" [V.WidthTableRange 0xE0080 1 2] =<< widthRanges width '\xE00FF'
 
 test_emoji :: Assertion
 test_emoji = assertEqual "width" 2 (textWidth "🌍")
@@ -75,7 +93,7 @@ test_emojiRowFits = do
       (statusOf Playing (Just 0) 1)
       [song 0 [(Artist, ["A"]), (Title, [title])] 60]
   forM_ (imageLines (renderScreen testAppEnv s)) $ \line -> do
-    w <- sum <$> mapM width (T.unpack line)
+    w <- sum <$> mapM (\c -> fromMaybe (W.safeWcwidth c) <$> width c) (T.unpack line)
     assertBool ("wider than the terminal: " <> T.unpack line) (w <= 80)
 
 -- | A terminal draws an emoji that a selector asks for, and emoji that a
