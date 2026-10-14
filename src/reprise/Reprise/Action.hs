@@ -614,7 +614,7 @@ describeAction = \case
   Next -> "next song"
   Replay -> "replay song"
   Seek t -> case t of
-    SeekBy n -> "seek " <> signed n <> "s"
+    SeekBy n -> "seek " <> signed n <> "s, more while held"
     SeekToSecond n -> "seek to " <> clock n
     SeekToPercent n -> "seek to " <> T.pack (show n) <> "%"
   Volume v -> case v of

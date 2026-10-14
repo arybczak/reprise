@@ -1,7 +1,7 @@
 Help                                                                 Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
-  b           seek -1s
-  f           seek +1s
+  b           seek -1s, more while held
+  f           seek +1s, more while held
   i           show the info of the song under the cursor
   l           show the lyrics of the song under the cursor
   p           pause or resume
