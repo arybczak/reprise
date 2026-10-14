@@ -3,8 +3,7 @@
 -- ncmpcpp shows it bold.
 module Reprise.Screen.Outputs
   ( outputsView
-  , outputsVerb
-  , showOutputs
+  , outputsOps
   , refreshOutputs
   , outputsFetched
   ) where
@@ -48,6 +47,11 @@ outputsView env s v =
           [Span Nothing o.name]
   in V.vertCat . zipWith row [v.offset ..] . toList $
        visibleItems env s v (fromMaybe Seq.empty s.outputs)
+
+outputsOps
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => ScreenOps es
+outputsOps = ScreenOps {verb = outputsVerb, rows = Nothing, shown = showOutputs}
 
 -- | How the outputs screen does a verb, if it does it.
 outputsVerb

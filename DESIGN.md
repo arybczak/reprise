@@ -1060,6 +1060,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Handler.Seek` | Seeking by the keys, to a time, and at once |
 | `Reprise.Handler.Save` | Saving as a stored playlist once the name is known |
 | `Reprise.Handler.Redraw` | The redraws for what changes with time, and the window title |
+| `Reprise.Handler.Screens` | What each screen does for the handlers, from its module: its verbs, its rows to find in, and what showing it does |
 | `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
 | `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors, the order of text, the directory of lyrics and the editor. What the code under the screens knows of each screen, e.g. its length, its songs and its title, in one table. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
 | `Reprise.Header` | What the header's first line shows: the focused screen's title, which scrolls if it doesn't fit, and the volume |
@@ -1424,10 +1425,13 @@ compiler names each table that a new screen must join:
 - `screenInfo` in `Reprise.State` has what the code under the screens needs,
   e.g. a screen's length, its songs and its title.
 - `Reprise.UI.Layout` draws the main view of each screen.
-- `Reprise.Handler.Action` passes the [verbs](#key-bindings) to a function
-  of each screen, which does the ones that the screen implements. A screen
-  can leave a verb unimplemented. A screen finds if the table of the rows to
-  find in has rows for it.
+- `screenOps` in `Reprise.Handler.Screens` has what the handlers need of
+  each screen, in a record that the screen's module gives: the
+  [verbs](#key-bindings) that the screen implements, the rows that a find
+  matches, if the screen finds, and what showing the screen does. A screen
+  can leave a verb unimplemented. The record is of an effect stack, so the
+  constraints are on the value that builds it, e.g. `queueOps`, which
+  names the effects that its actions use, and `screenOps` names them all.
 
 Split screens are dropped. If they come back, it will be as a general window
 framework with the basics of what Emacs does:

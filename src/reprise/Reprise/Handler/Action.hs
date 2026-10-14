@@ -24,17 +24,14 @@ import Reprise.Event
 import Reprise.Find
 import Reprise.Handler.Core
 import Reprise.Handler.Find
+import Reprise.Handler.Screens
 import Reprise.Handler.Seek
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
 import Reprise.Mpd.Protocol.Types
 import Reprise.Screen.Browser
-import Reprise.Screen.Help
 import Reprise.Screen.Lyrics
-import Reprise.Screen.Outputs
-import Reprise.Screen.Queue
-import Reprise.Screen.SongInfo
 import Reprise.Screen.Visualizer
 import Reprise.State
 
@@ -129,7 +126,7 @@ screenVerb
   -> Maybe (Eff es ())
 screenVerb screen = \case
   Find t ->
-    screenRows screen <&> \rows -> do
+    (screenOps screen).rows <&> \rows -> do
       -- A find moves the lyrics, so it stops following the song as a
       -- scroll does, before it notes where it starts.
       when (screen == LyricsScreen) stopFollowing
@@ -138,17 +135,7 @@ screenVerb screen = \case
         FindBackward -> modifyS (startFind Backward)
         FindNext -> findAgain rows Forward
         FindPrevious -> findAgain rows Backward
-  action -> case screen of
-    QueueScreen -> queueVerb action
-    BrowserScreen -> browserVerb action
-    SearchEngineScreen -> Nothing
-    MediaLibraryScreen -> Nothing
-    PlaylistEditorScreen -> Nothing
-    OutputsScreen -> outputsVerb action
-    VisualizerScreen -> Nothing
-    LyricsScreen -> lyricsVerb action
-    SongInfoScreen -> songInfoVerb action
-    HelpScreen -> helpVerb action
+  action -> (screenOps screen).verb action
 
 -- | Show a screen in the focused view, with what the screen does when it
 -- shows, e.g. load the lyrics of the song under the cursor.
@@ -156,20 +143,7 @@ showScreen
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
   => ScreenName
   -> Eff es ()
-showScreen = \case
-  QueueScreen -> switchTo QueueScreen
-  BrowserScreen -> switchTo BrowserScreen >> openBrowser
-  SearchEngineScreen -> notBuilt SearchEngineScreen
-  MediaLibraryScreen -> notBuilt MediaLibraryScreen
-  PlaylistEditorScreen -> notBuilt PlaylistEditorScreen
-  OutputsScreen -> showOutputs
-  VisualizerScreen -> switchTo VisualizerScreen
-  LyricsScreen -> showLyrics
-  SongInfoScreen -> showSongInfo
-  HelpScreen -> switchTo HelpScreen
-  where
-    notBuilt :: (State AppState :> es, UiRequest :> es) => ScreenName -> Eff es ()
-    notBuilt screen = notAvailable $ "The " <> screenText screen
+showScreen screen = (screenOps screen).shown
 
 -- | Show the screen after the focused one in a list, or the first one if the
 -- focused one isn't in the list. Screens that aren't built yet are skipped,

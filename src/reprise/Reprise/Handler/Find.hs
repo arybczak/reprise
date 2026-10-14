@@ -5,7 +5,6 @@ module Reprise.Handler.Find
   , findAsYouType
   , acceptFind
   , findAgain
-  , screenRows
   ) where
 
 import Control.Monad
@@ -17,18 +16,13 @@ import Effectful.Input.Static
 import Effectful.State.Static.Local
 import Optics.Core
 
-import Reprise.Action
+import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Find
-import Reprise.Format
 import Reprise.Handler.Core
+import Reprise.Handler.Screens
 import Reprise.LineEdit
-import Reprise.Screen.Help
-import Reprise.Screen.Lyrics
-import Reprise.Screen.Queue
-import Reprise.Screen.SongInfo
 import Reprise.State
-import Reprise.Style
 
 startFind :: Direction -> AppState -> AppState
 startFind direction s =
@@ -48,7 +42,7 @@ startFind direction s =
 -- that the result doesn't depend on how the pattern was typed. Returns the
 -- find with a note on what it found.
 findAsYouType
-  :: (State AppState :> es, Input AppEnv :> es)
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
   => Finding
   -> T.Text
   -> Eff es Finding
@@ -144,35 +138,9 @@ wrapNote direction found
 
 -- | The rows of the focused list as finds match them. A find opens only on
 -- a screen with rows, and its prompt keeps the screen until it closes.
-focusedRows :: (State AppState :> es, Input AppEnv :> es) => Eff es (Seq.Seq Folded)
+focusedRows
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Eff es (Seq.Seq Folded)
 focusedRows = do
   screen <- getsS ((.screen) . focusedView)
-  fromMaybe (pure Seq.empty) (screenRows screen)
-
--- | The rows of a screen's list as finds match them, on the screens that
--- find.
-screenRows
-  :: (State AppState :> es, Input AppEnv :> es)
-  => ScreenName
-  -> Maybe (Eff es (Seq.Seq Folded))
-screenRows = \case
-  QueueScreen -> Just queueRows
-  BrowserScreen -> Just $ getsS (.browser.rows)
-  SearchEngineScreen -> Nothing
-  MediaLibraryScreen -> Nothing
-  PlaylistEditorScreen -> Nothing
-  OutputsScreen -> Nothing
-  VisualizerScreen -> Nothing
-  LyricsScreen -> Just $ textRows lyricsSpans
-  SongInfoScreen -> Just $ textRows songInfoSpans
-  HelpScreen -> Just $ textRows (\env _ _ -> helpRows env)
-  where
-    -- The rows of a screen of text at the focused view's width.
-    textRows
-      :: (State AppState :> es, Input AppEnv :> es)
-      => (AppEnv -> AppState -> Int -> [[Span Style]])
-      -> Eff es (Seq.Seq Folded)
-    textRows spansOf = do
-      env <- getAppEnv
-      s <- getS
-      pure . Seq.fromList . map (foldText . spansText) $ spansOf env s (focusedView s).width
+  fromMaybe (pure Seq.empty) (screenOps screen).rows

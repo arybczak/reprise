@@ -4,11 +4,10 @@ module Reprise.Screen.Browser
   ( -- * Drawing
     browserView
 
-    -- * Verbs
-  , browserVerb
+    -- * For the handlers
+  , browserOps
 
     -- * Listing
-  , openBrowser
   , relistBrowser
   , browserChanged
   , browserListed
@@ -127,6 +126,16 @@ itemRows env display = fmap $ \item -> case rowContent env item of
 
 ----------------------------------------
 -- Verbs
+
+browserOps
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => ScreenOps es
+browserOps =
+  ScreenOps
+    { verb = browserVerb
+    , rows = Just $ getsS (.browser.rows)
+    , shown = switchTo BrowserScreen >> openBrowser
+    }
 
 -- | How the browser does a verb, if it does it.
 browserVerb

@@ -2,8 +2,8 @@
 -- keymap, as text that scrolls.
 module Reprise.Screen.Help
   ( helpView
+  , helpOps
   , helpRows
-  , helpVerb
   , keyColumnWidth
   ) where
 
@@ -37,6 +37,14 @@ helpRows :: AppEnv -> [[Span Style]]
 helpRows env =
   let ls = helpLines env.keymaps
   in map (helpLineSpans env.config.styles (keyColumnWidth ls)) ls
+
+helpOps :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => ScreenOps es
+helpOps =
+  ScreenOps
+    { verb = helpVerb
+    , rows = Just $ textRows (\env _ _ -> helpRows env)
+    , shown = switchTo HelpScreen
+    }
 
 -- | How the help screen does a verb, if it does it.
 helpVerb

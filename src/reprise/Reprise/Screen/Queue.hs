@@ -4,14 +4,11 @@ module Reprise.Screen.Queue
   ( -- * Drawing
     queueView
 
-    -- * Verbs
-  , queueVerb
+    -- * For the handlers
+  , queueOps
 
     -- * Moving
   , jumpToPlaying
-
-    -- * Finding
-  , queueRows
   ) where
 
 import Control.Monad
@@ -69,6 +66,11 @@ queueView env s v =
 
 ----------------------------------------
 -- Verbs
+
+queueOps
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => ScreenOps es
+queueOps = ScreenOps {verb = queueVerb, rows = Just queueRows, shown = switchTo QueueScreen}
 
 -- | How the queue does a verb, if it does it.
 queueVerb

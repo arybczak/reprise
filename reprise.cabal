@@ -143,6 +143,7 @@ library
                      Reprise.Handler.Mirror
                      Reprise.Handler.Redraw
                      Reprise.Handler.Save
+                     Reprise.Handler.Screens
                      Reprise.Handler.Seek
                      Reprise.Header
                      Reprise.History

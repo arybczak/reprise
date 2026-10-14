@@ -2,12 +2,10 @@
 -- worker reads from the directory of lyrics, or fetches.
 module Reprise.Screen.Lyrics
   ( lyricsView
-  , lyricsSpans
+  , lyricsOps
   , stopFollowing
   , sungLine
   , nextLyricsLine
-  , lyricsVerb
-  , showLyrics
   , editLyricsFile
   , lyricsEdited
   , lyricsFetching
@@ -101,6 +99,10 @@ playingTimedLyrics s = do
   timed <- lyrics.timed
   elapsed <- displayedElapsed s
   pure (timed, elapsed)
+
+lyricsOps :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => ScreenOps es
+lyricsOps =
+  ScreenOps {verb = lyricsVerb, rows = Just (textRows lyricsSpans), shown = showLyrics}
 
 -- | How the lyrics screen does a verb, if it does it.
 lyricsVerb

@@ -59,6 +59,10 @@ module Reprise.Handler.Core
     -- * Selection
   , selectInList
   , withFindPattern
+
+    -- * Screens
+  , ScreenOps (..)
+  , textRows
   ) where
 
 import Control.Monad
@@ -79,6 +83,7 @@ import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Find
+import Reprise.Format
 import Reprise.Groups
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
@@ -87,6 +92,7 @@ import Reprise.Mpd.Protocol.Types
 import Reprise.Save
 import Reprise.Selection
 import Reprise.State
+import Reprise.Style
 
 ----------------------------------------
 -- State
@@ -534,3 +540,26 @@ goBack =
   getsS ((.previous) . focusedView) >>= \case
     Just previous -> switchTo previous
     Nothing -> showMessage "There is no screen to go back to"
+
+----------------------------------------
+-- Screens
+
+-- | What a screen does for the handlers, which its module gives: the verbs
+-- that it implements, the rows that a find matches, if it finds, and what
+-- showing it does, e.g. load the lyrics of the song under the cursor.
+data ScreenOps es = ScreenOps
+  { verb :: Action -> Maybe (Eff es ())
+  , rows :: Maybe (Eff es (Seq.Seq Folded))
+  , shown :: Eff es ()
+  }
+
+-- | The rows of a screen of text at the focused view's width, as finds
+-- match them.
+textRows
+  :: (State AppState :> es, Input AppEnv :> es)
+  => (AppEnv -> AppState -> Int -> [[Span Style]])
+  -> Eff es (Seq.Seq Folded)
+textRows spansOf = do
+  env <- getAppEnv
+  s <- getS
+  pure . Seq.fromList . map (foldText . spansText) $ spansOf env s (focusedView s).width

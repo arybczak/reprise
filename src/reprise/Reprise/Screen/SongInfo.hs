@@ -2,9 +2,7 @@
 -- of a song, as text that scrolls.
 module Reprise.Screen.SongInfo
   ( songInfoView
-  , songInfoSpans
-  , songInfoVerb
-  , showSongInfo
+  , songInfoOps
   , songCommentsFetched
   ) where
 
@@ -55,6 +53,16 @@ songInfoSpans env s width = map row (songInfoRows env s width)
               (Just (fromMaybe env.config.styles.value env.config.styles.missingTag))
               env.config.songs.missingTag
       ]
+
+songInfoOps
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => ScreenOps es
+songInfoOps =
+  ScreenOps
+    { verb = songInfoVerb
+    , rows = Just (textRows songInfoSpans)
+    , shown = showSongInfo
+    }
 
 -- | How the song info screen does a verb, if it does it.
 songInfoVerb

@@ -15,6 +15,7 @@
 -- The colors go from quiet to loud. "Reprise.Visualizer.Draw" draws them.
 module Reprise.Screen.Visualizer
   ( visualizerView
+  , visualizerOps
   , visualizerSamples
   , visualizerSpectrum
   , visualizerWave
@@ -111,6 +112,10 @@ updateVisualizer = do
   when (wanted /= (pictureVisualization <$> s.visualizer.reading)) $ do
     modifyS $ #visualizer .~ newVisualizer wanted
     visualize wanted
+
+visualizerOps :: (State AppState :> es, Input AppEnv :> es) => ScreenOps es
+visualizerOps =
+  ScreenOps {verb = const Nothing, rows = Nothing, shown = switchTo VisualizerScreen}
 
 nextVisualization :: (State AppState :> es, UiRequest :> es) => Eff es ()
 nextVisualization = do
