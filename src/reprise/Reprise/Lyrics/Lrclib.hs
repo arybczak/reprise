@@ -53,13 +53,7 @@ lrclibLyrics get song = byArtistAndTitle song $ \artist title -> do
       Right Nothing -> FetchedNothing
       Right (Just track)
         | track.instrumental -> FetchedInstrumental
-        | otherwise ->
-            let timed = track.syncedLyrics >>= timedLyrics
-                plain = mfilter (not . T.null . T.strip) track.plainLyrics
-            in case (plain, timed) of
-                 (Just text, _) -> FetchedLyrics $ Lyrics text ((.timed) =<< timed)
-                 (Nothing, Just lyrics) -> FetchedLyrics lyrics
-                 (Nothing, Nothing) -> FetchedNothing
+        | otherwise -> maybe FetchedNothing FetchedLyrics (trackLyrics track)
 
     -- A busy server answers 503 with a message, e.g. "The server is busy,
     -- please retry in a moment".
@@ -114,7 +108,18 @@ chooseTrack songLength tracks = listToMaybe $ filter hasLyrics fitting <> fittin
     fits t d = abs (realToFrac d - t.duration) <= durationTolerance
 
     hasLyrics :: LrclibTrack -> Bool
-    hasLyrics t = isJust t.plainLyrics
+    hasLyrics = isJust . trackLyrics
+
+-- | The lyrics of a track: its plain lyrics, unless they are blank, with
+-- its timed ones, or the timed ones alone.
+trackLyrics :: LrclibTrack -> Maybe Lyrics
+trackLyrics track =
+  let timed = track.syncedLyrics >>= timedLyrics
+      plain = mfilter (not . T.null . T.strip) track.plainLyrics
+  in case (plain, timed) of
+       (Just text, _) -> Just $ Lyrics text ((.timed) =<< timed)
+       (Nothing, Just lyrics) -> Just lyrics
+       (Nothing, Nothing) -> Nothing
 
 -- | LRCLIB's @/api/get@ takes a track whose length is within 2 seconds of
 -- the one asked for, as its documentation says.

@@ -71,6 +71,26 @@ test_chooseTrack = do
   assertEqual "of the length" (Just True) (snd <$> chosen (Just 300) tracks)
   assertEqual "none of the length" Nothing (chosen (Just 200) tracks)
   assertEqual "without a length" (Just (295, False)) (chosen Nothing (reverse tracks))
+  let track plain synced =
+        LrclibTrack
+          { duration = 295
+          , instrumental = False
+          , plainLyrics = plain
+          , syncedLyrics = synced
+          }
+      lyricsOf t = (t.plainLyrics, t.syncedLyrics)
+  assertEqual
+    "only timed lyrics"
+    (Just (Nothing, Just "[00:01.00]Sung"))
+    ( lyricsOf
+        <$> chooseTrack (Just 295) [track Nothing Nothing, track Nothing (Just "[00:01.00]Sung")]
+    )
+  assertEqual
+    "blank lyrics"
+    (Just (Just "Words", Nothing))
+    ( lyricsOf
+        <$> chooseTrack (Just 295) [track (Just " ") Nothing, track (Just "Words") Nothing]
+    )
 
 test_found :: Assertion
 test_found = do
