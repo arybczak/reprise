@@ -621,14 +621,8 @@ runAction action = case action of
   NextScreen screens -> cycleScreens screens
   PreviousScreen screens -> cycleScreens (reverse screens)
   Quit -> quit
-  Clear -> do
-    n <- getsS (queueLength . (.mirror))
-    if n == 0
-      then showMessage "The queue is empty"
-      else
-        modifyS $
-          confirm ("Clear " <> countSongs n <> " from the queue?") (Confirmed ConfirmClear)
-  Shuffle -> verbOr shuffleQueue action
+  Clear -> verb action
+  Shuffle -> verb action
   Update _ -> verbOr (updateDatabase Nothing) action
 
 -- | Run a verb the way the focused screen implements it. A screen that

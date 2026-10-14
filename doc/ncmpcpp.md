@@ -31,8 +31,8 @@ every key.
 | `x`, `Y` | `t x`, `t g` | toggle crossfade, ReplayGain |
 | `#`, `P` | `t b`, `t d` | toggle the bitrate, the display mode |
 | `U` | `t f` | follow the playing song, in the queue and the lyrics |
-| `c` | `e c` | clear the queue; it asks first |
-| `Z` | `e s` | shuffle the queue, or the selected songs |
+| `c` | `e c` | clear the queue, in the queue only; it asks first |
+| `Z` | `e s` | shuffle the queue, or the selected songs, in the queue only |
 | `S` | `e w` | save the queue, or the selection, as a stored playlist |
 | `ctrl-p` | `e p` | set the priority of songs |
 | `v` (reverse the selection) | `v i` | |

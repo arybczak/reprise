@@ -221,8 +221,6 @@ keys:
       /: command add_path        # asks for the path
     e:
       name: edit
-      c: clear                   # the queue, after asking
-      s: shuffle
       w: save                    # as a stored playlist
     v:
       name: selection
@@ -255,6 +253,8 @@ keys:
     n: move_songs down
     M: move_songs cursor         # the selection, above the cursor
     e:
+      c: clear                   # after asking
+      s: shuffle                 # the selection, or the whole queue after asking
       m:
         name: move
         e: move_songs end

@@ -6,7 +6,6 @@ module Reprise.Screen.Queue
 
     -- * Verbs
   , queueVerb
-  , shuffleQueue
 
     -- * Moving
   , jumpToPlaying
@@ -87,10 +86,21 @@ queueVerb = \case
   Delete -> Just deleteMarked
   Priority p -> Just $ prioritize p
   MoveSongs t -> Just $ moveSongs t
+  Clear -> Just clearQueue
   Shuffle -> Just shuffleSelected
   Toggle ToggleDisplay -> Just $ toggleDisplay #queueDisplay
   Toggle ToggleFollowPlaying -> Just toggleFollowPlaying
   _ -> Nothing
+
+-- | Ask whether to clear the queue.
+clearQueue :: (State AppState :> es, UiRequest :> es) => Eff es ()
+clearQueue = do
+  n <- getsS (queueLength . (.mirror))
+  if n == 0
+    then showMessage "The queue is empty"
+    else
+      modifyS $
+        confirm ("Clear " <> countSongs n <> " from the queue?") (Confirmed ConfirmClear)
 
 -- | Shuffle the selected songs, which must be next to each other, else the
 -- whole queue. Shuffling the selected songs loses nothing the user didn't

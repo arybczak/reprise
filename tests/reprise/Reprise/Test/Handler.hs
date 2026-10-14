@@ -168,6 +168,17 @@ test_clearConfirm = do
   no <- keys ["n"] asked.state
   assertEqual "no" [] no.requests
   assertEqual "closed" Nothing no.state.prompt
+  elsewhere <- keys ["8", "e", "c"] s
+  assertEqual "unbound on another screen" (Just "e c is not bound") (message elsewhere)
+  typedElsewhere <- keys (["8", ":"] <> typed "clear" <> ["enter"]) s
+  assertEqual
+    "no question on another screen"
+    Nothing
+    ((.question) <$> typedElsewhere.state.prompt)
+  assertEqual
+    "a message on another screen"
+    (Just "The visualizer screen has no clear")
+    (message typedElsewhere)
 
 test_noMixer :: Assertion
 test_noMixer = do

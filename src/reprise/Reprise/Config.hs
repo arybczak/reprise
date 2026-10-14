@@ -1003,10 +1003,7 @@ defaultKeymaps =
           , group
               (char 'e')
               "edit"
-              [ char 'c' ~> Clear
-              , char 's' ~> Shuffle
-              , char 'w' ~> Save
-              ]
+              [char 'w' ~> Save]
           , group
               (char 'v')
               "selection"
@@ -1054,7 +1051,9 @@ defaultKeymaps =
                 , group
                     (char 'e')
                     "edit"
-                    [ group
+                    [ char 'c' ~> Clear
+                    , char 's' ~> Shuffle
+                    , group
                         (char 'm')
                         "move"
                         [ char 'e' ~> MoveSongs MoveSongsToEnd

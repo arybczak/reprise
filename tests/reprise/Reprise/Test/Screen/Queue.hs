@@ -291,11 +291,12 @@ test_shuffleConfirm = do
   assertEqual "yes" (editRequests [Request "shuffle" []]) . (.requests)
     =<< keys ["y"] asked.state
   assertEqual "no" [] . (.requests) =<< keys ["n"] asked.state
-  elsewhere <- keys ["space", "space", "8", "e", "s"] s
+  elsewhere <- keys ["8", "e", "s"] s
   assertEqual
-    "the whole queue from another screen"
-    (Just "Shuffle 5 songs in the queue?")
+    "no question on another screen"
+    Nothing
     ((.question) <$> elsewhere.state.prompt)
+  assertEqual "nothing on another screen" [] elsewhere.requests
 
 ----------------------------------------
 -- Helpers
