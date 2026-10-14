@@ -1052,7 +1052,14 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Keys` | Key spec parsing (`ctrl-x`, `alt-shift-up`, ...) |
 | `Reprise.Keymap` | Keymaps, key sequences and lookup, and the listings of keymaps: the which-key entries and the lines of the help screen |
 | `Reprise.Action` | The action registry: actions as data, with their names, argument parsers and descriptions |
-| `Reprise.Handler` | The handlers of events, keys, prompts and the actions of every screen, e.g. playback and toggles. It passes the actions of a screen on to the screen's module |
+| `Reprise.Handler` | The handler of events: it passes each event on, and keeps the input that comes while an edit of the queue waits for its reply |
+| `Reprise.Handler.Input` | The keys, in the keymaps and in the prompts, and the mouse. A choice's option is an event, which the key returns to `Reprise.Handler` |
+| `Reprise.Handler.Action` | Running the actions of every screen, e.g. playback and toggles. It passes a verb on to the focused screen's module |
+| `Reprise.Handler.Find` | Find as the user types, and the next and the previous match |
+| `Reprise.Handler.Mirror` | Fetching the queue and the status into the mirror, and what follows a change of the mirror |
+| `Reprise.Handler.Seek` | Seeking by the keys, to a time, and at once |
+| `Reprise.Handler.Save` | Saving as a stored playlist once the name is known |
+| `Reprise.Handler.Redraw` | The redraws for what changes with time, and the window title |
 | `Reprise.Handler.Core` | What the handlers and the screens share: the effects, access to the state, messages, prompts, and keeping a view's cursor in its list |
 | `Reprise.State` | `AppState`: the mirror, screens, views, layout and focus, status bar message, prompt. `AppEnv`: what doesn't change while reprise runs, the config, the keymaps, the colors, the order of text, the directory of lyrics and the editor. What the code under the screens knows of each screen, e.g. its length, its songs and its title, in one table. Queries of the state that both the handlers and the layout need, such as whether the cursor shows |
 | `Reprise.Header` | What the header's first line shows: the focused screen's title, which scrolls if it doesn't fit, and the volume |
@@ -1077,7 +1084,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.Collation` | The order of text by the rules of a locale, with a leading "the" ignored if the config says so. The tests use ICU's root rules, so that they don't depend on the locale |
 | `Reprise.Groups` | Neighbouring songs of the same artist or album, between which the moves to the previous and the next album or artist go, in every list, and runs of consecutive positions |
 | `Reprise.Selection` | The selection of a list by the keys of its items, with the ends of the next range. `Reprise.Handler.Core` applies the select actions to any list with it |
-| `Reprise.Save` | What a save as a stored playlist saves, from the queue or the browser. `Reprise.Handler` asks for the name and saves |
+| `Reprise.Save` | What a save as a stored playlist saves, from the queue or the browser. `Reprise.Handler.Save` saves once the prompt has the name |
 | `Reprise.LineEdit` | The line that a prompt edits, with Emacs-style keys |
 | `Reprise.History` | The history that the line prompts share, recalling its lines, and its file |
 | `Reprise.File` | Writing a file whole, through a temporary file that takes its name |
@@ -1092,14 +1099,18 @@ The modules form layers, and an import only goes down:
 
 ```
 Reprise.App
- ├─► Reprise.Handler ──┐
- └─► Reprise.UI.Layout ┴─► Reprise.Screen.* ─► Reprise.Handler.Core ─► Reprise.State, and the rest
+ ├─► Reprise.Handler ─► Reprise.Handler.* ──┐
+ └─► Reprise.UI.Layout ─────────────────────┴─► Reprise.Screen.* ─► Reprise.Handler.Core ─► Reprise.State, and the rest
 ```
 
 - **Only `Reprise.App` imports `Reprise.Handler`.** The tests and the
   benchmarks run events through it too.
-- **Only `Reprise.Handler` and `Reprise.UI.Layout` import a screen.** A
-  screen doesn't import another screen; its own submodules, such as
+- **Only the handlers import a module of theirs,** `Reprise.Handler` and
+  the modules under it but `Reprise.Handler.Core`. A screen doesn't run an
+  action of another screen, so `Reprise.Handler.Action` passes a verb on to
+  the screen, not the other way.
+- **Only the handlers and `Reprise.UI.Layout` import a screen.** A screen
+  doesn't import another screen; its own submodules, such as
   `Queue.Edits`, are part of it.
 - **`Reprise.Handler.Core` imports no screen and no module of `Reprise.UI`.**
   What generic code needs to know about every screen, such as the length of
@@ -1300,9 +1311,10 @@ places:
    worker that fails is logged and starts again a second later.
 
 Actions are data, in `Reprise.Action`, and their handlers are in
-`Reprise.Handler` and the modules of the screens. The config holds actions in
-its keymaps, and the handlers need `AppEnv`, which holds the config, so an
-action with its handler inside would make the modules a cycle too.
+`Reprise.Handler.Action` and the modules of the screens. The config holds
+actions in its keymaps, and the handlers need `AppEnv`, which holds the
+config, so an action with its handler inside would make the modules a cycle
+too.
 
 The screen is drawn as one vty image from the state and the environment. The
 image is a pure function of them, so the snapshot tests render it to text.
@@ -1412,10 +1424,10 @@ compiler names each table that a new screen must join:
 - `screenInfo` in `Reprise.State` has what the code under the screens needs,
   e.g. a screen's length, its songs and its title.
 - `Reprise.UI.Layout` draws the main view of each screen.
-- `Reprise.Handler` passes the [verbs](#key-bindings) to a function of each
-  screen, which does the ones that the screen implements. A screen can leave
-  a verb unimplemented. A screen finds if the table of the rows to find in
-  has rows for it.
+- `Reprise.Handler.Action` passes the [verbs](#key-bindings) to a function
+  of each screen, which does the ones that the screen implements. A screen
+  can leave a verb unimplemented. A screen finds if the table of the rows to
+  find in has rows for it.
 
 Split screens are dropped. If they come back, it will be as a general window
 framework with the basics of what Emacs does:

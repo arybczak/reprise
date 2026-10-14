@@ -136,7 +136,14 @@ library
                      Reprise.Format
                      Reprise.Groups
                      Reprise.Handler
+                     Reprise.Handler.Action
                      Reprise.Handler.Core
+                     Reprise.Handler.Find
+                     Reprise.Handler.Input
+                     Reprise.Handler.Mirror
+                     Reprise.Handler.Redraw
+                     Reprise.Handler.Save
+                     Reprise.Handler.Seek
                      Reprise.Header
                      Reprise.History
                      Reprise.Keymap

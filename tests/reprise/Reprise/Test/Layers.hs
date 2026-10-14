@@ -37,6 +37,18 @@ test_crossings = do
   assertBool "the core from below" (crossed "Reprise.State" "Reprise.Handler.Core")
   assertBool "a screen from below" (crossed "Reprise.UI.SongList" "Reprise.Screen.Queue")
   assertBool
+    "a handler from a screen"
+    (crossed "Reprise.Screen.Queue" "Reprise.Handler.Action")
+  assertBool
+    "a handler from the layout"
+    (crossed "Reprise.UI.Layout" "Reprise.Handler.Find")
+  assertBool
+    "the handlers among themselves"
+    (not (crossed "Reprise.Handler.Input" "Reprise.Handler.Action"))
+  assertBool
+    "a screen from a handler"
+    (not (crossed "Reprise.Handler.Find" "Reprise.Screen.Lyrics"))
+  assertBool
     "a screen's own module"
     (not (crossed "Reprise.Screen.Queue" "Reprise.Screen.Queue.Edits"))
   assertBool
@@ -56,10 +68,13 @@ crossings modules =
     crossing importer imported
       | imported == handler && importer /= app =
           Just "only Reprise.App imports Reprise.Handler"
+      | isHandler imported && imported /= handler && not (isHandler importer) =
+          Just "only the handlers import a module of theirs"
       | isScreen imported
       , screenOf importer /= screenOf imported
-      , importer `notElem` [handler, layout] =
-          Just "only Reprise.Handler and Reprise.UI.Layout import a screen"
+      , not (isHandler importer)
+      , importer /= layout =
+          Just "only the handlers and Reprise.UI.Layout import a screen"
       | importer == core && (isScreen imported || "Reprise.UI." `T.isPrefixOf` imported) =
           Just "Reprise.Handler.Core imports no screen and no module of Reprise.UI"
       | isBelowCore importer && not (isBelowCore imported) =
@@ -69,13 +84,18 @@ crossings modules =
     isScreen :: T.Text -> Bool
     isScreen = ("Reprise.Screen." `T.isPrefixOf`)
 
+    -- Reprise.Handler and its modules, but the core, which the screens
+    -- share.
+    isHandler :: T.Text -> Bool
+    isHandler m = m == handler || ("Reprise.Handler." `T.isPrefixOf` m && m /= core)
+
     -- The screen that a module belongs to, e.g. Queue for
     -- Reprise.Screen.Queue.Edits.
     screenOf :: T.Text -> Maybe T.Text
     screenOf m = T.takeWhile (/= '.') <$> T.stripPrefix "Reprise.Screen." m
 
     isBelowCore :: T.Text -> Bool
-    isBelowCore m = not (isScreen m) && m `notElem` [app, handler, layout, core]
+    isBelowCore m = not (isScreen m) && not (isHandler m) && m `notElem` [app, layout, core]
 
     app, handler, layout, core :: T.Text
     app = "Reprise.App"
