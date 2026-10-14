@@ -221,6 +221,10 @@ ncmpcpp.
 - Playlist files don't show yet. MPD lists no suffixes of its playlist
   plugins, so reprise would have to ask about each file.
 - Songs are added with `add` and their absolute path.
+- `jump_to_browser`, and the browser's `jump_to_playing`, open the local
+  directory of a song that MPD keeps by its absolute path, as it keeps a
+  local file. A change of the mode then goes back to what the other mode
+  listed.
 - An idle `database` event doesn't list a local directory again, and nothing
   tells reprise about changes of local files.
 - `update current` says that local files aren't in MPD's database.

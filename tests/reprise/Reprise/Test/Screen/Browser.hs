@@ -79,6 +79,7 @@ browserTests =
         , testCase "adding a song" test_localAdd
         , testCase "updating the current directory" test_localUpdate
         , testCase "saving a directory" test_localSaveDirectory
+        , testCase "jump to the browser" test_localJump
         ]
     ]
 
@@ -557,6 +558,24 @@ test_localSaveDirectory = do
     (message r.state)
   asked <- press ["down", "down", "e", "w"] =<< inHome
   assertEqual "a song" (Just "Save 1 song as: ") ((.question) <$> asked.state.prompt)
+
+-- | MPD keeps a local file in the queue by its absolute path. The other
+-- browse mode then lists what it listed before.
+test_localJump :: Assertion
+test_localJump = do
+  inQueue <- testState (80, 12) (statusOf Stopped Nothing 1) [localSong]
+  database <- answer rootReply =<< press ["2", "1"] inQueue
+  jumped <- press ["g", "b"] database
+  assertEqual "the decoders" [[Request "decoders" []]] jumped.requests
+  decoded <- answerLast decodersReply jumped
+  assertEqual "the listing of Music" ["/home/user/Music"] (localListings decoded)
+  s <-
+    (.state) <$> listedWith [localFile "0.flac" Nothing, localFile "1.flac" Nothing] decoded
+  assertEqual "the cursor is on the song" 2 (focusedView s).cursor
+  assertEqual "back to the root" [[Request "lsinfo" []]] . (.requests) =<< press ["2"] s
+  where
+    localSong :: Song
+    localSong = song 0 [] 60 & #file .~ "/home/user/Music/1.flac"
 
 ----------------------------------------
 -- Helpers

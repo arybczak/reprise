@@ -247,7 +247,12 @@ locateSong song
       showError "The song isn't in MPD's database"
       pure False
   | otherwise = do
-      list (InDirectory (directoryOf song.file)) (JumpTo (SongKey song.file song.range))
+      -- MPD keeps a local file in the queue by its absolute path.
+      let directory
+            | "/" `T.isPrefixOf` song.file =
+                InLocal . T.pack $ takeDirectory (T.unpack song.file)
+            | otherwise = InDirectory (directoryOf song.file)
+      list directory (JumpTo (SongKey song.file song.range))
       pure True
 
 -- | The directory that a directory or a playlist is in.
