@@ -45,7 +45,7 @@ workerTests =
     , testCase "a command without requests needs no connection" test_noConnection
     , withResource oversizedServer stopTestServer $ \getServer ->
         testCase
-          "a reply that MPD refuses reconnects after a wait"
+          "a reply that MPD refuses fails without a reconnect"
           (test_oversizedReply getServer)
     ]
 
@@ -182,21 +182,26 @@ test_noConnection = do
   assertEqual "done" (Right ()) r
 
 -- | The idle connection opens anew after the connection of the commands
--- failed, since it may wait for a peer that is gone.
+-- failed, since it may wait for a peer that is gone. It waits first, as a
+-- command may fail on every connection, and each fetches the queue again.
 test_idleAfterCommandFailed :: Assertion
 test_idleAfterCommandFailed = withIdleWorker [] Nothing $ \events callsRef workers -> do
   let nextEvent = atomically $ readTQueue events
   assertEqual "connected" (MpdConnected (Version 0 24 0)) =<< nextEvent
+  start <- getMonotonicTime
   atomically $ writeTVar workers.commandConnectionFailed True
   assertEqual "connected again" (MpdConnected (Version 0 24 0)) =<< nextEvent
+  end <- getMonotonicTime
+  assertBool "after the wait" (end - start >= workers.retryDelay)
   assertEqual "calls" ["connect", "disconnect", "connect"] . reverse
     =<< S.readIORef callsRef
   assertEqual "not failed any more" False =<< readTVarIO workers.commandConnectionFailed
 
 -- | MPD closes the connection rather than send a reply larger than its
--- output buffer, e.g. of a long queue, so the command fails again on each
--- new connection. The app fetches the queue on each new connection, so
--- without a wait the workers would reconnect in a loop.
+-- output buffer, e.g. of a long queue. That isn't its close of an unused
+-- connection, as a new connection fails the same way, so the command fails
+-- after one more try. The idle connection stays, as each new connection
+-- fetches the queue again.
 test_oversizedReply :: IO TestServer -> Assertion
 test_oversizedReply getServer = do
   server <- getServer
@@ -212,32 +217,31 @@ test_oversizedReply getServer = do
   mpd . runCommand $ replicateM_ songs (add "a.flac" Nothing)
   events <- newTQueueIO
   passwordVar <- newTVarIO Nothing
-  workers <- (\w -> w {retryDelay = delay}) <$> testWorkers events passwordVar
-  let connected = expectWithin . untilEvent events $ \case MpdConnected _ -> True; _ -> False
+  workers <- testWorkers events passwordVar
   E.bracket
     (mapM (forkIO . mpd) [idleWorker workers, commandWorker workers])
-    (mapM_ killThread) $ \_ -> do
-    _ <- connected
-    atomically . writeTQueue workers.requests $
-      PendingRequest fetch (MpdFailed (commandRequests fetch)) (const MpdDone)
-    start <- getMonotonicTime
-    failure <- expectWithin . untilEvent events $ \case MpdFailed {} -> True; _ -> False
-    assertEqual
-      "the failure"
-      (MpdFailed (commandRequests fetch) (ConnectionError Closed))
-      failure
-    _ <- connected
-    end <- getMonotonicTime
-    assertBool "the idle connection waited" (end - start >= delay)
+    (mapM_ killThread)
+    $ \_ -> do
+      _ <- expectWithin . untilEvent events $ \case MpdConnected _ -> True; _ -> False
+      -- The fetch then goes to a connection that ran a command, which MPD's
+      -- close of an unused connection could have closed.
+      atomically . writeTQueue workers.requests $
+        PendingRequest status (MpdFailed (commandRequests status)) (const MpdDone)
+      _ <- expectWithin $ untilEvent events (== MpdDone)
+      atomically . writeTQueue workers.requests $
+        PendingRequest fetch (MpdFailed (commandRequests fetch)) (const MpdDone)
+      failure <- expectWithin . untilEvent events $ \case MpdFailed {} -> True; _ -> False
+      assertEqual
+        "the failure"
+        (MpdFailed (commandRequests fetch) (ConnectionError NoReply))
+        failure
+      assertEqual "the idle connection stays" False
+        =<< readTVarIO workers.commandConnectionFailed
   where
     -- Their @playlistinfo@ takes over 100 kB, more than the 17 kB of
     -- 'oversizedServer'.
     songs :: Int
     songs = 1000
-
-    -- Much longer than a reconnect on a unix socket.
-    delay :: Double
-    delay = 0.1
 
 -- | A server whose output buffer takes 17 kB: 16 kB of each client's
 -- buffer, and 1 kB more that @max_output_buffer_size@ allows.

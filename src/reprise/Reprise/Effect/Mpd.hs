@@ -39,7 +39,9 @@ type instance DispatchOf Mpd = Dynamic
 
 -- | Run the effect with one connection at a time. A command without a
 -- connection opens one first, with the password of the last connection
--- that opened, or of the settings before the first.
+-- that opened, or of the settings before the first. MPD can't have closed
+-- that connection for being unused, so a close before the reply is
+-- 'NoReply' there.
 --
 -- A connection goes to the first of the settings whose address MPD listens
 -- on. The first that MPD answers on is the one, also when it refuses the
@@ -64,7 +66,17 @@ runMpd candidates action = do
         -- queue of requests, needs no connection.
         RunCommand cmd
           | null (commandRequests cmd) -> either throwIO pure $ parseCommandReply cmd []
-          | otherwise -> liftIO $ withConnection' (`run` cmd)
+          | otherwise ->
+              liftIO $
+                S.readIORef ref >>= \case
+                  Just conn -> run conn cmd
+                  Nothing -> do
+                    conn <- connected =<< S.readIORef passwordRef
+                    run conn cmd `E.catch` \case
+                      ConnectionError Closed -> do
+                        disconnect
+                        E.throwIO $ ConnectionError NoReply
+                      err -> E.throwIO err
         WaitIdle interrupted ->
           liftIO . withConnection' $ \conn ->
             either (const Nothing) Just <$> race (atomically interrupted) (idle conn [])

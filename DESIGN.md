@@ -1218,6 +1218,17 @@ MPD closes a connection that was unused for longer than its
 often unused that long. MPD closes it before it reads the next command, so a
 command that finds the connection closed before any reply runs once more on a
 new connection.
+- **A new connection doesn't run the command again.** MPD also closes a
+  connection rather than send a reply larger than its
+  `max_output_buffer_size`, after it ran the command, and the end of the
+  connection looks the same. reprise opens a connection right before the
+  command that needs one, which MPD's timeout can't have closed, so a close
+  there is `NoReply`: the command fails, with the hint of the setting.
+  `mpd-protocol` can't tell the two, as it doesn't know how long a
+  connection was unused.
+- **`NoReply` keeps the idle connection.** MPD answered the new connection,
+  so it isn't a peer that is gone, and a new idle connection would fetch the
+  queue again.
 
 MPD also closes the connection of a command list larger than its
 `max_command_list_size`, 2 MiB by default, e.g. the adds of a large
@@ -1363,11 +1374,11 @@ never use it directly; they go through `MpdRequest`.
     unnoticed.
   - The idle connection opens anew after the same second as after its own
     errors. A command can fail on every connection, and each connection
-    fetches the queue again, so without the wait they would loop. MPD
-    closes the connection rather than send a reply larger than its
-    `max_output_buffer_size`, 8 MiB by default, which a queue of tens of
-    thousands of tagged songs passes. Such a queue doesn't load, as in
-    ncmpcpp, and the fix is a larger `max_output_buffer_size`.
+    fetches the queue again, so without the wait they would loop.
+  - A queue of tens of thousands of tagged songs passes MPD's default
+    `max_output_buffer_size` of 8 MiB. Such a queue doesn't load, as in
+    ncmpcpp, and the error says that a larger `max_output_buffer_size` fixes
+    it (see `NoReply` above).
 - **MPD errors** (`ACK` replies) appear in the status bar, with the command
   that failed.
 - **Permission errors** (`ACK [4@...]`), and a wrong password (`ACK

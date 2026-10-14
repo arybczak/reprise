@@ -159,10 +159,13 @@ commandWorker w = forever $ runRequests . pure =<< nextRequest
     failed :: (Mpd :> es, IOE :> es) => MpdError -> (MpdError -> AppEvent) -> Eff es ()
     failed err onFailure = do
       case err of
-        ConnectionError _ -> do
+        ConnectionError e -> do
           logError w err
           disconnectMpd
-          liftIO . atomically $ writeTVar w.commandConnectionFailed True
+          -- MPD answered the new connection, so its peer is there, and a
+          -- new idle connection would fetch the queue again.
+          unless (e == NoReply) . liftIO . atomically $
+            writeTVar w.commandConnectionFailed True
         ProtocolError _ -> logError w err
         AckError _ -> pure ()
       emitEvent w $ onFailure err

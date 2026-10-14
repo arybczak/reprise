@@ -516,6 +516,8 @@ instance Exception MpdError where
             <> showVersion minimumVersion
             <> " or newer is needed"
         Closed -> "MPD closed the connection"
+        NoReply ->
+          "MPD closed the connection without a reply, as it does for a reply larger than its max_output_buffer_size"
         Broken reason -> "The connection to MPD broke: " <> reason
         TimedOut -> "MPD didn't reply in time"
     where
@@ -560,8 +562,15 @@ data ConnectionError
   | -- | MPD closed the connection before it read the request or began a
     -- reply. MPD closes a connection that was unused for longer than its
     -- @connection_timeout@, without running the command that arrives after
-    -- that.
+    -- that. It also closes one rather than send a reply larger than its
+    -- @max_output_buffer_size@, after it ran the command.
     Closed
+  | -- | 'Closed' of a connection that opened for the request, which MPD's
+    -- @connection_timeout@ can't have closed, e.g. for a reply larger than
+    -- its @max_output_buffer_size@. The library doesn't throw it, as it
+    -- can't tell how long a connection was unused. A client that opens a
+    -- connection for a request turns 'Closed' into it.
+    NoReply
   | -- | An I/O error, or the connection closed in the middle of a reply.
     Broken T.Text
   | TimedOut
