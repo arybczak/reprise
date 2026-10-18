@@ -467,10 +467,13 @@ test_clickSeek = do
       (Just col)
       ((\e -> progressCells 80 (realToFrac e) 201) <$> displayedElapsed clicked.state)
   seeking <- keys ["f"] playing
+  commit <- case [e | After _ e@(SeekCommit _) <- seeking.commands] of
+    [e] -> pure e
+    _ -> assertFailure "expected one timer"
   sought <- click 20 22 seeking.state
   assertEqual "ends a seek of the keys" Nothing sought.state.seek
   assertEqual "the keys' seek isn't sent after it" [] . (.requests)
-    =<< runEvents 0 [SeekCommit 0, SeekCommit 1] sought.state
+    =<< runEvents 0 [commit] sought.state
 
 -- | "Playing: " takes the first 9 columns of the status bar, and "Paused: "
 -- the first 8.
