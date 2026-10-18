@@ -294,13 +294,13 @@ test_addAtCursor = do
     =<< root
 
 test_addAndPlay :: Assertion
-test_addAndPlay =
-  assertEqual "requests" [[Request "load" ["p", "0:", "1"], Request "play" ["1"]]]
-    . (.requests)
-    =<< press ["end", "a", "p"]
-    =<< answer rootReply
-    =<< press ["2"]
-    =<< queued
+test_addAndPlay = do
+  r <- press ["end", "a", "p"] =<< answer rootReply =<< press ["2"] =<< queued
+  assertEqual
+    "requests"
+    [[Request "load" ["p", "0:", "1"], Request "play" ["1"]]]
+    r.requests
+  assertEqual "the message" (Just "Loaded p") (message r.state)
 
 test_addOrRemove :: Assertion
 test_addOrRemove = do

@@ -13,6 +13,7 @@ module Reprise.UI.SongList
   , typedMatches
   , textRow
   , highlightFound
+  , songText
 
     -- * Rendering contexts
   , renderContext
@@ -212,6 +213,12 @@ unstyledContext songs = RenderContext songs.tagSeparator [Span Nothing songs.mis
 -- sort compares.
 plainContext :: SongsConfig -> RenderContext s
 plainContext songs = RenderContext songs.tagSeparator []
+
+-- | A song as the status bar shows it, e.g. in a message.
+songText :: AppEnv -> Song -> T.Text
+songText env song =
+  spansText $
+    renderFormat (plainContext env.config.songs) song env.config.statusBar.song
 
 -- | Spans in a cell of exactly the given width, aligned and padded with
 -- spaces. Each span's style is the base, its own style, then the overlay.

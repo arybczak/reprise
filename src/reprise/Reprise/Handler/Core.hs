@@ -35,6 +35,13 @@ module Reprise.Handler.Core
     -- * Editing the queue
   , editQueue
 
+    -- * Adding to the queue
+  , addPosition
+  , addCommands
+  , addAt
+  , addAndPlayAt
+  , queuedIds
+
     -- * Saving
   , askSaveName
   , describeSave
@@ -253,6 +260,70 @@ editQueue edits =
       modifyS $ #pendingEdit %~ Just . fromMaybe waiting
       requestOr (editCommands edits *> status) QueueEditFailed (QueueEditStatus edits)
     _ -> mutate (editCommands edits)
+
+----------------------------------------
+-- Adding to the queue
+
+-- | Where an add goes, or 'Nothing' for the end. The cursor of the queue
+-- is on no song in an empty queue, and may be past the end of a queue that
+-- shrank.
+addPosition :: AppState -> AddPosition -> Maybe Position
+addPosition s = \case
+  AddEnd -> Nothing
+  AddNext -> Just (AfterCurrent 0)
+  AddBeginning -> Just (At 0)
+  AddCursor ->
+    Just . At . SongPos . min (queueLength s.mirror) . (+ 1) . fst $
+      screenPosition QueueScreen s
+
+-- | The commands that add items to the queue in their order, at the end or
+-- from a position. Each item at a position goes before the ones after it,
+-- so they go in reverse.
+addCommands :: Maybe Position -> [Maybe Position -> Command ()] -> Command ()
+addCommands pos commands = traverse_ ($ pos) $ case pos of
+  Nothing -> commands
+  Just _ -> reverse commands
+
+-- | Add items, by the commands of each, at a place, and say what was added.
+addAt
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => AddPosition
+  -> [Maybe Position -> Command ()]
+  -> T.Text
+  -> Eff es ()
+addAt p commands added = do
+  pos <- getsS (`addPosition` p)
+  mutate $ addCommands pos commands
+  showMessage added
+
+-- | Add items, by the commands of each, at the end and play the first, and
+-- say what was added. A single song that is already in the queue plays
+-- there instead.
+addAndPlayAt
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Maybe Song
+  -> [Maybe Position -> Command ()]
+  -> T.Text
+  -> Eff es ()
+addAndPlayAt single commands added = do
+  s <- getS
+  case single of
+    Just song | i : _ <- queuedIds song s -> mutate $ playId i
+    _ -> do
+      -- In one command list, which no other client's command interrupts, so
+      -- the songs start at the length even if the mirror missed a change.
+      let n = SongPos (queueLength s.mirror)
+      mutate $ addCommands (Just (At n)) commands *> play (Just n)
+      showMessage added
+
+-- | The ids of a song's copies in the queue.
+queuedIds :: Song -> AppState -> [SongId]
+queuedIds song s =
+  [ i
+  | queued <- toList s.mirror.queue
+  , sameSong queued song
+  , Just i <- [queued.songId]
+  ]
 
 ----------------------------------------
 -- Saving

@@ -473,14 +473,12 @@ addMarked
   -> Eff es ()
 addMarked p = do
   s <- getS
+  env <- getAppEnv
   forM_ s.browser.location $ \location -> case markedItems s of
     [] -> pure ()
     items
-      | isLocal location -> addLocal items (positionOf s p) False
-      | otherwise -> do
-          mutate . addItems location items $ positionOf s p
-          env <- getAppEnv
-          showMessage $ addedText env items
+      | isLocal location -> addLocal items (addPosition s p) False
+      | otherwise -> addAt p (addItems location items) (addedText env items)
 
 -- | Add the marked items and play the first. A single song that is already
 -- in the queue plays there instead.
@@ -495,15 +493,16 @@ addAndPlayItems
   -> Eff es ()
 addAndPlayItems items = do
   s <- getS
+  env <- getAppEnv
+  let single = case items of
+        [(_, EntryItem (SongEntry song))] -> Just song
+        _ -> Nothing
   forM_ s.browser.location $ \location -> case items of
     [] -> pure ()
-    [(_, EntryItem (SongEntry song))] | i : _ <- queuedIds song s -> mutate $ playId i
-    _ | isLocal location -> addLocal items Nothing True
-    _ -> do
-      -- In one command list, which no other client's command interrupts, so
-      -- the songs start at the length even if the mirror missed a change.
-      let n = SongPos (queueLength s.mirror)
-      mutate $ addItems location items (Just (At n)) *> play (Just n)
+    _
+      | isLocal location && all (null . (`queuedIds` s)) single ->
+          addLocal items Nothing True
+    _ -> addAndPlayAt single (addItems location items) (addedText env items)
 
 -- | Add the item under the cursor, or remove its song if it is in the
 -- queue, then move down.
@@ -521,21 +520,9 @@ addOrRemove = do
     (location, item)
       | isLocal location -> addLocal [item] Nothing False
       | otherwise -> do
-          mutate $ addItems location [item] Nothing
+          mutate . addCommands Nothing $ addItems location [item]
           showMessage $ addedText env [item]
   modifyWithEnv $ moveListCursor MoveDown
-
--- | Where an add goes, or 'Nothing' for the end. The cursor of the queue
--- is on no song in an empty queue, and may be past the end of a queue that
--- shrank.
-positionOf :: AppState -> AddPosition -> Maybe Position
-positionOf s = \case
-  AddEnd -> Nothing
-  AddNext -> Just (AfterCurrent 0)
-  AddBeginning -> Just (At 0)
-  AddCursor ->
-    Just . At . SongPos . min (queueLength s.mirror) . (+ 1) . fst $
-      screenPosition QueueScreen s
 
 -- | Add local items after the walk of their directories, as MPD doesn't add
 -- a local directory, and play from the first, for add and play. Songs
@@ -679,30 +666,23 @@ nextLocalAdd la = do
       . Seq.drop 1
   getsS firstLocalAdd >>= traverse_ sendLocalAdd
 
--- | The commands that add items to the queue in their order, at the end or
--- from a position. Each item at a position goes before the ones after it,
--- so they go in reverse. The songs of a playlist are loaded from it in runs
--- of its positions.
-addItems :: Location -> [(Int, BrowserItem)] -> Maybe Position -> Command ()
-addItems location items pos = traverse_ ($ pos) $ case pos of
-  Nothing -> commands
-  Just _ -> reverse commands
-  where
-    commands :: [Maybe Position -> Command ()]
-    commands = case location of
-      InPlaylist name ->
-        [ load name (Just (runRange run))
-        | -- The playlist's songs come after @..@.
-        run <- runs [i - 1 | (i, EntryItem _) <- items]
-        ]
-      InDirectory _ ->
-        [ case entry of
-            DirectoryEntry d -> add d.path
-            SongEntry song -> add song.file
-            PlaylistEntry p -> load p.path Nothing
-        | (_, EntryItem entry) <- items
-        ]
-      InLocal _ -> [add song.file | (_, EntryItem (SongEntry song)) <- items]
+-- | The commands that add items to the queue, each at a position. The songs
+-- of a playlist are loaded from it in runs of its positions.
+addItems :: Location -> [(Int, BrowserItem)] -> [Maybe Position -> Command ()]
+addItems location items = case location of
+  InPlaylist name ->
+    [ load name (Just (runRange run))
+    | -- The playlist's songs come after @..@.
+    run <- runs [i - 1 | (i, EntryItem _) <- items]
+    ]
+  InDirectory _ ->
+    [ case entry of
+        DirectoryEntry d -> add d.path
+        SongEntry song -> add song.file
+        PlaylistEntry p -> load p.path Nothing
+    | (_, EntryItem entry) <- items
+    ]
+  InLocal _ -> [add song.file | (_, EntryItem (SongEntry song)) <- items]
 
 -- | What a save saves: the marked items.
 browserToSave :: AppState -> SaveSource
@@ -714,15 +694,6 @@ browserToSave s =
         PlaylistEntry p -> SavePlaylist p.path
     | (_, EntryItem entry) <- markedItems s
     ]
-
--- | The ids of a song's copies in the queue.
-queuedIds :: Song -> AppState -> [SongId]
-queuedIds song s =
-  [ i
-  | queued <- toList s.mirror.queue
-  , sameSong queued song
-  , Just i <- [queued.songId]
-  ]
 
 -- | The items that an action applies to, in their order. @..@ is never one.
 markedItems :: AppState -> [(Int, BrowserItem)]
@@ -758,12 +729,6 @@ addedText env = \case
   [(_, EntryItem (DirectoryEntry d))] -> "Added /" <> d.path
   [(_, EntryItem (PlaylistEntry p))] -> "Loaded " <> p.path
   items -> "Added " <> countItems (length items)
-
--- | A song as the status bar shows it.
-songText :: AppEnv -> Song -> T.Text
-songText env song =
-  spansText $
-    renderFormat (plainContext env.config.songs) song env.config.statusBar.song
 
 -- | Update a directory in the database, or with Nothing the whole database.
 updateDatabase
