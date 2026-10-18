@@ -643,7 +643,7 @@ describeAction = \case
     AddEnd -> "add at the end"
     AddNext -> "add after the playing song"
     AddBeginning -> "add at the beginning"
-    AddCursor -> "add above the cursor of the queue"
+    AddCursor -> "add after the cursor of the queue"
   AddAndPlay -> "add and play"
   AddPath p -> "add " <> p
   Clear -> "clear"
@@ -656,7 +656,7 @@ describeAction = \case
   MoveSongs t -> case t of
     MoveSongsUp -> "move up"
     MoveSongsDown -> "move down"
-    MoveSongsToCursor -> "move the selection above the cursor"
+    MoveSongsToCursor -> "move the selection after the cursor"
     MoveSongsToEnd -> "move to the end"
     MoveSongsToBeginning -> "move to the beginning"
     MoveSongsToNext -> "move after the playing song"

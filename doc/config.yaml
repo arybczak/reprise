@@ -217,7 +217,7 @@ keys:
       e: add end
       n: add next                # after the playing song
       b: add beginning
-      c: add cursor              # above the cursor of the queue
+      c: add cursor              # after the cursor of the queue
       p: add_and_play
       /: command add_path        # asks for the path
     e:
@@ -251,7 +251,7 @@ keys:
     o: jump_to_playing
     m: move_songs up
     n: move_songs down
-    M: move_songs cursor         # the selection, above the cursor
+    M: move_songs cursor         # the selection, after the cursor
     e:
       c: clear                   # after asking
       s: shuffle                 # the selection, or the whole queue after asking

@@ -272,11 +272,25 @@ test_moveSongs = do
 test_moveSongsTo :: Assertion
 test_moveSongsTo = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
-  assertEqual "above the cursor" (editRequests [Request "move" ["0:1", "3"]]) . (.requests)
-    =<< keys ["insert", "end", "M"] s
+  down <- keys ["insert", "end", "M"] s
+  assertEqual
+    "down after the cursor"
+    (editRequests [Request "move" ["0:1", "4"]])
+    down.requests
+  assertEqual "the cursor stays on its song" 3 (cursor down)
+  up <- keys ["down", "down", "down", "insert", "up", "up", "M"] s
+  assertEqual "up after the cursor" (editRequests [Request "move" ["3:4", "2"]]) up.requests
+  assertEqual "the cursor stays" 1 (cursor up)
+  -- Song 2 is in place already.
+  around <- keys ["insert", "down", "down", "insert", "up", "M"] s
+  assertEqual
+    "from around the cursor"
+    (editRequests [Request "move" ["0:1", "1"]])
+    around.requests
+  assertEqual "the cursor stays on song 1" 0 (cursor around)
   assertEqual "among the selected songs" (Just "The cursor is among the selected songs")
     . message
-    =<< keys ["insert", "down", "down", "insert", "up", "M"] s
+    =<< keys ["insert", "M"] s
   assertEqual "without a selection" (Just "Select the songs to move first") . message
     =<< keys ["M"] s
   assertEqual "end" (editRequests [Request "move" ["0:1", "4"]]) . (.requests)

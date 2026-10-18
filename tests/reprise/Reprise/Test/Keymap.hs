@@ -119,7 +119,7 @@ test_whichKey = do
       assertEqual
         "entries"
         [ WhichKeyEntry (key "c") "move to the end" False True
-        , WhichKeyEntry (key "m") "move the selection above the cursor" False True
+        , WhichKeyEntry (key "m") "move the selection after the cursor" False True
         , WhichKeyEntry (key "s") "shuffle" False False
         ]
         (whichKeyEntries next)

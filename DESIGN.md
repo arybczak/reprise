@@ -962,7 +962,7 @@ its main use, acting on every match: an action then works on all of them.
 What filtering adds is seeing the matches together, and hidden rows make
 every action that works on positions or on what shows a special case, as
 they did in ncmpcpp:
-- moving songs up or down past songs that don't show, or above the cursor;
+- moving songs up or down past songs that don't show, or to the cursor;
 - a selected song that the filter hides, which an action would either
   change unseen or leave out, unlike the other actions;
 - a range, of the selection or of a shuffle, over rows that don't show;
@@ -2128,9 +2128,11 @@ The default keymap follows the [default keymap rule](#key-bindings):
     end, `b` the beginning and `n` next, after the playing song. So `a n`
     adds songs where `e m n` moves them, and a later group that puts songs
     somewhere uses the same letters.
-  - **`M` moves the selection above the cursor,** as in ncmpcpp. It is in
-    daily use, and unlike the moves of `e m` it needs a selection, as the
-    song under the cursor can't move above itself. `V` clears the
+  - **`M` moves the selection after the cursor,** where `a c` adds songs.
+    Every key that puts songs next to a song puts them after it, as `e m n`
+    and `a n` do with the playing song. ncmpcpp's `M` moves them above
+    the cursor. It is in daily use, and unlike the moves of `e m` it needs
+    a selection, as the song under the cursor can't move after itself. `V` clears the
     selection, as in ncmpcpp, as it is in daily use too.
   - **A toggle of what one screen shows is in that screen's `t` group,**
     not in the global one: `t d` (the display) in the queue and the

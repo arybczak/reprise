@@ -526,14 +526,16 @@ addOrRemove = do
   modifyWithEnv $ moveListCursor MoveDown
 
 -- | Where an add goes, or 'Nothing' for the end. The cursor of the queue
--- may be past its end after the queue shrank.
+-- is on no song in an empty queue, and may be past the end of a queue that
+-- shrank.
 positionOf :: AppState -> AddPosition -> Maybe Position
 positionOf s = \case
   AddEnd -> Nothing
   AddNext -> Just (AfterCurrent 0)
   AddBeginning -> Just (At 0)
   AddCursor ->
-    Just . At . SongPos . min (queueLength s.mirror) . fst $ screenPosition QueueScreen s
+    Just . At . SongPos . min (queueLength s.mirror) . (+ 1) . fst $
+      screenPosition QueueScreen s
 
 -- | Add local items after the walk of their directories, as MPD doesn't add
 -- a local directory, and play from the first, for add and play. Songs

@@ -104,7 +104,7 @@ In the browser, `enter` enters a directory and plays a song, and
 `backspace` goes up. `space` adds what is under the cursor to the queue, or
 removes it if it is there already. The group `a` adds the selection at a
 place: `a e` at the end, `a b` at the beginning, `a n` after the playing
-song, `a c` above the cursor of the queue, and `a p` adds and plays it.
+song, `a c` after the cursor of the queue, and `a p` adds and plays it.
 
 `2` in the browser switches to the local files, starting in your home
 directory, and back to MPD's database. MPD plays local files only for a
@@ -120,7 +120,7 @@ selection. The group `v` selects more: `v r` a range, `v a` the album, and
 the cursor without one.
 
 In the queue, `delete` removes songs, `m` and `n` move them up and down,
-and `M` moves the selection above the cursor. The group `e` edits:
+and `M` moves the selection after the cursor. The group `e` edits:
 
 - `e c` clears the queue, after asking, and `e s` shuffles it;
 - `e w` saves the queue, or the selection, as a stored playlist;

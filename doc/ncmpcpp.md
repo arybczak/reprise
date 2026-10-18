@@ -47,8 +47,10 @@ Keys that are new in reprise:
 - `shift-up` and `shift-down` select songs while moving.
 - `e m e`, `e m b` and `e m n` move songs to the end, to the beginning and
   after the playing song. `a e`, `a b` and `a n` add songs
-  to the same places, `a c` adds them above the cursor of the queue, as
-  `M` moves them, and `a p` adds and plays them.
+  to the same places, `a c` adds them after the cursor of the queue, and
+  `a p` adds and plays them.
+- `M` moves the selection after the cursor, not above it, as every key
+  that puts songs next to a song puts them after it.
 - `v A` selects the songs of the artist around the cursor.
 - `:` runs an action by its name, e.g. `:volume 50` or `:add_path dir/x.flac`.
 - `escape` goes back from the lyrics, the song info and the help.

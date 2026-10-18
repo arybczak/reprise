@@ -240,9 +240,12 @@ moveSongs t = do
       follow (runsMovingDown n ps) 1
     MoveSongsToCursor -> case selectedSongPositions s of
       [] -> showMessage "Select the songs to move first"
-      selected -> case moveBefore selected c of
-        Just cmd -> editQueue cmd
-        Nothing -> showMessage "The cursor is among the selected songs"
+      selected
+        | c `elem` selected -> showMessage "The cursor is among the selected songs"
+        | otherwise -> do
+            editQueue (moveAfter c selected)
+            -- The cursor stays on its song, as after an add there.
+            modifyWithEnv . setCursor $ c - length (filter (< c) selected)
     MoveSongsToEnd -> forM_ (moveBefore ps n) $ \edits -> do
       editQueue edits
       jumpToMoved (n - length ps)
