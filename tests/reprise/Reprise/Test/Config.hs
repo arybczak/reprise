@@ -37,6 +37,7 @@ configTests =
     , testCase "a section keeps its other defaults" test_sectionDefaults
     , testCase "the default keymaps" test_defaultKeymaps
     , testCase "a config can bind every default key" test_defaultKeysWritable
+    , testCase "an empty section is the default" test_emptySections
     , testCase "keymap changes merge with the defaults" test_keymapMerge
     , testCase "columns" test_columns
     , testCase "durations" test_durations
@@ -54,12 +55,20 @@ test_emptyFile = do
   assertEqual "empty mapping" (Right defaultConfig) (decode "{}")
 
 test_sectionDefaults :: Assertion
-test_sectionDefaults = do
-  config <- expectRight $ decode "styles:\n  list:\n    normal: red\n"
-  assertEqual "changed" (style "red") config.styles.list.normal
-  assertEqual "default" (style "yellow reverse") config.styles.list.cursor
-  assertEqual "another part" (style "bold") config.styles.header.title
-  assertEqual "a shared style" (style "green") config.styles.value
+test_sectionDefaults =
+  assertEqual
+    "the rest are the defaults"
+    (Right (defaultConfig & #styles % #list % #normal .~ style "red"))
+    (decode "styles:\n  list:\n    normal: red\n")
+
+-- | A section that is given takes the options it lacks from the default of
+-- its type, not from 'defaultConfig', so the two must agree.
+test_emptySections :: Assertion
+test_emptySections = forM_ (map fst sections) $ \path ->
+  assertEqual (T.unpack (T.intercalate "." path)) (Right defaultConfig) (decode (nested path))
+  where
+    nested :: [T.Text] -> T.Text
+    nested = foldr (\name inner -> "{" <> name <> ": " <> inner <> "}") "{}"
 
 test_defaultKeymaps :: Assertion
 test_defaultKeymaps = do
@@ -199,6 +208,10 @@ test_documentedEverything = do
     , name <- names
     , name `notElem` keysAt path tree
     ]
+  assertEqual
+    "the sections that the check of the options misses"
+    []
+    [path | path <- mappingPaths [] tree, path `notElem` map fst sections]
   let documented =
         Keymaps
           { global = applyOverride config.keys.global emptyKeymap
@@ -211,39 +224,26 @@ test_documentedEverything = do
     ]
     (bindingsOf defaultKeymaps L.\\ bindingsOf documented)
   where
-    -- The paths of the sections of options, and the names of their options.
-    sections :: [([T.Text], [T.Text])]
-    sections =
-      [ ([], optionNames @Config)
-      , (["mpd"], optionNames @MpdConfig)
-      , (["songs"], optionNames @SongsConfig)
-      , (["songs", "classic"], optionNames @RowFormat)
-      , (["songs", "columns"], optionNames @ColumnsConfig)
-      , (["lists"], optionNames @ListsConfig)
-      , (["queue"], optionNames @QueueConfig)
-      , (["browser"], optionNames @BrowserConfig)
-      , (["browser", "sort"], optionNames @BrowserSort)
-      , (["search_engine"], optionNames @SearchEngineConfig)
-      , (["status_bar"], optionNames @StatusBarConfig)
-      , (["progress_bar"], optionNames @ProgressBarConfig)
-      , (["visualizer"], optionNames @VisualizerConfig)
-      , (["lyrics"], optionNames @LyricsConfig)
-      , (["editor"], optionNames @EditorConfig)
-      , (["mouse"], optionNames @MouseConfig)
-      , (["styles"], optionNames @StylesConfig)
-      , (["styles", "text"], optionNames @TextStyles)
-      , (["styles", "list"], optionNames @ListStyles)
-      , (["styles", "header"], optionNames @HeaderStyles)
-      , (["styles", "status_bar"], optionNames @StatusBarStyles)
-      , (["styles", "progress_bar"], optionNames @ProgressBarStyles)
-      ]
-
     -- The keys of the mapping at the path.
     keysAt :: [T.Text] -> Node -> [T.Text]
     keysAt path n = case (path, view n) of
       ([], MappingView kvs) -> [k | (kn, _) <- kvs, StringView k <- [view kn]]
       (p : ps, MappingView kvs) ->
         concat [keysAt ps v | (kn, v) <- kvs, StringView k <- [view kn], k == p]
+      _ -> []
+
+    -- The paths of the mappings in a node, but of those of the keys, which
+    -- the check of the bindings covers.
+    mappingPaths :: [T.Text] -> Node -> [[T.Text]]
+    mappingPaths path n = case view n of
+      MappingView kvs ->
+        path
+          : concat
+            [ mappingPaths (path <> [k]) v
+            | (kn, v) <- kvs
+            , StringView k <- [view kn]
+            , path <> [k] /= ["keys"]
+            ]
       _ -> []
 
     -- Each binding with its screen, or none for the global keymap, and the
@@ -392,6 +392,33 @@ newtype Tree = Tree Node
 
 instance FromYaml Tree where
   parseYaml = pure . Tree
+
+-- | The paths of the sections of options, and the names of their options.
+sections :: [([T.Text], [T.Text])]
+sections =
+  [ ([], optionNames @Config)
+  , (["mpd"], optionNames @MpdConfig)
+  , (["songs"], optionNames @SongsConfig)
+  , (["songs", "classic"], optionNames @RowFormat)
+  , (["songs", "columns"], optionNames @ColumnsConfig)
+  , (["lists"], optionNames @ListsConfig)
+  , (["queue"], optionNames @QueueConfig)
+  , (["browser"], optionNames @BrowserConfig)
+  , (["browser", "sort"], optionNames @BrowserSort)
+  , (["search_engine"], optionNames @SearchEngineConfig)
+  , (["status_bar"], optionNames @StatusBarConfig)
+  , (["progress_bar"], optionNames @ProgressBarConfig)
+  , (["visualizer"], optionNames @VisualizerConfig)
+  , (["lyrics"], optionNames @LyricsConfig)
+  , (["editor"], optionNames @EditorConfig)
+  , (["mouse"], optionNames @MouseConfig)
+  , (["styles"], optionNames @StylesConfig)
+  , (["styles", "text"], optionNames @TextStyles)
+  , (["styles", "list"], optionNames @ListStyles)
+  , (["styles", "header"], optionNames @HeaderStyles)
+  , (["styles", "status_bar"], optionNames @StatusBarStyles)
+  , (["styles", "progress_bar"], optionNames @ProgressBarStyles)
+  ]
 
 -- | The names of the options of a section of the config.
 optionNames :: forall a. (GenericYamlOptions a, Selectors (Rep a)) => [T.Text]
