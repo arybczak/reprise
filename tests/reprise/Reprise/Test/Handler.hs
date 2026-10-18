@@ -153,7 +153,17 @@ test_nextScreen = do
     [BrowserScreen, OutputsScreen, VisualizerScreen, QueueScreen]
     =<< traverse (\n -> screenAfter (replicate n "tab")) [1 .. 4]
   assertEqual "back" VisualizerScreen =<< screenAfter ["shift-tab"]
-  assertEqual "from a screen outside the list" QueueScreen =<< screenAfter ["f1", "tab"]
+  -- Not back to the browser, the screen before the help.
+  assertEqual "from a screen outside the list" QueueScreen
+    =<< screenAfter ["2", "f1", "tab"]
+  let command t = [":"] <> typed t <> ["enter"]
+      next = command "next_screen [browser, outputs]"
+  assertEqual
+    "a list of its own"
+    [BrowserScreen, OutputsScreen, BrowserScreen]
+    =<< traverse (\n -> screenAfter (concat (replicate n next))) [1 .. 3]
+  assertEqual "back in a list of its own" OutputsScreen
+    =<< screenAfter (command "previous_screen [browser, outputs]")
 
 test_startupScreen :: Assertion
 test_startupScreen = do
