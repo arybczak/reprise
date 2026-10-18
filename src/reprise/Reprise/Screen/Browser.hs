@@ -962,15 +962,15 @@ askRenameTo r contents = do
       []
         | length renames == 1 -> showMessage "The directory has this name already"
         | otherwise -> showMessage "The directories have these names already"
-      changed@((old, new) : rest) ->
+      -- Only the new name, as the old one too would push it out of the
+      -- status bar.
+      changed@((_, new) : rest) ->
         let question
-              | null rest = "Rename " <> baseName old <> " to " <> baseName new <> "?"
+              | null rest = "Rename to " <> baseName new <> "?"
               | otherwise =
                   "Rename "
                     <> T.pack (show (length changed))
-                    <> " directories, e.g. "
-                    <> baseName old
-                    <> " to "
+                    <> " directories, e.g. to "
                     <> baseName new
                     <> "?"
         in modifyS $ confirm question (Confirmed (ConfirmRename r.location changed))

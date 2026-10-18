@@ -598,7 +598,7 @@ test_renameByFormat = do
       listed
   assertEqual
     "the question"
-    (Just "Rename 2 directories, e.g. a to X - Y [flac]?")
+    (Just "Rename 2 directories, e.g. to X - Y [flac]?")
     ((.question) <$> confirming.prompt)
   confirmed <- answerLast musicMount =<< press ["y"] confirming
   assertEqual
@@ -665,7 +665,7 @@ test_renameByFormatLocal = do
           r.state
       assertEqual
         "the question"
-        (Just "Rename Music to A - B [flac]?")
+        (Just "Rename to A - B [flac]?")
         ((.question) <$> confirming.state.prompt)
       assertEqual
         "the rename"

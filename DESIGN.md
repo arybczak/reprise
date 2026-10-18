@@ -190,8 +190,10 @@ ncmpcpp.
     that fails on the disk stops there, and the message says how many went.
   - **The name is cleaned as the names of lyrics are,** without the
     characters that some file systems refuse, and cut to the limit of a name.
-  - **One confirmation for all,** with the first rename as the example.
-    A [panel](#panels-later) will list every rename. It also shows a name
+  - **One confirmation for all,** with the first new name as the example,
+    e.g. "Rename 3 directories, e.g. to The Beatles - Abbey Road [flac]?".
+    The old name stays out, as both don't fit the status bar. A
+    [panel](#panels-later) will list every rename. It also shows a name
     with a gap, e.g. `The Beatles -  [flac]` of songs without an album,
     before the user confirms. A rule that refused missing tags, or formats
     that drop the gaps, would complicate both for what a look catches.
