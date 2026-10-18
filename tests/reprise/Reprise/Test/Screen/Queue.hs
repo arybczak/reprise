@@ -63,9 +63,16 @@ test_activate = do
 
 test_followPlaying :: Assertion
 test_followPlaying = do
-  s <- keys ["t", "f"] =<< testState (80, 24) (statusOf Playing (Just 0) 5) (songs 5)
-  assertEqual "cursor" 3 . cursor
-    =<< runEvents 0 [StatusFetched (statusOf Playing (Just 3) 5)] s.state
+  s <- testState (80, 24) (statusOf Playing (Just 0) 5) (songs 5)
+  let playing p = StatusFetched (statusOf Playing (Just p) 5)
+  assertEqual "off" 0 . cursor =<< runEvents 0 [playing 3] s
+  on <- keys ["down", "down", "t", "f"] s
+  assertEqual "on, to the song that plays" 0 (cursor on)
+  another <- runEvents 0 [playing 3] on.state
+  assertEqual "another song" 3 (cursor another)
+  assertEqual "not again for the same song" 4 . cursor
+    =<< runEvents 0 [playing 3] . (.state)
+    =<< keys ["down"] another.state
 
 test_jumpCenters :: Assertion
 test_jumpCenters = do

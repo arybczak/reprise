@@ -284,10 +284,10 @@ test_queueTitleScrolls = do
     ("two seconds later: " <> T.unpack (titleLine later))
     ("Queue  songs" `T.isPrefixOf` titleLine later)
 
--- | 10 s into the first of two songs of a minute, at 320 kbps.
+-- | 10 s into the second of two songs of a minute, at 320 kbps.
 test_remainingAndBitrate :: Assertion
 test_remainingAndBitrate = do
-  let st = statusOf Playing (Just 0) 2 & #bitrate ?~ 320
+  let st = statusOf Playing (Just 1) 2 & #bitrate ?~ 320
   s <- testState (60, 6) st [song 0 [] 60, song 1 [] 60]
   let env =
         testAppEnv
@@ -303,7 +303,7 @@ test_remainingAndBitrate = do
     ("320 kbps [0:10/1:00]" `T.isSuffixOf` statusBar testAppEnv withBitrate)
   assertBool "no bitrate" (not ("kbps" `T.isInfixOf` statusBar testAppEnv s))
   assertBool "the queue's time left" $
-    any ("Queue (2 songs, 2m, 1m 50s left)" `T.isPrefixOf`) (listToMaybe (lines' env s))
+    any ("Queue (2 songs, 2m, 50s left)" `T.isPrefixOf`) (listToMaybe (lines' env s))
 
 -- | As in ncmpcpp.
 test_flags :: Assertion

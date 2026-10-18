@@ -94,8 +94,15 @@ test_errors = do
     "usage"
     (Left "volume: expected an argument; usage: volume +N | -N | N")
     (parseAction "volume")
+  assertEqual "the most volume" (Right (Volume (VolumeTo 100))) (parseAction "volume 100")
   assertBool "volume out of range" (isLeft $ parseAction "volume 101")
+  assertEqual "the highest priority" (Right (Priority 255)) (parseAction "priority 255")
   assertBool "priority out of range" (isLeft $ parseAction "priority 256")
+  assertEqual
+    "the end of a song"
+    (Right (Seek (SeekToPercent 100)))
+    (parseAction "seek 100%")
+  assertBool "past the end of a song" (isLeft $ parseAction "seek 101%")
   assertBool "unknown screen" (isLeft $ parseAction "show tag_editor")
   assertBool "seek without a unit" (isLeft $ parseAction "seek +5")
   assertBool "unclosed list" (isLeft $ parseAction "next_screen [browser")

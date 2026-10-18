@@ -24,6 +24,7 @@ import Reprise.Action
 import Reprise.Config
 import Reprise.Keymap
 import Reprise.Keys
+import Reprise.State
 import Reprise.Style
 import Reprise.Test.Helpers
 
@@ -45,9 +46,37 @@ configTests =
     , testCase "the documentation lists everything built" test_documentedEverything
     , testCase "the visualizer" test_visualizer
     , testCase "the lyrics" test_lyrics
+    , testCase "the options that the keys toggle start as set" test_initialToggles
     , testCase "window title can be disabled" test_noWindowTitle
     , testCase "errors" test_errors
     ]
+
+-- | Each option apart from its default, and the options of the same type
+-- apart from each other.
+test_initialToggles :: Assertion
+test_initialToggles = do
+  let config queueFollows =
+        defaultConfig
+          & #queue % #display .~ Classic
+          & #queue % #followPlaying .~ queueFollows
+          & #lyrics % #followPlaying .~ not queueFollows
+          & #statusBar % #showBitrate .~ True
+          & #browser % #display .~ Columns
+          & #browser % #sort % #by .~ SortByMtime
+          & #visualizer % #visualization .~ Wave
+  forM_ [True, False] $ \queueFollows ->
+    assertEqual
+      ("the queue follows playing: " <> show queueFollows)
+      Toggles
+        { queueDisplay = Classic
+        , followPlaying = queueFollows
+        , lyricsFollowPlaying = not queueFollows
+        , showBitrate = True
+        , browserDisplay = Columns
+        , browserSort = SortByMtime
+        , visualization = Wave
+        }
+      (initialState (config queueFollows)).toggles
 
 test_emptyFile :: Assertion
 test_emptyFile = do
@@ -65,7 +94,10 @@ test_sectionDefaults =
 -- its type, not from 'defaultConfig', so the two must agree.
 test_emptySections :: Assertion
 test_emptySections = forM_ (map fst sections) $ \path ->
-  assertEqual (T.unpack (T.intercalate "." path)) (Right defaultConfig) (decode (nested path))
+  assertEqual
+    (T.unpack (T.intercalate "." path))
+    (Right defaultConfig)
+    (decode (nested path))
   where
     nested :: [T.Text] -> T.Text
     nested = foldr (\name inner -> "{" <> name <> ": " <> inner <> "}") "{}"
