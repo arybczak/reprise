@@ -3,6 +3,7 @@ module Reprise.Test.Visualizer.Wave (waveTests) where
 import Control.Monad
 import Data.ByteString qualified as BS
 import Data.Int
+import Data.List qualified as L
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -21,16 +22,26 @@ waveTests =
     ]
 
 -- | A tone of 100 Hz, with a period of 441 samples. Once more samples come,
--- the wave is the same.
+-- the wave is the same, also of a tone in one channel only.
 test_triggerStill :: Assertion
-test_triggerStill = do
-  w <- newWaveWindow
-  let tone i = 20000 * sin (2 * pi * 100 * fromIntegral (i `mod` 441) / 44100)
-  pushWave w (sound tone 0 44100)
-  first <- waveOf w
-  assertEqual "the length" (waveSamples * frameBytes) (BS.length first)
-  pushWave w (sound tone 44100 44200)
-  assertEqual "the wave" first =<< waveOf w
+test_triggerStill =
+  forM_ [("both", \s -> (s, s)), ("left", (,0)), ("right", (0,))] $ \(placement, placed) -> do
+    w <- newWaveWindow
+    let tone i = 20000 * sin (2 * pi * 100 * fromIntegral (i `mod` 441) / 44100)
+    pushWave w (soundIn placed tone 0 44100)
+    first <- waveOf w
+    assertEqual "the length" (waveSamples * frameBytes) (BS.length first)
+    pushWave w (soundIn placed tone 44100 44200)
+    assertEqual ("the shift of the wave in " <> placement) (Just 0) . shiftFrom first
+      =<< waveOf w
+  where
+    -- How many samples a wave moved on from an earlier one, by the
+    -- smallest shift at which they overlap.
+    shiftFrom :: BS.ByteString -> BS.ByteString -> Maybe Int
+    shiftFrom earlier later =
+      L.find
+        (\k -> BS.drop (k * frameBytes) earlier `BS.isPrefixOf` later)
+        [0 .. BS.length earlier `div` frameBytes - 1]
 
 -- | A bass of 100 Hz and a treble of 2953 Hz as loud. The treble isn't a
 -- harmonic of the bass, so it rises through zero at other points of the
@@ -88,4 +99,8 @@ test_triggerSilence = do
 -- | The samples of a sound from an index until an end, the same in both
 -- channels.
 sound :: (Int -> Double) -> Int -> Int -> BS.ByteString
-sound f from end = samples [(s, s) | i <- [from .. end - 1], let s = round (f i)]
+sound = soundIn (\s -> (s, s))
+
+-- | The samples of a sound, placed in the channels.
+soundIn :: (Int16 -> (Int16, Int16)) -> (Int -> Double) -> Int -> Int -> BS.ByteString
+soundIn placed f from end = samples [placed (round (f i)) | i <- [from .. end - 1]]

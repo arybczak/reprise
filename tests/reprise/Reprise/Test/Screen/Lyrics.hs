@@ -1,5 +1,6 @@
 module Reprise.Test.Screen.Lyrics (lyricsScreenTests) where
 
+import Control.Monad
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
 import Data.Maybe
@@ -420,24 +421,19 @@ test_edit = do
     =<< runEvents 0 [key "u"] asked.state
   assertEqual "synced" [Edit "edit" ("lyrics" </> "A - One.lrc")] . edits
     =<< runEvents 0 [key "s"] asked.state
-  timed <-
-    runEvents
-      0
-      [LyricsLoaded token (LyricsFound (Stored "A - One.lrc") timedTwenty), key "e", key "e"]
-      r.state
-  assertEqual "the times" [Edit "edit" ("lyrics" </> "A - One.lrc")] (edits timed)
-  untimedLrc <-
-    runEvents
-      0
-      [ LyricsLoaded token (LyricsFound (Stored "A - One.lrc") (plainLyrics "Words"))
-      , key "e"
-      , key "e"
-      ]
-      r.state
-  assertEqual
-    "the file they came from"
-    [Edit "edit" ("lyrics" </> "A - One.lrc")]
-    (edits untimedLrc)
+  -- A file that the lyrics came from, else the file of their kind.
+  forM_
+    [ ("the times", Stored "A - One.lrc", timedTwenty, "A - One.lrc")
+    , ("words of a timed file", Stored "A - One.lrc", plainLyrics "Words", "A - One.lrc")
+    , ("words", Stored "A - One.txt", plainLyrics "Words", "A - One.txt")
+    , ("kept words of a timed file", Kept "A - One.lrc" [], plainLyrics "Words", "A - One.lrc")
+    , ("fetched times", Fetched "LRCLIB", timedTwenty, "A - One.lrc")
+    , ("fetched words", Fetched "LRCLIB", plainLyrics "Words", "A - One.txt")
+    ]
+    $ \(what, origin, lyrics, file) -> do
+      shown <-
+        runEvents 0 [LyricsLoaded token (LyricsFound origin lyrics), key "e", key "e"] r.state
+      assertEqual what [Edit "edit" ("lyrics" </> file)] (edits shown)
   noEditor <-
     runEventsWith (testAppEnv & #editor .~ Nothing) 0 [key "e", key "e"] missing.state
   assertEqual "no editor" [] (edits noEditor)

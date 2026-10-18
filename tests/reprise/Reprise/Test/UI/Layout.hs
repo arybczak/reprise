@@ -293,6 +293,20 @@ test_flags = do
   case imageLines (renderScreen testAppEnv s) of
     _ : flagsLine : _ -> assertEqual "line" "───────────────[rz]─" flagsLine
     ls -> assertFailure $ "too few lines: " <> show ls
+  forM_
+    [ ("r", #repeat .~ True)
+    , ("z", #random .~ True)
+    , ("s", #single .~ SingleOn)
+    , ("c", #consume .~ ConsumeOn)
+    , ("x", #crossfade .~ 5)
+    , ("U", #updatingDb ?~ 1)
+    ]
+    $ \(letter, flagOn) -> do
+      alone <- testState (20, 6) (statusOf Playing (Just 1) (length queue) & flagOn) queue
+      case imageLines (renderScreen testAppEnv alone) of
+        _ : flagsLine : _ ->
+          assertEqual (T.unpack letter) (T.replicate 16 "─" <> "[" <> letter <> "]─") flagsLine
+        ls -> assertFailure $ "too few lines: " <> show ls
 
 -- | Render the screen at a fixed monotonic time and compare its text with a
 -- golden file.

@@ -245,16 +245,19 @@ test_workerDropped = do
     [(59, 57)]
     [(st.frames, st.dropped) | (_, VisualizerStats st) <- events]
 
+-- | Samples in the left channel only, so that the channels differ.
 test_workerSpectrum :: Assertion
 test_workerSpectrum = do
-  events <- runScene (scene Spectrum steadyWrites) {seconds = 0.5}
+  let leftOnly k = samples (replicate (sampleRate `div` 60) (fromIntegral k + 1, 0))
+  events <- runScene (scene Spectrum [(time k, leftOnly k) | k <- [0 ..]]) {seconds = 0.5}
   case [(l, r) | (_, VisualizerSpectrum l r) <- events, any ((> 0) . VS.maximum) [l, r]] of
     (left, right) : _ -> do
       assertEqual
         "the bins"
         [32768 `div` 2 + 1, 32768 `div` 2 + 1]
         (map VS.length [left, right])
-      assertBool "both channels" (all ((> 0) . VS.maximum) [left, right])
+      assertBool "the left channel" (VS.maximum left > 0)
+      assertEqual "the right channel" 0 (VS.maximum right)
     [] -> assertFailure "no spectrum of the samples"
 
 -- | MPD writes for half a second. The frames show the last write 2 frames

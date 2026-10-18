@@ -84,8 +84,9 @@ test_replay = do
   let replayed = [[Request "seekcur" ["0"]]]
   assertEqual "the queue" replayed . (.requests) =<< keys ["backspace"] playing
   assertEqual "another screen" replayed . (.requests) =<< keys ["f1", "backspace"] playing
+  -- The current song, not the one under the cursor.
   assertEqual "stopped" [[Request "play" ["1"]]] . (.requests)
-    =<< keys ["backspace"] stopped
+    =<< keys ["down", "backspace"] stopped
 
 test_keySequence :: Assertion
 test_keySequence = do

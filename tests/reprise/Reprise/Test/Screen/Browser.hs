@@ -309,6 +309,13 @@ test_addOrRemove = do
   assertEqual "the cursor moves down" 1 (focusedView removed.state).cursor
   assertEqual "added" [[Request "add" ["b/x.flac"]]] . (.requests)
     =<< press ["space"] removed.state
+  let again = song 0 [] 60 & #position ?~ SongPos 2 & #songId ?~ SongId 3
+  twice <-
+    testState (80, 12) (statusOf Stopped Nothing 3) [song 0 [] 60, song 1 [] 60, again]
+  listed <- answer ["file: dir/0.flac"] =<< press ["2"] twice
+  assertEqual "every copy removed" [[Request "deleteid" ["1"], Request "deleteid" ["3"]]]
+    . (.requests)
+    =<< press ["space"] listed
 
 test_addFromPlaylist :: Assertion
 test_addFromPlaylist = do

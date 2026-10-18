@@ -1,5 +1,6 @@
 module Reprise.Test.Screen.Outputs (outputsTests) where
 
+import Control.Monad
 import Data.ByteString qualified as BS
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
@@ -36,15 +37,18 @@ test_shown = do
     "the names"
     ["Speakers", "Headphones"]
     (take 2 . drop 2 $ imageLines (renderScreen testAppEnv s))
-  assertEqual
-    "the enabled one is bold"
-    ["Speakers"]
-    [ T.strip t
-    | (a, t) <- imageSpans (renderScreen testAppEnv s)
-    , V.SetTo st <- [V.attrStyle a]
-    , V.hasStyle st V.bold
-    , T.strip t `elem` ["Speakers", "Headphones"]
-    ]
+  -- Also with the cursor on the other one.
+  down <- (.state) <$> press ["down"] s
+  forM_ [s, down] $ \shown ->
+    assertEqual
+      "the enabled one is bold"
+      ["Speakers"]
+      [ T.strip t
+      | (a, t) <- imageSpans (renderScreen testAppEnv shown)
+      , V.SetTo st <- [V.attrStyle a]
+      , V.hasStyle st V.bold
+      , T.strip t `elem` ["Speakers", "Headphones"]
+      ]
   again <- press ["1", "7"] s
   assertEqual "nothing fetched again" [] again.requests
 
