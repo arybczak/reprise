@@ -31,7 +31,7 @@ import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 
 data Mpd :: Effect where
-  Connect :: Maybe T.Text -> Mpd m Version
+  Connect :: Maybe T.Text -> Mpd m (Version, Address)
   RunCommand :: Command a -> Mpd m a
   WaitIdle :: STM () -> Mpd m (Maybe [Subsystem])
   Disconnect :: Mpd m ()
@@ -53,16 +53,18 @@ runMpd candidates action = do
   passwordRef <- liftIO $ S.newIORef (NE.head candidates).password
   let disconnect = S.readIORef ref >>= mapM_ close >> S.writeIORef ref Nothing
       connected p = do
-        conn <- connectFirst (fmap (\s -> s {password = p}) candidates)
+        (conn, address) <- connectFirst (fmap (\s -> s {password = p}) candidates)
         S.writeIORef ref (Just conn)
         S.writeIORef passwordRef p
-        pure conn
+        pure (conn, address)
       withConnection' :: (Connection -> IO a) -> IO a
-      withConnection' f = S.readIORef ref >>= maybe (connected =<< S.readIORef passwordRef) pure >>= f
+      withConnection' f =
+        S.readIORef ref >>= maybe (fst <$> (connected =<< S.readIORef passwordRef)) pure >>= f
   let handled = interpretWith_ action $ \case
         Connect p -> liftIO $ do
           disconnect
-          serverVersion <$> connected p
+          (conn, address) <- connected p
+          pure (serverVersion conn, address)
         -- A command without requests, e.g. one that marks a point in the
         -- queue of requests, needs no connection.
         RunCommand cmd
@@ -72,7 +74,7 @@ runMpd candidates action = do
                 S.readIORef ref >>= \case
                   Just conn -> run conn cmd
                   Nothing -> do
-                    conn <- connected =<< S.readIORef passwordRef
+                    (conn, _) <- connected =<< S.readIORef passwordRef
                     run conn cmd `E.catch` \case
                       ConnectionError Closed -> do
                         disconnect
@@ -87,18 +89,19 @@ runMpd candidates action = do
         Disconnect -> liftIO disconnect
   handled `finally` liftIO disconnect
   where
-    connectFirst :: NE.NonEmpty Settings -> IO Connection
+    connectFirst :: NE.NonEmpty Settings -> IO (Connection, Address)
     connectFirst (s NE.:| rest) = case NE.nonEmpty rest of
-      Nothing -> connect s
+      Nothing -> (,s.address) <$> connect s
       Just others ->
-        connect s `E.catch` \case
+        ((,s.address) <$> connect s) `E.catch` \case
           ConnectionError (ConnectFailed _) -> connectFirst others
           err -> E.throwIO err
 
 -- | Open a new connection, with a password or without one, closing the old
--- one. If it opens, the connections that open by themselves for a command
--- send the password too.
-connectMpd :: Mpd :> es => Maybe T.Text -> Eff es Version
+-- one, and return MPD's version and the address that it opened on. If it
+-- opens, the connections that open by themselves for a command send the
+-- password too.
+connectMpd :: Mpd :> es => Maybe T.Text -> Eff es (Version, Address)
 connectMpd = send . Connect
 
 runCommand :: Mpd :> es => Command a -> Eff es a

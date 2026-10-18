@@ -56,7 +56,7 @@ headerRight :: AppState -> T.Text
 headerRight s = case s.connection of
   Connecting -> "Connecting…"
   Disconnected _ -> "Disconnected"
-  Connected _ -> case s.mirror.status >>= (.volume) of
+  Connected _ _ -> case s.mirror.status >>= (.volume) of
     Just v -> "Volume: " <> T.pack (show v) <> "%"
     Nothing -> "Volume: n/a"
 
@@ -64,7 +64,7 @@ headerRight s = case s.connection of
 -- at the right of the header's first line.
 onVolume :: AppState -> Int -> Int -> Bool
 onVolume s col row = case s.connection of
-  Connected _ ->
+  Connected _ _ ->
     let w = fst s.terminalSize
     in row == 0 && col >= w - textWidth (headerRight s) && col < w
   _ -> False

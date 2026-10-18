@@ -18,6 +18,7 @@ import Reprise.LocalFiles
 import Reprise.Lyrics
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command
+import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 import Reprise.Save
@@ -34,8 +35,8 @@ data AppEvent
     MouseClick MouseButton Int Int
   | -- | The terminal's new width and height.
     Resized Int Int
-  | -- | The idle connection is up.
-    MpdConnected Version
+  | -- | The idle connection is up, on the address.
+    MpdConnected Version Address
   | -- | The idle connection is down, with the reason.
     MpdDisconnected T.Text
   | MpdChanged [Subsystem]

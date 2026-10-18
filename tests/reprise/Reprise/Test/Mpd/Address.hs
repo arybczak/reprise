@@ -223,11 +223,12 @@ test_deadSocket getServer = withSystemTempDirectory "mpd" $ \dir -> do
   -- A socket that was bound and closed, as MPD leaves it when it stops.
   bracket (N.socket N.AF_UNIX N.Stream N.defaultProtocol) N.close $ \sock ->
     N.bind sock (N.SockAddrUnix dead)
-  version <-
+  (version, address) <-
     runEff
       . runMpd (settings (UnixAddress dead) NE.:| [settings (UnixAddress server.socketPath)])
       $ connectMpd Nothing
   assertBool "connected" (version >= minimumVersion)
+  assertEqual "the address" (UnixAddress server.socketPath) address
 
 -- | An MPD that answers, but can't be used, is the one that the user asked
 -- for, so the next address isn't tried.

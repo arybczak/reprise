@@ -113,7 +113,7 @@ test_passwordCancelled = do
 test_idlePassword :: Assertion
 test_idlePassword = withIdleWorker [] (Just "secret") $ \events callsRef _ -> do
   connected <- expectWithin . atomically $ readTQueue events
-  assertEqual "connected" (MpdConnected (Version 0 24 0)) connected
+  assertEqual "connected" (MpdConnected (Version 0 24 0) fakeSocket) connected
   assertEqual "calls" ["connect secret"] =<< S.readIORef callsRef
 
 -- | An idle connection that MPD refuses for its password waits for the
@@ -122,7 +122,7 @@ test_idlePassword = withIdleWorker [] (Just "secret") $ \events callsRef _ -> do
 test_idleRefused :: Assertion
 test_idleRefused = withIdleWorker [Right (), Left refusal] Nothing $ \events callsRef workers -> do
   let nextEvent = expectWithin . atomically $ readTQueue events
-  assertEqual "connected" (MpdConnected (Version 0 24 0)) =<< nextEvent
+  assertEqual "connected" (MpdConnected (Version 0 24 0) fakeSocket) =<< nextEvent
   assertEqual "refused" (MpdDisconnected (exceptionText refusal)) =<< nextEvent
   assertEqual "a command that asks" [Request "status" []] . pendingRequestLines
     =<< expectWithin (atomically (readTQueue workers.requests))
@@ -130,7 +130,7 @@ test_idleRefused = withIdleWorker [Right (), Left refusal] Nothing $ \events cal
   threadDelay 100000
   assertEqual "not again" ["connect", "disconnect"] . reverse =<< S.readIORef callsRef
   atomically $ writeTVar workers.password (Just "secret")
-  assertEqual "with the password" (MpdConnected (Version 0 24 0)) =<< nextEvent
+  assertEqual "with the password" (MpdConnected (Version 0 24 0) fakeSocket) =<< nextEvent
   assertEqual
     "connected again"
     ["connect", "disconnect", "connect secret"]
@@ -156,9 +156,9 @@ test_idleWrongPassword = do
         WaitIdle interrupted -> Nothing <$ liftIO (atomically interrupted)
         Disconnect -> pure ()
         where
-          connected :: Maybe T.Text -> IO Version
+          connected :: Maybe T.Text -> IO (Version, Address)
           connected = \case
-            Just "secret" -> pure $ Version 0 24 0
+            Just "secret" -> pure (Version 0 24 0, fakeSocket)
             _ -> E.throwIO wrongPassword
       start worker = do
         passwordRef <- S.newIORef (Just "wrong")
@@ -167,8 +167,8 @@ test_idleWrongPassword = do
     asked <- expectWithin . untilEvent events $ \case PasswordNeeded _ -> True; _ -> False
     assertEqual "asked" (PasswordNeeded wrongPassword) asked
     atomically . writeTQueue workers.requests $ PasswordAnswer (Just "secret")
-    assertEqual "connected" (MpdConnected (Version 0 24 0))
-      =<< expectWithin (untilEvent events (\case MpdConnected _ -> True; _ -> False))
+    assertEqual "connected" (MpdConnected (Version 0 24 0) fakeSocket)
+      =<< expectWithin (untilEvent events (\case MpdConnected _ _ -> True; _ -> False))
 
 -- | A command without requests, which marks a point in the queue of
 -- requests, e.g. of a quit, runs without a connection, also when MPD can't
@@ -191,10 +191,10 @@ test_noConnection = do
 test_idleAfterCommandFailed :: Assertion
 test_idleAfterCommandFailed = withIdleWorker [] Nothing $ \events callsRef workers -> do
   let nextEvent = expectWithin . atomically $ readTQueue events
-  assertEqual "connected" (MpdConnected (Version 0 24 0)) =<< nextEvent
+  assertEqual "connected" (MpdConnected (Version 0 24 0) fakeSocket) =<< nextEvent
   start <- getMonotonicTime
   atomically $ writeTVar workers.commandConnectionFailed True
-  assertEqual "connected again" (MpdConnected (Version 0 24 0)) =<< nextEvent
+  assertEqual "connected again" (MpdConnected (Version 0 24 0) fakeSocket) =<< nextEvent
   end <- getMonotonicTime
   assertBool "after the wait" (end - start >= workers.retryDelay)
   assertEqual "calls" ["connect", "disconnect", "connect"] . reverse
@@ -220,7 +220,7 @@ test_oversizedReply getServer = do
     (mapM (forkIO . mpd) [idleWorker workers, commandWorker workers])
     (mapM_ killThread)
     $ \_ -> do
-      _ <- expectWithin . untilEvent events $ \case MpdConnected _ -> True; _ -> False
+      _ <- expectWithin . untilEvent events $ \case MpdConnected _ _ -> True; _ -> False
       -- The fetch then goes to a connection that ran a command, which MPD's
       -- close of an unused connection could have closed.
       atomically . writeTQueue workers.requests $
@@ -367,6 +367,10 @@ testWorkers events passwordVar = do
       , commandConnectionFailed = failed
       }
 
+-- | The address that the fake MPDs connect on.
+fakeSocket :: Address
+fakeSocket = UnixAddress "/run/mpd/socket"
+
 -- | An MPD that replies to each command, each connection and each @idle@
 -- with the next outcome. Without outcomes, it replies, and @idle@ waits
 -- until it is stopped.
@@ -379,7 +383,7 @@ runScripted
 runScripted outcomesRef callsRef = interpret_ $ \case
   Connect p -> do
     call . unwords $ "connect" : map T.unpack (maybeToList p)
-    either throwIO (const . pure $ Version 0 24 0) =<< nextOutcome
+    either throwIO (const $ pure (Version 0 24 0, fakeSocket)) =<< nextOutcome
   RunCommand cmd -> do
     call . unwords $ "run" : [T.unpack r.command | r <- commandRequests cmd]
     nextOutcome >>= \case

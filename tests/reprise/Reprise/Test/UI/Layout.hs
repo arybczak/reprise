@@ -268,7 +268,7 @@ test_queueTitleScrolls = do
     runEvents
       started
       [ Resized 30 12
-      , MpdConnected (Version 0 24 0)
+      , MpdConnected (Version 0 24 0) mpdSocket
       , QueueFetched (statusOf Stopped Nothing 6, queue)
       ]
       (initialState defaultConfig)

@@ -171,7 +171,7 @@ test_heldInput = do
       twice.state
   assertEqual "a failure drops it" [] failed.requests
   assertEqual "nothing waits" Nothing failed.state.pendingEdit
-  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0)] twice.state
+  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0) mpdSocket] twice.state
   assertEqual "a new connection drops it" Nothing reconnected.state.pendingEdit
 
 -- | A click on the queue during an edit goes to the song that the screen
@@ -196,7 +196,7 @@ test_fetchFailed :: Assertion
 test_fetchFailed = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   changed <- runEvents 0 [MpdChanged [PlaylistSubsystem]] s
-  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0)] s
+  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0) mpdSocket] s
   forM_ [("the changes", changed), ("the whole queue", reconnected)] $ \(what, r) -> do
     refused <- failLastWith (ConnectionError NoReply) r
     assertEqual (what <> ": no queue") [] (queueFiles refused.state)

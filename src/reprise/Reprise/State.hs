@@ -99,6 +99,7 @@ import Reprise.LocalFiles
 import Reprise.Lyrics
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command
+import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Types
 import Reprise.Save
 import Reprise.Selection
@@ -179,7 +180,8 @@ data AppState = AppState
 
 data ConnectionState
   = Connecting
-  | Connected Version
+  | -- | With MPD's version, on the address.
+    Connected Version Address
   | Disconnected T.Text
   deriving stock (Eq, Show)
 

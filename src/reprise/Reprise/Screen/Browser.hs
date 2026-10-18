@@ -56,6 +56,7 @@ import Reprise.Handler.Core
 import Reprise.LocalFiles
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
+import Reprise.Mpd.Protocol.Connection hiding (run)
 import Reprise.Mpd.Protocol.Types
 import Reprise.Save
 import Reprise.Selection
@@ -378,10 +379,14 @@ changeBrowseMode = do
   b <- getsS (.browser)
   let local = maybe False isLocal $ maybe b.location (Just . (.location)) b.listing
       other = if local then InDirectory "" else InLocal (T.pack env.home)
-  -- After a listing of the other mode failed, the place that it kept for
-  -- a change back is of this mode.
-  uncurry list . fromMaybe (other, AtTop) $
-    mfilter ((/= local) . isLocal . fst) b.otherMode
+      -- After a listing of the other mode failed, the place that it kept for
+      -- a change back is of this mode.
+      switch =
+        uncurry list . fromMaybe (other, AtTop) $
+          mfilter ((/= local) . isLocal . fst) b.otherMode
+  if local
+    then switch
+    else whenOnSocket "Local files need a connection to MPD's socket" switch
 
 -- | Go up from a directory or a playlist that is gone, until one exists, as
 -- ncmpcpp does. Another error shows, and the browser stays as it was. A
@@ -768,6 +773,17 @@ isLocal :: Location -> Bool
 isLocal = \case
   InLocal _ -> True
   _ -> False
+
+-- | Run an action on a connection to MPD's socket, where MPD plays local
+-- files and shows the paths of its storages, else show the error of a
+-- connection over TCP, or that there is none.
+whenOnSocket
+  :: (State AppState :> es, UiRequest :> es) => T.Text -> Eff es () -> Eff es ()
+whenOnSocket overTcp action =
+  getsS (.connection) >>= \case
+    Connected _ (UnixAddress _) -> action
+    Connected _ _ -> showError overTcp
+    _ -> showError "Not connected to MPD"
 
 ----------------------------------------
 -- Sorting

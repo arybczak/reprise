@@ -58,8 +58,8 @@ idleWorker w = forever $ do
   liftIO . atomically $ writeTVar w.commandConnectionFailed False
   try @MpdError (connectMpd sent) >>= \case
     Left err -> disconnected sent err
-    Right version -> do
-      emitEvent w $ MpdConnected version
+    Right (version, address) -> do
+      emitEvent w $ MpdConnected version address
       watch `catch` \err -> do
         logError w err
         disconnectMpd

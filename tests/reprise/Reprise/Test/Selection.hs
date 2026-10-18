@@ -125,7 +125,7 @@ test_selectionReconnect = do
   s <- keys ["space", "space"] =<< testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   assertEqual "selected" (ids [1, 2]) (selected s)
   assertEqual "cleared" (ids []) . selected
-    =<< runEvents 0 [MpdConnected (Version 0 24 0)] s.state
+    =<< runEvents 0 [MpdConnected (Version 0 24 0) mpdSocket] s.state
 
 test_selectionPruned :: Assertion
 test_selectionPruned = do

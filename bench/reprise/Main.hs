@@ -31,6 +31,7 @@ import Reprise.History
 import Reprise.Keys
 import Reprise.Mpd.Mirror hiding (queueLength)
 import Reprise.Mpd.Protocol.Command hiding (currentSong, next)
+import Reprise.Mpd.Protocol.Connection hiding (run)
 import Reprise.Mpd.Protocol.Types
 import Reprise.Selection
 import Reprise.State
@@ -142,7 +143,7 @@ loaded =
     (flip handle)
     (initialState defaultConfig)
     [ uncurry Resized terminalSize
-    , MpdConnected (Version 0 24 0)
+    , MpdConnected (Version 0 24 0) (UnixAddress "/run/mpd/socket")
     , QueueFetched (statusOf 1 queueLength, [song p p | p <- [0 .. queueLength - 1]])
     ]
 

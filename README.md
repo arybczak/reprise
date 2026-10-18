@@ -109,8 +109,8 @@ In the queue, the same keys add copies of the songs.
 
 `2` in the browser switches to the local files, starting in your home
 directory, and back to MPD's database. MPD plays local files only for a
-client on its socket. If MPD runs as another user, the files must be yours
-or readable by everyone.
+client on its socket, so the local files need a connection to it. If MPD
+runs as another user, the files must be yours or readable by everyone.
 
 ### Selecting and editing the queue
 

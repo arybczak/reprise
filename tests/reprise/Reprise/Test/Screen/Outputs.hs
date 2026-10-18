@@ -70,7 +70,7 @@ test_changes = do
   shown <- answer twoOutputs =<< press ["7"] s
   assertEqual "a change" [[Request "outputs" []]] . (.requests) =<< changed shown
   assertBool "a new connection" . elem [Request "outputs" []] . (.requests)
-    =<< runEvents 0 [MpdConnected (Version 0 24 0)] shown
+    =<< runEvents 0 [MpdConnected (Version 0 24 0) mpdSocket] shown
 
 test_fetchLost :: Assertion
 test_fetchLost = do
@@ -78,7 +78,8 @@ test_fetchLost = do
   lost <- case r.pending of
     [p] -> runEvents 0 [failureOf (ConnectionError (Broken "reset")) p] r.state
     _ -> assertFailure "not one request"
-  again <- runEvents 0 [MpdDisconnected "reset", MpdConnected (Version 0 24 0)] lost.state
+  again <-
+    runEvents 0 [MpdDisconnected "reset", MpdConnected (Version 0 24 0) mpdSocket] lost.state
   assertBool "fetched again" (elem [Request "outputs" []] again.requests)
 
 test_fewer :: Assertion

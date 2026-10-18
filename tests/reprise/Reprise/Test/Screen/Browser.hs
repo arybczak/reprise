@@ -17,6 +17,7 @@ import Reprise.Event
 import Reprise.Header
 import Reprise.Keys
 import Reprise.LocalFiles
+import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Types
 import Reprise.Selection
@@ -71,6 +72,7 @@ browserTests =
     , testGroup
         "local files"
         [ testCase "the home directory, after MPD's decoders" test_localHome
+        , testCase "not over TCP" test_localOverTcp
         , testCase "back to the database and again" test_localModeAgain
         , testCase "a listing in the other mode fails" test_localModeFailed
         , testCase "the local directory is remembered" test_localModeRemembered
@@ -156,9 +158,9 @@ test_replacedListing = do
 test_reconnect :: Assertion
 test_reconnect = do
   inB <- answer ["file: b/x.flac"] =<< press ["down", "enter"] =<< root
-  r <- runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0)] inB
+  r <- runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0) mpdSocket] inB
   assertBool "the listing of b" ([Request "lsinfo" ["b"]] `elem` r.requests)
-  never <- runEvents 0 [MpdConnected (Version 0 24 0)] =<< queueShown
+  never <- runEvents 0 [MpdConnected (Version 0 24 0) mpdSocket] =<< queueShown
   assertBool "no listing" (all (all ((/= "lsinfo") . (.command))) never.requests)
 
 test_gone :: Assertion
@@ -184,7 +186,8 @@ test_listingLost :: Assertion
 test_listingLost = do
   lost <- failLast (ConnectionError (Broken "reset")) =<< press ["2"] =<< queueShown
   assertEqual "the error" (Just True) ((.isError) <$> lost.state.message)
-  r <- runEvents 0 [MpdDisconnected "reset", MpdConnected (Version 0 24 0)] lost.state
+  r <-
+    runEvents 0 [MpdDisconnected "reset", MpdConnected (Version 0 24 0) mpdSocket] lost.state
   assertBool "the listing of the root" ([Request "lsinfo" []] `elem` r.requests)
 
 test_databaseChanged :: Assertion
@@ -193,7 +196,8 @@ test_databaseChanged = do
   assertBool "the listing of b" ([Request "lsinfo" ["b"]] `elem` r.requests)
   s <- answer ["file: b/w.flac", "file: b/x.flac", "file: b/y.flac"] r
   assertEqual "the cursor is on y" 3 (focusedView s).cursor
-  reconnected <- runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0)] s
+  reconnected <-
+    runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0) mpdSocket] s
   assertEqual "after a new connection" 2 . (.cursor) . focusedView
     =<< answer bReply reconnected
 
@@ -507,6 +511,23 @@ test_localHome = do
     ("the title: " <> T.unpack (shownTitle testAppEnv s))
     ("Browse local: ~" `T.isPrefixOf` shownTitle testAppEnv s)
 
+-- | MPD plays local files only for a client on its socket. Without a
+-- connection, it isn't known which one the next is.
+test_localOverTcp :: Assertion
+test_localOverTcp = do
+  r <- press ["2"] =<< overTcp =<< root
+  assertEqual "no decoders" [] r.requests
+  assertEqual
+    "the error"
+    (Just "Local files need a connection to MPD's socket")
+    (message r.state)
+  assertEqual
+    "the database stays"
+    ["directory a", "directory b", "playlist p"]
+    (items r.state)
+  disconnected <- press ["2"] . (.state) =<< runEvents 0 [MpdDisconnected "gone"] =<< root
+  assertEqual "disconnected" (Just "Not connected to MPD") (message disconnected.state)
+
 -- | Each mode lists what it listed last, and MPD's decoders are asked for
 -- once.
 test_localModeAgain :: Assertion
@@ -587,7 +608,8 @@ test_localDatabaseChanged = do
 -- | MPD may have restarted with other decoders.
 test_localReconnect :: Assertion
 test_localReconnect = do
-  r <- runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0)] =<< inHome
+  r <-
+    runEvents 0 [MpdDisconnected "gone", MpdConnected (Version 0 24 0) mpdSocket] =<< inHome
   assertBool "the decoders" ([Request "decoders" []] `elem` r.requests)
   decoded <- answerLast decodersReply r
   assertEqual "the listing of home" ["/home/user"] (localListings decoded)
@@ -729,7 +751,7 @@ test_localAddsInOrder = do
 -- | A walk needs MPD's decoders, which a new connection asks for again.
 test_localAddWithoutDecoders :: Assertion
 test_localAddWithoutDecoders = do
-  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0)] =<< inHome
+  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0) mpdSocket] =<< inHome
   r <- press ["down", "a", "e"] reconnected.state
   assertEqual "no walk" [] [dirs | WalkLocal _ _ dirs <- r.commands]
   assertEqual "why" (Just "MPD's decoders aren't known yet") (message r.state)
@@ -916,3 +938,8 @@ items s = map describe (toList s.browser.items)
 
 message :: AppState -> Maybe T.Text
 message s = (.text) <$> s.message
+
+-- | The state after MPD connected again, over TCP.
+overTcp :: AppState -> IO AppState
+overTcp =
+  fmap (.state) . runEvents 0 [MpdConnected (Version 0 24 0) (TcpAddress "localhost" 6600)]

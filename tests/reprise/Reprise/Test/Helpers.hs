@@ -6,6 +6,7 @@ module Reprise.Test.Helpers
 
     -- * State
   , testAppEnv
+  , mpdSocket
   , testState
   , runEvents
   , runEventsWith
@@ -41,6 +42,7 @@ import Reprise.Handler
 import Reprise.Keymap
 import Reprise.Keys
 import Reprise.Mpd.Protocol.Command
+import Reprise.Mpd.Protocol.Connection hiding (run)
 import Reprise.Mpd.Protocol.Request
 import Reprise.Mpd.Protocol.Response
 import Reprise.Mpd.Protocol.Types
@@ -108,13 +110,17 @@ testAppEnv =
     , home = "/home/user"
     }
 
+-- | The address of MPD's socket, which the tests connect on.
+mpdSocket :: Address
+mpdSocket = UnixAddress "/run/mpd/socket"
+
 -- | The state with a terminal of the given size and a queue that MPD sent.
 testState :: (Int, Int) -> Status -> [Song] -> IO AppState
 testState size st songs =
   let s0 = initialState defaultConfig
       events =
         [ Resized (fst size) (snd size)
-        , MpdConnected (Version 0 24 0)
+        , MpdConnected (Version 0 24 0) mpdSocket
         , QueueFetched (st, songs)
         ]
   in (.state) <$> runEvents 0 events s0
