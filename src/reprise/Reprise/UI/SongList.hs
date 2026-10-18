@@ -14,6 +14,7 @@ module Reprise.UI.SongList
   , textRow
   , highlightFound
   , songText
+  , addedSongs
 
     -- * Rendering contexts
   , renderContext
@@ -219,6 +220,12 @@ songText :: AppEnv -> Song -> T.Text
 songText env song =
   spansText $
     renderFormat (plainContext env.config.songs) song env.config.statusBar.song
+
+-- | What the status bar says after songs were added.
+addedSongs :: AppEnv -> [Song] -> T.Text
+addedSongs env = \case
+  [song] -> "Added: " <> songText env song
+  songs -> "Added " <> countSongs (length songs)
 
 -- | Spans in a cell of exactly the given width, aligned and padded with
 -- spaces. Each span's style is the base, its own style, then the overlay.

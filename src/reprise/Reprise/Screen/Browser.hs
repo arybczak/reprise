@@ -724,11 +724,17 @@ returnToCursor s = case cursorItem s of
 
 -- | What the status bar says after an add.
 addedText :: AppEnv -> [(Int, BrowserItem)] -> T.Text
-addedText env = \case
-  [(_, EntryItem (SongEntry song))] -> "Added: " <> songText env song
-  [(_, EntryItem (DirectoryEntry d))] -> "Added /" <> d.path
-  [(_, EntryItem (PlaylistEntry p))] -> "Loaded " <> p.path
-  items -> "Added " <> countItems (length items)
+addedText env items = case traverse song items of
+  Just songs -> addedSongs env songs
+  Nothing -> case items of
+    [(_, EntryItem (DirectoryEntry d))] -> "Added /" <> d.path
+    [(_, EntryItem (PlaylistEntry p))] -> "Loaded " <> p.path
+    _ -> "Added " <> countItems (length items)
+  where
+    song :: (Int, BrowserItem) -> Maybe Song
+    song = \case
+      (_, EntryItem (SongEntry s)) -> Just s
+      _ -> Nothing
 
 -- | Update a directory in the database, or with Nothing the whole database.
 updateDatabase

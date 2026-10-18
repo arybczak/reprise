@@ -345,6 +345,9 @@ test_addSelected = do
     =<< added ["a", "n"]
   assertEqual "the message" (Just "Added 2 items") . message . (.state)
     =<< press ["a", "e"] selected
+  twoSongs <- answer ["file: dir/0.flac", "file: b/x.flac"] =<< press ["2"] =<< queued
+  assertEqual "only songs" (Just "Added 2 songs") . message . (.state)
+    =<< press ["insert", "down", "insert", "a", "e"] twoSongs
 
 test_addSelectedFromPlaylist :: Assertion
 test_addSelectedFromPlaylist = do

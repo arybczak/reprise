@@ -197,12 +197,7 @@ addMarked place = do
   let songs = mapMaybe (`Seq.lookup` s.mirror.queue) (markedPositions s)
       whole = filter (isNothing . (.range)) songs
       commands = [add song.file | song <- whole]
-      added =
-        ( case whole of
-            [song] -> "Added: " <> songText env song
-            _ -> "Added " <> countSongs (length whole)
-        )
-          <> withoutParts (length songs - length whole)
+      added = addedSongs env whole <> withoutParts (length songs - length whole)
   case (place, songs) of
     (_, []) -> showMessage "The queue is empty"
     -- A single song plays where it is.
