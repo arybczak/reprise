@@ -52,6 +52,7 @@ Keys that are new in reprise:
 - `M` moves the selection after the cursor, not above it, as every key
   that puts songs next to a song puts them after it.
 - `v A` selects the songs of the artist around the cursor.
+- `v r` with a single selected song selects from it to the cursor.
 - `:` runs an action by its name, e.g. `:volume 50` or `:add_path dir/x.flac`.
 - `escape` goes back from the lyrics, the song info and the help.
 

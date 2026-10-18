@@ -405,7 +405,7 @@ selectInList selection items findRows count = \case
     forM_ (Seq.lookup c items >>= fst) $ \k -> modifyS $ selection %~ toggleKey k
     forM_ move $ modifyWithEnv . moveListCursor
   SelectRange ->
-    getsS (selectRange itemKeys . view selection) >>= \case
+    getsS (\s -> selectRange itemKeys (focusedView s).cursor (view selection s)) >>= \case
       Nothing -> showMessage "Select the first and the last item of the range first"
       Just sel -> do
         modifyS $ selection .~ sel

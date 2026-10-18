@@ -43,6 +43,10 @@ test_selectRange = do
     =<< keys ["down", "insert", "down", "down", "down", "insert", "v", "r"] s
   assertEqual "selected while moving" (ids [2 .. 4]) . selected
     =<< keys ["down", "space", "down", "space", "v", "r"] s
+  assertEqual "from the selected song down to the cursor" (ids [2 .. 5]) . selected
+    =<< keys ["down", "insert", "down", "down", "down", "v", "r"] s
+  assertEqual "from the selected song up to the cursor" (ids [2 .. 4]) . selected
+    =<< keys ["end", "up", "insert", "up", "up", "v", "r"] s
   ten <- testState (80, 24) (statusOf Stopped Nothing 10) (songs 10)
   assertEqual "away from an earlier selection" (ids [1, 2, 6, 7, 8]) . selected
     =<< keys

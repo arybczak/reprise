@@ -301,7 +301,9 @@ ncmpcpp.
     user selected, so selecting both ends and then the range works as in
     ncmpcpp. ncmpcpp fills between the first and the last selected item,
     which also selects everything between the new range and an earlier
-    selection. Without two such items, reprise does what ncmpcpp does.
+    selection. With a single selected item, the range goes from it to the
+    cursor, which ncmpcpp doesn't do. Otherwise, reprise does what ncmpcpp
+    does.
   - Select album selects the songs around the cursor with the same album
     artist (or artist) and album. ncmpcpp compares the album only, so two
     albums called "Greatest Hits" next to each other were one.

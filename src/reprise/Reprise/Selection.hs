@@ -50,14 +50,20 @@ rangeEnds = 2
 
 -- | Fill the selection between the last two items that the user selected,
 -- so that a range doesn't swallow the items between it and an earlier
--- selection. Without them, between the first and the last selected item,
--- as in ncmpcpp. Nothing without a selected item. The keys are those of the
--- list's items, and an item without one can't be selected.
-selectRange :: Ord k => Seq.Seq (Maybe k) -> Selection k -> Maybe (Selection k)
-selectRange items sel =
+-- selection. With a single selected item, between it and the cursor.
+-- Otherwise, between the first and the last selected item, as in ncmpcpp.
+-- Nothing without a selected item. The keys are those of the list's items,
+-- and an item without one can't be selected.
+selectRange :: Ord k => Seq.Seq (Maybe k) -> Int -> Selection k -> Maybe (Selection k)
+selectRange items cursor sel =
   let positionOf k = Seq.findIndexL (== Just k) items
       ends = mapMaybe positionOf $ filter (`isSelected` sel) sel.lastSelected
-  in case if length ends == rangeEnds then ends else selectedPositions items sel of
+      range
+        | length ends == rangeEnds = ends
+        | otherwise = case selectedPositions items sel of
+            [p] -> [p, cursor]
+            ps -> ps
+  in case range of
        [] -> Nothing
        ps ->
          Just $
