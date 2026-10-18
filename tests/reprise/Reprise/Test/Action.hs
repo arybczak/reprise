@@ -74,18 +74,21 @@ test_renderParse =
 
 test_hint :: Assertion
 test_hint = do
-  assertEqual "the usage" "seek +Ns | -Ns | [h:]m:ss | N%" (actionHint "seek ")
+  assertEqual
+    "the usage, after the typed name"
+    "+Ns | -Ns | [h:]m:ss | N%"
+    (actionHint "seek ")
   assertEqual "an hour" "seek to 1:02:05" (actionHint "seek 1:02:05")
   assertEqual
     "written as it reads"
     (Right "seek 1:02:05")
     (renderAction <$> parseAction "seek 62:05")
-  assertEqual "while the arguments are wrong" "volume +N | -N | N" (actionHint "volume 1x")
+  assertEqual "while the arguments are wrong" "+N | -N | N" (actionHint "volume 1x")
   assertEqual "what it will do" "seek to 1:30" (actionHint "seek 1:30")
   assertEqual "an action without arguments" "quit" (actionHint "quit")
   assertEqual "not an action yet" "" (actionHint "se")
   assertEqual
-    "the usage of an argument, after a question that names the action"
+    "the usage, after a question that names the action"
     "+Ns | -Ns | [h:]m:ss | N%"
     (argumentHint "seek" "")
   assertEqual "what the argument will do" "seek to 1:30" (argumentHint "seek" "1:30")

@@ -444,15 +444,15 @@ parseAction input = case T.break isSpace (T.strip input) of
       _ -> ""
 
 -- | What the @:@ prompt shows while the user types a line: what the line
--- would do, or how to write the action that it names.
+-- would do, or how to write the arguments of the action that it names.
 actionHint :: T.Text -> T.Text
-actionHint input = case parseAction input of
-  Right a -> describeAction a
-  Left _ -> maybe "" usageOf . findSpec . fst $ T.break isSpace (T.strip input)
+actionHint input =
+  let (name, argument) = T.break isSpace (T.strip input)
+  in argumentHint name (T.stripStart argument)
 
--- | What the prompt of an action's argument shows while the user types it:
--- what the action would do, or how to write its argument. The question
--- names the action already.
+-- | What a prompt shows while the user types an action's argument: what
+-- the action would do, or how to write the argument. The user typed the
+-- action's name, or the prompt's question names it, so the hint doesn't.
 argumentHint :: T.Text -> T.Text -> T.Text
 argumentHint name argument = case parseAction (name <> " " <> argument) of
   Right a -> describeAction a

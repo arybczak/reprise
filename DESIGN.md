@@ -1734,11 +1734,10 @@ from the action's name, and the registry's parser takes the answer, so any
 action with arguments can become an "ask me" binding without new code,
 instead of a prompt action for each, such as ncmpcpp's `set_volume`.
 - **A hint** on the right of the line tells how to go on: the usage of the
-  action that the line names, e.g. `seek +Ns | -Ns | [h:]m:ss | N%`, and,
-  once the line parses, what `enter` will do, e.g. "seek to 1:30". The line
-  comes first; the hint gets the room that is left. In an action's own
-  prompt, whose question names the action, the usage leaves the name out:
-  `+Ns | -Ns | [h:]m:ss | N%`.
+  action's arguments, e.g. `+Ns | -Ns | [h:]m:ss | N%`, and, once the line
+  parses, what `enter` will do, e.g. "seek to 1:30". The usage leaves out
+  the action's name, which the user typed or the question names. The line
+  comes first; the hint gets the room that is left.
 - **An answer that doesn't parse** shows the registry's error with the usage.
   An empty line does nothing.
 - **Arguments** are words and lists, except for `add_path` and `command`,
