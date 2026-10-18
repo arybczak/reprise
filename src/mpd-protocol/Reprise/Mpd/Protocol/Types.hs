@@ -47,6 +47,9 @@ module Reprise.Mpd.Protocol.Types
     -- * Decoders
   , Decoder (..)
 
+    -- * Storage
+  , Mount (..)
+
     -- * Idle
   , Subsystem (..)
   , subsystemName
@@ -397,6 +400,22 @@ data Output = Output
 data Decoder = Decoder
   { plugin :: T.Text
   , suffixes :: [T.Text]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (NFData)
+
+----------------------------------------
+-- Storage
+
+-- | A storage of MPD's database: the music directory, or one that a client
+-- mounted.
+data Mount = Mount
+  { path :: T.Text
+  -- ^ The directory of the database that it is mounted on, @""@ for the
+  -- music directory.
+  , storage :: Maybe T.Text
+  -- ^ Where its files are: a local path, or the URI of a remote storage.
+  -- MPD shows a local path only to a client on its socket.
   }
   deriving stock (Eq, Show, Generic)
   deriving anyclass (NFData)

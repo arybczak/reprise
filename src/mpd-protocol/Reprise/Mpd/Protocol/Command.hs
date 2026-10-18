@@ -87,6 +87,9 @@ module Reprise.Mpd.Protocol.Command
     -- * Decoders
   , decoders
 
+    -- * Storage
+  , listMounts
+
     -- * Connection
   , password
   , ping
@@ -434,6 +437,14 @@ disableOutput i = command "disableoutput" [toArgument i] noReply
 -- | The decoder plugins that MPD has.
 decoders :: Command [Decoder]
 decoders = command "decoders" [] parseDecoders
+
+----------------------------------------
+-- Storage
+
+-- | The storages of the database. Without a database, e.g. on a satellite
+-- that proxies another MPD's, it fails with 'AckNoExist'.
+listMounts :: Command [Mount]
+listMounts = command "listmounts" [] parseMounts
 
 ----------------------------------------
 -- Connection

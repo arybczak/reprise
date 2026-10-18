@@ -59,6 +59,7 @@ realServerTests =
         , ("stats", test_stats)
         , ("outputs", test_outputs)
         , ("readcomments", test_readComments)
+        , ("listmounts", test_listMounts)
         , ("idle", test_idle)
         , ("noidle", test_noidle)
         , ("a line break in a subsystem of idle", test_idleLineBreak)
@@ -501,6 +502,17 @@ test_outputs server = withConn server $ \conn -> do
   [o'] <- run conn outputs
   assertEqual "disabled" False o'.enabled
   run conn $ enableOutput o.outputId
+
+-- | The music directory's path shows only on the socket.
+test_listMounts :: TestServer -> Assertion
+test_listMounts server = do
+  onSocket <- withConn server (`run` listMounts)
+  assertEqual
+    "on the socket"
+    [Mount {path = "", storage = Just (T.pack (server.directory </> "music"))}]
+    onSocket
+  overTcp <- withConnection (tcpSettings server) (`run` listMounts)
+  assertEqual "over TCP" [Mount {path = "", storage = Nothing}] overTcp
 
 test_idle :: TestServer -> Assertion
 test_idle server = withConn server $ \idleConn -> do

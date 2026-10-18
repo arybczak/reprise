@@ -32,6 +32,7 @@ module Reprise.Mpd.Protocol.Response
   , parseComments
   , parseOutputs
   , parseDecoders
+  , parseMounts
   , parseSubsystems
   , parseSingleMode
   , parseConsumeMode
@@ -489,6 +490,17 @@ parseDecoders fields = parseAll parseDecoder =<< splitOn (== "plugin") fields
           { plugin = decode plugin
           , suffixes = map decode (M.findWithDefault [] "suffix" m)
           }
+
+-- | Parse the reply to @listmounts@.
+parseMounts :: [Field] -> Either T.Text [Mount]
+parseMounts fields = parseAll parseMount =<< splitOn (== "mount") fields
+  where
+    parseMount :: [Field] -> Either T.Text Mount
+    parseMount entry = do
+      let m = fieldMap entry
+      path <- required "mount" Just m
+      storage <- optional "storage" Just m
+      pure Mount {path = decode path, storage = decode <$> storage}
 
 -- | Parse the reply to @idle@.
 parseSubsystems :: [Field] -> Either T.Text [Subsystem]
