@@ -476,9 +476,9 @@ addMarked p = do
   forM_ s.browser.location $ \location -> case markedItems s of
     [] -> pure ()
     items
-      | isLocal location -> addLocal items p False
+      | isLocal location -> addLocal items (positionOf s p) False
       | otherwise -> do
-          mutate . addItems location items $ positionOf p
+          mutate . addItems location items $ positionOf s p
           env <- getAppEnv
           showMessage $ addedText env items
 
@@ -498,7 +498,7 @@ addAndPlayItems items = do
   forM_ s.browser.location $ \location -> case items of
     [] -> pure ()
     [(_, EntryItem (SongEntry song))] | i : _ <- queuedIds song s -> mutate $ playId i
-    _ | isLocal location -> addLocal items AddEnd True
+    _ | isLocal location -> addLocal items Nothing True
     _ -> do
       -- In one command list, which no other client's command interrupts, so
       -- the songs start at the length even if the mirror missed a change.
@@ -519,17 +519,21 @@ addOrRemove = do
       mutate $ traverse_ deleteId ids
       showMessage $ "Removed: " <> songText env song
     (location, item)
-      | isLocal location -> addLocal [item] AddEnd False
+      | isLocal location -> addLocal [item] Nothing False
       | otherwise -> do
           mutate $ addItems location [item] Nothing
           showMessage $ addedText env [item]
   modifyWithEnv $ moveListCursor MoveDown
 
-positionOf :: AddPosition -> Maybe Position
-positionOf = \case
+-- | Where an add goes, or 'Nothing' for the end. The cursor of the queue
+-- may be past its end after the queue shrank.
+positionOf :: AppState -> AddPosition -> Maybe Position
+positionOf s = \case
   AddEnd -> Nothing
   AddNext -> Just (AfterCurrent 0)
   AddBeginning -> Just (At 0)
+  AddCursor ->
+    Just . At . SongPos . min (queueLength s.mirror) . fst $ screenPosition QueueScreen s
 
 -- | Add local items after the walk of their directories, as MPD doesn't add
 -- a local directory, and play from the first, for add and play. Songs
@@ -539,7 +543,7 @@ positionOf = \case
 addLocal
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
   => [(Int, BrowserItem)]
-  -> AddPosition
+  -> Maybe Position
   -> Bool
   -> Eff es ()
 addLocal items p andPlay = do
@@ -586,7 +590,7 @@ localWalked token walkedFiles = do
     walked :: LocalAdd -> LocalAdd
     walked la =
       let files = merge la.entries walkedFiles
-      in la & #files ?~ maybe files (const (reverse files)) (positionOf la.position)
+      in la & #files ?~ maybe files (const (reverse files)) la.position
 
     merge :: [Entry] -> [[FilePath]] -> [T.Text]
     merge entries ws = case (entries, ws) of
@@ -612,7 +616,7 @@ sendLocalAdd la = case la.files of
   Just files -> do
     modifyS $ #browser % #localAdds % ix 0 .~ la
     requestOr
-      (traverse_ (`add` positionOf la.position) files)
+      (traverse_ (`add` la.position) files)
       (LocalAddFailed la.token)
       (const (LocalAdded la.token))
 

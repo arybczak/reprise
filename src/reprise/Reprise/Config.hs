@@ -1005,6 +1005,7 @@ defaultKeymaps =
               [ char 'e' ~> Add AddEnd
               , char 'n' ~> Add AddNext
               , char 'b' ~> Add AddBeginning
+              , char 'c' ~> Add AddCursor
               , char 'p' ~> AddAndPlay
               , char '/' ~> CommandPrompt "add_path"
               ]

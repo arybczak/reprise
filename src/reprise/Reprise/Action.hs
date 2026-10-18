@@ -118,7 +118,7 @@ data SelectTarget
 data FindTarget = FindForward | FindBackward | FindNext | FindPrevious
   deriving stock (Eq, Show, Enum, Bounded)
 
-data AddPosition = AddEnd | AddNext | AddBeginning
+data AddPosition = AddEnd | AddNext | AddBeginning | AddCursor
   deriving stock (Eq, Show, Enum, Bounded)
 
 data ToggleTarget
@@ -557,6 +557,7 @@ addName = \case
   AddEnd -> "end"
   AddNext -> "next"
   AddBeginning -> "beginning"
+  AddCursor -> "cursor"
 
 updateName :: UpdateScope -> T.Text
 updateName = \case
@@ -642,6 +643,7 @@ describeAction = \case
     AddEnd -> "add at the end"
     AddNext -> "add after the playing song"
     AddBeginning -> "add at the beginning"
+    AddCursor -> "add above the cursor of the queue"
   AddAndPlay -> "add and play"
   AddPath p -> "add " <> p
   Clear -> "clear"

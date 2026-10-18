@@ -50,6 +50,7 @@ browserTests =
     , testCase "enter plays a song" test_enterPlays
     , testCase "enter plays a song that is in the queue there" test_enterPlaysQueued
     , testCase "adding at a position" test_addPositions
+    , testCase "adding at the cursor of the queue" test_addAtCursor
     , testCase "add and play" test_addAndPlay
     , testCase "add or remove" test_addOrRemove
     , testCase "the songs of a playlist are loaded from it" test_addFromPlaylist
@@ -274,6 +275,19 @@ test_addPositions = do
   assertEqual "a playlist" [[Request "load" ["p"]]] =<< added ["end", "a", "e"]
   assertEqual "the message" (Just "Added /a") . message . (.state)
     =<< press ["a", "e"] s
+
+-- | Above the song under the cursor of the queue, as M moves the selection.
+-- A cursor past the end of a queue that shrank adds at the end.
+test_addAtCursor :: Assertion
+test_addAtCursor = do
+  inQueue <-
+    testState (80, 12) (statusOf Stopped Nothing 3) [song i [] 60 | i <- [0 .. 2]]
+  s <- answer rootReply =<< press ["down", "down", "2"] inQueue
+  assertEqual "the third song" [[Request "add" ["a", "2"]]] . (.requests)
+    =<< press ["a", "c"] s
+  let shrunk = s & #views % mapped % #positions % at QueueScreen ?~ (5, 0)
+  assertEqual "the end" [[Request "add" ["a", "3"]]] . (.requests)
+    =<< press ["a", "c"] shrunk
 
 test_addAndPlay :: Assertion
 test_addAndPlay =

@@ -104,7 +104,7 @@ In the browser, `enter` enters a directory and plays a song, and
 `backspace` goes up. `space` adds what is under the cursor to the queue, or
 removes it if it is there already. The group `a` adds the selection at a
 place: `a e` at the end, `a b` at the beginning, `a n` after the playing
-song, and `a p` adds and plays it.
+song, `a c` above the cursor of the queue, and `a p` adds and plays it.
 
 `2` in the browser switches to the local files, starting in your home
 directory, and back to MPD's database. MPD plays local files only for a

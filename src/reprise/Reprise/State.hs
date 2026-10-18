@@ -98,6 +98,7 @@ import Reprise.LineEdit
 import Reprise.LocalFiles
 import Reprise.Lyrics
 import Reprise.Mpd.Mirror
+import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Types
 import Reprise.Save
 import Reprise.Selection
@@ -325,7 +326,9 @@ data LocalAdd = LocalAdd
   { token :: Int
   , entries :: [Entry]
   -- ^ What the user added, in order.
-  , position :: AddPosition
+  , position :: Maybe Position
+  -- ^ Where the files go, or the end. The cursor of the queue is read at
+  -- the key, as it may move before the walk ends.
   , playFrom :: Maybe SongPos
   -- ^ Where to play after the add, for add and play.
   , files :: Maybe [T.Text]
