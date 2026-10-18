@@ -269,11 +269,8 @@ genFormat = Format . normalize <$> sized genItems
 
     genStyle :: Gen Style
     genStyle =
-      (\fg bg as -> Style fg bg (S.fromList as))
-        <$> genColor
-        <*> genColor
-        <*> sublistOf [minBound .. maxBound]
-          `suchThat` (/= mempty)
+      (Style <$> genColor <*> genColor <*> (S.fromList <$> sublistOf [minBound .. maxBound]))
+        `suchThat` (/= mempty)
 
     genColor :: Gen (Maybe Color)
     genColor = oneof [pure Nothing, pure (Just DefaultColor), Just . Color <$> arbitrary]

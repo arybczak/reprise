@@ -111,7 +111,9 @@ test_searchTooSlow :: Assertion
 test_searchTooSlow = case compilePattern "(a+)+b" of
   Left err -> assertFailure (T.unpack err)
   Right p -> do
-    let rows = Seq.replicate 4000 (foldText (T.replicate 16 "a"))
+    let row = foldText (T.replicate 16 "a")
+        rows = Seq.replicate 4000 row
+    assertEqual "a row on its own" (Right False) (matches p row)
     r <- timeout (5 * 1000000) . evaluate $ search p Forward 0 rows
     assertEqual "error" (Just (Left "the pattern is too slow")) r
 

@@ -718,7 +718,7 @@ test_passwordWaits = do
   assertEqual "then the password" password (question replaced)
   -- A line that the user types.
   finding <- runEvents 0 [PasswordNeeded refusal] =<< (.state) <$> keys ["/", "x"] s
-  assertBool "the find stays" (question finding /= password)
+  assertEqual "the find stays" (Just "Find forward: ") (question finding)
   assertEqual "then the password" password . question =<< keys ["escape"] finding.state
 
 ----------------------------------------

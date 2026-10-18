@@ -129,4 +129,4 @@ test_fromVty = do
   assertEqual "space" (spec "space") (fromVtyKey (V.KChar ' ') [])
   where
     spec :: T.Text -> Maybe KeySpec
-    spec = either (const Nothing) Just . parseKeySpec
+    spec = either (error . T.unpack) Just . parseKeySpec
