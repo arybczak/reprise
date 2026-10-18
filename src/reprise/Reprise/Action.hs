@@ -94,6 +94,7 @@ data Action
   | ChangeBrowseMode
   | RefetchLyrics
   | EditLyrics
+  | Rename
   deriving stock (Eq, Show)
 
 data MoveTarget
@@ -296,6 +297,7 @@ registry =
   , spec "change_browse_mode" "" $ none ChangeBrowseMode
   , spec "refetch_lyrics" "" $ none RefetchLyrics
   , spec "edit_lyrics" "" $ none EditLyrics
+  , spec "rename" "" $ none Rename
   ]
   where
     -- An action whose arguments are words and lists.
@@ -538,6 +540,7 @@ renderAction = \case
   ChangeBrowseMode -> "change_browse_mode"
   RefetchLyrics -> "refetch_lyrics"
   EditLyrics -> "edit_lyrics"
+  Rename -> "rename"
   where
     screenList :: [ScreenName] -> T.Text
     screenList ss = "[" <> T.intercalate ", " (map screenName ss) <> "]"
@@ -693,6 +696,7 @@ describeAction = \case
   ChangeBrowseMode -> "switch between the database and local files"
   RefetchLyrics -> "fetch the lyrics again"
   EditLyrics -> "edit the lyrics"
+  Rename -> "rename the directory"
 
 ----------------------------------------
 -- Helpers

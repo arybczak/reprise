@@ -5,6 +5,7 @@ module Reprise.Event
   ( AppEvent (..)
   , MouseButton (..)
   , Confirmation (..)
+  , Location (..)
   , FrameStats (..)
   ) where
 
@@ -73,6 +74,12 @@ data AppEvent
   | -- | The add with the token failed. MPD added the files before the one
     -- that failed.
     LocalAddFailed Int MpdError
+  | -- | MPD's storages, for renames of directories of a listing of its
+    -- database, by their paths and their new paths there.
+    MountsListed Location [(T.Text, T.Text)] [Mount]
+  | -- | How many directories of the browser's renames were renamed, and why
+    -- the next one wasn't, if one failed.
+    DirectoriesRenamed Int (Maybe T.Text)
   | ReplayGainFetched ReplayGainMode
   | -- | The reply to a command that changes MPD's state. The new state comes
     -- through idle.
@@ -137,6 +144,17 @@ data Confirmation
     ConfirmClear
   | -- | Shuffle the whole queue.
     ConfirmShuffle
+  deriving stock (Eq, Show)
+
+-- | What the browser lists. It is here, not with the browser's state, as
+-- events name it.
+data Location
+  = -- | A directory of the database, @""@ for the root.
+    InDirectory T.Text
+  | -- | The songs of a playlist.
+    InPlaylist T.Text
+  | -- | A directory of the local file system, by its absolute path.
+    InLocal T.Text
   deriving stock (Eq, Show)
 
 -- | What happened to the visualizer worker's frames in a second.

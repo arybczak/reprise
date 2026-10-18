@@ -35,6 +35,7 @@ import Reprise.Keys
 import Reprise.LineEdit
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Types
+import Reprise.Screen.Browser
 import Reprise.State
 import Reprise.StatusBar
 
@@ -240,6 +241,7 @@ answer
 answer purpose text = case purpose of
   ForFind f -> acceptFind f text
   ForSave source -> saveNamed source (T.strip text)
+  ForRename location path -> renameTo location path text
   ForPassword -> answerPassword (Just text)
   ForCommand
     | T.null (T.strip text) -> pure ()

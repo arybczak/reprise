@@ -256,6 +256,7 @@ promptLine s question edit purpose =
         ForArgument name -> argumentHint name (lineEditText edit)
         ForFind f -> fromMaybe "" f.note
         ForSave _ -> ""
+        ForRename _ _ -> ""
         ForPassword -> ""
       shownEdit = case purpose of
         ForPassword -> LineEdit (stars edit.before) (stars edit.after)

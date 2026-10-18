@@ -16,6 +16,7 @@ import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Header
 import Reprise.Keys
+import Reprise.LineEdit
 import Reprise.LocalFiles
 import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Request
@@ -69,6 +70,10 @@ browserTests =
     , testCase "jump to the playing song" test_jumpToPlaying
     , testCase "a stream isn't in the browser" test_jumpWithStream
     , testCase "a long path scrolls" test_longPath
+    , testCase "rename a directory" test_rename
+    , testCase "a name that isn't one of a file" test_renameRefused
+    , testCase "a rename in MPD's storages" test_renameInStorages
+    , testCase "a rename that fails" test_renameFailed
     , testGroup
         "local files"
         [ testCase "the home directory, after MPD's decoders" test_localHome
@@ -91,6 +96,7 @@ browserTests =
         , testCase "adds go in in order" test_localAddsInOrder
         , testCase "adding before MPD's decoders are known" test_localAddWithoutDecoders
         , testCase "MPD refuses local files" test_localAddRefused
+        , testCase "rename a local directory" test_renameLocal
         ]
     ]
 
@@ -453,6 +459,101 @@ test_jumpWithStream = do
   assertEqual "no listing" [] r.requests
   assertEqual "the error" (Just True) ((.isError) <$> r.state.message)
   assertEqual "the queue stays" QueueScreen (focusedView r.state).screen
+
+-- | A directory of MPD's database, in the music directory that MPD names.
+-- The cursor goes to the new name once MPD's update found it. The same name
+-- renames nothing.
+test_rename :: Assertion
+test_rename = do
+  asked <- press ["e", "r"] =<< root
+  assertEqual
+    "the prompt, with the name"
+    ( Just
+        (Prompt "Rename to: " (Line (LineEdit "a" "") (ForRename (InDirectory "") "a") Nothing))
+    )
+    asked.state.prompt
+  same <- press ["enter"] asked.state
+  assertEqual "the same name: no request" [] same.requests
+  assertEqual "the same name: no rename" [] (renames same)
+  assertEqual "the same name: no message" Nothing (message same.state)
+  typed <- press ["backspace", "z", "enter"] asked.state
+  assertEqual "MPD's storages" [[Request "listmounts" []]] typed.requests
+  renamed <- answerLast musicMount typed
+  assertEqual "the rename" [RenameDirectories [("/music/a", "/music/z")]] (renames renamed)
+  done <- runEvents 0 [DirectoriesRenamed 1 Nothing] renamed.state
+  assertEqual "MPD's update" [[Request "update" []]] done.requests
+  assertEqual "the message" (Just "Renamed a to z") (message done.state)
+  updated <- runEvents 0 [MpdChanged [DatabaseSubsystem]] done.state
+  relisted <- answer ["directory: b", "directory: z", "playlist: p"] updated
+  assertEqual "the cursor on the new name" 1 (focusedView relisted).cursor
+
+test_renameRefused :: Assertion
+test_renameRefused = do
+  s <- root
+  forM_
+    [ (["x", "/", "y"], "A name can't contain /")
+    , ([".", "."], "A name can't be ..")
+    , ([], "A name can't be empty")
+    ]
+    $ \(typed, why) -> do
+      r <- press (["e", "r", "backspace"] <> typed <> ["enter"]) s
+      assertEqual (T.unpack why <> ": no rename") [] (renames r)
+      assertEqual (T.unpack why) (Just why) (message r.state)
+  assertEqual "a playlist" (Just "There is no directory under the cursor")
+    . message
+    . (.state)
+    =<< press ["end", "e", "r"] s
+  tcp <- press ["e", "r"] =<< overTcp s
+  assertEqual
+    "over TCP"
+    (Just "Renaming in MPD's database needs a connection to MPD's socket")
+    (message tcp.state)
+  assertEqual "no prompt" Nothing tcp.state.prompt
+
+-- | Each directory is renamed in the storage that holds it, which must be
+-- local, and a mount point stays.
+test_renameInStorages :: Assertion
+test_renameInStorages = do
+  s <- root
+  let renamedWith mounts = answerLast mounts =<< press ["e", "r", "backspace", "z", "enter"] s
+  remote <- renamedWith ["mount: ", "storage: nfs://server/music"]
+  assertEqual "remote: no rename" [] (renames remote)
+  assertEqual
+    "remote"
+    (Just "a is on nfs://server/music, which isn't local")
+    (message remote.state)
+  mountPoint <- renamedWith (musicMount <> ["mount: a", "storage: /mnt/a"])
+  assertEqual "a mount point: no rename" [] (renames mountPoint)
+  assertEqual "a mount point" (Just "a is a mount point of MPD") (message mountPoint.state)
+  inA <- answer ["directory: a/c"] =<< press ["enter"] s
+  inMount <-
+    answerLast (musicMount <> ["mount: a", "storage: /mnt/a"])
+      =<< press ["down", "e", "r", "backspace", "z", "enter"] inA
+  assertEqual "in a mount" [RenameDirectories [("/mnt/a/c", "/mnt/a/z")]] (renames inMount)
+
+test_renameFailed :: Assertion
+test_renameFailed = do
+  renamed <- answerLast musicMount =<< press ["e", "r", "backspace", "z", "enter"] =<< root
+  failed <- runEvents 0 [DirectoriesRenamed 0 (Just "z: permission denied")] renamed.state
+  assertEqual "the error" (Just ("z: permission denied", True)) (errorOf failed)
+  assertEqual "no update" [] failed.requests
+  where
+    errorOf :: Result -> Maybe (T.Text, Bool)
+    errorOf r = (\m -> (m.text, m.isError)) <$> r.state.message
+
+-- | A local directory, by its path. MPD's database doesn't change.
+test_renameLocal :: Assertion
+test_renameLocal = do
+  r <- press ["down", "e", "r", "backspace", "backspace", "z", "enter"] =<< inHome
+  assertEqual
+    "the rename"
+    [RenameDirectories [("/home/user/Music", "/home/user/Musz")]]
+    (renames r)
+  done <- runEvents 0 [DirectoriesRenamed 1 Nothing] r.state
+  assertEqual "no update" [] done.requests
+  assertEqual "the listing again" ["/home/user"] (localListings done)
+  relisted <- listedWith [localDirectory "Books", localDirectory "Musz"] done
+  assertEqual "the cursor on the new name" 2 (focusedView relisted.state).cursor
 
 -- | Nothing plays, and the title scrolls all the same.
 test_longPath :: Assertion
@@ -943,3 +1044,11 @@ message s = (.text) <$> s.message
 overTcp :: AppState -> IO AppState
 overTcp =
   fmap (.state) . runEvents 0 [MpdConnected (Version 0 24 0) (TcpAddress "localhost" 6600)]
+
+-- | MPD's reply to @listmounts@ with its music directory, @/music@.
+musicMount :: [BS.ByteString]
+musicMount = ["mount: ", "storage: /music"]
+
+-- | The renames that a result asked for.
+renames :: Result -> [UiCommand]
+renames r = [c | c@(RenameDirectories _) <- r.commands]

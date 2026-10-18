@@ -23,6 +23,11 @@ module Reprise.Screen.Browser
 
     -- * Updating
   , updateDatabase
+
+    -- * Renaming
+  , renameTo
+  , mountsListed
+  , directoriesRenamed
   ) where
 
 import Control.Monad
@@ -49,10 +54,12 @@ import Reprise.Effect.MpdRequest
 import Reprise.Effect.UiRequest
 import Reprise.Event
 import Reprise.Exception
+import Reprise.File
 import Reprise.Find
 import Reprise.Format
 import Reprise.Groups
 import Reprise.Handler.Core
+import Reprise.LineEdit
 import Reprise.LocalFiles
 import Reprise.Mpd.Mirror
 import Reprise.Mpd.Protocol.Command hiding (currentSong)
@@ -172,6 +179,7 @@ browserVerb = \case
         Just (InLocal _) -> showMessage "Local files aren't in MPD's database"
         _ -> updateDatabase =<< getsS browserDirectory
   ChangeBrowseMode -> Just changeBrowseMode
+  Rename -> Just askRename
   _ -> Nothing
 
 -- | Show the songs in the other display, which finds match too.
@@ -429,6 +437,11 @@ browserListed token entries = whenCurrent (.browser.listing) (.token) token $ \l
       & #browser % #listing .~ Nothing
   modifyWithEnv $ setItems items
   modifyWithEnv $ placeCursor l.cursor
+  landOn <- getsS (.browser.landOn)
+  forM_ landOn $ \(location, k) ->
+    when (location == l.location && any ((== k) . itemKey) items) $ do
+      modifyS $ #browser % #landOn .~ Nothing
+      modifyWithEnv $ placeCursor (JumpTo k)
 
 ----------------------------------------
 -- Selection
@@ -784,6 +797,152 @@ whenOnSocket overTcp action =
     Connected _ (UnixAddress _) -> action
     Connected _ _ -> showError overTcp
     _ -> showError "Not connected to MPD"
+
+----------------------------------------
+-- Renaming
+
+-- | Ask for a new name of the directory under the cursor, starting from its
+-- name. The selection stays out of it, as one name is for one directory.
+askRename :: (State AppState :> es, UiRequest :> es) => Eff es ()
+askRename = do
+  s <- getS
+  case (s.browser.location, cursorItem s) of
+    (Just location, Just (_, EntryItem (DirectoryEntry d))) ->
+      whenRenamable location
+        $ modifyS
+        $ openLine
+          "Rename to: "
+          (LineEdit (T.pack (takeFileName (T.unpack d.path))) "")
+          (ForRename location d.path)
+    _ -> showMessage "There is no directory under the cursor"
+
+-- | Rename a directory of a listing, by its path there, to a name that the
+-- user typed. A name that isn't one of a file is refused, also when the
+-- rule of the names that reprise makes leaves out one of its characters.
+-- The same name renames nothing.
+renameTo
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Location
+  -> T.Text
+  -> T.Text
+  -> Eff es ()
+renameTo location path name
+  | T.null name = showError "A name can't be empty"
+  | name `elem` [".", ".."] = showError $ "A name can't be " <> name
+  | Just c <- T.find (`elem` forbiddenInNames) name =
+      showError $ "A name can't contain " <> T.singleton c
+  | new == path = pure ()
+  | otherwise = renameIn location [(path, new)]
+  where
+    new :: T.Text
+    new = T.pack (replaceFileName (T.unpack path) (T.unpack name))
+
+-- | Run an action if the directories of a listing can be renamed: MPD shows
+-- where those of its database are only on its socket.
+whenRenamable
+  :: (State AppState :> es, UiRequest :> es)
+  => Location
+  -> Eff es ()
+  -> Eff es ()
+whenRenamable location action = case location of
+  InDirectory _ ->
+    whenOnSocket "Renaming in MPD's database needs a connection to MPD's socket" action
+  _ -> action
+
+-- | Rename directories of a listing, by their paths and their new paths
+-- there. Those of MPD's database are renamed once MPD said where they are.
+renameIn
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Location
+  -> [(T.Text, T.Text)]
+  -> Eff es ()
+renameIn location renames = whenRenamable location $ case location of
+  InLocal _ -> startRenames location renames [(T.unpack old, T.unpack new) | (old, new) <- renames]
+  _ -> request listMounts (MountsListed location renames)
+
+-- | Rename directories of MPD's database in the storages that hold them,
+-- which must be local.
+mountsListed
+  :: (State AppState :> es, UiRequest :> es)
+  => Location
+  -> [(T.Text, T.Text)]
+  -> [Mount]
+  -> Eff es ()
+mountsListed location renames mounts =
+  either showError (startRenames location renames) $ traverse onDisk renames
+  where
+    onDisk :: (T.Text, T.Text) -> Either T.Text (FilePath, FilePath)
+    onDisk (old, new) = do
+      forM_ [old, new] $ \path ->
+        when (any ((== path) . (.path)) mounts) . Left $ path <> " is a mount point of MPD"
+      -- Both are in the same directory, so in the same storage.
+      let deepest = listToMaybe $ L.sortOn (Down . T.length . (.path)) (filter (holds old) mounts)
+      case (deepest, (.storage) =<< deepest) of
+        (Just m, Just dir)
+          | "/" `T.isPrefixOf` dir -> Right (inStorage m dir old, inStorage m dir new)
+        (_, Just uri) -> Left $ old <> " is on " <> uri <> ", which isn't local"
+        (_, Nothing) -> Left $ "MPD doesn't say where " <> old <> " is"
+
+    holds :: T.Text -> Mount -> Bool
+    holds path m = T.null m.path || (m.path <> "/") `T.isPrefixOf` path
+
+    inStorage :: Mount -> T.Text -> T.Text -> FilePath
+    inStorage m dir path =
+      T.unpack dir
+        </> T.unpack (if T.null m.path then path else T.drop (T.length m.path + 1) path)
+
+-- | Rename directories of a listing, by their paths and their new paths
+-- there, and on the disk.
+startRenames
+  :: (State AppState :> es, UiRequest :> es)
+  => Location
+  -> [(T.Text, T.Text)]
+  -> [(FilePath, FilePath)]
+  -> Eff es ()
+startRenames location renames onDisk = do
+  modifyS $ #browser % #renaming ?~ Renaming {location = location, renames = renames}
+  renameDirectories onDisk
+
+-- | After the renames: list the directories under their new names, with the
+-- cursor on the first one. MPD's database has them once its update found
+-- them.
+directoriesRenamed
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Int
+  -> Maybe T.Text
+  -> Eff es ()
+directoriesRenamed n failure = do
+  renaming <- getsS (.browser.renaming)
+  forM_ renaming $ \r -> do
+    modifyS $ #browser % #renaming .~ Nothing
+    forM_ (listToMaybe r.renames) $ \(_, first) -> when (n > 0) $ case r.location of
+      InLocal _ -> list r.location (JumpTo (DirectoryKey first))
+      _ -> do
+        modifyS $ #browser % #landOn ?~ (r.location, DirectoryKey first)
+        mutate . void . update $ case r.location of
+          InDirectory "" -> Nothing
+          InDirectory path -> Just path
+          _ -> Nothing
+    case (failure, r.renames) of
+      (Nothing, [(old, new)]) ->
+        showMessage $ "Renamed " <> nameOf old <> " to " <> nameOf new
+      (Nothing, _) -> showMessage $ "Renamed " <> countDirectories n
+      (Just err, _)
+        | n == 0 -> showError err
+        | otherwise ->
+            showError $
+              "Renamed "
+                <> T.pack (show n)
+                <> " of "
+                <> countDirectories (length r.renames)
+                <> ", then: "
+                <> err
+  where
+    nameOf :: T.Text -> T.Text
+    nameOf = T.pack . takeFileName . T.unpack
+
+    countDirectories :: Int -> T.Text
+    countDirectories k = T.pack (show k) <> if k == 1 then " directory" else " directories"
 
 ----------------------------------------
 -- Sorting

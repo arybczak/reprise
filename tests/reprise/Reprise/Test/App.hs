@@ -5,6 +5,7 @@ import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad
 import Data.ByteString qualified as BS
+import Data.Maybe
 import System.Directory
 import System.FilePath
 import System.IO.Temp
@@ -21,7 +22,30 @@ appTests =
     "app"
     [ testCase "the editor gets the file as an argument" test_runEditor
     , testCase "an action in the background" test_inBackground
+    , testCase "renames only rename" test_renameAll
     ]
+
+-- | An empty directory of the new name is replaced, as @rename@ does. One
+-- with a file stops the renames, and nothing of either directory goes.
+test_renameAll :: Assertion
+test_renameAll = withSystemTempDirectory "rename" $ \dir -> do
+  mapM_ (createDirectory . (dir </>)) ["a", "b", "empty", "full"]
+  BS.writeFile (dir </> "full" </> "x") "x"
+  BS.writeFile (dir </> "b" </> "y") "y"
+  r <-
+    renameAll
+      [ (dir </> "a", dir </> "empty")
+      , (dir </> "b", dir </> "full")
+      , (dir </> "c", dir </> "d")
+      ]
+  case r of
+    DirectoriesRenamed n failure -> do
+      assertEqual "renamed" 1 n
+      assertBool "why the next one wasn't" (isJust failure)
+    other -> assertFailure $ "not the renames' event: " <> show other
+  assertBool "over the empty directory" . not =<< doesDirectoryExist (dir </> "a")
+  assertBool "the file in the full directory" =<< doesFileExist (dir </> "full" </> "x")
+  assertBool "the directory that wasn't renamed" =<< doesFileExist (dir </> "b" </> "y")
 
 -- | The event comes from another thread, also when the action fails, so
 -- that a listing never waits for good.

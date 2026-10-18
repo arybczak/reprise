@@ -158,6 +158,24 @@ ncmpcpp.
     `add`. The tracks of a cue sheet are ranges of one file, and adding the
     file would add all of it.
   - **The browser deletes no playlists.** Only the playlist editor will.
+- `rename` renames the directory under the cursor, after asking for the new
+  name, which starts as the old one. The selection stays out of it, as one
+  name is for one directory.
+  - **Only a rename, never a copy and a delete,** so no file goes: across file
+    systems it fails. An empty directory of the new name is replaced, as
+    `rename` does.
+  - **A typed name is refused** if it is empty, `.` or `..`, or holds a
+    character that the names that reprise makes leave out, e.g. `/`, rather
+    than changed behind the user's back.
+  - **A directory of MPD's database** is renamed in the storage that holds
+    it, which `listmounts` names, and MPD updates the directory above it.
+    The cursor goes to the new name once the update found it. It needs a
+    connection to MPD's socket, where MPD shows the paths of its storages. A
+    storage that isn't a local path, e.g. `nfs://server/music`, is refused,
+    and so is a mount point. A local directory is listed again at once, and
+    MPD isn't told.
+  - Queued songs and stored playlists keep the old paths, which MPD then
+    can't find.
 - Sort by type, name, mtime, a custom format, or not at all, and
   `next_sort_mode` goes through the modes for the session, as in ncmpcpp:
   - Every mode but none puts the directories first, then the songs, then
@@ -2097,9 +2115,12 @@ one, also when it refuses the password, so that the user is asked for it.
 The port is found on its own: `--port`, the config,
 `$MPD_PORT`, then 6600. So `$MPD_PORT` applies to a host from the config.
 
-There is no music directory option yet. No core feature needs it, and file
-deletion is never implemented. It comes back with the first feature that reads
-files directly: the tag editor, or lyrics stored next to the song.
+There is no option for MPD's `music_directory`. A rename in MPD's database,
+the first feature that changes files there, asks MPD with `listmounts`.
+MPD shows a local path only to a client on its socket, which a rename
+needs anyway, as the files must be on the same machine. `config` would show
+the path too, but needs the `admin` permission, and doesn't show the
+storages mounted inside the database. File deletion is never implemented.
 
 ### Keymaps
 
@@ -2317,8 +2338,8 @@ ncmpcpp's default.
   `styles.list.inactive_cursor`, `window_border_color` →
   `styles.popup_border`. doc/ncmpcpp.md lists them when they work.
 - **The options of other later features:**
-  `mouse_list_scroll_whole_page`, `mpd_music_dir` and the tag editor's
-  options.
+  `mouse_list_scroll_whole_page` and the tag editor's options.
+- **`mpd_music_dir` isn't needed,** as reprise asks MPD.
 
 ## Testing
 

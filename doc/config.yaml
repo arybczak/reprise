@@ -273,6 +273,8 @@ keys:
     o: jump_to_playing           # the directory of the playing song
     u: update current            # the directory that the browser lists
     2: change_browse_mode        # MPD's database or local files
+    e:
+      r: rename                  # the directory under the cursor
     t:
       d: toggle display          # columns or classic
       o: next_sort_mode

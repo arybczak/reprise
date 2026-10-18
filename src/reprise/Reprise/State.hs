@@ -34,6 +34,7 @@ module Reprise.State
   , SongInfoState (..)
   , Location (..)
   , LocalAdd (..)
+  , Renaming (..)
   , BrowserItem (..)
   , Listing (..)
   , ListingCursor (..)
@@ -218,6 +219,9 @@ data LinePurpose
   | ForFind Finding
   | -- | The name of the stored playlist to save to.
     ForSave SaveSource
+  | -- | The new name of a directory, by the listing that shows it and its
+    -- path there.
+    ForRename Location T.Text
   | -- | The password that MPD asked for. The line shows as stars.
     ForPassword
   deriving stock (Eq, Show)
@@ -321,6 +325,20 @@ data BrowserState = BrowserState
   -- which a change of the mode lists again.
   , localAdds :: Seq.Seq LocalAdd
   -- ^ In the order of the keys. MPD adds the first, and the others wait.
+  , renaming :: Maybe Renaming
+  -- ^ The renames of directories, until they end.
+  , landOn :: Maybe (Location, ItemKey)
+  -- ^ The item that a listing of the location puts the cursor on once it
+  -- has it, e.g. a renamed directory once MPD's update found it.
+  }
+  deriving stock (Eq, Show, Generic)
+
+-- | Directories that the browser renames.
+data Renaming = Renaming
+  { location :: Location
+  -- ^ The listing that shows them.
+  , renames :: [(T.Text, T.Text)]
+  -- ^ The path of each directory and its new path, as the listing has them.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -343,16 +361,6 @@ data LocalAdd = LocalAdd
   -- ^ The files that MPD refused, as it can't read them.
   }
   deriving stock (Eq, Show, Generic)
-
--- | What the browser lists.
-data Location
-  = -- | A directory of the database, @""@ for the root.
-    InDirectory T.Text
-  | -- | The songs of a playlist.
-    InPlaylist T.Text
-  | -- | A directory of the local file system, by its absolute path.
-    InLocal T.Text
-  deriving stock (Eq, Show)
 
 data BrowserItem
   = -- | The way up, @..@.
@@ -553,6 +561,8 @@ initialState config =
           , suffixes = Nothing
           , otherMode = Nothing
           , localAdds = Seq.empty
+          , renaming = Nothing
+          , landOn = Nothing
           }
     , visualizer = newVisualizer Nothing
     , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing

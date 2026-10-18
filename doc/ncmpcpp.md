@@ -125,6 +125,8 @@ Options whose choice is fixed in reprise:
 - Seeking speeds up while the key is held, as with `incremental_seeking`.
 - Browsing local files hides the hidden ones, as with
   `show_hidden_files_in_local_browser`'s default.
+- There is no `mpd_music_dir`: reprise asks MPD where its music directory
+  is, which MPD tells only a client on its socket.
 - Colors are on unless the `NO_COLOR` environment variable is set.
 - The header, the status bar and the volume always show.
 - The cursor jumps to the playing song when reprise starts.

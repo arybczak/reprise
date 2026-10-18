@@ -50,6 +50,7 @@ runAction action = case action of
   Parent -> verb action
   Save -> verb action
   EditLyrics -> verb action
+  Rename -> verb action
   RefetchLyrics -> verb action
   NextSortMode -> verb action
   ChangeBrowseMode -> verb action

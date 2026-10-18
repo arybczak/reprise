@@ -22,6 +22,7 @@ module Reprise.Effect.UiRequest
   , saveToHistory
   , listLocal
   , walkLocal
+  , renameDirectories
   ) where
 
 import Data.Text qualified as T
@@ -66,6 +67,9 @@ data UiCommand
   | -- | Walk local directories for the music files of the browser's add
     -- with the token.
     WalkLocal Int Suffixes [FilePath]
+  | -- | Rename directories in turn, by their paths and their new paths,
+    -- until one fails.
+    RenameDirectories [(FilePath, FilePath)]
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -116,3 +120,7 @@ listLocal token suffixes = send . UiRequest . ListLocal token suffixes
 -- the token.
 walkLocal :: UiRequest :> es => Int -> Suffixes -> [FilePath] -> Eff es ()
 walkLocal token suffixes = send . UiRequest . WalkLocal token suffixes
+
+-- | Rename directories in turn, by their paths and their new paths.
+renameDirectories :: UiRequest :> es => [(FilePath, FilePath)] -> Eff es ()
+renameDirectories = send . UiRequest . RenameDirectories

@@ -6,6 +6,7 @@ module Reprise.App
   , runApp
   , eventQueueSize
   , runEditor
+  , renameAll
   , inBackground
   ) where
 
@@ -154,6 +155,9 @@ runApp env channels buildVty initial = do
             (LocalWalked token <$> walkLocalDirectories suffixes dirs)
             (const (LocalWalked token []))
           pure next
+        RenameDirectories renames -> do
+          inBackground channels.events (renameAll renames) (DirectoriesRenamed 0 . Just)
+          pure next
         Edit cmd file -> do
           V.shutdown =<< S.readIORef current
           failure <- runEditor cmd file
@@ -198,6 +202,21 @@ inBackground events action failed =
   void . forkIO $
     atomically . writeTBQueue events
       =<< action `catchSync` (pure . failed . exceptionText)
+
+-- | Rename directories in turn, until one fails: how many were renamed, and
+-- why the next one wasn't. Only a rename, which never copies or deletes:
+-- across file systems it fails. It replaces an empty directory of the new
+-- name, as @rename@ does.
+renameAll :: [(FilePath, FilePath)] -> IO AppEvent
+renameAll = go 0
+  where
+    go :: Int -> [(FilePath, FilePath)] -> IO AppEvent
+    go n = \case
+      [] -> pure $ DirectoriesRenamed n Nothing
+      (from, to) : rest ->
+        try @IOException (renameDirectory from to) >>= \case
+          Left err -> pure . DirectoriesRenamed n . Just $ exceptionText err
+          Right () -> go (n + 1) rest
 
 -- | What the loop does after an event.
 data Next

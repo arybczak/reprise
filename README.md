@@ -112,6 +112,11 @@ directory, and back to MPD's database. MPD plays local files only for a
 client on its socket, so the local files need a connection to it. If MPD
 runs as another user, the files must be yours or readable by everyone.
 
+`e r` renames the directory under the cursor. A directory of MPD's database
+is renamed in MPD's music directory, and MPD then updates its database.
+That needs a connection to MPD's socket, where MPD says where its music
+directory is.
+
 ### Selecting and editing the queue
 
 `insert` selects the song under the cursor, `shift-up` and `shift-down`
