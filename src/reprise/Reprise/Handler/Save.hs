@@ -82,10 +82,7 @@ saveTo name source mode = do
         ReplacePlaylist -> "Replaced " <> name <> " with " <> describeSave source
         AppendToPlaylist -> "Added " <> describeSave source <> " to " <> name
     )
-      <> case partsLeftOut source of
-        0 -> ""
-        1 -> ", without 1 part of a file"
-        n -> ", without " <> T.pack (show n) <> " parts of files"
+      <> withoutParts (partsLeftOut source)
   where
     addItem :: SaveItem -> Command ()
     addItem = \case

@@ -83,6 +83,8 @@ queueVerb = \case
     current <- getsS (currentPosition . (.mirror))
     if isJust current then modifyWithEnv jumpToPlaying else noCurrentSong
   Activate -> Just activate
+  Add p -> Just $ addMarked (Just p)
+  AddAndPlay -> Just $ addMarked Nothing
   Save -> Just $ getsS queueToSave >>= maybe (showMessage "The queue is empty") askSaveName
   Select t -> Just $ select t
   Delete -> Just deleteMarked
@@ -181,6 +183,33 @@ select t = do
 
 ----------------------------------------
 -- Changes
+
+-- | Add copies of the marked songs, at a place, or without one at the end
+-- to play the first, as the add keys add in the browser. A part of a file,
+-- e.g. a track of a cue sheet, is left out, as an add takes the whole file.
+addMarked
+  :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
+  => Maybe AddPosition
+  -> Eff es ()
+addMarked place = do
+  s <- getS
+  env <- getAppEnv
+  let songs = mapMaybe (`Seq.lookup` s.mirror.queue) (markedPositions s)
+      whole = filter (isNothing . (.range)) songs
+      commands = [add song.file | song <- whole]
+      added =
+        ( case whole of
+            [song] -> "Added: " <> songText env song
+            _ -> "Added " <> countSongs (length whole)
+        )
+          <> withoutParts (length songs - length whole)
+  case (place, songs) of
+    (_, []) -> showMessage "The queue is empty"
+    -- A single song plays where it is.
+    (Nothing, [song]) -> addAndPlayAt (Just song) commands added
+    _ | null whole -> showMessage $ "Added nothing" <> withoutParts (length songs)
+    (Just p, _) -> addAt p commands added
+    (Nothing, _) -> addAndPlayAt Nothing commands added
 
 -- | Play the song under the cursor.
 activate :: (State AppState :> es, MpdRequest :> es) => Eff es ()

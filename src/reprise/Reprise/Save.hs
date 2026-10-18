@@ -5,6 +5,7 @@ module Reprise.Save
   , songToSave
   , savedItems
   , partsLeftOut
+  , withoutParts
   ) where
 
 import Data.Maybe
@@ -48,3 +49,12 @@ partsLeftOut :: SaveSource -> Int
 partsLeftOut = \case
   SaveQueue -> 0
   SaveItems items -> length (filter (== SavePart) items)
+
+-- | The end of a message about songs that a number of parts of files were
+-- left out of, e.g. as a stored playlist or an add would get the whole
+-- file.
+withoutParts :: Int -> T.Text
+withoutParts = \case
+  0 -> ""
+  1 -> ", without 1 part of a file"
+  n -> ", without " <> T.pack (show n) <> " parts of files"

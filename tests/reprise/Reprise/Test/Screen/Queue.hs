@@ -26,6 +26,7 @@ queueTests =
     [ testCase "the cursor starts at the playing song" test_jumpAtStart
     , testCase "a priority for an empty queue" test_priorityEmpty
     , testCase "activate plays the song under the cursor" test_activate
+    , testCase "the add keys add copies, as in the browser" test_addCopies
     , testCase "follow the playing song" test_followPlaying
     , testCase "jump to playing centers the cursor" test_jumpCenters
     , testCase "delete the marked songs" test_delete
@@ -60,6 +61,39 @@ test_activate = do
   s <- testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
   assertEqual "play by id" [[Request "playid" ["2"]]] . (.requests)
     =<< keys ["down", "enter"] s
+
+-- | Song 2 plays.
+test_addCopies :: Assertion
+test_addCopies = do
+  s <- testState (80, 24) (statusOf Playing (Just 1) 3) (songs 3)
+  atEnd <- keys ["up", "a", "e"] s
+  assertEqual "at the end" [[Request "add" ["dir/0.flac"]]] atEnd.requests
+  assertEqual "the message" (Just "Added: A - 0") (message atEnd)
+  atStart <- keys ["insert", "down", "insert", "a", "b"] s
+  assertEqual
+    "in their order at the beginning"
+    [[Request "add" ["dir/2.flac", "0"], Request "add" ["dir/1.flac", "0"]]]
+    atStart.requests
+  assertEqual "the songs" (Just "Added 2 songs") (message atStart)
+  assertEqual "one plays where it is" [[Request "playid" ["1"]]] . (.requests)
+    =<< keys ["up", "a", "p"] s
+  let copies = [Request "add" ["dir/2.flac", "3"], Request "add" ["dir/1.flac", "3"]]
+  assertEqual "more play from the first copy" [copies <> [Request "play" ["3"]]]
+    . (.requests)
+    =<< keys ["insert", "down", "insert", "a", "p"] s
+  let part = song 2 [] 60 & #range ?~ SongRange 0 (Just 60)
+  withPart <- testState (80, 24) (statusOf Stopped Nothing 3) (take 2 (songs 3) <> [part])
+  parts <- keys ["down", "insert", "down", "insert", "a", "e"] withPart
+  assertEqual "without the part" [[Request "add" ["dir/1.flac"]]] parts.requests
+  assertEqual
+    "a note of the part"
+    (Just "Added: A - 1, without 1 part of a file")
+    (message parts)
+  onlyPart <- keys ["end", "a", "e"] withPart
+  assertEqual "nothing" [] onlyPart.requests
+  assertEqual "why" (Just "Added nothing, without 1 part of a file") (message onlyPart)
+  empty <- keys ["a", "e"] =<< testState (80, 24) (statusOf Stopped Nothing 0) []
+  assertEqual "an empty queue" (Just "The queue is empty") (message empty)
 
 test_followPlaying :: Assertion
 test_followPlaying = do

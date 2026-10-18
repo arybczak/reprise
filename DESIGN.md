@@ -125,6 +125,10 @@ ncmpcpp.
 - Jump to the playing song, or follow it automatically, and jump to it at
   the start.
 - Delete, move, clear, shuffle, set priority.
+- The add keys add copies of songs, by the browser's rules: a single song
+  that add and play adds plays where it is. A part of a file, e.g. a track
+  of a cue sheet loaded from it, is left out, as MPD's add takes the whole
+  file, and a range for the copy would need the copy's id first.
 
 **Browser (MPD database)**
 - `lsinfo` navigation, with a `..` entry. The header shows the path.
