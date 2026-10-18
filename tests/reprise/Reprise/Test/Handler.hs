@@ -46,6 +46,7 @@ handlerTests =
     , testCase "stale timers keep the screen" test_staleTimers
     , testCase "cursor movement" test_cursorMovement
     , testCase "album navigation" test_albumNavigation
+    , testCase "artist navigation" test_artistNavigation
     , testCase "queue changes" test_queueChanges
     , testCase "an MPD error shows in the status bar" test_mpdError
     , testCase "a redraw for the elapsed time" test_tick
@@ -335,11 +336,31 @@ test_albumNavigation = do
   assertEqual "next twice" 4 =<< cursorAfter ["]", "]"]
   assertEqual "start of the album" 2 =<< cursorAfter ["down", "down", "down", "["]
   assertEqual "previous album" 0 =<< cursorAfter ["down", "down", "["]
+  assertEqual "the last album" 4 =<< cursorAfter ["]", "]", "]"]
+  assertEqual "the first album" 0 =<< cursorAfter ["["]
+  let by a pos = song pos [(Artist, [a]), (Album, ["Hits"])] 60
+  hits <- testState (80, 24) (statusOf Stopped Nothing 3) [by "A" 0, by "B" 1, by "B" 2]
+  assertEqual "the same name by another artist" 1 . cursor =<< keys ["]"] hits
   -- 24 rows leave 20 for the list.
   let albums = [album (T.pack (show (i `div` 5))) i | i <- [0 .. 49]]
   assertEqual "a jump centers the cursor" (30, 20) . position
     =<< keys (replicate 6 "]")
     =<< testState (80, 24) (statusOf Stopped Nothing 50) albums
+
+-- | The songs of a compilation are of one artist, its album artist.
+test_artistNavigation :: Assertion
+test_artistNavigation = do
+  let by a pos = song pos [(Artist, [a])] 60
+      various a pos = song pos [(AlbumArtist, ["Various"]), (Artist, [a])] 60
+      q = [by "x" 0, various "y" 1, various "z" 2, by "x" 3, by "w" 4]
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) q
+  let cursorAfter ks = cursor <$> keys ks s
+  assertEqual "next" 1 =<< cursorAfter ["}"]
+  assertEqual "past the compilation" 3 =<< cursorAfter ["}", "}"]
+  assertEqual "start of the compilation" 1 =<< cursorAfter ["down", "down", "{"]
+  assertEqual "previous artist" 1 =<< cursorAfter ["end", "up", "{"]
+  assertEqual "the last artist" 4 =<< cursorAfter ["end", "}"]
+  assertEqual "the first artist" 0 =<< cursorAfter ["{"]
 
 test_queueChanges :: Assertion
 test_queueChanges = do
