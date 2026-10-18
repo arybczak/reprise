@@ -132,9 +132,10 @@ test_followBehindHelp = do
 
 test_noJumpFromHelp :: Assertion
 test_noJumpFromHelp = do
-  s <- keys ["f1"] =<< testState (80, 24) (statusOf Playing (Just 4) 5) (songs 5)
+  s <- keys ["up", "f1"] =<< testState (80, 24) (statusOf Playing (Just 4) 5) (songs 5)
   r <- keys ["o"] s.state
   assertEqual "help" HelpScreen (focusedView r.state).screen
+  assertEqual "the queue's cursor stays" 3 . cursor =<< keys ["1"] r.state
 
 ----------------------------------------
 -- Helpers

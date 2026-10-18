@@ -56,6 +56,7 @@ test_stale = do
           [failureOf (AckError (Ack AckNoExist 0 "readcomments" "x")) second]
           stale.state
       assertEqual "a failure is no comments" [] failed.state.songInfo.comments
+      assertEqual "a failure shows no error" Nothing failed.state.message
     ps -> assertFailure $ "two requests, not " <> show (length ps)
 
 test_stream :: Assertion

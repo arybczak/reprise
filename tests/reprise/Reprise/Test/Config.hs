@@ -111,7 +111,7 @@ test_keymapMerge = do
         , "    s: ~"
         , "    t:"
         , "      y: toggle single"
-        , "    d: ~"
+        , "    g: ~"
         ]
   let layers = startLayers QueueScreen (keymapsOf config.keys)
   assertEqual "replaced" (Bound Next) (lookupKey layers (key "p"))
@@ -124,7 +124,7 @@ test_keymapMerge = do
     "kept in a group"
     (Bound (Toggle ToggleRepeat))
     (lookupKeys layers (keys ["t", "r"]))
-  assertEqual "group removed" Unbound (lookupKey layers (key "d"))
+  assertEqual "group removed" Unbound (lookupKey layers (key "g"))
 
 test_columns :: Assertion
 test_columns = do

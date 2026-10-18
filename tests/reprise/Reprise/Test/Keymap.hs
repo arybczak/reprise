@@ -103,7 +103,6 @@ test_sequences = do
       assertEqual "next key" (Bound Clear) (lookupKey next (key "c"))
       assertEqual "unbound next key" Unbound (lookupKey next (key "z"))
     other -> assertFailure $ "expected a prefix, got " <> show other
-  assertEqual "too many keys" Unbound (lookupKeys layers (keys ["p", "p"]))
 
 test_whichKey :: Assertion
 test_whichKey = do

@@ -40,7 +40,15 @@ test_searchResults = do
     ]
     (take 3 results)
   assertBool "only songs" $ all (\(p, _) -> T.count "/" p == 2) results
-  assertBool "not the popular ones" $ all (\(p, _) -> "/kult/" `T.isPrefixOf` p) results
+  assertEqual
+    "not the links before the heading"
+    (Just [("/b/song", "B - Song")])
+    ( searchResults . T.concat $
+        [ "<a href=\"/a/song\" class=\"title\" title=\"A - Song\">A - Song</a>"
+        , "<h2>Znalezione utwory:</h2>"
+        , "<a href=\"/b/song\" class=\"title\" title=\"B - Song\">B - Song</a>"
+        ]
+    )
   assertEqual "not a page of a search" Nothing . searchResults =<< page "song.html"
 
 -- | The page of Arahja, with other lyrics and another translation in it.

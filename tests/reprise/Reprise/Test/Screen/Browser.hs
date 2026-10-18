@@ -381,8 +381,9 @@ test_find = do
   r <- press ["/", "b", "enter"] =<< root
   assertEqual "the cursor is on b" 1 (focusedView r.state).cursor
   assertEqual "the pattern" (Just "b") r.state.findPattern
-  assertEqual "the next match wraps around" 1 . (.cursor) . focusedView . (.state)
-    =<< press ["."] r.state
+  again <- press ["."] r.state
+  assertEqual "the next match is b again" 1 (focusedView again.state).cursor
+  assertEqual "the note" (Just "Wrapped around to the top") (message again.state)
 
 test_sharedPattern :: Assertion
 test_sharedPattern =
