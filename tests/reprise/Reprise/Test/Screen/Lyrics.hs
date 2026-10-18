@@ -427,6 +427,7 @@ test_edit = do
     , ("words of a timed file", Stored "A - One.lrc", plainLyrics "Words", "A - One.lrc")
     , ("words", Stored "A - One.txt", plainLyrics "Words", "A - One.txt")
     , ("kept words of a timed file", Kept "A - One.lrc" [], plainLyrics "Words", "A - One.lrc")
+    , ("kept words", Kept "A - One.txt" [], plainLyrics "Words", "A - One.txt")
     , ("fetched times", Fetched "LRCLIB", timedTwenty, "A - One.lrc")
     , ("fetched words", Fetched "LRCLIB", plainLyrics "Words", "A - One.txt")
     ]

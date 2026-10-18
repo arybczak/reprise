@@ -48,6 +48,7 @@ responseTests =
     , testCase "empty value" test_emptyValue
     , testCase "unknown subsystem" test_unknownSubsystem
     , testCase "volume without a mixer" test_volumeWithoutMixer
+    , testCase "the length of a song" test_songLength
     , testCase "parsed songs hold no thunks" test_songsEvaluated
     , testCase "parsed entries hold no thunks" test_entriesEvaluated
     , testCase "parsed playlist names hold no thunks" test_playlistsEvaluated
@@ -171,6 +172,18 @@ test_unknownSubsystem =
     "a subsystem of a newer MPD"
     (Right [PlayerSubsystem, OtherSubsystem "future"])
     (parseSubsystems [Field "changed" "player", Field "changed" "future"])
+
+-- | @duration@ has the milliseconds that @Time@, of whole seconds, lacks.
+-- An older MPD sends only @Time@.
+test_songLength :: Assertion
+test_songLength = do
+  let lengthOf fields =
+        fmap (>>= (.duration)) . parseCommandReply currentSong $ [Field "file" "a.flac" : fields]
+  assertEqual
+    "duration"
+    (Right (Just 205.6))
+    (lengthOf [Field "Time" "205", Field "duration" "205.600"])
+  assertEqual "only Time" (Right (Just 205)) (lengthOf [Field "Time" "205"])
 
 test_volumeWithoutMixer :: Assertion
 test_volumeWithoutMixer = do

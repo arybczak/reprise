@@ -422,11 +422,12 @@ test_jumpToBrowser = do
 
 test_jumpToPlaying :: Assertion
 test_jumpToPlaying = do
-  playing <- testState (80, 12) (statusOf Playing (Just 0) 1) [song 0 [] 60]
-  r <- press ["o"] =<< answer rootReply =<< press ["2"] playing
+  -- The second song plays, and the queue's cursor is on the first.
+  playing <- testState (80, 12) (statusOf Playing (Just 1) 2) [song 0 [] 60, song 1 [] 60]
+  r <- press ["o"] =<< answer rootReply =<< press ["up", "2"] playing
   assertEqual "the listing of dir" [[Request "lsinfo" ["dir"]]] r.requests
-  s <- answer ["file: dir/9.flac", "file: dir/0.flac"] r
-  assertEqual "the cursor is on the song" 2 (focusedView s).cursor
+  s <- answer ["file: dir/9.flac", "file: dir/0.flac", "file: dir/1.flac"] r
+  assertEqual "the cursor is on the song" 3 (focusedView s).cursor
   assertEqual "no current song" (Just "There is no current song") . message . (.state)
     =<< press ["o"]
     =<< root

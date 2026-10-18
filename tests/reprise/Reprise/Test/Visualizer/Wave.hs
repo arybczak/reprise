@@ -16,6 +16,7 @@ waveTests =
   testGroup
     "wave"
     [ testCase "a steady sound stands still in the wave" test_triggerStill
+    , testCase "the wave starts at the latest rise" test_triggerLatest
     , testCase "the wave follows the bass" test_triggerBass
     , testCase "without a rise of the bass, the wave is of the last samples" test_triggerNone
     , testCase "the wave of silence" test_triggerSilence
@@ -42,6 +43,25 @@ test_triggerStill =
       L.find
         (\k -> BS.drop (k * frameBytes) earlier `BS.isPrefixOf` later)
         [0 .. BS.length earlier `div` frameBytes - 1]
+
+-- | A tone of 100 Hz that gets louder: each of its periods rises through
+-- zero. The last rise is in the wave's samples or the period before them,
+-- and the tone is loud a period before that, so the wave's first period is
+-- loud. From the first rise, in the first period of the samples that the
+-- wave keeps, it would be quiet.
+test_triggerLatest :: Assertion
+test_triggerLatest = do
+  w <- newWaveWindow
+  let tone loud i = loud * sin (2 * pi * 100 * fromIntegral (i `mod` period) / 44100)
+      quiet = historySamples * 2
+  pushWave w (sound (tone 5000) 0 quiet)
+  pushWave w (sound (tone 20000) quiet (quiet + waveSamples + 2 * period))
+  wave <- waveOf w
+  let peak = maximum . map abs . take period $ left wave
+  assertBool ("the peak of the first period: " <> show peak) (peak > 10000)
+  where
+    period :: Int
+    period = 441
 
 -- | A bass of 100 Hz and a treble of 2953 Hz as loud. The treble isn't a
 -- harmonic of the bass, so it rises through zero at other points of the
@@ -71,12 +91,6 @@ test_triggerBass = do
     bass = 10000
     treble = 10000
 
-    left :: BS.ByteString -> [Double]
-    left pcm =
-      [ sampleAt pcm (i * channels) * fromIntegral (maxBound @Int16)
-      | i <- [0 .. BS.length pcm `div` frameBytes - 1]
-      ]
-
 test_triggerNone :: Assertion
 test_triggerNone = do
   w <- newWaveWindow
@@ -95,6 +109,13 @@ test_triggerSilence = do
 
 ----------------------------------------
 -- Helpers
+
+-- | The samples of the left channel.
+left :: BS.ByteString -> [Double]
+left pcm =
+  [ sampleAt pcm (i * channels) * fromIntegral (maxBound @Int16)
+  | i <- [0 .. BS.length pcm `div` frameBytes - 1]
+  ]
 
 -- | The samples of a sound from an index until an end, the same in both
 -- channels.
