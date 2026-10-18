@@ -235,13 +235,13 @@ test_workerInBackground = withSystemTempDirectory "lyrics" $ \dir -> do
 test_workerTakesTurns :: Assertion
 test_workerTakesTurns = withSlowOne $ \src started release next -> do
   atomically . writeTVar src.background $ Just (titled "One")
-  takeMVar started
+  expectWithin $ takeMVar started
   atomically . writeTVar src.requested $ Just (1, LyricsRequest (titled "Two") False)
   assertEqual "Two" [LyricsFetching 1 "LRCLIB", LyricsLoaded 1 (fromLrclib "Two")]
     =<< sequence [next, next]
-  takeMVar started
+  expectWithin $ takeMVar started
   atomically . writeTVar src.requested $ Just (2, LyricsRequest (titled "One") True)
-  takeMVar started
+  expectWithin $ takeMVar started
   atomically . writeTVar src.requested $ Just (3, LyricsRequest (titled "Three") False)
   assertEqual
     "Three after a newer request"
@@ -259,7 +259,7 @@ test_workerTakesTurns = withSlowOne $ \src started release next -> do
 test_workerTakesOver :: Assertion
 test_workerTakesOver = withSlowOne $ \src started release next -> do
   atomically . writeTVar src.background $ Just (titled "One")
-  takeMVar started
+  expectWithin $ takeMVar started
   atomically . writeTVar src.requested $ Just (1, LyricsRequest (titled "One") False)
   assertEqual "the fetcher that it asks" (LyricsFetching 1 "LRCLIB") =<< next
   putMVar release ()

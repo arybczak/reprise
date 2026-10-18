@@ -112,7 +112,7 @@ test_passwordCancelled = do
 -- | The idle connection sends the password that MPD accepted last.
 test_idlePassword :: Assertion
 test_idlePassword = withIdleWorker [] (Just "secret") $ \events callsRef _ -> do
-  connected <- atomically $ readTQueue events
+  connected <- expectWithin . atomically $ readTQueue events
   assertEqual "connected" (MpdConnected (Version 0 24 0)) connected
   assertEqual "calls" ["connect secret"] =<< S.readIORef callsRef
 
@@ -121,7 +121,7 @@ test_idlePassword = withIdleWorker [] (Just "secret") $ \events callsRef _ -> do
 -- command worker ask for it.
 test_idleRefused :: Assertion
 test_idleRefused = withIdleWorker [Right (), Left refusal] Nothing $ \events callsRef workers -> do
-  let nextEvent = atomically $ readTQueue events
+  let nextEvent = expectWithin . atomically $ readTQueue events
   assertEqual "connected" (MpdConnected (Version 0 24 0)) =<< nextEvent
   assertEqual "refused" (MpdDisconnected (exceptionText refusal)) =<< nextEvent
   assertEqual "a command that asks" [Request "status" []] . pendingRequestLines
@@ -190,7 +190,7 @@ test_noConnection = do
 -- command may fail on every connection, and each fetches the queue again.
 test_idleAfterCommandFailed :: Assertion
 test_idleAfterCommandFailed = withIdleWorker [] Nothing $ \events callsRef workers -> do
-  let nextEvent = atomically $ readTQueue events
+  let nextEvent = expectWithin . atomically $ readTQueue events
   assertEqual "connected" (MpdConnected (Version 0 24 0)) =<< nextEvent
   start <- getMonotonicTime
   atomically $ writeTVar workers.commandConnectionFailed True
@@ -310,7 +310,7 @@ runWorker outcomes commands answers = do
       collect pending n
         | n == 0 = pure []
         | otherwise = do
-            e <- atomically $ readTQueue events
+            e <- expectWithin . atomically $ readTQueue events
             pending' <- case (e, pending) of
               (PasswordNeeded _, a : as) -> do
                 atomically . writeTQueue requests $ PasswordAnswer a

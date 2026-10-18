@@ -13,6 +13,7 @@ import Network.Socket qualified as N
 import Network.Socket.ByteString qualified as N
 import System.FilePath
 import System.IO.Temp
+import System.Timeout
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -94,7 +95,7 @@ closedTests =
       withFakeServer server (\sock -> N.close sock >> putMVar closed ()) $ \address -> do
         conn <-
           connect Settings {address = address, password = Nothing, timeout = Just testTimeout}
-        takeMVar closed
+        expectWithin $ takeMVar closed
         r <- try @MpdError (run conn ping) `finally` close conn
         assertEqual "the error" (Left (ConnectionError Closed)) r
 
@@ -506,7 +507,7 @@ test_idle server = withConn server $ \idleConn -> do
   result <- S.newEmptyMVar
   _ <- forkIO $ idle idleConn [OptionsSubsystem] >>= S.putMVar result
   withConn server $ \conn -> run conn $ setRepeat True
-  r <- S.takeMVar result
+  r <- expectWithin $ S.takeMVar result
   assertEqual "changed" [OptionsSubsystem] r
 
 -- | A line break in the name of a subsystem would send a second command.
@@ -529,7 +530,7 @@ test_noidle server = withConn server $ \conn -> do
         S.tryTakeMVar result >>= \case
           Just r -> pure r
           Nothing -> yield >> loop
-  r <- loop
+  r <- expectWithin loop
   assertEqual "nothing changed" [] r
   run conn ping
 
@@ -550,6 +551,13 @@ tcpSettings server = (unixSettings server) {address = TcpAddress "127.0.0.1" ser
 -- | A reply from the local test server that takes this long means it hangs.
 testTimeout :: Seconds
 testTimeout = 10
+
+-- | Wait for what the server does at once, failing instead of hanging if
+-- it never comes.
+expectWithin :: IO a -> IO a
+expectWithin act =
+  timeout (ceiling (testTimeout * 1000000)) act
+    >>= maybe (assertFailure "nothing came") pure
 
 -- | Add every test song, in the order of 'songs'. Adding a directory would
 -- follow the order of the file system.
