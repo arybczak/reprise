@@ -1687,12 +1687,12 @@ each hold few lines, and more prompts are coming, e.g. the search engine's.
   name of its action, or recalls only lines of its own kind: a rule with
   exceptions is harder to predict than a history that holds every kind of
   line.
-- **`up`/`ctrl-p` and `down`/`ctrl-n` recall the lines that start with what
-  the user typed,** as in Vim and zsh. Typing the start of a line narrows
-  the history down to it. Going down past the newest line brings back the
-  typed one, and an edit makes the recalled line the typed one.
-- **`page_up` goes to the oldest matching line, and `page_down` back to the
-  typed one,** as bash's `beginning-of-history` and `end-of-history`.
+- **`up`/`ctrl-p` and `down`/`ctrl-n` go to the previous and the next
+  line,** as in bash, whatever the user typed. Going down past the newest
+  line brings back the typed one, and an edit makes the recalled line the
+  typed one.
+- **`page_up` goes to the oldest line, and `page_down` back to the typed
+  one,** as bash's `beginning-of-history` and `end-of-history`.
 - **Each line is kept once,** and using it again makes it the newest.
 - **The history keeps the last 1000 lines.** The number is the author's
   choice. It isn't an option: the recall filters the lines by what the user

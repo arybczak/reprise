@@ -15,6 +15,7 @@ module Reprise.History
 
 import Control.Monad
 import Data.ByteString qualified as BS
+import Data.Maybe
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -28,7 +29,8 @@ import Reprise.LineEdit
 -- typed.
 data Recall = Recall
   { typed :: LineEdit
-  -- ^ What the user typed. Only the lines that start with it are recalled.
+  -- ^ What the user typed, which going down past the newest line brings
+  -- back.
   , index :: Int
   -- ^ The line in the history, from the newest.
   }
@@ -48,46 +50,33 @@ remember line history
   | T.null (T.strip line) = history
   | otherwise = take historySize $ line : filter (/= line) history
 
--- | The next older line that starts with what the user typed, with the
--- cursor at its end.
+-- | The next older line.
 recallOlder :: [T.Text] -> LineEdit -> Maybe Recall -> Maybe (LineEdit, Recall)
 recallOlder history edit recall =
-  recallFirst (typedLine edit recall) . drop start $ zip [0 ..] history
-  where
-    start :: Int
-    start = maybe 0 ((+ 1) . (.index)) recall
+  recallAt history (typedLine edit recall) (maybe 0 ((+ 1) . (.index)) recall)
 
--- | The oldest line that starts with what the user typed, as bash's
--- @beginning-of-history@.
+-- | The oldest line, as bash's @beginning-of-history@.
 recallOldest :: [T.Text] -> LineEdit -> Maybe Recall -> Maybe (LineEdit, Recall)
 recallOldest history edit recall =
-  recallFirst (typedLine edit recall) . reverse $ zip [0 ..] history
+  recallAt history (typedLine edit recall) (length history - 1)
 
--- | The next newer line that starts with what the user typed, or what the
--- user typed after the newest one.
+-- | The next newer line, or what the user typed after the newest one.
 recallNewer :: [T.Text] -> Recall -> (LineEdit, Maybe Recall)
 recallNewer history recall =
-  maybe (recall.typed, Nothing) (fmap Just) . recallFirst recall.typed . reverse $
-    take recall.index (zip [0 ..] history)
+  maybe (recall.typed, Nothing) (fmap Just) $
+    recallAt history recall.typed (recall.index - 1)
 
--- | The first of lines of the history, by their indices from the newest,
--- that stands for what the user typed, with the cursor at its end.
-recallFirst :: LineEdit -> [(Int, T.Text)] -> Maybe (LineEdit, Recall)
-recallFirst typed ls = case filter (matches typed . snd) ls of
-  (i, line) : _ -> Just (LineEdit line T.empty, Recall typed i)
-  [] -> Nothing
+-- | The line at an index from the newest, if there is one, with the cursor
+-- at its end.
+recallAt :: [T.Text] -> LineEdit -> Int -> Maybe (LineEdit, Recall)
+recallAt history typed i = do
+  guard $ i >= 0
+  line <- listToMaybe (drop i history)
+  pure (LineEdit line T.empty, Recall typed i)
 
 -- | What the user typed, before the line that a prompt recalled, if any.
 typedLine :: LineEdit -> Maybe Recall -> LineEdit
 typedLine edit = maybe edit (.typed)
-
--- | Whether a line can stand for what the user typed. The typed line itself
--- would change nothing.
-matches :: LineEdit -> T.Text -> Bool
-matches typed line = prefix `T.isPrefixOf` line && line /= prefix
-  where
-    prefix :: T.Text
-    prefix = lineEditText typed
 
 ----------------------------------------
 -- File

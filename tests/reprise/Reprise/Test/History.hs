@@ -17,7 +17,7 @@ historyTests =
     "history"
     [ testCase "remember a line" test_remember
     , testCase "recall older and newer lines" test_recall
-    , testCase "recall the lines that start with what was typed" test_recallPrefix
+    , testCase "recall any line, whatever was typed" test_recallAnyLine
     , testCase "the history file" test_historyFile
     , testProperty "the history of the lines of a file" prop_historyOfLines
     , testCase "the history of more lines than it keeps" test_historyOfManyLines
@@ -83,27 +83,22 @@ test_recall = do
   assertEqual "newer" (LineEdit "b" "", Just r2) (recallNewer history r3)
   assertEqual "back to the typed line" (typing, Nothing) (recallNewer history r1)
 
-test_recallPrefix :: Assertion
-test_recallPrefix = do
-  let history = ["volume 40", "seek 1:30", "seek ", "seek 0:10"]
-  (first, r1) <- older history (LineEdit "seek " "") Nothing
-  (second, r2) <- older history first (Just r1)
-  assertEqual "a match" (LineEdit "seek 1:30" "") first
-  assertEqual "skips the typed line itself" (LineEdit "seek 0:10" "") second
-  assertEqual "no more matches" Nothing (recallOlder history second (Just r2))
+-- | As in bash, what the user typed doesn't narrow the lines down.
+test_recallAnyLine :: Assertion
+test_recallAnyLine = do
+  let history = ["volume 40", "seek 1:30", "seek 0:10"]
+      typing = LineEdit "seek " ""
+  (first, r1) <- older history typing Nothing
+  assertEqual "the newest" (LineEdit "volume 40" "") first
   assertEqual
-    "back past the lines that don't match"
-    (LineEdit "seek 1:30" "", Just r1)
-    (recallNewer history r2)
-  assertEqual "nothing matches" Nothing (recallOlder history (LineEdit "x" "") Nothing)
+    "the oldest"
+    (Just (LineEdit "seek 0:10" "", Recall typing 2))
+    (recallOldest history typing Nothing)
   assertEqual
-    "the oldest match"
-    (Just (LineEdit "seek 0:10" "", r2))
-    (recallOldest history (LineEdit "seek " "") Nothing)
-  assertEqual
-    "the oldest match from a recalled line"
-    (Just (LineEdit "seek 0:10" "", r2))
+    "the oldest from a recalled line"
+    (Just (LineEdit "seek 0:10" "", Recall typing 2))
     (recallOldest history first (Just r1))
+  assertEqual "back to the typed line" (typing, Nothing) (recallNewer history r1)
 
 -- | The next older line, which the test expects.
 older :: [T.Text] -> LineEdit -> Maybe Recall -> IO (LineEdit, Recall)

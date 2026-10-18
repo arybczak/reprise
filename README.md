@@ -156,9 +156,9 @@ it. [doc/config.yaml](doc/config.yaml) shows the action of every key.
 The prompts in the status bar share a history of the last 1000 lines,
 which reprise keeps in `~/.local/state/reprise/history`
 (`$XDG_STATE_HOME/reprise/history`). `up` and `down`, or `ctrl-p` and
-`ctrl-n`, go through the lines that start with what you typed, so `up`
-after `g s` goes through the earlier seeks. `page_up` goes to the oldest
-of them, and `page_down` back to what you typed. The password isn't kept.
+`ctrl-n`, go to the previous and the next line, as in bash. `page_up` goes
+to the oldest line, and `page_down` back to what you typed. The password
+isn't kept.
 
 ### Lyrics
 

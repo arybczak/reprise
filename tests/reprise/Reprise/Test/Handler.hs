@@ -738,8 +738,8 @@ test_promptHistory = do
         _ -> Nothing
   assertEqual "shared" (Just "volume 30") . lineOf
     =<< keys [":", "up", "up", "up"] used.state
-  assertEqual "only the lines that start with the typed one" (Just "1:30") . lineOf
-    =<< keys (["g", "s"] <> typed "1" <> ["up", "up"]) used.state
+  assertEqual "the newest, whatever was typed" (Just "song") . lineOf
+    =<< keys (["g", "s"] <> typed "1" <> ["up"]) used.state
   assertEqual "ctrl-p and ctrl-n" (Just "song") . lineOf
     =<< keys ["/", "ctrl-p", "ctrl-p", "ctrl-n"] used.state
   assertEqual "back to the typed line" (Just "vol") . lineOf
@@ -748,8 +748,8 @@ test_promptHistory = do
     =<< keys [":", "page_up"] used.state
   assertEqual "page down to the typed line" (Just "s") . lineOf
     =<< keys ([":"] <> typed "s" <> ["up", "up", "page_down"]) used.state
-  edited <- keys ([":", "up"] <> typed "x" <> ["up"]) used.state
-  assertEqual "an edit starts from the edited line" (Just "songx") (lineOf edited)
+  edited <- keys ([":", "up"] <> typed "x" <> ["up", "down"]) used.state
+  assertEqual "an edit makes the line the typed one" (Just "songx") (lineOf edited)
   finding <- testState (80, 24) (statusOf Stopped Nothing 5) titled
   assertEqual "a recalled find finds" 3 . cursor
     =<< keys ["/", "up"] (finding & #history .~ ["al"])
