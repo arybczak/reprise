@@ -347,19 +347,20 @@ test_albumNavigation = do
     =<< keys (replicate 6 "]")
     =<< testState (80, 24) (statusOf Stopped Nothing 50) albums
 
--- | The songs of a compilation are of one artist, its album artist.
+-- | An artist's albums are of one artist, and the songs of a compilation
+-- are of its album artist.
 test_artistNavigation :: Assertion
 test_artistNavigation = do
-  let by a pos = song pos [(Artist, [a])] 60
-      various a pos = song pos [(AlbumArtist, ["Various"]), (Artist, [a])] 60
-      q = [by "x" 0, various "y" 1, various "z" 2, by "x" 3, by "w" 4]
-  s <- testState (80, 24) (statusOf Stopped Nothing 5) q
+  let by a b pos = song pos [(Artist, [a]), (Album, [b])] 60
+      various a pos = song pos [(AlbumArtist, ["Various"]), (Artist, [a]), (Album, ["Hits"])] 60
+      q = [by "x" "a" 0, by "x" "b" 1, various "y" 2, various "z" 3, by "x" "c" 4, by "w" "d" 5]
+  s <- testState (80, 24) (statusOf Stopped Nothing 6) q
   let cursorAfter ks = cursor <$> keys ks s
-  assertEqual "next" 1 =<< cursorAfter ["}"]
-  assertEqual "past the compilation" 3 =<< cursorAfter ["}", "}"]
-  assertEqual "start of the compilation" 1 =<< cursorAfter ["down", "down", "{"]
-  assertEqual "previous artist" 1 =<< cursorAfter ["end", "up", "{"]
-  assertEqual "the last artist" 4 =<< cursorAfter ["end", "}"]
+  assertEqual "past the artist's albums" 2 =<< cursorAfter ["}"]
+  assertEqual "past the compilation" 4 =<< cursorAfter ["}", "}"]
+  assertEqual "start of the compilation" 2 =<< cursorAfter ["down", "down", "down", "{"]
+  assertEqual "previous artist" 2 =<< cursorAfter ["end", "up", "{"]
+  assertEqual "the last artist" 5 =<< cursorAfter ["end", "}"]
   assertEqual "the first artist" 0 =<< cursorAfter ["{"]
 
 test_queueChanges :: Assertion

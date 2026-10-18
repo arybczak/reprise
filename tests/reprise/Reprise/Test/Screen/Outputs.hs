@@ -52,10 +52,10 @@ test_toggle :: Assertion
 test_toggle = do
   s <- answer twoOutputs =<< press ["7"] =<< queueShown
   disabled <- press ["enter"] s
-  assertEqual "disabled" [[Request "disableoutput" ["0"]]] disabled.requests
+  assertEqual "disabled" [[Request "disableoutput" ["3"]]] disabled.requests
   assertEqual "its message" (Just "Output \"Speakers\" disabled") (message disabled.state)
   enabled <- press ["down", "enter"] s
-  assertEqual "enabled" [[Request "enableoutput" ["1"]]] enabled.requests
+  assertEqual "enabled" [[Request "enableoutput" ["5"]]] enabled.requests
   assertEqual "its message" (Just "Output \"Headphones\" enabled") (message enabled.state)
 
 test_changes :: Assertion
@@ -88,14 +88,15 @@ test_fewer = do
 ----------------------------------------
 -- Helpers
 
--- | An enabled output and a disabled one, as MPD lists them.
+-- | An enabled output and a disabled one, as MPD lists them. Their IDs
+-- aren't their rows, as of the outputs of a partition.
 twoOutputs :: [BS.ByteString]
 twoOutputs =
-  [ "outputid: 0"
+  [ "outputid: 3"
   , "outputname: Speakers"
   , "plugin: pulse"
   , "outputenabled: 1"
-  , "outputid: 1"
+  , "outputid: 5"
   , "outputname: Headphones"
   , "plugin: alsa"
   , "outputenabled: 0"

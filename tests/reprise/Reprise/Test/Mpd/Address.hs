@@ -1,10 +1,13 @@
 module Reprise.Test.Mpd.Address (addressTests) where
 
+import Control.Concurrent
 import Control.Exception
+import Control.Monad
 import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
 import Effectful
 import Network.Socket qualified as N
+import Network.Socket.ByteString qualified as N
 import Optics.Core
 import System.FilePath
 import System.IO.Temp
@@ -15,6 +18,7 @@ import Reprise.Config
 import Reprise.Effect.Mpd
 import Reprise.Mpd.Address
 import Reprise.Mpd.Protocol.Connection
+import Reprise.Mpd.Protocol.Types
 import Reprise.Mpd.TestServer
 
 addressTests :: TestTree
@@ -35,7 +39,11 @@ addressTests =
     , testCase "MPD_PORT that isn't a port" test_badEnvPort
     , testCase "the addresses to try" test_candidates
     , withResource (startTestServer []) stopTestServer $ \getServer ->
-        testCase "a socket that nothing listens on" (test_deadSocket getServer)
+        testGroup
+          "the next address"
+          [ testCase "after a socket that nothing listens on" (test_deadSocket getServer)
+          , testCase "not after an MPD too old" (test_oldServer getServer)
+          ]
     ]
 
 test_commandLine :: Assertion
@@ -208,6 +216,27 @@ test_deadSocket getServer = withSystemTempDirectory "mpd" $ \dir -> do
       . runMpd (settings (UnixAddress dead) NE.:| [settings (UnixAddress server.socketPath)])
       $ connectMpd Nothing
   assertBool "connected" (version >= minimumVersion)
+
+-- | An MPD that answers, but can't be used, is the one that the user asked
+-- for, so the next address isn't tried.
+test_oldServer :: IO TestServer -> Assertion
+test_oldServer getServer = withSystemTempDirectory "mpd" $ \dir -> do
+  server <- getServer
+  let old = dir </> "socket"
+      settings a = Settings {address = a, password = Nothing, timeout = Just 10}
+      greet sock = bracket (fst <$> N.accept sock) N.close $ \conn -> do
+        N.sendAll conn "OK MPD 0.1.0\n"
+        void $ N.recv conn 1
+  bracket (N.socket N.AF_UNIX N.Stream N.defaultProtocol) N.close $ \sock -> do
+    N.bind sock (N.SockAddrUnix old)
+    N.listen sock 1
+    bracket (forkIO (greet sock)) killThread $ \_ -> do
+      r <-
+        try @MpdError
+          . runEff
+          . runMpd (settings (UnixAddress old) NE.:| [settings (UnixAddress server.socketPath)])
+          $ connectMpd Nothing
+      assertEqual "the error" (Left (ConnectionError (UnsupportedVersion (Version 0 1 0)))) r
 
 ----------------------------------------
 -- Helpers
