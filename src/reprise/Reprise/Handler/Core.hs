@@ -434,13 +434,15 @@ selectInList selection items findRows count = \case
     selectGroup :: Eq g => (Song -> g) -> T.Text -> Eff es ()
     selectGroup key name = do
       c <- getsS ((.cursor) . focusedView)
-      forM_ (Seq.lookup c items >>= snd) $ \song -> do
-        let same i = (key <$> (Seq.lookup i items >>= snd)) == Just (key song)
-            earlier = takeWhile same [c - 1, c - 2 .. 0]
-            later = takeWhile same [c + 1 .. Seq.length items - 1]
-            group = earlier <> [c] <> later
-        modifyS $ selection %~ addKeys [k | i <- group, Just k <- [Seq.lookup i items >>= fst]]
-        showMessage $ name <> " around the cursor selected"
+      case Seq.lookup c items >>= snd of
+        Nothing -> showMessage "There is no song under the cursor"
+        Just song -> do
+          let same i = (key <$> (Seq.lookup i items >>= snd)) == Just (key song)
+              earlier = takeWhile same [c - 1, c - 2 .. 0]
+              later = takeWhile same [c + 1 .. Seq.length items - 1]
+              group = earlier <> [c] <> later
+          modifyS $ selection %~ addKeys [k | i <- group, Just k <- [Seq.lookup i items >>= fst]]
+          showMessage $ name <> " around the cursor selected"
 
 -- | Run with the pattern of the last find, and its text, or say why there
 -- is none.

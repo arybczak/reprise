@@ -58,6 +58,7 @@ browserTests =
     , testCase "adding the selected items" test_addSelected
     , testCase "adding the selected songs of a playlist" test_addSelectedFromPlaylist
     , testCase "a range" test_selectRange
+    , testCase "the album of a directory" test_selectAlbumOfNoSong
     , testCase ".. can't be selected" test_selectParent
     , testCase "the selection stays in the same listing" test_selectionKept
     , testCase "find" test_find
@@ -364,6 +365,12 @@ test_selectRange = do
     "requests"
     [[Request "add" ["a"], Request "add" ["b"], Request "load" ["p"]]]
     r.requests
+
+test_selectAlbumOfNoSong :: Assertion
+test_selectAlbumOfNoSong = do
+  r <- press ["v", "a"] =<< root
+  assertEqual "the message" (Just "There is no song under the cursor") (message r.state)
+  assertEqual "nothing selected" mempty r.state.browser.selection.keys
 
 test_selectParent :: Assertion
 test_selectParent = do
