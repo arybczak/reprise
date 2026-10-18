@@ -3,6 +3,7 @@ module Reprise.Test.UI.Layout (layoutTests) where
 import Control.Monad
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
+import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Graphics.Vty qualified as V
@@ -45,6 +46,7 @@ layoutTests =
     , snapshot "help-scrolled" $ press ["f1", "page_down"] =<< playing (80, 24)
     , testCase "the help's styles" test_helpStyles
     , testCase "flags end a column before the edge" test_flags
+    , testCase "the remaining time and the bitrate" test_remainingAndBitrate
     , testCase "the title has its own style" test_titleStyle
     , testCase "the queue's title scrolls" test_queueTitleScrolls
     , testCase "the marker of a missing tag in columns" test_markerInColumns
@@ -281,6 +283,27 @@ test_queueTitleScrolls = do
   assertBool
     ("two seconds later: " <> T.unpack (titleLine later))
     ("Queue  songs" `T.isPrefixOf` titleLine later)
+
+-- | 10 s into the first of two songs of a minute, at 320 kbps.
+test_remainingAndBitrate :: Assertion
+test_remainingAndBitrate = do
+  let st = statusOf Playing (Just 0) 2 & #bitrate ?~ 320
+  s <- testState (60, 6) st [song 0 [] 60, song 1 [] 60]
+  let env =
+        testAppEnv
+          & #config % #statusBar % #showRemainingTime .~ True
+          & #config % #queue % #showRemainingTime .~ True
+      lines' e st' = imageLines (renderScreen e st')
+      statusBar e st' = maybe "" snd (unsnoc (lines' e st'))
+  assertBool "the time" ("[0:10/1:00]" `T.isSuffixOf` statusBar testAppEnv s)
+  assertBool "the time left" ("[-0:50/1:00]" `T.isSuffixOf` statusBar env s)
+  let withBitrate = s & #toggles % #showBitrate .~ True
+  assertBool
+    "the bitrate"
+    ("320 kbps [0:10/1:00]" `T.isSuffixOf` statusBar testAppEnv withBitrate)
+  assertBool "no bitrate" (not ("kbps" `T.isInfixOf` statusBar testAppEnv s))
+  assertBool "the queue's time left" $
+    any ("Queue (2 songs, 2m, 1m 50s left)" `T.isPrefixOf`) (listToMaybe (lines' env s))
 
 -- | As in ncmpcpp.
 test_flags :: Assertion

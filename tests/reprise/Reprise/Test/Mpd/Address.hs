@@ -29,6 +29,7 @@ addressTests =
     , testCase "MPD_HOST with a password" test_envPassword
     , testCase "the order of the passwords" test_passwordOrder
     , testCase "an empty variable is unset" test_emptyVariables
+    , testCase "the order of the ports" test_portOrder
     , testCase "the port of another source than the host" test_portOfAnotherSource
     , testCase "a socket path" test_socketPath
     , testCase "a socket in the home directory" test_homeSocket
@@ -79,6 +80,17 @@ test_passwordOrder = do
   assertEqual "the config's" (Just "config") fromEnv.password
   configHost <- settingsOf (config & #host ?~ "host@music") noSources
   assertEqual "the config's own" (Just "config") configHost.password
+
+test_portOrder :: Assertion
+test_portOrder = do
+  let config = defaultConfig.mpd & #host ?~ "music" & #port ?~ Port 6601
+      env = noSources & #envPort ?~ "6602"
+      addressOf c sources = (.address) <$> settingsOf c sources
+  assertEqual "the command line's" (TcpAddress "music" 7000)
+    =<< addressOf config (env & #cliPort ?~ Port 7000)
+  assertEqual "the config's" (TcpAddress "music" 6601) =<< addressOf config env
+  assertEqual "MPD_PORT" (TcpAddress "music" 6602)
+    =<< addressOf (config & #port .~ Nothing) env
 
 -- | The port comes from the first source with one, whichever gave the host.
 test_portOfAnotherSource :: Assertion

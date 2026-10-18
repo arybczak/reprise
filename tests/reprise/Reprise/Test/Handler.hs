@@ -45,6 +45,7 @@ handlerTests =
     , testCase "the display of the queue and the browser" test_displayScreens
     , testCase "stale timers keep the screen" test_staleTimers
     , testCase "cursor movement" test_cursorMovement
+    , testCase "the toggles of MPD's options" test_toggles
     , testCase "album navigation" test_albumNavigation
     , testCase "artist navigation" test_artistNavigation
     , testCase "queue changes" test_queueChanges
@@ -97,6 +98,37 @@ test_keySequence = do
   done <- keys ["t", "r"] s
   assertEqual "toggle repeat" [[Request "repeat" ["1"]]] done.requests
   assertEqual "no longer pending" Nothing ((.keys) <$> done.state.pendingKeys)
+
+-- | Each toggle of MPD's options, from off and from on.
+test_toggles :: Assertion
+test_toggles = do
+  let off = statusOf Playing (Just 0) 3
+      on =
+        off
+          & #repeat .~ True
+          & #random .~ True
+          & #single .~ SingleOn
+          & #consume .~ ConsumeOn
+          & #crossfade .~ 5
+  turnedOn <- testState (80, 24) off (songs 3)
+  turnedOff <- testState (80, 24) on (songs 3)
+  forM_
+    [ ("r", "repeat", "1")
+    , ("z", "random", "1")
+    , ("s", "single", "1")
+    , ("c", "consume", "1")
+    , ("x", "crossfade", "5")
+    ]
+    $ \(k, command, value) -> do
+      assertEqual (T.unpack command <> " on") [[Request command [value]]] . (.requests)
+        =<< keys ["t", k] turnedOn
+      assertEqual (T.unpack command <> " off") [[Request command ["0"]]] . (.requests)
+        =<< keys ["t", k] turnedOff
+  assertEqual "the mode of replay gain" [[Request "replay_gain_status" []]] . (.requests)
+    =<< keys ["t", "g"] turnedOn
+  forM_ [(ReplayGainOff, "track"), (ReplayGainAuto, "off")] $ \(mode, next) ->
+    assertEqual ("after " <> show mode) [[Request "replay_gain_mode" [next]]] . (.requests)
+      =<< runEvents 0 [ReplayGainFetched mode] turnedOn
 
 test_cancelSequence :: Assertion
 test_cancelSequence = do
