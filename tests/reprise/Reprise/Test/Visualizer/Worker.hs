@@ -358,7 +358,6 @@ test_workerRegularFile = withSystemTempDirectory "visualizer" $ \dir -> do
         assertBool ("the reason: " <> T.unpack reason) ("not a fifo" `T.isInfixOf` reason)
       e -> assertFailure $ "not a failure: " <> show e
 
--- | The screen says why, until the next try.
 -- | A second has the frames that came in it. The 60th frame comes a second
 -- after the start, so it starts the next one.
 test_workerStats :: Assertion

@@ -176,7 +176,6 @@ lookupKeys layers = \case
 style :: T.Text -> Style
 style = either (error . T.unpack) id . parseStyle
 
--- | The text of an image, one line for each row, without styles.
 -- | The pieces of text of an image with their attributes, in the order of
 -- the image's structure. Cropping is ignored.
 imageSpans :: V.Image -> [(V.Attr, T.Text)]
@@ -187,6 +186,7 @@ imageSpans = \case
   VI.Crop i _ _ _ _ -> imageSpans i
   _ -> []
 
+-- | The text of an image, one line for each row, without styles.
 imageLines :: V.Image -> [T.Text]
 imageLines = map T.stripEnd . render
   where

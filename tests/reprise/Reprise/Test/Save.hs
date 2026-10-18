@@ -93,8 +93,6 @@ test_replaceItems = do
     [[Request "playlistclear" ["mix"], Request "playlistadd" ["mix", "dir/0.flac"]]]
     replaced.requests
 
--- | A directory goes in with its songs, and a stored playlist with the
--- songs that MPD lists for it.
 -- | MPD's @playlistadd@ looks up a path without a scheme in its database,
 -- which has no local file.
 test_localSong :: Assertion
@@ -103,6 +101,8 @@ test_localSong = do
   assertEqual "a file URI" (SaveSong "file:///home/user/a b.flac") (songToSave local)
   assertEqual "a song of the database" (SaveSong "dir/0.flac") (songToSave (song 0 [] 60))
 
+-- | A directory goes in with its songs, and a stored playlist with the
+-- songs that MPD lists for it.
 test_browserItems :: Assertion
 test_browserItems = do
   root <- browserRoot

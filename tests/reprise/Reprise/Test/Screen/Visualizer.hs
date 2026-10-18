@@ -292,6 +292,7 @@ test_waveLoudness = do
   let colorsOf = [V.attrForeColor a | (a, t) <- imageSpans (renderScreen env s), T.any isBraille t]
   assertEqual "colors" [V.SetTo (V.ISOColor 4), V.SetTo (V.ISOColor 1)] colorsOf
 
+-- | The screen says why, until the next try.
 test_failureShows :: Assertion
 test_failureShows = do
   s <- testState (80, 12) (statusOf Stopped Nothing 0) []
