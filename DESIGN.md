@@ -1947,9 +1947,14 @@ window title, in a column.
 
 Tag names: `artist`, `albumartist`, `album`, `title`, `track`, `track_raw`,
 `disc`, `date`, `year`, `genre`, `composer`, `performer`, `comment`,
-`priority`, `length`, `file`, `filename`, `directory`.
+`priority`, `length`, `file`, `filename`, `directory`, `extension`.
 - `track` is the normalized number (`01` for `1/12`), like ncmpcpp's `%n`;
   `track_raw` is the tag as stored, like `%N`.
+- `extension` is the extension of the file's name in lower case, e.g.
+  `flac` for `01.FLAC`. It isn't the codec: an `.m4a` file holds AAC or
+  ALAC. It isn't named `type`, as the browser's sort by type is by the kind
+  of an entry. MPD's own format of a song is that of its audio, e.g.
+  `44100:16:2`, which no name shows.
 - `year` is the year part of `date`. It replaces ncmpcpp's `%4y` truncation
   trick.
 

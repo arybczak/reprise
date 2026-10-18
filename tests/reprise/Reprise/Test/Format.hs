@@ -197,6 +197,15 @@ test_fields = do
   assertEqual "filename" (Just "file.flac") (value FilenameField)
   assertEqual "directory" (Just "dir/sub") (value DirectoryField)
   assertEqual "no directory" Nothing (fieldValue " | " (song "f.flac" []) DirectoryField)
+  assertEqual "extension" (Just "flac") (value ExtensionField)
+  assertEqual
+    "extension in lower case"
+    (Just "flac")
+    (fieldValue " | " (song "a.FLAC" []) ExtensionField)
+  assertEqual
+    "no extension"
+    Nothing
+    (fieldValue " | " (song "a.cue/track0001" []) ExtensionField)
   assertEqual "short length" "0:05" (formatDuration 5.9)
 
 test_width :: Assertion

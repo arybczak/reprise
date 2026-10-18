@@ -84,6 +84,8 @@ data Field
   | FileField
   | FilenameField
   | DirectoryField
+  | -- | The extension of the file's name in lower case, e.g. @flac@.
+    ExtensionField
   deriving stock (Eq, Ord, Show, Enum, Bounded)
 
 fieldName :: Field -> T.Text
@@ -106,6 +108,7 @@ fieldName = \case
   FileField -> "file"
   FilenameField -> "filename"
   DirectoryField -> "directory"
+  ExtensionField -> "extension"
 
 fields :: [Field]
 fields = [minBound .. maxBound]
@@ -361,6 +364,7 @@ fieldValue separator song =
     FileField -> Just song.file
     FilenameField -> Just $ baseName song.file
     DirectoryField -> Just $ directoryOf song.file
+    ExtensionField -> Just . T.toLower . T.pack . drop 1 . takeExtension $ T.unpack song.file
   where
     nonEmpty :: Maybe T.Text -> Maybe T.Text
     nonEmpty = \case
