@@ -322,7 +322,18 @@ runWorker outcomes commands answers = do
         calls <- S.readIORef callsRef
         p <- readTVarIO passwordVar
         failed <- readTVarIO workers.commandConnectionFailed
-        pure $ WorkerRun received (reverse calls) p failed
+        -- The worker takes the requests in turn, so an event too many comes
+        -- before the one of a last request.
+        atomically . writeTQueue requests $
+          PendingRequest (pure ()) (MpdFailed []) (const Started)
+        assertEqual "no other event" Started =<< expectWithin (atomically (readTQueue events))
+        pure
+          WorkerRun
+            { events = received
+            , calls = reverse calls
+            , password = p
+            , connectionFailed = failed
+            }
   E.bracket worker killThread (const run)
 
 -- | Run the idle worker with an MPD that replies to each connection and to

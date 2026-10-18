@@ -73,7 +73,7 @@ test_bitrate = do
   let playing = (statusOf Playing (Just 0) 2) {bitrate = Just 320}
   s <- testState (40, 30) playing songs
   shown <- runEvents 0 [key "i"] s
-  assertBool "no bitrate" (not (any ("Bitrate" `T.isPrefixOf`) (screenLines shown.state)))
+  assertBool "no bitrate" (not (any ("320" `T.isInfixOf`) (screenLines shown.state)))
 
 ----------------------------------------
 -- Helpers

@@ -58,6 +58,7 @@ test_existing = do
   assertEqual "the message" (Just "Replaced mix with the queue") (message replaced.state)
   appended <- press ["a"] asked.state
   assertEqual "appended" [[Request "save" ["mix", "append"]]] appended.requests
+  assertEqual "the message" (Just "Added the queue to mix") (message appended.state)
   assertEqual "nothing else picks" [] . (.requests) =<< press ["y"] asked.state
 
 test_cancel :: Assertion

@@ -24,7 +24,9 @@ layerTests =
 test_sources :: Assertion
 test_sources = do
   modules <- sourceModules sourceDir
-  assertBool "modules found" (not (null modules))
+  assertBool
+    "the imports of a module"
+    (maybe False ("Reprise.Handler" `elem`) (lookup "Reprise.App" modules))
   assertEqual "imports across the layers" [] (crossings modules)
 
 test_crossings :: Assertion

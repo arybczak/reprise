@@ -39,7 +39,7 @@ visualizerTests =
     , testCase "the colors of a bar blend from its foot to its top" test_barColors
     , testCase "a row is as few texts as it can be" test_runs
     , testCase "without a data source, the screen says how to set one" test_noSource
-    , testCase "samples after the visualizer stopped are dropped" test_staleSamples
+    , testCase "frames after their visualization stopped are dropped" test_staleFrames
     , testCase "the frames of the trail stay" test_trail
     , testCase "silence after silence keeps the screen" test_silence
     , testCase "no room for the visualizer" test_noRoom
@@ -183,19 +183,27 @@ test_noSource = do
       assertBool ("the hint: " <> T.unpack first) ("visualizer.data_source" `T.isInfixOf` first)
     ls -> assertFailure $ "too few lines: " <> show ls
 
--- | Samples of the ellipse that come after another visualization or
+-- | The frames of a visualization that come after another visualization or
 -- another screen showed.
-test_staleSamples :: Assertion
-test_staleSamples = do
-  ellipse <- shownWith Ellipse visualizing []
-  forM_ [("another visualization", "space"), ("another screen", "1")] $ \(what, k) -> do
-    stopped <- runEventsWith visualizing 0 [key k] ellipse
-    r <- runEventsWith visualizing 0 [VisualizerSamples circle] stopped.state
-    assertEqual (what <> ": the screen stays") [KeepScreen] r.commands
-    assertEqual
-      (what <> ": the picture stays")
-      stopped.state.visualizer.reading
-      r.state.visualizer.reading
+test_staleFrames :: Assertion
+test_staleFrames =
+  forM_ [minBound .. maxBound] $ \v -> do
+    shown <- shownWith v visualizing []
+    forM_ [("another visualization", "space"), ("another screen", "1")] $ \(what, k) -> do
+      let late = show v <> " after " <> what
+      stopped <- runEventsWith visualizing 0 [key k] shown
+      r <- runEventsWith visualizing 0 [frameOf v] stopped.state
+      assertEqual (late <> ": the screen stays") [KeepScreen] r.commands
+      assertEqual
+        (late <> ": the picture stays")
+        stopped.state.visualizer.reading
+        r.state.visualizer.reading
+  where
+    frameOf :: Visualization -> AppEvent
+    frameOf = \case
+      Spectrum -> VisualizerSpectrum (VS.singleton 1) (VS.singleton 1)
+      Ellipse -> VisualizerSamples circle
+      Wave -> VisualizerWave circle
 
 -- | 50 ms at 60 frames a second are 3 frames.
 test_trail :: Assertion
@@ -361,8 +369,9 @@ shownWith v env frames = do
   where
     frame :: BS.ByteString -> AppEvent
     frame = case v of
+      Spectrum -> error "the frames of a spectrum aren't samples"
+      Ellipse -> VisualizerSamples
       Wave -> VisualizerWave
-      _ -> VisualizerSamples
 
 -- | The lines of the main area, after the header's two, once a
 -- visualization showed the frames.

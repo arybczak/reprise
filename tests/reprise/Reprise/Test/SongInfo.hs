@@ -52,7 +52,7 @@ test_lines = do
     , InfoField "Performer" Nothing
     , InfoField "Disc" Nothing
     , InfoField "Comment" Nothing
-    , InfoField (tagName MusicBrainzTrackId) (Just "id")
+    , InfoField "MUSICBRAINZ_TRACKID" (Just "id")
     ]
     (songInfoLines " | " comments s)
   let bare = (song 0 [] 10) {file = "t.flac", duration = Nothing}
