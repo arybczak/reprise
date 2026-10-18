@@ -105,10 +105,7 @@ test_failures :: Assertion
 test_failures = do
   (_, busy) <- lookedUp (kult "Arahja") [("/szukaj", 503, "nothing.html")]
   assertEqual "a status" (FetchFailed "tekstowo.pl answered with the status 503") busy
-  calls <- S.newIORef []
-  let unreachable p params = do
-        S.modifyIORef calls (<> [(p, params)])
-        pure (Left "tekstowo.pl can't be reached: x")
+  let unreachable _ _ = pure (Left "tekstowo.pl can't be reached: x")
   result <- tekstowoLyrics unreachable (kult "Arahja")
   assertEqual "unreachable" (FetchFailed "tekstowo.pl can't be reached: x") result
   -- The site changed its pages.

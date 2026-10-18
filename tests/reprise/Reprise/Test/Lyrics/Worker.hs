@@ -211,23 +211,11 @@ test_workerInBackground = withSystemTempDirectory "lyrics" $ \dir -> do
       one = song 0 [(Artist, ["A"]), (Title, ["One"])] 60
   bracket (forkIO (lyricsWorker source)) killThread $ \_ -> do
     atomically . writeTVar background $ Just one
-    -- The file is empty for a moment after the worker creates it, and while
-    -- the worker writes it, GHC's lock of the file in this process fails a
-    -- read.
-    ahead <- timeout (5 * 1000000) . untilJust $ do
-      text <-
-        either (const BS.empty) id <$> try @IOException (BS.readFile (dir </> "A - One.txt"))
-      if BS.null text
-        then Nothing <$ threadDelay 1000
-        else pure (Just text)
-    assertEqual "stored" (Just "Ahead\n") ahead
+    assertEqual "stored" "Ahead\n" =<< expectWithin (untilStored (dir </> "A - One.txt"))
     atomically . writeTVar requested $ Just (1, LyricsRequest one False)
-    loaded <- timeout (5 * 1000000) . atomically $ readTQueue events
-    assertEqual "read, not fetched" (Just (LyricsLoaded 1 (stored "Ahead"))) loaded
+    loaded <- expectWithin . atomically $ readTQueue events
+    assertEqual "read, not fetched" (LyricsLoaded 1 (stored "Ahead")) loaded
   assertEqual "one fetch" 1 =<< S.readIORef calls
-  where
-    untilJust :: IO (Maybe b) -> IO b
-    untilJust act = act >>= maybe (untilJust act) pure
 
 -- | A request of the screen doesn't wait for a fetch in the background, nor
 -- for an older request, whose songs it left. The fetch in the background
