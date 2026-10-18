@@ -190,8 +190,11 @@ ncmpcpp.
     that fails on the disk stops there, and the message says how many went.
   - **The name is cleaned as the names of lyrics are,** without the
     characters that some file systems refuse, and cut to the limit of a name.
-  - **One confirmation for all,** with the first rename as the example. A
-    list that scrolls would show every rename, once reprise has popups.
+  - **One confirmation for all,** with the first rename as the example.
+    A [panel](#panels-later) will list every rename. It also shows a name
+    with a gap, e.g. `The Beatles -  [flac]` of songs without an album,
+    before the user confirms. A rule that refused missing tags, or formats
+    that drop the gaps, would complicate both for what a look catches.
   - A directory that has the name already stays out.
 - Sort by type, name, mtime, a custom format, or not at all, and
   `next_sort_mode` goes through the modes for the session, as in ncmpcpp:
@@ -373,7 +376,8 @@ ncmpcpp.
 - Prompts with line editing.
 - Status bar messages that time out.
 - Terminal window title.
-- One screen at a time, with popups that stack on top.
+- One screen at a time. A list that belongs to a prompt shows in a panel,
+  later (see [Panels](#panels-later)).
 
 **Key bindings**
 - Keymaps for each screen, key sequences, and the which-key panel (see
@@ -941,9 +945,10 @@ tag editor, which needs the same two things.
   needs a redesign too.
 
 **Smaller screens and actions**
-- Server info popup.
-- Selected items adder popup. MPD 0.23 relative positions (`addid uri +0`)
-  make "after current song" trivial.
+- Server info screen.
+- Selected items adder, as a [panel](#panels-later) to pick a place from.
+  MPD 0.23 relative positions (`addid uri +0`) make "after current song"
+  trivial.
 - Sort queue dialog. MPD has no sort command, so this stays client-side. It
   issues the minimal set of `move` commands instead of ncmpcpp's `swap` per
   quicksort step.
@@ -1133,7 +1138,7 @@ modules are under `Reprise.Mpd.Protocol`.
 | `Reprise.TagLib` | Reading the tags of a file with TagLib's C API |
 | `Reprise.Width` | The width of text in terminal columns, cutting and wrapping text to a width, and the table of character widths that reprise installs for vty |
 | `Reprise.UI.SongList` | Rows of songs, rendered classic or in columns, for every screen that lists songs, and rows of other items, e.g. directories |
-| `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, popups. The focused screen's module draws the main view |
+| `Reprise.UI.Layout` | The frame: header, status bar, progress bar, the which-key panel, and later the panels of prompts. The focused screen's module draws the main view |
 | `Reprise.Screen.*` | A module for each screen, as in ncmpcpp, with the screen's actions and its drawing: `Queue` (with `Queue.Edits`, which plans the MPD commands that change several songs), `Browser`, `Visualizer`, `Lyrics`, `SongInfo`, `Outputs` and `Help`. Later: `SearchEngine`, `MediaLibrary`, `PlaylistEditor`, `ServerInfo`, ... |
 
 The modules form layers, and an import only goes down:
@@ -1386,7 +1391,7 @@ the event loop, suspending the terminal for the editor, and skipping a
 redraw, which take a few dozen lines on vty. brick's widgets don't fit: they
 size themselves while they draw, and the pure handlers need the sizes of the
 views before that, e.g. to page and to center the cursor, so the layout
-keeps them in the state. Popups are another layer of vty's picture, and
+keeps them in the state. Panels replace the bottom rows of the main view, and
 split windows and the media library's columns are images joined side by
 side. Without brick, a build has a dozen fewer packages, megaparsec among
 them.
@@ -1870,6 +1875,69 @@ After a prefix key, a panel lists the possible next keys.
 The `:` prompt uses the same idea: as the user types, it shows the action's
 usage or description (see [Prompts](#prompts)). Completing action names from
 the registry comes later.
+
+### Panels (later)
+
+Some answers don't fit one line of the status bar: every rename of a rename
+by format, or the files that a local add left out. A choice prompt then
+shows them in a panel, where the which-key panel goes, instead of a window
+with a border.
+
+```
+a → The Beatles - Abbey Road [flac]
+b → The Beatles -  [flac]
+c → Pink Floyd - Animals [flac]
+Rename 3 directories? [yes/no]
+```
+
+- **Next to its question.** The list belongs to the prompt in the status
+  bar, so it sits right above it. A window in the middle would part the
+  list from its question.
+- **The full width.** The lines are long, e.g. paths and new names, and a
+  border and margins would cut the ends that the user wants to check.
+- **One at a time.** Every list belongs to one prompt, so panels don't
+  stack. A prompt clears a pending key sequence, so the which-key panel and
+  a panel never show together. Content without a prompt, e.g. the server's
+  info, is a screen. `styles.popup_border` goes, as nothing has a border.
+- **Scrolling with fixed keys,** as the line editor's keys are fixed: `up`
+  and `down` by a row, `page_up` and `page_down` by the panel's height,
+  `home` and `end` to the ends. The options' letters are never these keys.
+  Other keys do nothing, as in any choice.
+- **Size.** A line longer than the width wraps. The panel takes as many
+  rows as the lines need, at most the main view's, as the which-key panel
+  does. The offset is kept in bounds wherever it is used, so a smaller
+  terminal can't leave it past the end.
+- **An info panel** is a choice with one option, `[dismiss]`. Closing a
+  choice whose options send nothing says nothing, so neither `d` nor
+  `escape` says "Cancelled" there.
+- **A panel that a reply opens takes the keys** that the user is typing,
+  as the password prompt does. A `d` typed for something else may then
+  dismiss it unread. That is accepted.
+
+The plan:
+1. A choice gets an optional panel: its lines and the offset of its first
+   row. A query of the state gives the wrapped rows and the height, for the
+   layout and for the keys.
+2. The handlers open one with a yes or no question, or as an info panel.
+3. The keys of a choice scroll its panel.
+4. The layout draws the panel in place of the which-key panel.
+5. The first users:
+   - The rename by format lists every rename when there are several, and
+     asks "Rename 3 directories?". One rename keeps its one-line question.
+     A name with a gap, e.g. of songs without an album, then shows before
+     the user confirms, without a rule that refuses it.
+   - A local add that left files out lists each with MPD's reason, e.g.
+     `cd2/broken.flac: Unsupported file type`. The add keeps their paths,
+     not only their count.
+6. Tests of scrolling, of the offset after a resize, of the options, of a
+   silent dismiss, and a golden test of the drawn panel.
+
+Not in the plan yet:
+- **A long error in a panel.** An error can come while the user types in a
+  line prompt, and a panel would throw the line away.
+- **The mouse wheel over a panel.**
+- **A panel to pick from,** e.g. the results of a lyrics search, with a
+  cursor on one line.
 
 ### Destructive actions
 
@@ -2412,7 +2480,7 @@ The layers, from cheapest to most expensive:
 5. **Screens: a few golden snapshots.** Render a screen at a fixed terminal
    size to text, without the styles, and compare it with a stored file. Only
    a handful, for layout
-   regressions (the which-key panel, popups, the column widths). The pure
+   regressions (the which-key panel, the column widths). The pure
    pieces underneath already have their own tests.
 
 The visualizer's worker reads a real fifo, which the test writes as MPD's
