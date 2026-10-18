@@ -23,7 +23,7 @@ queueEditsTests =
     [ testCase "runs" test_runs
     , testCase "delete from the last run" test_delete
     , testCase "move runs up and down" test_moveUpDown
-    , testCase "move before a position" test_moveBefore
+    , testCase "move down to a position" test_moveDownTo
     , testCase "move to the start" test_moveToStart
     , testCase "move after a song" test_moveAfter
     , withResource (startTestServer testSongs) stopTestServer $ \getServer ->
@@ -56,28 +56,21 @@ test_moveUpDown = do
     [Request "move" ["2:3", "1"]]
     (requests $ moveDown 5 [1, 4])
 
-test_moveBefore :: Assertion
-test_moveBefore = do
-  assertEqual "inside the songs" Nothing (requests <$> moveBefore [1, 3] 2)
+test_moveDownTo :: Assertion
+test_moveDownTo = do
   assertEqual
-    "down, from the last song"
-    (Just [Request "move" ["3:4", "4"], Request "move" ["1:2", "3"]])
-    (requests <$> moveBefore [1, 3] 5)
-  assertEqual
-    "up, from the first song"
-    (Just [Request "move" ["2:3", "0"], Request "move" ["4:5", "1"]])
-    (requests <$> moveBefore [2, 4] 0)
+    "from the last song"
+    [Request "move" ["3:4", "4"], Request "move" ["1:2", "3"]]
+    (requests $ moveDownTo 5 [1, 3])
   assertEqual
     "a run as one range"
-    (Just [Request "move" ["4:5", "5"], Request "move" ["1:3", "3"]])
-    (requests <$> moveBefore [1, 2, 4] 6)
-  assertEqual "in place already" (Just []) (requests <$> moveBefore [3, 4] 5)
+    [Request "move" ["4:5", "5"], Request "move" ["1:3", "3"]]
+    (requests $ moveDownTo 6 [1, 2, 4])
+  assertEqual "in place already" [] (requests $ moveDownTo 5 [3, 4])
 
--- | A song at the start already stays, and the others join it, where
--- 'moveBefore' with the first position does nothing.
+-- | A song at the start already stays, and the others join it.
 test_moveToStart :: Assertion
-test_moveToStart = do
-  assertEqual "before the first song" Nothing (requests <$> moveBefore [0, 3] 0)
+test_moveToStart =
   assertEqual
     "the others join"
     [Request "move" ["3:4", "1"]]
@@ -98,7 +91,7 @@ test_moveAfter =
 data Operation
   = MoveUp
   | MoveDown
-  | MoveBefore Int
+  | MoveDownTo Int
   | MoveToStart
   | MoveAfter Int
   | Delete
@@ -118,11 +111,13 @@ genCase = do
   operation <-
     oneof
       [ elements [MoveUp, MoveDown, MoveToStart, Delete]
-      , MoveBefore <$> chooseInt (0, n)
+      , MoveDownTo <$> chooseInt (0, n)
       , MoveAfter <$> chooseInt (0, n - 1)
       ]
-  -- The song that the others move after isn't one of them.
+  -- The songs move down to a position after them, and the song that the
+  -- others move after isn't one of them.
   let unselected = case operation of
+        MoveDownTo target -> [(i, selected && p < target) | (p, (i, selected)) <- zip [0 ..] queue]
         MoveAfter current -> [(i, selected && p /= current) | (p, (i, selected)) <- zip [0 ..] queue]
         _ -> queue
   pure Case {queue = unselected, operation = operation}
@@ -133,12 +128,10 @@ model :: Case -> [Int]
 model c = map fst $ case c.operation of
   MoveUp -> toList $ foldl' up (Seq.fromList c.queue) [0 .. length c.queue - 1]
   MoveDown -> toList $ foldl' down (Seq.fromList c.queue) (reverse [0 .. length c.queue - 1])
-  MoveBefore target
-    | any (\p -> p >= target) selected && any (\p -> p <= target) selected -> c.queue
-    | otherwise ->
-        [s | (p, s@(_, False)) <- indexed, p < target]
-          <> filter snd c.queue
-          <> [s | (p, s@(_, False)) <- indexed, p >= target]
+  MoveDownTo target ->
+    [s | (p, s@(_, False)) <- indexed, p < target]
+      <> filter snd c.queue
+      <> [s | (p, s@(_, False)) <- indexed, p >= target]
   MoveToStart -> filter snd c.queue <> filter (not . snd) c.queue
   MoveAfter current ->
     [s | (p, s@(_, False)) <- indexed, p <= current]
@@ -148,9 +141,6 @@ model c = map fst $ case c.operation of
   where
     indexed :: [(Int, (Int, Bool))]
     indexed = zip [0 ..] c.queue
-
-    selected :: [Int]
-    selected = [p | (p, (_, True)) <- indexed]
 
     -- A selected song swaps places with an unselected one above it.
     up :: Seq.Seq (Int, Bool) -> Int -> Seq.Seq (Int, Bool)
@@ -173,7 +163,7 @@ prop_model getServer = forAll genCase $ \c -> ioProperty $ do
     run conn . editCommands $ case c.operation of
       MoveUp -> moveUp positions
       MoveDown -> moveDown (length c.queue) positions
-      MoveBefore target -> fold (moveBefore positions target)
+      MoveDownTo target -> moveDownTo target positions
       MoveToStart -> moveToStart positions
       MoveAfter current -> moveAfter current positions
       Delete -> deletePositions positions

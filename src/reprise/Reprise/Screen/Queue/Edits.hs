@@ -6,13 +6,10 @@ module Reprise.Screen.Queue.Edits
   , runsMovingUp
   , moveDown
   , runsMovingDown
-  , moveBefore
+  , moveDownTo
   , moveToStart
   , moveAfter
   ) where
-
-import Data.Foldable
-import Data.List.NonEmpty qualified as NE
 
 import Reprise.Groups
 import Reprise.Mpd.Mirror
@@ -46,27 +43,16 @@ moveDown len ps =
 runsMovingDown :: Int -> [Int] -> [(Int, Int)]
 runsMovingDown len ps = [r | r@(_, b) <- runs ps, b < len - 1]
 
--- | Move the songs at the positions, in their order, to just before the song
--- at a position, or to the end for the length of the queue. 'Nothing' if
--- the position is among the songs, as ncmpcpp does.
---
--- Each run moves as one range. When the songs move down, the runs go from
--- the last; when they move up, from the first. Then each move leaves the
--- positions of the runs still to move as they were. A run that is in place
--- already doesn't move.
-moveBefore :: [Int] -> Int -> Maybe [QueueEdit]
-moveBefore ps target = do
-  songs <- NE.nonEmpty ps
-  if
-    | target > NE.last songs ->
-        Just $
-          concatMap (\(i, r) -> moveRun r (target - length ps + i)) (reverse (indexedRuns ps))
-    | target < NE.head songs -> Just (moveUpTo target ps)
-    | otherwise -> Nothing
+-- | Move the songs at the positions, in their order, down to just before a
+-- position after them, or to the end for the length of the queue. Each run
+-- moves as one range. The runs go from the last, so that each move leaves
+-- the positions of the runs still to move as they were.
+moveDownTo :: Int -> [Int] -> [QueueEdit]
+moveDownTo target ps =
+  concatMap (\(i, r) -> moveRun r (target - length ps + i)) (reverse (indexedRuns ps))
 
 -- | Move the songs at the positions, in their order, to the start of the
--- queue. Unlike 'moveBefore' with the first position, the songs may be
--- there already, and the others join them.
+-- queue. A song there already stays, and the others join it.
 moveToStart :: [Int] -> [QueueEdit]
 moveToStart = moveUpTo 0
 
@@ -77,10 +63,10 @@ moveToStart = moveUpTo 0
 moveAfter :: Int -> [Int] -> [QueueEdit]
 moveAfter c ps =
   let (above, below) = span (< c) ps
-  in moveUpTo (c + 1) below <> fold (moveBefore above (c + 1))
+  in moveUpTo (c + 1) below <> moveDownTo (c + 1) above
 
 -- | Move the songs at the positions, in their order, up to a position
--- before them.
+-- before them. The runs go from the first, for the reason of 'moveDownTo'.
 moveUpTo :: Int -> [Int] -> [QueueEdit]
 moveUpTo target ps = concatMap (\(i, r) -> moveRun r (target + i)) (indexedRuns ps)
 

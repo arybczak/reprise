@@ -246,8 +246,8 @@ moveSongs t = do
             editQueue (moveAfter c selected)
             -- The cursor stays on its song, as after an add there.
             modifyWithEnv . setCursor $ c - length (filter (< c) selected)
-    MoveSongsToEnd -> forM_ (moveBefore ps n) $ \edits -> do
-      editQueue edits
+    MoveSongsToEnd -> unless (null ps) $ do
+      editQueue (moveDownTo n ps)
       jumpToMoved (n - length ps)
     MoveSongsToBeginning -> do
       editQueue (moveToStart ps)
