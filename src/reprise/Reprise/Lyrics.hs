@@ -20,16 +20,12 @@ module Reprise.Lyrics
   ) where
 
 import Control.Monad
-import Data.Bits
-import Data.ByteString qualified as BS
-import Data.Char
 import Data.List qualified as L
 import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
-import Data.Word
-import Numeric
 
+import Reprise.File
 import Reprise.Format
 import Reprise.Mpd.Protocol.Response qualified as Response
 import Reprise.Mpd.Protocol.Types
@@ -178,9 +174,8 @@ parseLrc lrc =
           seconds <- Response.readSeconds (T.encodeUtf8 s)
           pure $ fromInteger (minutes * 60) + seconds
 
--- | The file of a song's lyrics in the directory of lyrics: its name
--- without the characters that Windows forbids in a file name, as ncmpcpp
--- with its default @generate_win32_compatible_filenames@ removes them.
+-- | The file of a song's lyrics in the directory of lyrics, named after the
+-- song, as ncmpcpp names it.
 lyricsFileName :: Song -> FilePath
 lyricsFileName song = lyricsBaseName song <> textExtension
 
@@ -195,55 +190,14 @@ textExtension = ".txt"
 timedExtension :: FilePath
 timedExtension = ".lrc"
 
--- | The name of a song's files without their extension. A name too long
--- for a file is cut, at a character, and ends in a hash of the whole name,
--- so that two long names that begin alike stay apart. ncmpcpp can't store
--- the lyrics of such a song at all.
+-- | The name of a song's files without their extension, with room for
+-- either extension. ncmpcpp can't store the lyrics of a song whose name is
+-- too long for a file at all.
 lyricsBaseName :: Song -> FilePath
-lyricsBaseName song
-  | utf8Length name <= room = T.unpack name
-  | otherwise = T.unpack $ cut (room - utf8Length suffix) name <> suffix
+lyricsBaseName song = fileName room (songName song)
   where
-    name :: T.Text
-    name = T.filter (`notElem` forbidden) (songName song)
-
-    forbidden :: String
-    forbidden = "\"*/:<>?\\|"
-
     room :: Int
     room = nameLimit - maximum (map length [textExtension, timedExtension])
-
-    -- FNV-1a is the same on every machine and in every version, as a
-    -- file's name must be. 64 bits keep two long names that begin alike
-    -- apart, and leave most of the room to the name.
-    suffix :: T.Text
-    suffix = " " <> T.pack (showHex (fnv1a (T.encodeUtf8 name)) "")
-
-    -- The offset basis and the prime are those of 64-bit FNV-1a.
-    fnv1a :: BS.ByteString -> Word64
-    fnv1a = BS.foldl' (\h b -> (h `xor` fromIntegral b) * 0x100000001b3) 0xcbf29ce484222325
-
-    -- The longest start of text that is at most a number of bytes.
-    cut :: Int -> T.Text -> T.Text
-    cut n t = T.take (length (takeWhile (<= n) (scanl1 (+) (map charLength (T.unpack t))))) t
-
-    utf8Length :: T.Text -> Int
-    utf8Length = T.foldl' (\n c -> n + charLength c) 0
-
-    charLength :: Char -> Int
-    charLength c
-      | ord c < 0x80 = 1
-      | ord c < 0x800 = 2
-      | ord c < 0x10000 = 3
-      | otherwise = 4
-
--- | The longest name of a file, in bytes of UTF-8: Linux's @NAME_MAX@, of
--- ext4, XFS, Btrfs and ZFS. Such a name also fits the 255 units of UTF-16
--- of NTFS and exFAT, and the 255 characters of APFS. A fixed limit, not the
--- one of the directory's file system, keeps the names the same when the
--- lyrics move to another one.
-nameLimit :: Int
-nameLimit = 255
 
 -- | Fetch the lyrics of a song by its artist and its title. A song without
 -- both has none to fetch.

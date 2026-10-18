@@ -1,15 +1,25 @@
--- | Writing the files that reprise keeps.
+-- | Writing the files that reprise keeps, and naming files.
 module Reprise.File
   ( writeFileAtomically
   , openLog
+
+    -- * Names
+  , fileName
+  , forbiddenInNames
+  , nameLimit
   ) where
 
 import Control.Concurrent.MVar.Strict qualified as S
 import Control.Exception
+import Data.Bits
 import Data.ByteString qualified as BS
+import Data.Char
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Text.IO qualified as T
 import Data.Time
+import Data.Word
+import Numeric
 import System.Directory
 import System.FilePath
 import System.IO
@@ -17,6 +27,63 @@ import System.Posix.IO
 import System.Posix.Unistd
 
 import Reprise.Exception
+
+----------------------------------------
+-- Names
+
+-- | A name of a file from text, without the characters of
+-- 'forbiddenInNames', in at most a number of bytes of UTF-8. A longer name
+-- is cut, at a character, and ends in a hash of the whole name, so that two
+-- long names that begin alike stay apart.
+fileName :: Int -> T.Text -> FilePath
+fileName room text
+  | utf8Length name <= room = T.unpack name
+  | otherwise = T.unpack $ cut (room - utf8Length suffix) name <> suffix
+  where
+    name :: T.Text
+    name = T.filter (`notElem` forbiddenInNames) text
+
+    -- FNV-1a is the same on every machine and in every version, as a
+    -- file's name must be. 64 bits keep two long names that begin alike
+    -- apart, and leave most of the room to the name.
+    suffix :: T.Text
+    suffix = " " <> T.pack (showHex (fnv1a (T.encodeUtf8 name)) "")
+
+    -- The offset basis and the prime are those of 64-bit FNV-1a.
+    fnv1a :: BS.ByteString -> Word64
+    fnv1a = BS.foldl' (\h b -> (h `xor` fromIntegral b) * 0x100000001b3) 0xcbf29ce484222325
+
+    -- The longest start of text that is at most a number of bytes.
+    cut :: Int -> T.Text -> T.Text
+    cut n t = T.take (length (takeWhile (<= n) (scanl1 (+) (map charLength (T.unpack t))))) t
+
+    utf8Length :: T.Text -> Int
+    utf8Length = T.foldl' (\n c -> n + charLength c) 0
+
+    charLength :: Char -> Int
+    charLength c
+      | ord c < 0x80 = 1
+      | ord c < 0x800 = 2
+      | ord c < 0x10000 = 3
+      | otherwise = 4
+
+-- | The characters that Windows forbids in a file's name, which the names
+-- that reprise makes leave out, as ncmpcpp does with its default
+-- @generate_win32_compatible_filenames@, so that the files can move to
+-- such a file system. @/@ is one, so a name is never a path.
+forbiddenInNames :: String
+forbiddenInNames = "\"*/:<>?\\|"
+
+-- | The longest name of a file, in bytes of UTF-8: Linux's @NAME_MAX@, of
+-- ext4, XFS, Btrfs and ZFS. Such a name also fits the 255 units of UTF-16
+-- of NTFS and exFAT, and the 255 characters of APFS. A fixed limit, not the
+-- one of the file system, keeps a name the same when its file moves to
+-- another one.
+nameLimit :: Int
+nameLimit = 255
+
+----------------------------------------
+-- Writing
 
 -- | Replace a file whole: the bytes go to a temporary file next to it, which
 -- then takes its name. A reader, e.g. another reprise, never sees half of
