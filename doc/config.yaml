@@ -82,6 +82,9 @@ browser:
     by: type                     # type, name, mtime, format or none
     format: '%{artist} - %{title}'   # for format
   playlist_prefix: '<red>playlist</> '
+  # What e R starts from, e.g. "The Beatles - Abbey Road [flac]"; %[ and %]
+  # are brackets.
+  rename_format: '[%{albumartist}|%{artist}] - %{album} %[%{extension}%]'
 
 status_bar:
   song: '[[%{artist}[ "%{album}"[ (%{year})]] - ]%{title}|%{filename}]'

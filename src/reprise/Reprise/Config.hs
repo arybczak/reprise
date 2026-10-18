@@ -212,6 +212,8 @@ data BrowserConfig = BrowserConfig
   { display :: Display
   , sort :: BrowserSort
   , playlistPrefix :: Format Style
+  , renameFormat :: Format Void
+  -- ^ What renaming a directory by a format starts from.
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromYaml) via GenericYaml BrowserConfig
@@ -545,6 +547,7 @@ defaultBrowser =
     { display = Classic
     , sort = defaultBrowserSort
     , playlistPrefix = styledFormat "<red>playlist</> "
+    , renameFormat = plainFormat "[%{albumartist}|%{artist}] - %{album} %[%{extension}%]"
     }
 
 defaultBrowserSort :: BrowserSort
