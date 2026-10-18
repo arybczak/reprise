@@ -1,5 +1,6 @@
 module Reprise.Test.Screen.Visualizer (visualizerTests) where
 
+import Control.Monad
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import Data.Int
@@ -182,12 +183,19 @@ test_noSource = do
       assertBool ("the hint: " <> T.unpack first) ("visualizer.data_source" `T.isInfixOf` first)
     ls -> assertFailure $ "too few lines: " <> show ls
 
+-- | Samples of the ellipse that come after another visualization or
+-- another screen showed.
 test_staleSamples :: Assertion
 test_staleSamples = do
-  s <- testState (40, 12) (statusOf Stopped Nothing 0) []
-  r <- runEventsWith visualizing 0 [VisualizerSamples circle] s
-  assertEqual "the screen stays" [KeepScreen] r.commands
-  assertEqual "no frames" Seq.empty (ellipseFrames r.state)
+  ellipse <- shownWith Ellipse visualizing []
+  forM_ [("another visualization", "space"), ("another screen", "1")] $ \(what, k) -> do
+    stopped <- runEventsWith visualizing 0 [key k] ellipse
+    r <- runEventsWith visualizing 0 [VisualizerSamples circle] stopped.state
+    assertEqual (what <> ": the screen stays") [KeepScreen] r.commands
+    assertEqual
+      (what <> ": the picture stays")
+      stopped.state.visualizer.reading
+      r.state.visualizer.reading
 
 -- | 50 ms at 60 frames a second are 3 frames.
 test_trail :: Assertion
@@ -196,10 +204,13 @@ test_trail = do
   r <- shownWith Ellipse env (replicate 5 circle)
   assertEqual "frames" 3 (Seq.length (ellipseFrames r))
 
+-- | The trail of 50 ms holds 3 frames, so 3 silent ones push the circle out.
 test_silence :: Assertion
 test_silence = do
-  s <- shownWith Ellipse visualizing []
-  r <- runEventsWith visualizing 0 [VisualizerSamples BS.empty] s
+  let env = visualizing & #config % #visualizer % #trail .~ 0.05
+  s <- shownWith Ellipse env (circle : replicate 3 BS.empty)
+  assertEqual "only silence" (Seq.replicate 3 BS.empty) (ellipseFrames s)
+  r <- runEventsWith env 0 [VisualizerSamples BS.empty] s
   assertEqual "the screen stays" [KeepScreen] r.commands
   stayed <- shownWith Ellipse visualizing [circle, BS.empty]
   assertEqual

@@ -316,12 +316,17 @@ test_jumpToPlayingLyrics = do
     [Just ["One"]]
     [M.lookup Title r.song.tags | FetchLyrics _ r <- jumped.commands]
 
--- | Playing, 0.25 s after the status of 10 s: the next line at 11 s.
+-- | Playing, 0.125 s after the status of 10 s: the line at 10.25 s comes
+-- before the next cell of the progress bar at 10.5 s and the next second.
 test_nextLine :: Assertion
 test_nextLine = do
-  shown <- timedShown Playing
-  r <- runEvents 0.25 [Tick 0] shown
-  assertEqual "at the next line" (Just 1) (nextLyricsLine r.state)
+  s <- testState (40, 10) (statusOf Playing (Just 0) 1) [song 0 [(Title, ["One"])] 60]
+  r <- runEvents 0 [key "l"] s
+  token <- requestToken r
+  let lyrics = fromMaybe (error "not timed") $ timedLyrics "[00:10.25]a\n[00:12.00]b\n"
+  loaded <-
+    runEvents 0.125 [LyricsLoaded token (LyricsFound (Stored "One.lrc") lyrics)] r.state
+  assertEqual "at the line" [0.125] [d | After d (Tick _) <- loaded.commands]
 
 -- | While One plays, the lyrics of Two show, until Three plays.
 test_followPlaying :: Assertion

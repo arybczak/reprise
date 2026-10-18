@@ -6,12 +6,14 @@ import Data.Maybe
 import Data.Text qualified as T
 import Graphics.Text.Width qualified as W
 import Graphics.Vty qualified as V
+import Graphics.Vty.Image.Internal qualified as VI
 import Graphics.Vty.UnicodeWidthTable.Query qualified as V
 import Graphics.Vty.UnicodeWidthTable.Types qualified as V
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import Reprise.Mpd.Protocol.Types
+import Reprise.State
 import Reprise.Test.Helpers
 import Reprise.UI.Layout
 import Reprise.Width
@@ -92,7 +94,7 @@ test_emojiRowFits = do
       (80, 6)
       (statusOf Playing (Just 0) 1)
       [song 0 [(Artist, ["A"]), (Title, [title])] 60]
-  forM_ (imageLines (renderScreen testAppEnv s)) $ \line -> do
+  forM_ (imageLines (uncropped s)) $ \line -> do
     w <- sum <$> mapM (\c -> fromMaybe (W.safeWcwidth c) <$> width c) (T.unpack line)
     assertBool ("wider than the terminal: " <> T.unpack line) (w <= 80)
 
@@ -116,7 +118,14 @@ test_controlRowFits = do
       (80, 6)
       (statusOf Playing (Just 0) 1)
       [song 0 [(Artist, ["A"]), (Title, [title])] 60]
-  forM_ (imageLines (renderScreen testAppEnv s)) $ \line -> do
+  forM_ (imageLines (uncropped s)) $ \line -> do
     assertBool ("a control character: " <> show line) (not (T.any isControl line))
     assertBool ("wider than the terminal: " <> show line) (textWidth line <= 80)
-  assertEqual "the width of the screen" 80 (V.imageWidth (renderScreen testAppEnv s))
+  assertEqual "the width of the screen" 80 (V.imageWidth (uncropped s))
+
+-- | The screen before its crop to the terminal's size, which would hide a
+-- row that came out too wide.
+uncropped :: AppState -> V.Image
+uncropped s = case renderScreen testAppEnv s of
+  VI.Crop i _ _ _ _ -> i
+  i -> i

@@ -322,8 +322,19 @@ test_workerFails = withSystemTempDirectory "visualizer" $ \dir -> do
         expectWithin (atomically (readTQueue events)) >>= \case
           VisualizerFailed _ -> pure ()
           e -> assertFailure $ what <> ": " <> show e
-  bracket (forkIO . realWorker (dir </> "missing") $ source reading events) killThread $ \_ -> do
+      -- The UI takes one event at a time, so a worker that tried again at
+      -- once fails the test instead of filling the memory.
+      oneAtATime e = atomically $ do
+        empty <- isEmptyTQueue events
+        empty <$ when empty (writeTQueue events e)
+      src = (source reading events) {emit = oneAtATime}
+  -- A worker that tries again at once never takes the kill, which would
+  -- hang the test instead of failing it.
+  bracket (forkIO . realWorker (dir </> "missing") $ src) (void . forkIO . killThread) $ \_ -> do
     failed "the first try"
+    timeout 100000 (atomically (readTQueue events)) >>= \case
+      Nothing -> pure ()
+      Just e -> assertFailure $ "a try with nothing changed: " <> show e
     atomically $ writeTVar reading (Just Spectrum)
     failed "another visualization"
     -- The key that shows the visualizer again comes long after the worker
@@ -429,10 +440,24 @@ test_workerRestart = withSystemTempDirectory "visualizer" $ \dir -> do
   createNamedPipe path (unionFileModes ownerReadMode ownerWriteMode)
   events <- newTQueueIO
   reading <- newTVarIO (Just Ellipse)
-  let pcm = samples (replicate 100 (1000, -1000))
+  let pcm s = samples (replicate 100 s)
   bracket (forkIO . realWorker path $ source reading events) killThread $ \_ -> do
-    void . withWriting path pcm . expectWithin $ someSamples events
-    void . withWriting path pcm . expectWithin $ someSamples events
+    void . withWriting path (pcm (1000, -1000)) . expectWithin $ someSamples events
+    -- The worker sends frames until it waits for the fifo, which finds the
+    -- writer gone. A writer that came sooner would write into the same fifo.
+    expectWithin $ untilQuiet events
+    withWriting path (pcm (2000, -2000)) . expectWithin $ samplesOf events (2000, -2000)
+  where
+    -- Six frames at 60 frames a second.
+    untilQuiet :: TQueue AppEvent -> IO ()
+    untilQuiet events =
+      timeout 100000 (atomically (readTQueue events)) >>= mapM_ (\_ -> untilQuiet events)
+
+    -- The frames that the worker still has of the first writer come first.
+    samplesOf :: TQueue AppEvent -> (Int16, Int16) -> IO ()
+    samplesOf events s = do
+      bytes <- someSamples events
+      unless (samples [s] `BS.isPrefixOf` bytes) $ samplesOf events s
 
 -- | Once the writer went, a wait on the fifo says so. On the fifo opened
 -- again, it waits for the next writer instead of finding it gone at once.
