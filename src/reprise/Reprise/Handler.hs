@@ -205,6 +205,8 @@ handleEvent = \case
   LocalAddFailed token err -> localAddFailed token err
   MountsListed location renames mounts -> mountsListed location renames mounts
   DirectoriesRenamed n failure -> directoriesRenamed n failure
+  ContentsListed token result -> contentsListed token result
+  LocalContentsListed token results -> localContentsListed token results
   ReplayGainFetched mode -> do
     let nextMode = cycleNext mode
     mutate $ setReplayGainMode nextMode

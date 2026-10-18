@@ -176,6 +176,23 @@ ncmpcpp.
     MPD isn't told.
   - Queued songs and stored playlists keep the old paths, which MPD then
     can't find.
+- `rename_by_format` renames the marked directories by
+  `browser.rename_format`, which the prompt starts from, e.g.
+  `The Beatles - Abbey Road [flac]`. It works as `rename` does otherwise.
+  - **A directory must hold only songs, and the format must give each of
+    them the same name.** Else it is refused: a directory of several albums
+    has no one name. The rule is what the browser lists, so a picture or a
+    log doesn't count, and a cue sheet in MPD's database does. MPD lists such
+    a cue sheet in place of its file's songs, so the directory has no songs
+    to name it by; the user removes the cue sheet first.
+  - **All or nothing.** One refused directory refuses the whole rename, and
+    two directories that would get the same name refuse it too. A rename
+    that fails on the disk stops there, and the message says how many went.
+  - **The name is cleaned as the names of lyrics are,** without the
+    characters that some file systems refuse, and cut to the limit of a name.
+  - **One confirmation for all,** with the first rename as the example. A
+    list that scrolls would show every rename, once reprise has popups.
+  - A directory that has the name already stays out.
 - Sort by type, name, mtime, a custom format, or not at all, and
   `next_sort_mode` goes through the modes for the session, as in ncmpcpp:
   - Every mode but none puts the directories first, then the songs, then

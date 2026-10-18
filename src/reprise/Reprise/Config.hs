@@ -1088,7 +1088,7 @@ defaultKeymaps =
                 , -- As in ncmpcpp, where 2 shows the browser, then changes its
                   -- mode.
                   char '2' ~> ChangeBrowseMode
-                , group (char 'e') "edit" [char 'r' ~> Rename]
+                , group (char 'e') "edit" [char 'r' ~> Rename, char 'R' ~> RenameByFormat]
                 , group (char 't') "toggle" [char 'd' ~> Toggle ToggleDisplay, char 'o' ~> NextSortMode]
                 ]
             )

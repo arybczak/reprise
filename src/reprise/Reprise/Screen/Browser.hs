@@ -26,6 +26,10 @@ module Reprise.Screen.Browser
 
     -- * Renaming
   , renameTo
+  , renameByFormat
+  , contentsListed
+  , localContentsListed
+  , renameIn
   , mountsListed
   , directoriesRenamed
   ) where
@@ -40,6 +44,7 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Text qualified as T
 import Data.Time
+import Data.Void
 import Effectful
 import Effectful.Input.Static
 import Effectful.State.Static.Local
@@ -180,6 +185,7 @@ browserVerb = \case
         _ -> updateDatabase =<< getsS browserDirectory
   ChangeBrowseMode -> Just changeBrowseMode
   Rename -> Just askRename
+  RenameByFormat -> Just askRenameByFormat
   _ -> Nothing
 
 -- | Show the songs in the other display, which finds match too.
@@ -349,18 +355,26 @@ localListed token result = whenCurrent (.browser.listing) (.token) token $ \l ->
         DirectoryUnreadable why -> why
     (Right files, InLocal dir) -> do
       suffixes <- getsS (.browser.suffixes)
-      let visible = filter (not . ("." `T.isPrefixOf`) . (.name)) files
-          path :: LocalFile -> T.Text
-          path f = T.pack (T.unpack dir </> T.unpack f.name)
-      browserListed token $
-        [DirectoryEntry (Directory (path f) (Just f.lastModified)) | f <- visible, f.isDirectory]
-          <> [ SongEntry (localSong (path f) f)
-             | f <- visible
-             , not f.isDirectory
-             , Just s <- [suffixes]
-             , isMusic s f.name f.tags
-             ]
+      browserListed token $ localEntries suffixes dir files
     (Right _, _) -> pure ()
+
+-- | The entries of the files of a local directory: its directories and its
+-- music files. Hidden files are left out, as ncmpcpp does by default.
+localEntries :: Maybe Suffixes -> T.Text -> [LocalFile] -> [Entry]
+localEntries suffixes dir files =
+  [DirectoryEntry (Directory (path f) (Just f.lastModified)) | f <- visible, f.isDirectory]
+    <> [ SongEntry (localSong (path f) f)
+       | f <- visible
+       , not f.isDirectory
+       , Just s <- [suffixes]
+       , isMusic s f.name f.tags
+       ]
+  where
+    visible :: [LocalFile]
+    visible = filter (not . ("." `T.isPrefixOf`) . (.name)) files
+
+    path :: LocalFile -> T.Text
+    path f = T.pack (T.unpack dir </> T.unpack f.name)
 
 -- | The song of a local file, with the tags that TagLib read.
 localSong :: T.Text -> LocalFile -> Song
@@ -826,16 +840,170 @@ renameTo
   -> T.Text
   -> T.Text
   -> Eff es ()
-renameTo location path name
-  | T.null name = showError "A name can't be empty"
-  | name `elem` [".", ".."] = showError $ "A name can't be " <> name
-  | Just c <- T.find (`elem` forbiddenInNames) name =
-      showError $ "A name can't contain " <> T.singleton c
-  | new == path = pure ()
-  | otherwise = renameIn location [(path, new)]
+renameTo location path name = case nameFault name of
+  Just fault -> showError $ "A name " <> fault
+  Nothing
+    | new == path -> pure ()
+    | otherwise -> renameIn location [(path, new)]
   where
     new :: T.Text
-    new = T.pack (replaceFileName (T.unpack path) (T.unpack name))
+    new = renamedPath path name
+
+-- | Why a name of a directory is refused, if it is, e.g. "can't be empty".
+nameFault :: T.Text -> Maybe T.Text
+nameFault name
+  | T.null name = Just "can't be empty"
+  | name `elem` [".", ".."] = Just $ "can't be " <> name
+  | Just c <- T.find (`elem` forbiddenInNames) name =
+      Just $ "can't contain " <> T.singleton c
+  | otherwise = Nothing
+
+-- | The path of a directory after a rename to a name.
+renamedPath :: T.Text -> T.Text -> T.Text
+renamedPath path name = T.pack $ replaceFileName (T.unpack path) (T.unpack name)
+
+-- | Ask for the format to rename the marked directories by, starting from
+-- @browser.rename_format@.
+askRenameByFormat
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Eff es ()
+askRenameByFormat = do
+  s <- getS
+  env <- getAppEnv
+  let items = markedItems s
+      directories = [d.path | (_, EntryItem (DirectoryEntry d)) <- items]
+      selecting =
+        not . null $
+          selectedPositions (Just . itemKey <$> s.browser.items) s.browser.selection
+  case s.browser.location of
+    Just location
+      | not (null directories) && length directories == length items ->
+          whenRenamable location
+            $ modifyS
+            $ openLine
+              "Rename by format: "
+              (LineEdit (printFormat absurd env.config.browser.renameFormat) "")
+              (ForRenameByFormat location directories)
+    _
+      | selecting -> showMessage "The selection holds more than directories"
+      | otherwise -> showMessage "There is no directory under the cursor"
+
+-- | List the contents of directories of a listing, by their paths there,
+-- to rename them by a format that the user typed.
+renameByFormat
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es)
+  => Location
+  -> [T.Text]
+  -> T.Text
+  -> Eff es ()
+renameByFormat location paths text = case parsePlainFormat text of
+  Left err ->
+    showError $
+      "At character " <> T.pack (show (err.position + 1)) <> " of the format: " <> err.message
+  Right format -> do
+    token <- newToken
+    let start =
+          modifyS $
+            #browser
+              % #formatRename
+              ?~ FormatRename {token = token, location = location, format = format, paths = paths}
+    case location of
+      InLocal _ ->
+        getsS (.browser.suffixes) >>= \case
+          Just suffixes -> start >> listLocalContents token suffixes (map T.unpack paths)
+          Nothing -> showError "MPD's decoders aren't known yet"
+      _ -> do
+        start
+        requestOr
+          (traverse lsInfo paths)
+          (ContentsListed token . Left . exceptionText)
+          (ContentsListed token . Right)
+
+-- | Ask to rename the directories of MPD's database by their entries.
+contentsListed
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Int
+  -> Either T.Text [[Entry]]
+  -> Eff es ()
+contentsListed token result = whenCurrent (.browser.formatRename) (.token) token $ \r -> do
+  modifyS $ #browser % #formatRename .~ Nothing
+  either showError (askRenameTo r . zip r.paths) result
+
+-- | Ask to rename the local directories by their files.
+localContentsListed
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => Int
+  -> [Either ListingError [LocalFile]]
+  -> Eff es ()
+localContentsListed token results = whenCurrent (.browser.formatRename) (.token) token $ \r -> do
+  modifyS $ #browser % #formatRename .~ Nothing
+  suffixes <- getsS (.browser.suffixes)
+  let listed = zip r.paths results
+  case [(path, err) | (path, Left err) <- listed] of
+    (path, err) : _ -> showError $ case err of
+      DirectoryMissing -> baseName path <> " is gone"
+      DirectoryUnreadable why -> why
+    [] ->
+      askRenameTo r [(path, localEntries suffixes path files) | (path, Right files) <- listed]
+
+-- | Ask to rename directories by their entries, unless a directory can't
+-- have the name of the format, or two would have the same name. A
+-- directory that has the name already stays out.
+askRenameTo
+  :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
+  => FormatRename
+  -> [(T.Text, [Entry])]
+  -> Eff es ()
+askRenameTo r contents = do
+  env <- getAppEnv
+  case formatRenames env r.format contents of
+    Left err -> showError err
+    Right renames -> case filter (uncurry (/=)) renames of
+      []
+        | length renames == 1 -> showMessage "The directory has this name already"
+        | otherwise -> showMessage "The directories have these names already"
+      changed@((old, new) : rest) ->
+        let question
+              | null rest = "Rename " <> baseName old <> " to " <> baseName new <> "?"
+              | otherwise =
+                  "Rename "
+                    <> T.pack (show (length changed))
+                    <> " directories, e.g. "
+                    <> baseName old
+                    <> " to "
+                    <> baseName new
+                    <> "?"
+        in modifyS $ confirm question (Confirmed (ConfirmRename r.location changed))
+
+-- | The path of each directory and its new path, by the name that the
+-- format gives each of its songs. A directory must hold only songs, and
+-- they must give the same name.
+formatRenames
+  :: AppEnv
+  -> Format Void
+  -> [(T.Text, [Entry])]
+  -> Either T.Text [(T.Text, T.Text)]
+formatRenames env format contents = do
+  renames <- traverse rename contents
+  case [new | new : _ : _ <- L.group (L.sort (map snd renames))] of
+    new : _ -> Left $ "Two directories would be named " <> baseName new
+    [] -> Right renames
+  where
+    rename :: (T.Text, [Entry]) -> Either T.Text (T.Text, T.Text)
+    rename (path, entries) = do
+      let named = baseName path
+      songs <- forM entries $ \case
+        SongEntry song -> Right song
+        DirectoryEntry _ -> Left $ named <> " holds a directory"
+        PlaylistEntry _ -> Left $ named <> " holds a playlist"
+      case L.nub $ map (\song -> renderPlain (plainContext env.config.songs) song format) songs of
+        [] -> Left $ named <> " holds no songs"
+        [name] -> do
+          let cleaned = T.pack $ fileName nameLimit name
+          forM_ (nameFault cleaned) $ \fault ->
+            Left $ "The name for " <> named <> " " <> fault
+          Right (path, renamedPath path cleaned)
+        _ -> Left $ "The songs of " <> named <> " give different names"
 
 -- | Run an action if the directories of a listing can be renamed: MPD shows
 -- where those of its database are only on its socket.

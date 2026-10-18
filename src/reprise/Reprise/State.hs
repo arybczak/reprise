@@ -34,6 +34,7 @@ module Reprise.State
   , SongInfoState (..)
   , Location (..)
   , LocalAdd (..)
+  , FormatRename (..)
   , Renaming (..)
   , BrowserItem (..)
   , Listing (..)
@@ -82,6 +83,7 @@ import Data.Maybe
 import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Data.Vector.Storable qualified as VS
+import Data.Void
 import GHC.Generics
 import Optics.Core
 import System.FilePath
@@ -222,6 +224,9 @@ data LinePurpose
   | -- | The new name of a directory, by the listing that shows it and its
     -- path there.
     ForRename Location T.Text
+  | -- | The format to rename directories by, by the listing that shows them
+    -- and their paths there.
+    ForRenameByFormat Location [T.Text]
   | -- | The password that MPD asked for. The line shows as stars.
     ForPassword
   deriving stock (Eq, Show)
@@ -325,11 +330,24 @@ data BrowserState = BrowserState
   -- which a change of the mode lists again.
   , localAdds :: Seq.Seq LocalAdd
   -- ^ In the order of the keys. MPD adds the first, and the others wait.
+  , formatRename :: Maybe FormatRename
+  -- ^ The rename by a format whose directories are listed, until their
+  -- contents come.
   , renaming :: Maybe Renaming
   -- ^ The renames of directories, until they end.
   , landOn :: Maybe (Location, ItemKey)
   -- ^ The item that a listing of the location puts the cursor on once it
   -- has it, e.g. a renamed directory once MPD's update found it.
+  }
+  deriving stock (Eq, Show, Generic)
+
+-- | A rename of directories by a format, while their contents are listed.
+data FormatRename = FormatRename
+  { token :: Int
+  , location :: Location
+  , format :: Format Void
+  , paths :: [T.Text]
+  -- ^ Of the directories, as the listing has them.
   }
   deriving stock (Eq, Show, Generic)
 
@@ -561,6 +579,7 @@ initialState config =
           , suffixes = Nothing
           , otherMode = Nothing
           , localAdds = Seq.empty
+          , formatRename = Nothing
           , renaming = Nothing
           , landOn = Nothing
           }

@@ -242,6 +242,7 @@ answer purpose text = case purpose of
   ForFind f -> acceptFind f text
   ForSave source -> saveNamed source (T.strip text)
   ForRename location path -> renameTo location path text
+  ForRenameByFormat location paths -> renameByFormat location paths text
   ForPassword -> answerPassword (Just text)
   ForCommand
     | T.null (T.strip text) -> pure ()

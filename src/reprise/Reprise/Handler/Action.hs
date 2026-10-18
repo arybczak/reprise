@@ -51,6 +51,7 @@ runAction action = case action of
   Save -> verb action
   EditLyrics -> verb action
   Rename -> verb action
+  RenameByFormat -> verb action
   RefetchLyrics -> verb action
   NextSortMode -> verb action
   ChangeBrowseMode -> verb action
@@ -163,10 +164,12 @@ cycleScreens screens = do
       _ -> first
 
 -- | Run a destructive action that the user confirmed.
-runConfirmed :: (State AppState :> es, MpdRequest :> es) => Confirmation -> Eff es ()
+runConfirmed
+  :: (State AppState :> es, MpdRequest :> es, UiRequest :> es) => Confirmation -> Eff es ()
 runConfirmed = \case
   ConfirmClear -> editQueue [ClearQueue]
   ConfirmShuffle -> editQueue [ShuffleRange Nothing]
+  ConfirmRename location renames -> renameIn location renames
 
 -- | Quit once the requests before the quit ran, so that the command of a
 -- key right before it isn't lost. A command without requests marks that

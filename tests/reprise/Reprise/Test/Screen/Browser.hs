@@ -74,6 +74,8 @@ browserTests =
     , testCase "a name that isn't one of a file" test_renameRefused
     , testCase "a rename in MPD's storages" test_renameInStorages
     , testCase "a rename that fails" test_renameFailed
+    , testCase "rename by a format" test_renameByFormat
+    , testCase "what a rename by a format refuses" test_renameByFormatRefused
     , testGroup
         "local files"
         [ testCase "the home directory, after MPD's decoders" test_localHome
@@ -97,6 +99,7 @@ browserTests =
         , testCase "adding before MPD's decoders are known" test_localAddWithoutDecoders
         , testCase "MPD refuses local files" test_localAddRefused
         , testCase "rename a local directory" test_renameLocal
+        , testCase "rename a local directory by a format" test_renameByFormatLocal
         ]
     ]
 
@@ -554,6 +557,122 @@ test_renameLocal = do
   assertEqual "the listing again" ["/home/user"] (localListings done)
   relisted <- listedWith [localDirectory "Books", localDirectory "Musz"] done
   assertEqual "the cursor on the new name" 2 (focusedView relisted.state).cursor
+
+-- | The selected directories, by the default format, after a confirmation.
+test_renameByFormat :: Assertion
+test_renameByFormat = do
+  asked <- press ["insert", "down", "insert", "e", "R"] =<< root
+  assertEqual
+    "the prompt, with the format"
+    ( Just
+        ( Prompt
+            "Rename by format: "
+            ( Line
+                (LineEdit "[%{albumartist}|%{artist}] - %{album} %[%{extension}%]" "")
+                (ForRenameByFormat (InDirectory "") ["a", "b"])
+                Nothing
+            )
+        )
+    )
+    asked.state.prompt
+  listed <- press ["enter"] asked.state
+  assertEqual
+    "the listings"
+    [[Request "lsinfo" ["a"], Request "lsinfo" ["b"]]]
+    listed.requests
+  confirming <-
+    answer
+      [ "file: a/1.flac"
+      , "Artist: X"
+      , "Album: Y"
+      , "file: a/2.flac"
+      , "Artist: X"
+      , "Album: Y"
+      , "list_OK"
+      , "file: b/1.flac"
+      , "AlbumArtist: Z"
+      , "Artist: V"
+      , "Album: W"
+      , "list_OK"
+      ]
+      listed
+  assertEqual
+    "the question"
+    (Just "Rename 2 directories, e.g. a to X - Y [flac]?")
+    ((.question) <$> confirming.prompt)
+  confirmed <- answerLast musicMount =<< press ["y"] confirming
+  assertEqual
+    "the renames"
+    [ RenameDirectories
+        [("/music/a", "/music/X - Y [flac]"), ("/music/b", "/music/Z - W [flac]")]
+    ]
+    (renames confirmed)
+
+-- | What makes a rename by a format refuse every directory.
+test_renameByFormatRefused :: Assertion
+test_renameByFormatRefused = do
+  s <- root
+  let byAlbum = ["e", "R", "ctrl-u"] <> typing "%{album}" <> ["enter"]
+      refused why reply = do
+        r <- answer reply =<< press byAlbum s
+        assertEqual why Nothing r.prompt
+        assertEqual why [] . renames =<< press ["y"] r
+        assertEqual why (Just (T.pack why)) (message r)
+  refused "a holds a directory" ["file: a/1.flac", "Album: Y", "directory: a/c"]
+  refused "a holds a playlist" ["file: a/1.flac", "Album: Y", "playlist: a/p.m3u"]
+  refused "a holds no songs" []
+  refused
+    "The songs of a give different names"
+    ["file: a/1.flac", "Album: Y", "file: a/2.flac", "Album: Z"]
+  refused "The name for a can't be .." ["file: a/1.flac", "Album: .."]
+  refused "The directory has this name already" ["file: a/1.flac", "Album: a"]
+  selected <- press (["insert", "down", "insert"] <> byAlbum) s
+  duplicate <-
+    answer
+      ["file: a/1.flac", "Album: Y", "list_OK", "file: b/1.flac", "Album: Y", "list_OK"]
+      selected
+  assertEqual "duplicates" (Just "Two directories would be named Y") (message duplicate)
+  invalid <- press (["e", "R", "ctrl-u"] <> typing "%{" <> ["enter"]) s
+  assertEqual "no listing" [] invalid.requests
+  assertEqual
+    "an invalid format"
+    (Just "At character 1 of the format: %{ isn't closed with }")
+    (message invalid.state)
+  assertEqual "a playlist" (Just "There is no directory under the cursor")
+    . message
+    . (.state)
+    =<< press ["end", "e", "R"] s
+  assertEqual "a selected playlist" (Just "The selection holds more than directories")
+    . message
+    . (.state)
+    =<< press ["insert", "end", "insert", "e", "R"] s
+
+-- | A local directory, by its music files.
+test_renameByFormatLocal :: Assertion
+test_renameByFormatLocal = do
+  r <- press ["down", "e", "R", "enter"] =<< inHome
+  case [(token, dirs) | ListLocalContents token _ dirs <- r.commands] of
+    [(token, dirs)] -> do
+      assertEqual "the listing" ["/home/user/Music"] dirs
+      let tags = FileTags {properties = [("ARTIST", ["A"]), ("ALBUM", ["B"])], seconds = Nothing}
+      confirming <-
+        runEvents
+          0
+          [ LocalContentsListed
+              token
+              [Right [localFile "a.flac" (Just tags), localFile "cover.jpg" Nothing]]
+          ]
+          r.state
+      assertEqual
+        "the question"
+        (Just "Rename Music to A - B [flac]?")
+        ((.question) <$> confirming.state.prompt)
+      assertEqual
+        "the rename"
+        [RenameDirectories [("/home/user/Music", "/home/user/A - B [flac]")]]
+        . renames
+        =<< press ["y"] confirming.state
+    listings -> assertFailure $ "listings: " <> show listings
 
 -- | Nothing plays, and the title scrolls all the same.
 test_longPath :: Assertion
@@ -1048,6 +1167,10 @@ overTcp =
 -- | MPD's reply to @listmounts@ with its music directory, @/music@.
 musicMount :: [BS.ByteString]
 musicMount = ["mount: ", "storage: /music"]
+
+-- | The keys that type a text.
+typing :: T.Text -> [T.Text]
+typing = T.chunksOf 1
 
 -- | The renames that a result asked for.
 renames :: Result -> [UiCommand]

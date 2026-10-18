@@ -23,6 +23,7 @@ module Reprise.Effect.UiRequest
   , listLocal
   , walkLocal
   , renameDirectories
+  , listLocalContents
   ) where
 
 import Data.Text qualified as T
@@ -70,6 +71,8 @@ data UiCommand
   | -- | Rename directories in turn, by their paths and their new paths,
     -- until one fails.
     RenameDirectories [(FilePath, FilePath)]
+  | -- | List local directories for the rename by a format with the token.
+    ListLocalContents Int Suffixes [FilePath]
   deriving stock (Eq, Show)
 
 -- | Collect the requests, in the order the action made them.
@@ -124,3 +127,7 @@ walkLocal token suffixes = send . UiRequest . WalkLocal token suffixes
 -- | Rename directories in turn, by their paths and their new paths.
 renameDirectories :: UiRequest :> es => [(FilePath, FilePath)] -> Eff es ()
 renameDirectories = send . UiRequest . RenameDirectories
+
+-- | List local directories for the rename by a format with the token.
+listLocalContents :: UiRequest :> es => Int -> Suffixes -> [FilePath] -> Eff es ()
+listLocalContents token suffixes = send . UiRequest . ListLocalContents token suffixes

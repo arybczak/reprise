@@ -275,6 +275,7 @@ keys:
     2: change_browse_mode        # MPD's database or local files
     e:
       r: rename                  # the directory under the cursor
+      R: rename_by_format        # by browser.rename_format
     t:
       d: toggle display          # columns or classic
       o: next_sort_mode

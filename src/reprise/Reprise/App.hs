@@ -158,6 +158,12 @@ runApp env channels buildVty initial = do
         RenameDirectories renames -> do
           inBackground channels.events (renameAll renames) (DirectoriesRenamed 0 . Just)
           pure next
+        ListLocalContents token suffixes dirs -> do
+          inBackground
+            channels.events
+            (LocalContentsListed token <$> traverse (listLocalDirectory suffixes) dirs)
+            (LocalContentsListed token . pure . Left . DirectoryUnreadable)
+          pure next
         Edit cmd file -> do
           V.shutdown =<< S.readIORef current
           failure <- runEditor cmd file

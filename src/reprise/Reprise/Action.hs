@@ -95,6 +95,7 @@ data Action
   | RefetchLyrics
   | EditLyrics
   | Rename
+  | RenameByFormat
   deriving stock (Eq, Show)
 
 data MoveTarget
@@ -298,6 +299,7 @@ registry =
   , spec "refetch_lyrics" "" $ none RefetchLyrics
   , spec "edit_lyrics" "" $ none EditLyrics
   , spec "rename" "" $ none Rename
+  , spec "rename_by_format" "" $ none RenameByFormat
   ]
   where
     -- An action whose arguments are words and lists.
@@ -541,6 +543,7 @@ renderAction = \case
   RefetchLyrics -> "refetch_lyrics"
   EditLyrics -> "edit_lyrics"
   Rename -> "rename"
+  RenameByFormat -> "rename_by_format"
   where
     screenList :: [ScreenName] -> T.Text
     screenList ss = "[" <> T.intercalate ", " (map screenName ss) <> "]"
@@ -697,6 +700,7 @@ describeAction = \case
   RefetchLyrics -> "fetch the lyrics again"
   EditLyrics -> "edit the lyrics"
   Rename -> "rename the directory"
+  RenameByFormat -> "rename directories by their songs"
 
 ----------------------------------------
 -- Helpers

@@ -80,6 +80,12 @@ data AppEvent
   | -- | How many directories of the browser's renames were renamed, and why
     -- the next one wasn't, if one failed.
     DirectoriesRenamed Int (Maybe T.Text)
+  | -- | The entries of each directory of MPD's database that a rename by a
+    -- format with the token listed, or why it couldn't.
+    ContentsListed Int (Either T.Text [[Entry]])
+  | -- | The files of each local directory that a rename by a format with
+    -- the token listed.
+    LocalContentsListed Int [Either ListingError [LocalFile]]
   | ReplayGainFetched ReplayGainMode
   | -- | The reply to a command that changes MPD's state. The new state comes
     -- through idle.
@@ -144,6 +150,9 @@ data Confirmation
     ConfirmClear
   | -- | Shuffle the whole queue.
     ConfirmShuffle
+  | -- | Rename directories of a listing, by their paths and their new paths
+    -- there.
+    ConfirmRename Location [(T.Text, T.Text)]
   deriving stock (Eq, Show)
 
 -- | What the browser lists. It is here, not with the browser's state, as
