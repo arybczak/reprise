@@ -3,6 +3,7 @@ module Reprise.Test.File (fileTests) where
 import Control.Exception
 import Data.ByteString qualified as BS
 import Data.Text.Encoding qualified as T
+import GHC.IO.Encoding
 import System.Directory
 import System.FilePath
 import System.IO.Temp
@@ -28,7 +29,11 @@ fileTests =
 test_logUtf8 :: Assertion
 test_logUtf8 = withSystemTempDirectory "file" $ \dir -> do
   let path = dir </> "reprise.log"
-  logLine <- openLog path
+  -- The encoding of the locale is global, so it changes only while the log
+  -- opens, as a handle takes it then. Char8 cuts characters past Latin-1.
+  logLine <-
+    bracket getLocaleEncoding setLocaleEncoding $ \_ ->
+      setLocaleEncoding char8 >> openLog path
   logLine "Zażółć"
   -- GHC locks the file of the log's handle, which stays open, against its
   -- handles in the same process.

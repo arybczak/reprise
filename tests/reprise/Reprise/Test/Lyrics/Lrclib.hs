@@ -70,6 +70,9 @@ test_chooseTrack = do
     (chosen (Just 295) (reverse tracks))
   assertEqual "of the length" (Just True) (snd <$> chosen (Just 300) tracks)
   assertEqual "none of the length" Nothing (chosen (Just 200) tracks)
+  -- MPD and LRCLIB measure a length differently, by up to 2 s.
+  assertEqual "a length close enough" (Just (295, False)) (chosen (Just 296.5) tracks)
+  assertEqual "a length too far" Nothing (chosen (Just 297.5) tracks)
   assertEqual "without a length" (Just (295, False)) (chosen Nothing (reverse tracks))
   let track plain synced =
         LrclibTrack

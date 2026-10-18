@@ -120,11 +120,17 @@ test_back = do
   r <- runEvents 0 [key "l", key "l"] =<< queueShown
   assertEqual "the queue" QueueScreen (focusedView r.state).screen
   assertEqual "after the lyrics" (Just LyricsScreen) (focusedView r.state).previous
-  browser <- runEvents 0 [key "2"] =<< queueShown
-  listed <- case browser.pending of
-    [p] -> runEvents 0 [replyTo ["file: x.flac", "Title: X"] p] browser.state
-    ps -> assertFailure $ "one listing, not " <> show (length ps)
-  back <- runEvents 0 [key "l", key "l"] listed.state
+  -- The song after "..", the first row of a directory.
+  let listing reply asked = case asked.pending of
+        [p] -> runEvents 0 [replyTo reply p] asked.state
+        ps -> assertFailure $ "one listing, not " <> show (length ps)
+  root <- listing ["directory: d"] =<< runEvents 0 [key "2"] =<< queueShown
+  listed <-
+    listing ["file: d/x.flac", "file: d/y.flac"] =<< runEvents 0 [key "enter"] root.state
+  shown <- runEvents 0 [key "down", key "down", key "l"] listed.state
+  assertEqual "the lyrics" LyricsScreen (focusedView shown.state).screen
+  assertEqual "of the song" ["y"] (askedFor shown)
+  back <- runEvents 0 [key "l"] shown.state
   assertEqual "the browser" BrowserScreen (focusedView back.state).screen
 
 -- | The queue is the first screen, so no screen was before it.

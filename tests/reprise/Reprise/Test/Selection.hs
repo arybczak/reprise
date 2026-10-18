@@ -82,6 +82,7 @@ test_selectAlbum = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) q
   assertEqual "album" (ids [3, 4]) . selected
     =<< keys ["down", "down", "down", "v", "a"] s
+  assertEqual "not the same album further on" (ids [1, 2]) . selected =<< keys ["v", "a"] s
 
 test_selectFound :: Assertion
 test_selectFound = do
@@ -98,6 +99,7 @@ test_selectArtist = do
   r <- keys ["down", "down", "v", "A"] s
   assertEqual "artist" (ids [2, 3, 4]) (selected r)
   assertEqual "message" (Just "Artist around the cursor selected") (message r)
+  assertEqual "not the same artist further on" (ids [1]) . selected =<< keys ["v", "A"] s
   let various a pos = song pos [(AlbumArtist, ["Various"]), (Artist, [a])] 60
       compilation = [by "x" 0, various "y" 1, various "z" 2, various "w" 3, by "x" 4]
   c <- testState (80, 24) (statusOf Stopped Nothing 5) compilation
