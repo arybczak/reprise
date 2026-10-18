@@ -200,8 +200,17 @@ test_fields = do
   assertEqual "short length" "0:05" (formatDuration 5.9)
 
 test_width :: Assertion
-test_width =
+test_width = do
   assertEqual "field width" "ab…" (plain "%{title:3}" (song "x" [(Title, ["abcdef"])]))
+  -- The ellipsis leaves 8 columns, and 日 doesn't fit in the 1 after "Artist ".
+  assertEqual
+    "no space of an earlier span before the ellipsis"
+    [Span (Just 1) "Artist", Span (Just 2) "…"]
+    (fitSpans 9 [Span (Just @Int 1) "Artist ", Span (Just 2) "日本語"])
+  assertEqual
+    "nor of a span of spaces"
+    [Span (Just 1) "Artist", Span (Just 3) "…"]
+    (fitSpans 9 [Span (Just @Int 1) "Artist", Span (Just 2) " ", Span (Just 3) "日本語"])
 
 prop_printParse :: Property
 prop_printParse = forAllShrink genFormat shrinkFormat $ \fmt ->

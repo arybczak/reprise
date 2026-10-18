@@ -10,6 +10,7 @@ module Reprise.Width
     textWidth
   , takeWidth
   , truncateToWidth
+  , cutWithEllipsis
   , ellipsis
   , wrapText
   , scrollText
@@ -58,7 +59,12 @@ charWidth c
 truncateToWidth :: Int -> T.Text -> T.Text
 truncateToWidth width t
   | textWidth t <= width = t
-  | otherwise = takeWidth (width - textWidth ellipsis) t <> ellipsis
+  | otherwise = cutWithEllipsis (width - textWidth ellipsis) t
+
+-- | The start of text that fits in the width, then an ellipsis. The
+-- ellipsis follows the last word, not a space.
+cutWithEllipsis :: Int -> T.Text -> T.Text
+cutWithEllipsis width t = T.stripEnd (takeWidth width t) <> ellipsis
 
 ellipsis :: T.Text
 ellipsis = "…"

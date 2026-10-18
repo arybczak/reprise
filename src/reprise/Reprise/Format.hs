@@ -441,8 +441,14 @@ fitSpans width spans
     go room = \case
       [] -> []
       s : rest
-        | textWidth s.text < room -> s : go (room - textWidth s.text) rest
-        | otherwise -> [Span s.style (takeWidth room s.text <> ellipsis)]
+        | textWidth s.text < room -> case go (room - textWidth s.text) rest of
+            -- Nothing of the next span fits, so the ellipsis follows the
+            -- last word of this one.
+            [e]
+              | e.text == ellipsis ->
+                  [Span s.style (T.stripEnd s.text) | not (T.all isSpace s.text)] <> [e]
+            next -> s : next
+        | otherwise -> [Span s.style (cutWithEllipsis room s.text)]
 
 -- | Drop empty spans and join neighbours with the same style.
 mergeSpans :: Eq s => [Span s] -> [Span s]

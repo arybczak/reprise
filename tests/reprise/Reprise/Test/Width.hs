@@ -37,6 +37,7 @@ test_truncate :: Assertion
 test_truncate = do
   assertEqual "short enough" "abc" (truncateToWidth 3 "abc")
   assertEqual "ellipsis" "ab…" (truncateToWidth 3 "abcd")
+  assertEqual "no space before the ellipsis" "ab…" (truncateToWidth 4 "ab cd")
   assertEqual "wide characters" "日…" (truncateToWidth 4 "日本語")
   assertEqual "wide character width" 6 (textWidth "日本語")
 
