@@ -84,6 +84,11 @@ test_hint = do
   assertEqual "what it will do" "seek to 1:30" (actionHint "seek 1:30")
   assertEqual "an action without arguments" "quit" (actionHint "quit")
   assertEqual "not an action yet" "" (actionHint "se")
+  assertEqual
+    "the usage of an argument, after a question that names the action"
+    "+Ns | -Ns | [h:]m:ss | N%"
+    (argumentHint "seek" "")
+  assertEqual "what the argument will do" "seek to 1:30" (argumentHint "seek" "1:30")
 
 test_errors :: Assertion
 test_errors = do

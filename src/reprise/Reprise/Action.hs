@@ -27,6 +27,7 @@ module Reprise.Action
     -- * Registry
   , parseAction
   , actionHint
+  , argumentHint
   , askQuestion
   , renderAction
   , describeAction
@@ -448,6 +449,14 @@ actionHint :: T.Text -> T.Text
 actionHint input = case parseAction input of
   Right a -> describeAction a
   Left _ -> maybe "" usageOf . findSpec . fst $ T.break isSpace (T.strip input)
+
+-- | What the prompt of an action's argument shows while the user types it:
+-- what the action would do, or how to write its argument. The question
+-- names the action already.
+argumentHint :: T.Text -> T.Text -> T.Text
+argumentHint name argument = case parseAction (name <> " " <> argument) of
+  Right a -> describeAction a
+  Left _ -> maybe "" (.usage) (findSpec name)
 
 -- | The question of the prompt that asks for an action's argument, after the
 -- action's name, e.g. @Add path: @.
