@@ -616,10 +616,20 @@ test_promptAnswers = do
     =<< requested ["a", "/"] "a/b.flac"
   assertEqual "run a command" [[Request "setvol" ["30"]]] =<< requested [":"] "volume 30"
   assertEqual
-    "the start of the line"
-    (Just (Prompt ":" (Line (LineEdit "seek " "") ForCommand Nothing)))
+    "a prompt of the action's own"
+    (Just (Prompt "Seek: " (Line (LineEdit "" "") (ForArgument "seek") Nothing)))
     . (.state.prompt)
     =<< keys ["g", "s"] s
+  assertEqual
+    "the argument's error"
+    ( Just
+        ( "seek: expected seconds with an s, e.g. +5s; usage: seek +Ns | -Ns | [h:]m:ss | N%"
+        , True
+        )
+    )
+    . fmap (\m -> (m.text, m.isError))
+    . (.state.message)
+    =<< answer ["g", "s"] "+5"
   invalid <- answer [":"] "volume 140"
   assertEqual "invalid" [] invalid.requests
   assertEqual
@@ -722,14 +732,14 @@ test_promptHistory = do
           <> ["enter"]
       )
       s
-  assertEqual "newest first" ["song", "seek 1:30", "volume 30"] used.state.history
+  assertEqual "newest first, as typed" ["song", "1:30", "volume 30"] used.state.history
   let lineOf r = case r.state.prompt of
         Just (Prompt _ (Line edit _ _)) -> Just (lineEditText edit)
         _ -> Nothing
   assertEqual "shared" (Just "volume 30") . lineOf
     =<< keys [":", "up", "up", "up"] used.state
-  assertEqual "only the lines that start with the typed one" (Just "seek 1:30") . lineOf
-    =<< keys ["g", "s", "up", "up"] used.state
+  assertEqual "only the lines that start with the typed one" (Just "1:30") . lineOf
+    =<< keys (["g", "s"] <> typed "1" <> ["up", "up"]) used.state
   assertEqual "ctrl-p and ctrl-n" (Just "song") . lineOf
     =<< keys ["/", "ctrl-p", "ctrl-p", "ctrl-n"] used.state
   assertEqual "back to the typed line" (Just "vol") . lineOf
@@ -752,7 +762,7 @@ test_promptHistory = do
   assertEqual "no history in the password" [Just "secret"] (passwordAnswers password)
   assertEqual
     "the lines go to the file"
-    ["volume 30", "seek 1:30", "song"]
+    ["volume 30", "1:30", "song"]
     [l | SaveToHistory l <- used.commands]
 
 test_promptKeys :: Assertion

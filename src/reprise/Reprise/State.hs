@@ -211,6 +211,8 @@ data ChoiceOption = ChoiceOption
 data LinePurpose
   = -- | The @:@ prompt, which runs an action.
     ForCommand
+  | -- | The argument of the action with the name.
+    ForArgument T.Text
   | ForFind Finding
   | -- | The name of the stored playlist to save to.
     ForSave SaveSource

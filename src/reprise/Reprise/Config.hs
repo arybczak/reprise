@@ -1006,7 +1006,7 @@ defaultKeymaps =
               , char 'b' ~> Add AddBeginning
               , char 'c' ~> Add AddCursor
               , char 'p' ~> AddAndPlay
-              , char '/' ~> CommandPrompt "add_path"
+              , char '/' ~> Ask "add_path"
               ]
           , group
               (char 'e')
@@ -1029,7 +1029,7 @@ defaultKeymaps =
               , char 's' ~> Toggle ToggleSingle
               , char 'c' ~> Toggle ToggleConsume
               , char 'x' ~> Toggle (ToggleCrossfade 5)
-              , char 'X' ~> CommandPrompt "crossfade"
+              , char 'X' ~> Ask "crossfade"
               , char 'g' ~> Toggle ToggleReplayGain
               , char 'a' ~> Toggle ToggleAlbumSeparators
               , char 'b' ~> Toggle ToggleBitrate
@@ -1039,7 +1039,7 @@ defaultKeymaps =
               "go"
               [ char 'b' ~> JumpToBrowser
               , -- ncmpcpp's g.
-                char 's' ~> CommandPrompt "seek"
+                char 's' ~> Ask "seek"
               ]
           , char 'U' ~> Update UpdateAll
           ]
@@ -1067,7 +1067,7 @@ defaultKeymaps =
                         , char 'b' ~> MoveSongs MoveSongsToBeginning
                         , char 'n' ~> MoveSongs MoveSongsToNext
                         ]
-                    , char 'p' ~> CommandPrompt "priority"
+                    , char 'p' ~> Ask "priority"
                     ]
                 , group
                     (char 't')

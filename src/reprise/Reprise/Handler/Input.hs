@@ -244,6 +244,9 @@ answer purpose text = case purpose of
   ForCommand
     | T.null (T.strip text) -> pure ()
     | otherwise -> either showError runAction (parseAction text)
+  ForArgument name
+    | T.null (T.strip text) -> pure ()
+    | otherwise -> either showError runAction (parseAction (name <> " " <> text))
 
 -- | Ask for the password after MPD refused a command or the password.
 askPassword :: MpdError -> AppState -> AppState

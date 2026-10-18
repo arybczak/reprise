@@ -68,6 +68,7 @@ test_renderParse =
     , Crossfade 3
     , CommandPrompt ""
     , CommandPrompt "seek"
+    , Ask "add_path"
     , AddPath "A/[2001] B/01 c  d.flac"
     ]
 
@@ -104,6 +105,12 @@ test_errors = do
     (parseAction "seek 100%")
   assertBool "past the end of a song" (isLeft $ parseAction "seek 101%")
   assertBool "unknown screen" (isLeft $ parseAction "show tag_editor")
+  assertEqual
+    "ask for no argument"
+    (Left "ask: pause has no argument to ask for; usage: ask ACTION")
+    (parseAction "ask pause")
+  assertBool "ask for a prompt" (isLeft $ parseAction "ask command")
+  assertBool "ask for an unknown action" (isLeft $ parseAction "ask nope")
   assertBool "seek without a unit" (isLeft $ parseAction "seek +5")
   assertBool "unclosed list" (isLeft $ parseAction "next_screen [browser")
   assertEqual

@@ -1682,11 +1682,15 @@ or a digit, so a vowel sign of Devanagari stays with its letter.
 
 The line prompts share one history, as in ncmpcpp. Separate histories would
 each hold few lines, and more prompts are coming, e.g. the search engine's.
+- **A prompt puts the line into the history exactly as the user typed it,
+  and recalls it as it is.** No prompt rewrites a line, e.g. to add the
+  name of its action, or recalls only lines of its own kind: a rule with
+  exceptions is harder to predict than a history that holds every kind of
+  line.
 - **`up`/`ctrl-p` and `down`/`ctrl-n` recall the lines that start with what
-  the user typed,** as in Vim and zsh. That keeps a shared history usable:
-  `g s` opens `:seek `, so `up` goes through the earlier seeks only. Going
-  down past the newest line brings back the typed one, and an edit makes
-  the recalled line the typed one.
+  the user typed,** as in Vim and zsh. Typing the start of a line narrows
+  the history down to it. Going down past the newest line brings back the
+  typed one, and an edit makes the recalled line the typed one.
 - **`page_up` goes to the oldest matching line, and `page_down` back to the
   typed one,** as bash's `beginning-of-history` and `end-of-history`.
 - **Each line is kept once,** and using it again makes it the newest.
@@ -1721,16 +1725,18 @@ each hold few lines, and more prompts are coming, e.g. the search engine's.
 The editor is reprise's own pure code, so that the tests run it with the
 handlers.
 
-The `:` prompt runs an action. It is also how a key asks for a value: the
-`command` action takes the start of the line, so `g s: command seek`
-opens `:seek ` and the user types the time. One prompt and the registry's
-parsers serve every action with arguments, instead of a prompt action for
-each, such as ncmpcpp's `set_volume`. Any action with arguments can become
-an "ask me" binding without new code.
+The `:` prompt runs an action. A key asks for a value with `ask`, which
+opens a prompt of the action's own, e.g. `g s: ask seek` asks "Seek: ", and
+`enter` runs the action with the line as its argument. A key never opens the
+`:` prompt with an action's name typed in it: a prompt that asks for one
+value doesn't let the user run another action instead. The question comes
+from the action's name, and the registry's parser takes the answer, so any
+action with arguments can become an "ask me" binding without new code,
+instead of a prompt action for each, such as ncmpcpp's `set_volume`.
 - **A hint** on the right of the line tells how to go on: the usage of the
-  action that the line names, e.g. `seek +Ns | -Ns | [h:]m:ss | N%`, and, once
-  the line parses, what `enter` will do, e.g. "seek to 1:30". The line comes
-  first; the hint gets the room that is left.
+  action, e.g. `seek +Ns | -Ns | [h:]m:ss | N%`, and, once the line parses,
+  what `enter` will do, e.g. "seek to 1:30". The line comes first; the hint
+  gets the room that is left.
 - **An answer that doesn't parse** shows the registry's error with the usage.
   An empty line does nothing.
 - **Arguments** are words and lists, except for `add_path` and `command`,

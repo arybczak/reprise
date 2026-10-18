@@ -218,7 +218,7 @@ keys:
       b: add beginning
       c: add cursor              # after the cursor of the queue
       p: add_and_play
-      /: command add_path        # asks for the path
+      /: ask add_path            # asks for the path
     e:
       name: edit
       w: save                    # as a stored playlist
@@ -236,13 +236,13 @@ keys:
       s: toggle single
       c: toggle consume
       x: toggle crossfade 5      # 0 or 5 seconds
-      X: command crossfade       # asks for the seconds
+      X: ask crossfade           # asks for the seconds
       g: toggle replay_gain
       b: toggle bitrate
     g:
       name: go
       b: jump_to_browser         # the directory of the song under the cursor
-      s: command seek            # asks for [h:]m:ss, N% or ±Ns
+      s: ask seek                # asks for [h:]m:ss, N% or ±Ns
     U: update all                # the whole database
 
   queue:
@@ -260,7 +260,7 @@ keys:
         e: move_songs end
         b: move_songs beginning
         n: move_songs next       # after the playing song
-      p: command priority        # asks for 0–255
+      p: ask priority            # asks for 0–255
     t:
       d: toggle display          # columns or classic
       f: toggle follow_playing   # move the cursor to each song that plays

@@ -1,6 +1,6 @@
 Queue (6 songs, 1h 10m)                                              Volume: 50%
 ────────────────────────────────────────────────────────────────────────────────
-X  :crossfade …             c  toggle consume
+X  crossfade …              c  toggle consume
 a  toggle album separators  d  toggle display
 b  toggle bitrate           +6 more
 ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅

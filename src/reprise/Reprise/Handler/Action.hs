@@ -68,6 +68,7 @@ runAction action = case action of
   CommandPrompt start ->
     modifyS $
       openLine ":" (LineEdit (if T.null start then start else start <> " ") "") ForCommand
+  Ask name -> modifyS $ openLine (askQuestion name) (LineEdit "" "") (ForArgument name)
   Pause -> withStatus $ \st -> mutate $ case st.state of
     Playing -> pause True
     Paused -> pause False

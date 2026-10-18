@@ -27,6 +27,7 @@ module Reprise.Action
     -- * Registry
   , parseAction
   , actionHint
+  , askQuestion
   , renderAction
   , describeAction
   ) where
@@ -74,6 +75,9 @@ data Action
   | -- | The @:@ prompt, with the start of its line, e.g. an action's name
     -- whose arguments the user then types.
     CommandPrompt T.Text
+  | -- | A prompt of an action's own for its argument, with the action's
+    -- name.
+    Ask T.Text
   | Quit
   | Add AddPosition
   | AddAndPlay
@@ -265,6 +269,12 @@ registry =
   , spec "next_screen" "[SCREEN, ...]" $ screenList NextScreen
   , spec "previous_screen" "[SCREEN, ...]" $ screenList PreviousScreen
   , ActionSpec "command" "[START OF THE LINE]" (Right . CommandPrompt)
+  , -- @ask@ and @command@ are prompts already.
+    spec "ask" "ACTION" . one $ \name -> case findSpec name of
+      Just s
+        | not (T.null s.usage) && name `notElem` ["ask", "command"] -> Right (Ask name)
+        | otherwise -> Left $ name <> " has no argument to ask for"
+      Nothing -> Left $ "unknown action " <> name
   , spec "quit" "" $ none Quit
   , namedSpec "add" "position" addName Add
   , spec "add_and_play" "" $ none AddAndPlay
@@ -439,6 +449,13 @@ actionHint input = case parseAction input of
   Right a -> describeAction a
   Left _ -> maybe "" usageOf . findSpec . fst $ T.break isSpace (T.strip input)
 
+-- | The question of the prompt that asks for an action's argument, after the
+-- action's name, e.g. @Add path: @.
+askQuestion :: T.Text -> T.Text
+askQuestion name =
+  let words' = T.replace "_" " " name
+  in T.toUpper (T.take 1 words') <> T.drop 1 words' <> ": "
+
 findSpec :: T.Text -> Maybe ActionSpec
 findSpec name = L.find (\s -> s.name == name) registry
 
@@ -496,6 +513,7 @@ renderAction = \case
   NextScreen ss -> "next_screen " <> screenList ss
   PreviousScreen ss -> "previous_screen " <> screenList ss
   CommandPrompt t -> T.strip ("command " <> t)
+  Ask name -> "ask " <> name
   Quit -> "quit"
   Add p -> "add " <> addName p
   AddAndPlay -> "add_and_play"
@@ -638,6 +656,7 @@ describeAction = \case
   CommandPrompt t
     | T.null t -> "run an action"
     | otherwise -> ":" <> t <> " …"
+  Ask name -> T.replace "_" " " name <> " …"
   Quit -> "quit"
   Add p -> case p of
     AddEnd -> "add at the end"

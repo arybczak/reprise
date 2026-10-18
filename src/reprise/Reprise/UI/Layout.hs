@@ -253,6 +253,7 @@ promptLine s question edit purpose =
   let w = fst s.terminalSize
       fullNote = case purpose of
         ForCommand -> actionHint (lineEditText edit)
+        ForArgument name -> actionHint (name <> " " <> lineEditText edit)
         ForFind f -> fromMaybe "" f.note
         ForSave _ -> ""
         ForPassword -> ""
