@@ -117,9 +117,9 @@ test_helpScrolls = do
 test_helpLacksVerb :: Assertion
 test_helpLacksVerb = do
   s <- keys ["f1"] =<< testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
-  r <- keys ["delete"] s.state
-  assertEqual "nothing deleted" [] r.requests
-  assertEqual "message" (Just "The help screen has no delete") (message r)
+  r <- keys ["enter"] s.state
+  assertEqual "nothing played" [] r.requests
+  assertEqual "message" (Just "The help screen has no activate") (message r)
 
 test_followBehindHelp :: Assertion
 test_followBehindHelp = do

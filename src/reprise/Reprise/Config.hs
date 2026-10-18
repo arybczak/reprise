@@ -967,7 +967,6 @@ defaultKeymaps =
           , -- Verbs: each screen implements them its own way.
             plain Enter ~> Activate
           , plain Space ~> AddOrRemove
-          , plain DeleteKey ~> Delete
           , char 'p' ~> Pause
           , char 's' ~> Stop
           , char '<' ~> Previous
@@ -1055,6 +1054,7 @@ defaultKeymaps =
                 , char 'm' ~> MoveSongs MoveSongsUp
                 , char 'n' ~> MoveSongs MoveSongsDown
                 , char 'M' ~> MoveSongs MoveSongsToCursor
+                , plain DeleteKey ~> Delete
                 , group
                     (char 'e')
                     "edit"

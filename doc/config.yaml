@@ -178,7 +178,6 @@ keys:
     # each screen does these its own way
     enter: activate              # play, enter a directory, switch an output
     space: add_or_remove         # add to the queue, or remove what is there
-    delete: delete
 
     # playback
     p: pause
@@ -252,6 +251,7 @@ keys:
     m: move_songs up
     n: move_songs down
     M: move_songs cursor         # the selection, after the cursor
+    delete: delete
     e:
       c: clear                   # after asking
       s: shuffle                 # the selection, or the whole queue after asking
