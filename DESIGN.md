@@ -162,8 +162,12 @@ ncmpcpp.
   name, which starts as the old one. The selection stays out of it, as one
   name is for one directory.
   - **Only a rename, never a copy and a delete,** so no file goes: across file
-    systems it fails. An empty directory of the new name is replaced, as
-    `rename` does.
+    systems it fails.
+  - **A name that the listing has, of a directory or a song, is refused.**
+    A rename onto it would fail, or replace a directory that is empty,
+    which the listing doesn't tell apart. A directory that the listing
+    doesn't show, e.g. one that MPD didn't find yet, is up to `rename`,
+    which replaces an empty one and fails on another.
   - **A typed name is refused** if it is empty, `.` or `..`, or holds a
     character that the names that reprise makes leave out, e.g. `/`, rather
     than changed behind the user's back.
@@ -191,8 +195,10 @@ ncmpcpp.
     a cue sheet in place of its file's songs, so the directory has no songs
     to name it by; the user removes the cue sheet first.
   - **All or nothing.** One refused directory refuses the whole rename, and
-    two directories that would get the same name refuse it too. A rename
-    that fails on the disk stops there, and the message says how many went.
+    two directories that would get the same name refuse it too, as does a
+    new name that the listing has, e.g. that of another directory that the
+    rename renames. A rename that fails on the disk stops there, and the
+    message says how many went.
   - **The name is cleaned as the names of lyrics are,** without the
     characters that some file systems refuse, and cut to the limit of a name.
   - **One confirmation for all,** with the first new name as the example,

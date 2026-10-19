@@ -71,7 +71,7 @@ browserTests =
     , testCase "a stream isn't in the browser" test_jumpWithStream
     , testCase "a long path scrolls" test_longPath
     , testCase "rename a directory" test_rename
-    , testCase "a name that isn't one of a file" test_renameRefused
+    , testCase "a name that a rename refuses" test_renameRefused
     , testCase "a rename in MPD's storages" test_renameInStorages
     , testCase "a rename that fails" test_renameFailed
     , testCase "rename by a format" test_renameByFormat
@@ -516,6 +516,9 @@ test_renameRefused = do
     [ (["x", "/", "y"], "A name can't contain /")
     , ([".", "."], "A name can't be ..")
     , ([], "A name can't be empty")
+    , -- The listing doesn't tell an empty directory apart, which the
+      -- rename would replace.
+      (["b"], "b exists already")
     ]
     $ \(typed, why) -> do
       r <- press (["e", "r", "backspace"] <> typed <> ["enter"]) s
@@ -663,6 +666,13 @@ test_renameByFormatRefused = do
       ["file: a/1.flac", "Album: Y", "list_OK", "file: b/1.flac", "Album: Y", "list_OK"]
       selected
   assertEqual "duplicates" (Just "Two directories would be named Y") (message duplicate)
+  -- b holds songs, so the rename of a to it would fail, before or after b's.
+  chain <-
+    answer
+      ["file: a/1.flac", "Album: b", "list_OK", "file: b/1.flac", "Album: c", "list_OK"]
+      selected
+  assertEqual "a name in the listing" (Just "b exists already") (message chain)
+  assertEqual "nothing to confirm" Nothing chain.prompt
   invalid <- press (["e", "R", "ctrl-u"] <> typing "%{" <> ["enter"]) s
   assertEqual "no listing" [] invalid.requests
   assertEqual

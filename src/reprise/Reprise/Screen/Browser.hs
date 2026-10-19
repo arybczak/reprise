@@ -845,7 +845,10 @@ renameTo location path name = case nameFault name of
   Just fault -> showError $ "A name " <> fault
   Nothing
     | new == path -> pure ()
-    | otherwise -> renameIn location [(path, new)]
+    | otherwise ->
+        getsS (takenName [(path, new)]) >>= \case
+          Just taken -> showError $ baseName taken <> " exists already"
+          Nothing -> renameIn location [(path, new)]
   where
     new :: T.Text
     new = renamedPath path name
@@ -858,6 +861,24 @@ nameFault name
   | Just c <- T.find forbiddenInName name =
       Just $ "can't contain " <> if isControl c then "a control character" else T.singleton c
   | otherwise = Nothing
+
+-- | The first new path of renames that a directory or a song of the listing
+-- has. A rename onto it fails, or replaces a directory that is empty, which
+-- the listing doesn't tell apart, so it is refused. The stored playlists
+-- that the root lists aren't in the music directory.
+takenName :: [(T.Text, T.Text)] -> AppState -> Maybe T.Text
+takenName renames s = listToMaybe [new | (_, new) <- renames, new `S.member` taken]
+  where
+    taken :: S.Set T.Text
+    taken =
+      S.fromList
+        [ path
+        | item <- toList s.browser.items
+        , path <- case item of
+            EntryItem (DirectoryEntry d) -> [d.path]
+            EntryItem (SongEntry song) -> [song.file]
+            _ -> []
+        ]
 
 -- | The path of a directory after a rename to a name.
 renamedPath :: T.Text -> T.Text -> T.Text
@@ -948,8 +969,9 @@ localContentsListed token results = whenCurrent (.browser.formatRename) (.token)
       askRenameTo r [(path, localEntries suffixes path files) | (path, Right files) <- listed]
 
 -- | Ask to rename directories by their entries, unless a directory can't
--- have the name of the format, or two would have the same name. A
--- directory that has the name already stays out.
+-- have the name of the format, two would have the same name, or one would
+-- have a name that the listing has. A directory that has the name already
+-- stays out.
 askRenameTo
   :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es)
   => FormatRename
@@ -957,12 +979,14 @@ askRenameTo
   -> Eff es ()
 askRenameTo r contents = do
   env <- getAppEnv
+  s <- getS
   case formatRenames env r.format contents of
     Left err -> showError err
     Right renames -> case filter (uncurry (/=)) renames of
       []
         | length renames == 1 -> showMessage "The directory has this name already"
         | otherwise -> showMessage "The directories have these names already"
+      changed | Just taken <- takenName changed s -> showError $ baseName taken <> " exists already"
       -- Only the new name, as the old one too would push it out of the
       -- status bar.
       changed@((_, new) : rest) ->
