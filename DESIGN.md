@@ -2648,8 +2648,11 @@ Settings that effectful doesn't have:
   is rare, because every config field has a real default.
 - `-Wredundant-constraints`, so that each function lists only the effects
   that it uses (see [Effects](#effects)).
-- `ghc-options: -threaded` for the `reprise` executable and both test suites.
-  The MPD worker threads and the real-server tests need it.
+- `-threaded -rtsopts` for every binary, in the common stanza
+  `rts-options`. The MPD worker threads and the real-server tests need the
+  threaded runtime, and the benchmarks measure on the runtime that reprise
+  has. `-rtsopts` lets a run be measured without another build, e.g. with
+  `+RTS -s` for what it allocated.
 - `-with-rtsopts=-maxN4` for both test suites, which run their tests on a
   thread for each capability, unless `-j` or `TASTY_NUM_THREADS` says
   otherwise. tasty would take a thread for each core. More than 4 don't
@@ -2672,6 +2675,8 @@ Settings that effectful doesn't have:
     leaves it to Linux to take when it needs it, and until then it counts in
     the resident size: after the visualizer and a find, about 103 MB against
     73 MB.
+- `-with-rtsopts=-T` for both benchmark suites, so that tasty-bench reports
+  what each benchmark allocates and copies.
 
 ### Code
 

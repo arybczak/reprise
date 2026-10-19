@@ -63,6 +63,12 @@ common language
                         TypeFamilies
                         UndecidableInstances
 
+-- The runtime of every binary. reprise's MPD workers and the tests of the
+-- real server need the threaded one, and the benchmarks measure on the
+-- runtime that reprise has. -rtsopts lets e.g. +RTS -s measure a run.
+common rts-options
+    ghc-options:        -threaded -rtsopts
+
 -- The client of the MPD protocol. It is a library of its own, so that it
 -- can't depend on the rest of reprise and can become a package again.
 library mpd-protocol
@@ -196,12 +202,12 @@ library
     pkgconfig-depends: taglib_c >= 2.0
 
 executable reprise
-    import:         language
+    import:         language, rts-options
 
     -- An idle collection runs at most every 10 seconds, as reprise wakes once
     -- a second while a song plays, and freed memory goes back to Linux at
     -- once. DESIGN.md has the measurements.
-    ghc-options:    -threaded "-with-rtsopts=-Iw10 --disable-delayed-os-memory-return"
+    ghc-options:    "-with-rtsopts=-Iw10 --disable-delayed-os-memory-return"
 
     build-depends:    base
                     , async
@@ -246,10 +252,10 @@ library mpd-test-server
     exposed-modules: Reprise.Mpd.TestServer
 
 test-suite mpd-protocol-test
-    import:         language
+    import:         language, rts-options
 
     -- More threads don't make the tests faster.
-    ghc-options:    -threaded "-with-rtsopts=-maxN4"
+    ghc-options:    "-with-rtsopts=-maxN4"
 
     build-depends:    base
                     , bytestring
@@ -282,10 +288,10 @@ test-suite mpd-protocol-test
                     Reprise.Test.Mpd.Protocol.Response
 
 test-suite test
-    import:         language
+    import:         language, rts-options
 
     -- More threads don't make the tests faster.
-    ghc-options:    -threaded "-with-rtsopts=-maxN4"
+    ghc-options:    "-with-rtsopts=-maxN4"
 
     build-depends:    base
                     , bytestring
@@ -367,7 +373,10 @@ test-suite test
                     Reprise.Test.Width
 
 benchmark mpd-protocol-bench
-    import:         language
+    import:         language, rts-options
+
+    -- -T has tasty-bench report what each benchmark allocates.
+    ghc-options:    "-with-rtsopts=-T"
 
     build-depends:    base
                     , bytestring
@@ -380,7 +389,10 @@ benchmark mpd-protocol-bench
     main-is:        Main.hs
 
 benchmark bench
-    import:         language
+    import:         language, rts-options
+
+    -- -T has tasty-bench report what each benchmark allocates.
+    ghc-options:    "-with-rtsopts=-T"
 
     build-depends:    base
                     , bytestring
