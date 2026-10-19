@@ -1725,8 +1725,12 @@ shows where:
 - `left`/`ctrl-b`, `right`/`ctrl-f`, `home`/`ctrl-a`, `end`/`ctrl-e`;
 - `backspace`, `delete`/`ctrl-d`, `ctrl-k` to the end, `ctrl-u` to the start;
 - `ctrl-w` deletes to the previous space, as in a shell;
-- `alt-b`, `alt-f`, `alt-d` and `alt-backspace` work on words of letters and
+- `alt-b`/`ctrl-left`/`alt-left`, `alt-f`/`ctrl-right`/`alt-right`,
+  `alt-d`/`ctrl-delete` and `alt-backspace` work on words of letters and
   digits, as in readline.
+  - **There is no `ctrl-backspace`.** Terminals send it as `ctrl-h`, which
+    vty reads as `backspace`, as some terminals send `backspace` that way.
+    A terminal that sends `alt-backspace` for it deletes a word.
 
 The keys of single characters move over and delete characters as people see
 them, by ICU's breaks of characters: a letter with its accents, or emoji that

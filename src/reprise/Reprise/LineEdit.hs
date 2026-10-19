@@ -49,9 +49,14 @@ editLine k e = case (S.toList k.modifiers, k.key) of
   ([Ctrl], CharKey 'k') -> Just $ e {after = T.empty}
   ([Ctrl], CharKey 'u') -> Just $ e {before = T.empty}
   ([Ctrl], CharKey 'w') -> Just $ e {before = T.dropWhileEnd (not . isSpace) (T.stripEnd e.before)}
-  ([Alt], CharKey 'b') -> Just $ let (rest, word) = wordBefore in LineEdit rest (word <> e.after)
-  ([Alt], CharKey 'f') -> Just $ let (word, rest) = wordAfter in LineEdit (e.before <> word) rest
+  ([Alt], CharKey 'b') -> Just wordLeft
+  ([Ctrl], ArrowLeft) -> Just wordLeft
+  ([Alt], ArrowLeft) -> Just wordLeft
+  ([Alt], CharKey 'f') -> Just wordRight
+  ([Ctrl], ArrowRight) -> Just wordRight
+  ([Alt], ArrowRight) -> Just wordRight
   ([Alt], CharKey 'd') -> Just $ e {after = snd wordAfter}
+  ([Ctrl], DeleteKey) -> Just $ e {after = snd wordAfter}
   ([Alt], Backspace) -> Just $ e {before = fst wordBefore}
   _ -> Nothing
   where
@@ -84,6 +89,12 @@ editLine k e = case (S.toList k.modifiers, k.key) of
 
     end :: LineEdit
     end = LineEdit (lineEditText e) T.empty
+
+    wordLeft :: LineEdit
+    wordLeft = let (rest, word) = wordBefore in LineEdit rest (word <> e.after)
+
+    wordRight :: LineEdit
+    wordRight = let (word, rest) = wordAfter in LineEdit (e.before <> word) rest
 
     -- The text before the word that ends at the cursor, and the word with
     -- what separates it from the cursor.

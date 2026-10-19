@@ -68,8 +68,13 @@ test_words = do
   let e = LineEdit "a/b-cd " "ef gh"
   assertEqual "alt-b" (LineEdit "a/b-" "cd ef gh") (edits ["alt-b"] e)
   assertEqual "alt-b twice" (LineEdit "a/" "b-cd ef gh") (edits ["alt-b", "alt-b"] e)
+  assertEqual "ctrl-left" (LineEdit "a/b-" "cd ef gh") (edits ["ctrl-left"] e)
   assertEqual "alt-f" (LineEdit "a/b-cd ef" " gh") (edits ["alt-f"] e)
+  assertEqual "ctrl-right" (LineEdit "a/b-cd ef" " gh") (edits ["ctrl-right"] e)
+  assertEqual "alt-left" (LineEdit "a/b-" "cd ef gh") (edits ["alt-left"] e)
+  assertEqual "alt-right" (LineEdit "a/b-cd ef" " gh") (edits ["alt-right"] e)
   assertEqual "alt-d" (LineEdit "a/b-cd " " gh") (edits ["alt-d"] e)
+  assertEqual "ctrl-delete" (LineEdit "a/b-cd " " gh") (edits ["ctrl-delete"] e)
   assertEqual "alt-backspace" (LineEdit "a/b-" "ef gh") (edits ["alt-backspace"] e)
   -- A word's characters are as people see them.
   assertEqual
