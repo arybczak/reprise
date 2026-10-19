@@ -1243,8 +1243,9 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
       an event opened: the password prompt, which the edit may wait for,
       or e.g. a choice that MPD's reply opened, which the password prompt
       may wait for.
-    - After a failed edit, or a new connection, the input that waited is
-      dropped: it was meant for the queue after the edit.
+    - After a failed edit, a new connection, or a failed fetch that forgot
+      the queue, the input that waited is dropped: it was meant for the
+      queue after the edit.
     - The reply redraws the screen, even if a key that it handles changes
       nothing.
 - **Quitting waits for the requests before it,** so that the command of a

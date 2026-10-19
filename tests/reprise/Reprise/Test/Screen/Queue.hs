@@ -33,6 +33,7 @@ queueTests =
     , testCase "input waits for an edit of the queue" test_heldInput
     , testCase "a click during an edit goes to its song" test_heldClick
     , testCase "a fetch of the queue fails" test_fetchFailed
+    , testCase "an edit after a failed fetch ends" test_editAfterFailedFetch
     , testCase "an edit after another client's change fetches the changes" test_editFetched
     , testCase "a change during an edit is fetched after it" test_editChanges
     , testCase "the password prompt takes keys during an edit" test_heldPassword
@@ -208,6 +209,28 @@ test_fetchFailed = do
     failLastWith err r = case reverse r.pending of
       p : _ -> runEvents 0 [failureOf err p] r.state
       [] -> assertFailure "no request to fail"
+
+-- | A fetch that fails before the reply to an edit forgets the queue, and
+-- the input that waited for the edit can't act on it. It goes, so that
+-- the input after it doesn't wait for good.
+test_editAfterFailedFetch :: Assertion
+test_editAfterFailedFetch = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
+  changed <- runEvents 0 [MpdChanged [PlaylistSubsystem]] s
+  fetch <- case changed.pending of
+    [p] -> pure p
+    ps -> assertFailure $ "not one fetch: " <> show (length ps)
+  deleted <- keys ["delete", "down"] changed.state
+  assertEqual "the key waits" (Just 1) (heldCount deleted)
+  let st = statusOf Stopped Nothing 4 & #playlistVersion .~ PlaylistVersion 3
+  replied <-
+    runEvents
+      0
+      [failureOf (ConnectionError NoReply) fetch, QueueEditStatus (deletedAt 0 1) st]
+      deleted.state
+  assertEqual "no queue" [] (queueFiles replied.state)
+  assertEqual "the edit ended" Nothing (heldCount replied)
+  assertEqual "nothing more fetched" [] replied.requests
 
 -- | After another client's change, the status of an edit doesn't follow the
 -- mirror's version, and the changes since it come instead.

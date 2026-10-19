@@ -184,8 +184,11 @@ handleEvent = \case
       Just m -> do
         updateMirror (const m)
         releaseInput
-      Nothing -> forM_ s.mirror.queueVersion $ \v ->
-        requestOr ((,) <$> status <*> plChanges v) QueueEditFailed QueueEdited
+      Nothing -> case s.mirror.queueVersion of
+        Just v -> requestOr ((,) <$> status <*> plChanges v) QueueEditFailed QueueEdited
+        -- A fetch that failed meanwhile forgot the queue, which the input
+        -- was meant for.
+        Nothing -> void endEdit
   QueueEdited changes -> do
     applyChanges changes
     releaseInput
