@@ -52,6 +52,7 @@ layoutTests =
     , testCase "the marker of a missing tag in columns" test_markerInColumns
     , testCase "columns of fixed widths" test_fixedColumns
     , testCase "columns of shares" test_shareColumns
+    , testCase "columns past the end of the row" test_columnsPastTheEnd
     , testCase "the marker of a missing tag in the classic display" test_markerInClassic
     , testCase "a song without a length" test_noLength
     , testCase "a selected song has the selected style" test_selected
@@ -219,6 +220,31 @@ test_shareColumns = do
         , V.attrStyle a == V.SetTo V.reverseVideo
         ]
     )
+
+-- | A column that crosses the end of the row gets the room left, so that a
+-- right aligned one shows at the end. One as wide as an Int fills the row.
+test_columnsPastTheEnd :: Assertion
+test_columnsPastTheEnd = do
+  title <- either (assertFailure . show) pure $ parseStyledFormat "%{title}"
+  len <- either (assertFailure . show) pure $ parseStyledFormat "%{length}"
+  let fixed w f a =
+        Column
+          { width = FixedWidth w
+          , style = mempty
+          , format = f
+          , title = ""
+          , align = a
+          }
+      songRow cs = do
+        let env = testAppEnv & #config % #songs % #columns % #list .~ cs
+        s <- testState (80, 6) (statusOf Stopped Nothing 1) [song 0 [(Title, ["zz"])] 60]
+        pure $ filter ("zz" `T.isPrefixOf`) (imageLines (renderScreen env s))
+  assertEqual "the row" ["zz"]
+    =<< songRow [fixed maxBound title AlignLeft, fixed 10 len AlignRight]
+  assertEqual
+    "the right aligned one at the end"
+    [T.justifyLeft 51 ' ' "zz" <> T.justifyRight 29 ' ' "1:00"]
+    =<< songRow [fixed 50 title AlignLeft, fixed 50 len AlignRight]
 
 -- | The marker takes the style of its column, not the marker's style.
 test_markerInColumns :: Assertion

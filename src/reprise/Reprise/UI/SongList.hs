@@ -245,14 +245,16 @@ spansImage attr base overlay = V.horizCat . map image
 
 -- | The widths of the columns for a row width. Fixed columns get their
 -- width, relative ones share the rest in proportion, and a space separates
--- the columns.
+-- the columns. A column gets at most the room that the columns before it
+-- leave, so that one that crosses the end of the row fits its text and its
+-- alignment to what shows.
 columnWidths :: Int -> [Column] -> [Int]
 columnWidths width columns =
   let separators = max 0 (length columns - 1)
-      fixed = sum [w | FixedWidth w <- map (.width) columns]
-      rest = max 0 (width - separators - fixed)
-      -- A share can be as large as an Int, so their sum and the products
-      -- would overflow one.
+      -- A width or a share can be as large as an Int, so their sums and the
+      -- products would overflow one.
+      fixed = sum [toInteger w | FixedWidth w <- map (.width) columns]
+      rest = fromInteger . max 0 $ toInteger (width - separators) - fixed
       total = sum [toInteger p | RelativeWidth p <- map (.width) columns]
       shares =
         [ if total > 0 then fromInteger (toInteger rest * toInteger p `div` total) else 0
@@ -261,8 +263,13 @@ columnWidths width columns =
       leftover = rest - sum shares
       lastRelative = length shares - 1
       relative = zipWith (\i s -> if i == lastRelative then s + leftover else s) [0 ..] shares
-  in assign relative columns
+  in clamp width (assign relative columns)
   where
+    clamp :: Int -> [Int] -> [Int]
+    clamp room = \case
+      [] -> []
+      w : ws -> let w' = min w room in w' : clamp (max 0 (room - w' - 1)) ws
+
     assign :: [Int] -> [Column] -> [Int]
     assign rel = \case
       [] -> []
