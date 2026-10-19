@@ -171,8 +171,11 @@ handleEvent = \case
       | otherwise -> pure ()
     browserChanged subsystems
     when (OutputSubsystem `elem` subsystems) refreshOutputs
+  -- An MPD that restarted may give the version of the rows of a find to
+  -- another queue.
   QueueFetched (st, songs) -> do
     now <- getsS (.now)
+    modifyS $ #queueState % #findRows .~ Nothing
     updateMirror $ setQueue now st songs
   QueueChangesFetched changes -> applyChanges changes
   QueueFetchFailed err -> queueFetchFailed err

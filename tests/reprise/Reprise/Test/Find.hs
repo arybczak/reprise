@@ -249,6 +249,15 @@ test_findRowsChange = do
       [QueueFetched (added, titled <> [song 5 [(Title, ["delta"])] 60])]
       missed.state
   assertEqual "a song added since" 5 . cursor =<< keys ["."] changed.state
+  -- An MPD that restarted may give its version to another queue.
+  restarted <-
+    runEvents
+      0
+      [ QueueFetched
+          (statusOf Stopped Nothing 5, take 4 titled <> [song 4 [(Title, ["delta"])] 60])
+      ]
+      missed.state
+  assertEqual "a new queue of the same version" 4 . cursor =<< keys ["."] restarted.state
   -- Only the classic display joins the artist and the title with " - ".
   assertEqual "another display" 3 . cursor
     =<< keys ("/" : typed "A - alpha" <> ["enter", "t", "d", "."]) s
