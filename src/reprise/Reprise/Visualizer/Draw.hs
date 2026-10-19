@@ -189,9 +189,9 @@ ellipse colorMode cfg w h frames =
 wave :: ColorMode -> VisualizerConfig -> Int -> Int -> Maybe BS.ByteString -> V.Image
 wave colorMode cfg w h samples =
   braille colors w h $ \plot ->
-    forM_ (mfilter (\pcm -> BS.length pcm >= frameBytes) samples) $ \pcm ->
-      forM_ (channelDots pcm 0 0 top <> channelDots pcm 1 (top * dotRows) (h - top)) $
-        \(dx, dy, color) -> plot dx dy color
+    forM_ (mfilter (\pcm -> BS.length pcm >= frameBytes) samples) $ \pcm -> do
+      plotChannel plot pcm 0 0 top
+      plotChannel plot pcm 1 (top * dotRows) (h - top)
   where
     top :: Int
     top = h `div` 2
@@ -200,30 +200,41 @@ wave colorMode cfg w h samples =
     colors :: Palette
     colors = palette colorMode cfg ((h - top) * dotRows `div` 2)
 
-    -- The dots of a channel's wave in rows from a row of dots, with their
-    -- colors. A column of dots has a dot of its samples, and the dots
+    -- Plot the dots of a channel's wave in rows from a row of dots, with
+    -- their colors. A column of dots has a dot of its samples, and the dots
     -- between it and the previous column's go to the nearer of the two, as
-    -- in ncmpcpp, so that the wave is a line.
-    channelDots :: BS.ByteString -> Int -> Int -> Int -> [(Int, Int, Int)]
-    channelDots pcm channel offset rows
-      | rows <= 0 = []
-      | otherwise = concat (zipWith3 joined [0 ..] (Nothing : map Just ys) ys)
+    -- in ncmpcpp, so that the wave is a line. The dots are plotted as they
+    -- come: as a list, a frame of the wave allocated 3.3 MB and took 329 µs
+    -- in the benchmarks.
+    plotChannel
+      :: forall s
+       . (Int -> Int -> Int -> ST s ())
+      -> BS.ByteString
+      -> Int
+      -> Int
+      -> Int
+      -> ST s ()
+    plotChannel plot pcm channel offset rows
+      | rows <= 0 || dotsWide <= 0 = pure ()
+      | otherwise = let y = yAt 0 in dot 0 y >> columns 1 y
       where
-        ys :: [Int]
-        ys = [nearest (middle - level x * middle) | x <- [0 .. dotsWide - 1]]
+        columns :: Int -> Int -> ST s ()
+        columns x previous
+          | x >= dotsWide = pure ()
+          | otherwise = do
+              let y = yAt x
+              dot x y
+              forM_ [min previous y + 1 .. max previous y - 1] $ \between ->
+                dot (if abs (between - previous) < abs (between - y) then x - 1 else x) between
+              columns (x + 1) y
 
-        joined :: Int -> Maybe Int -> Int -> [(Int, Int, Int)]
-        joined x previous y =
-          dot x y
-            : [ dot (if abs (between - p) < abs (between - y) then x - 1 else x) between
-              | Just p <- [previous]
-              , between <- [min p y + 1 .. max p y - 1]
-              ]
+        yAt :: Int -> Int
+        yAt x = nearest (middle - level x * middle)
 
         -- By the distance from the middle, so that a sample at full scale
         -- has the last color.
-        dot :: Int -> Int -> (Int, Int, Int)
-        dot x y = (x, offset + y, shade colors (abs (fromIntegral y - middle) / middle))
+        dot :: Int -> Int -> ST s ()
+        dot x y = plot x (offset + y) (shade colors (abs (fromIntegral y - middle) / middle))
 
         -- The mean of the samples that start in a column. A column that is
         -- narrower than a sample interpolates between the samples around
@@ -247,6 +258,11 @@ wave colorMode cfg w h samples =
 
         middle :: Double
         middle = fromIntegral (rows * dotRows - 1) / 2
+    -- Inlined, the plot is the known one of braille's loop, rather than a
+    -- function called for each dot with boxed arguments: in the benchmarks,
+    -- a frame of the wave allocated 2.3 MB and took 262 µs without the
+    -- pragma, and 1.5 MB and 195 µs with it.
+    {-# INLINE plotChannel #-}
 
     dotsWide :: Int
     dotsWide = w * dotColumns
