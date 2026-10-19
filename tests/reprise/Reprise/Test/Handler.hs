@@ -57,6 +57,7 @@ handlerTests =
     , testCase "the mouse wheel over the volume" test_wheelVolume
     , testCase "a click on the player's state pauses" test_clickPause
     , testCase "a click on the progress bar seeks" test_clickSeek
+    , testCase "a seek shows until MPD answers" test_seekAnswer
     , testCase "a click on a list" test_clickList
     , testCase "prompts for a value" test_promptAnswers
     , testCase "ctrl-q always quits" test_alwaysQuit
@@ -82,7 +83,7 @@ test_replay :: Assertion
 test_replay = do
   playing <- testState (80, 24) (statusOf Playing (Just 1) 3) (songs 3)
   stopped <- testState (80, 24) (statusOf Stopped (Just 1) 3) (songs 3)
-  let replayed = [[Request "seekcur" ["0"]]]
+  let replayed = seekRequests "0"
   assertEqual "the queue" replayed . (.requests) =<< keys ["backspace"] playing
   assertEqual "another screen" replayed . (.requests) =<< keys ["f1", "backspace"] playing
   -- The current song, not the one under the cursor.
@@ -252,8 +253,8 @@ test_seek = do
   case reverse timers of
     (_, lastTimer) : _ -> do
       done <- runEvents 0 [lastTimer] r.state
-      assertEqual "one seek" [[Request "seekcur" ["13"]]] done.requests
-      assertEqual "finished" Nothing done.state.seek
+      assertEqual "one seek" (seekRequests "13") done.requests
+      assertEqual "the target until MPD answers" (Just 13) (displayedElapsed done.state)
     [] -> assertFailure "no timer"
 
 -- | A seek that waits for its keys to end is of its song: another song, a
@@ -271,7 +272,7 @@ test_seekOfItsSong = do
   stopped <- runEvents 0 [key' "s", commit] r.state
   assertEqual "a stop drops it" [[Request "stop" []]] stopped.requests
   replayed <- runEvents 0 [key' "backspace", commit] r.state
-  assertEqual "a replay replaces it" [[Request "seekcur" ["0"]]] replayed.requests
+  assertEqual "a replay replaces it" (seekRequests "0") replayed.requests
 
 test_staleSeek :: Assertion
 test_staleSeek = do
@@ -507,6 +508,36 @@ test_wheel = do
   assertEqual "nothing on a screen without moves" Nothing (message r)
   assertEqual "nor a redraw" [KeepScreen] r.commands
 
+-- | The target of a seek shows until MPD answers: its status has the time,
+-- or a refusal brings back the time before. The answer to an older seek
+-- leaves the target of a newer one.
+test_seekAnswer :: Assertion
+test_seekAnswer = do
+  playing <- testState (80, 24) (statusOf Playing (Just 0) 1) (songs 1)
+  let click col = runEvents 0 [MouseClick LeftButton col 22]
+      statusAt e = statusOf Playing (Just 0) 1 & #elapsed ?~ e
+      tokenOf r = maybe (assertFailure "no seek") (pure . (.token)) r.state.seek
+      refusal =
+        AckError
+          Ack
+            { code = AckPermission
+            , index = 0
+            , command = "seekcur"
+            , message = "you don't have permission for \"seekcur\""
+            }
+  r <- click 20 playing
+  assertEqual "the target at once" (Just 15) (displayedElapsed r.state)
+  token <- tokenOf r
+  accepted <- runEvents 0 [SeekDone token (statusAt 15)] r.state
+  assertEqual "the time of MPD's status" (Just 15) (displayedElapsed accepted.state)
+  assertEqual "no target" Nothing accepted.state.seek
+  refused <- runEvents 0 [SeekFailed token refusal] r.state
+  assertEqual "the time before" (displayedElapsed playing) (displayedElapsed refused.state)
+  assertEqual "the error" (Just True) (isError refused)
+  later <- click 40 r.state
+  answered <- runEvents 0 [SeekDone token (statusAt 15)] later.state
+  assertEqual "a newer target stays" (Just 30) (displayedElapsed answered.state)
+
 -- | The progress bar of the 60 s song takes row 22, and each of its 80
 -- columns 0.75 s.
 test_clickSeek :: Assertion
@@ -516,10 +547,10 @@ test_clickSeek = do
   stopped <- testState (80, 24) (statusOf Stopped (Just 0) 1) (songs 1)
   let click col row s = runEvents 0 [MouseClick LeftButton col row] s
   r <- click 20 22 playing
-  assertEqual "a quarter" [[Request "seekcur" ["15"]]] r.requests
+  assertEqual "a quarter" (seekRequests "15") r.requests
   assertEqual "shown at once" (Just 15) (displayedElapsed r.state)
-  assertEqual "the start" [[Request "seekcur" ["0"]]] . (.requests) =<< click 0 22 playing
-  assertEqual "paused" [[Request "seekcur" ["30"]]] . (.requests) =<< click 40 22 paused
+  assertEqual "the start" (seekRequests "0") . (.requests) =<< click 0 22 playing
+  assertEqual "paused" (seekRequests "30") . (.requests) =<< click 40 22 paused
   assertEqual "stopped" [] . (.requests) =<< click 20 22 stopped
   assertEqual "past the bar" [] . (.requests) =<< click 80 22 playing
   -- The cells of 201 s on 80 columns don't begin at whole milliseconds.
@@ -536,7 +567,10 @@ test_clickSeek = do
     [e] -> pure e
     _ -> assertFailure "expected one timer"
   sought <- click 20 22 seeking.state
-  assertEqual "ends a seek of the keys" Nothing sought.state.seek
+  assertEqual
+    "replaces a seek of the keys"
+    (Just (15, True))
+    ((\sk -> (sk.target, sk.sent)) <$> sought.state.seek)
   assertEqual "the keys' seek isn't sent after it" [] . (.requests)
     =<< runEvents 0 [commit] sought.state
 
@@ -608,7 +642,7 @@ test_promptAnswers = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
   let answer ks text = keys (ks <> typed text <> ["enter"]) s
       requested ks text = (.requests) <$> answer ks text
-  assertEqual "seek to" [[Request "seekcur" ["90"]]] =<< requested ["g", "s"] "1:30"
+  assertEqual "seek to" (seekRequests "90") =<< requested ["g", "s"] "1:30"
   assertEqual "set crossfade" [[Request "crossfade" ["5"]]]
     =<< requested ["t", "X"] "5"
   assertEqual "priority" [[Request "prioid" ["7", "1"]]] =<< requested ["e", "p"] "7"
@@ -833,6 +867,10 @@ test_passwordWaits = do
 
 ----------------------------------------
 -- Helpers
+
+-- | The requests of a seek to a time, with MPD's status after it.
+seekRequests :: T.Text -> [[Request]]
+seekRequests t = [[Request "seekcur" [t], Request "status" []]]
 
 halts :: Result -> [()]
 halts r = [() | Halt <- r.commands]

@@ -226,6 +226,15 @@ handleEvent = \case
     modifyS $ if open then #passwordWaits ?~ err else askPassword err
   Tick token -> whenCurrent (.tick) fst token $ \_ -> modifyS $ #tick .~ Nothing
   SeekCommit token -> commitSeek token
+  -- The status has the seek's time, which its target showed until now. A
+  -- newer seek keeps its target.
+  SeekDone token st -> do
+    endSeek token
+    now <- getsS (.now)
+    updateMirror $ setStatus now st
+  SeekFailed token err -> do
+    showError $ exceptionText err
+    endSeek token
   MessageExpired token ->
     whenCurrent (.message) (.token) token $ \_ -> modifyS $ #message .~ Nothing
   -- One timer serves a run of keys: it waits again for the rest of the

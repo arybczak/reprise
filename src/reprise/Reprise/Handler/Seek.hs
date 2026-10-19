@@ -4,6 +4,7 @@ module Reprise.Handler.Seek
   ( seekAction
   , commitSeek
   , seekNow
+  , endSeek
   , dropSeek
   ) where
 
@@ -43,7 +44,9 @@ seekAction = \case
     case (currentDuration s, displayedElapsed s) of
       (Just d, Just e) -> do
         let (base, started) = case s.seek of
-              Just sk -> (sk.target, sk.started)
+              Just sk
+                | sk.sent -> (sk.target, s.now)
+                | otherwise -> (sk.target, sk.started)
               Nothing -> (e, s.now)
             held = s.now - started
             step =
@@ -57,18 +60,15 @@ seekAction = \case
               , started = started
               , songId = s.mirror.status >>= (.currentId)
               , token = token
+              , sent = False
               }
         after seekCommitDelay (SeekCommit token)
       _ -> noLength
-  SeekToSecond n -> do
-    dropSeek
-    mutate . seekCur . SeekTo $ fromIntegral n
-  SeekToPercent p -> do
-    dropSeek
-    s <- getS
-    case currentDuration s of
-      Just d -> mutate . seekCur . SeekTo $ d * fromIntegral p / 100
-      Nothing -> noLength
+  SeekToSecond n -> seekNow (fromIntegral n)
+  SeekToPercent p ->
+    getsS currentDuration >>= \case
+      Just d -> seekNow (d * fromIntegral p / 100)
+      Nothing -> dropSeek >> noLength
   where
     -- MPD's status has no length while nothing plays, nor for a stream.
     noLength :: (State AppState :> es, UiRequest :> es) => Eff es ()
@@ -88,14 +88,30 @@ commitSeek token = whenCurrent (.seek) (.token) token $ \sk -> do
     Just st | st.state /= Stopped && st.currentId == sk.songId -> seekNow sk.target
     _ -> dropSeek
 
--- | Seek in the current song, and show its new time at once. A seek that
--- the keys moved ends.
+-- | Seek in the current song, and show its new time at once, until MPD's
+-- status after the seek comes in the same command list. It replaces a seek
+-- that the keys moved.
 seekNow :: (State AppState :> es, MpdRequest :> es) => Seconds -> Eff es ()
 seekNow target = do
-  dropSeek
-  now <- getsS (.now)
-  modifyS $ #mirror %~ seekTo now target
-  mutate . seekCur $ SeekTo target
+  s <- getS
+  token <- newToken
+  modifyS $
+    #seek
+      ?~ SeekState
+        { target = target
+        , started = s.now
+        , songId = s.mirror.status >>= (.currentId)
+        , token = token
+        , sent = True
+        }
+  requestOr (seekCur (SeekTo target) *> status) (SeekFailed token) (SeekDone token)
+
+-- | End the seek with the token, which MPD answered, if no newer one came.
+endSeek :: State AppState :> es => Int -> Eff es ()
+endSeek token =
+  getsS (.seek) >>= \case
+    Just sk | sk.token == token -> dropSeek
+    _ -> pure ()
 
 -- | Drop the seek that the keys moved, e.g. for a command that moves the
 -- song itself.

@@ -1854,6 +1854,14 @@ source: common key repeat settings, e.g. X11's default of a 660 ms delay and
 25 repeats per second. The cost is that a single tap seeks after that pause,
 not at once.
 
+**The target shows until MPD answers,** for every seek: the keys, a click, a
+time and `replay`. The seek goes in one command list with `status`, and the
+reply's status replaces the target, so that the bar doesn't go back to the
+time before the seek meanwhile, which flickered even on MPD's socket. A
+refusal, e.g. without the permission, drops the target, and the bar shows
+where MPD is. Moving the time in the mirror before MPD answered left the bar
+at a refused seek until the next change of the player.
+
 ### External commands (later)
 
 External commands come with the hooks, not in the core. When they arrive:

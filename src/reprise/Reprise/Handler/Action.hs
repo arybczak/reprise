@@ -78,11 +78,9 @@ runAction action = case action of
   Stop -> dropSeek >> mutate stop
   Previous -> mutate previous
   Next -> mutate next
-  Replay -> withStatus $ \st -> do
-    dropSeek
-    mutate $ case st.state of
-      Stopped -> play st.currentPosition
-      _ -> seekCur $ SeekTo 0
+  Replay -> withStatus $ \st -> case st.state of
+    Stopped -> dropSeek >> mutate (play st.currentPosition)
+    _ -> seekNow 0
   Seek t -> seekAction t
   Volume v -> withStatus $ \st -> case st.volume of
     Nothing -> showError "MPD has no mixer, so the volume can't change"

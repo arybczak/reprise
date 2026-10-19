@@ -280,12 +280,16 @@ data PendingKeys = PendingKeys
   deriving stock (Eq, Show, Generic)
 
 -- | A seek in progress: the presses move a target, and a pause sends it.
+-- The target shows until MPD answers, so that the time doesn't go back to
+-- the one before the seek meanwhile, nor stays at a seek that MPD refused.
 data SeekState = SeekState
   { target :: Seconds
   , started :: Double
   , songId :: Maybe SongId
   -- ^ Of the song that the seek moves in.
   , token :: Int
+  , sent :: Bool
+  -- ^ Whether the seek went to MPD.
   }
   deriving stock (Eq, Show, Generic)
 

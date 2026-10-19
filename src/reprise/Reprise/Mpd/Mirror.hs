@@ -9,7 +9,6 @@ module Reprise.Mpd.Mirror
   , setStatus
   , forgetStatus
   , forgetQueue
-  , seekTo
 
     -- * Edits
   , QueueEdit (..)
@@ -122,14 +121,6 @@ forgetQueue m =
     & withQueue Seq.empty
     & #queueVersion .~ Nothing
     & #lengthFromCurrent .~ 0
-
--- | Move the current song to a point at a monotonic time, before MPD's
--- status says that it moved.
-seekTo :: Double -> Seconds -> Mirror -> Mirror
-seekTo now target m =
-  m
-    & #status % _Just % #elapsed ?~ target
-    & #statusTime .~ now
 
 -- | An edit of the queue at positions.
 data QueueEdit

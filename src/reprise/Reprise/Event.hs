@@ -101,6 +101,9 @@ data AppEvent
     Tick Int
   | -- | The pause after the last seek key, with its token.
     SeekCommit Int
+  | -- | MPD's status after the seek with the token.
+    SeekDone Int Status
+  | SeekFailed Int MpdError
   | MessageExpired Int
   | -- | The timer that hides the queue's cursor a while after the last key.
     HideCursor
