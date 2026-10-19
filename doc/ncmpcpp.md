@@ -54,7 +54,10 @@ Keys that are new in reprise:
 - `v A` selects the songs of the artist around the cursor.
 - `v r` with a single selected song selects from it to the cursor.
 - `:` runs an action by its name, e.g. `:volume 50` or `:add_path dir/x.flac`.
-- `escape` goes back from the lyrics, the song info and the help.
+- `escape` goes back from the lyrics, the song info and the help. Each goes
+  back to the screen that showed it, also after another of them opened
+  from it: the lyrics, then the help, then `escape` twice show the screen
+  before the lyrics, not the help.
 
 Crop (`C`) and reversing the queue (`ctrl-r`) are gone.
 

@@ -622,8 +622,8 @@ songUnderCursor s =
 -- | Show the screen that the view showed before.
 goBack :: (State AppState :> es, Input AppEnv :> es, UiRequest :> es) => Eff es ()
 goBack =
-  getsS ((.previous) . focusedView) >>= \case
-    Just previous -> switchTo previous
+  getsS (backScreen . focusedView) >>= \case
+    Just v -> modifyWithEnv $ modifyView (const v)
     Nothing -> showMessage "There is no screen to go back to"
 
 ----------------------------------------

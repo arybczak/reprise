@@ -1530,12 +1530,20 @@ without building any of the framework:
      switching back returns to the same place, as an Emacs window does with
      its previous buffers. A change of a screen that the view doesn't show,
      e.g. following the playing song, moves the remembered position.
-   - A view remembers the screen that it showed before, which the screens
-     of a song, its lyrics and its info, go back to, as a full-screen popup
-     would. It is navigation, so it is the view's, not the screens': each
-     of them kept its own, and passed it on when it showed another song.
-     Another screen has one too: the action `back` shows it on any screen.
-     Only the screens of a song bind a key to it, the key that showed them.
+   - A view remembers the screen that it showed before each screen, which
+     the screens of a song, its lyrics and its info, go back to, as a
+     full-screen popup would. It is navigation, so it is the view's, not
+     the screens': each of them kept its own, and passed it on when it
+     showed another song. Another screen has one too: the action `back`
+     shows it on any screen. Only the screens of a song bind a key to it,
+     the key that showed them.
+     - **Going back keeps the screen that the other one goes back to,** as
+       a popup closes onto the screen under it. The lyrics of a song in the
+       queue, then the help, then `escape` twice show the queue again.
+       ncmpcpp shows the help instead, as going back to a screen remembers
+       the screen it left. A screen that has none goes back to the one it
+       left, so `back` alternates between two screens, e.g. the queue and
+       the browser.
    - Today there is exactly one view. A second view of the queue would only
      need a second view record.
 2. **Size comes from the view.** Page up/down, centering and scrolling read

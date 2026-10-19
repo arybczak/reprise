@@ -46,6 +46,8 @@ module Reprise.State
   , ViewId (..)
   , View (..)
   , switchScreen
+  , backScreen
+  , previousScreen
   , Layout (..)
   , focusedView
   , layoutViews
@@ -525,9 +527,9 @@ newtype ViewId = ViewId Int
 -- | How a screen is shown.
 data View = View
   { screen :: ScreenName
-  , previous :: Maybe ScreenName
-  -- ^ The screen that the view showed before this one, which the screens
-  -- of a song, e.g. its lyrics, go back to.
+  , shownFrom :: M.Map ScreenName ScreenName
+  -- ^ The screen that the view showed before each screen, which the
+  -- screen goes back to, as the screens of a song, e.g. its lyrics, do.
   , cursor :: Int
   , offset :: Int
   -- ^ The index of the first visible item.
@@ -541,21 +543,47 @@ data View = View
 
 -- | A view of a screen from its start.
 newView :: ScreenName -> View
-newView s = View s Nothing 0 0 0 0 M.empty
+newView s =
+  View
+    { screen = s
+    , shownFrom = M.empty
+    , cursor = 0
+    , offset = 0
+    , width = 0
+    , height = 0
+    , positions = M.empty
+    }
 
--- | Show another screen in a view, at the position where the view left it,
--- after the one that it shows.
+-- | Show another screen in a view, after the one that it shows.
 switchScreen :: ScreenName -> View -> View
 switchScreen s v
   | s == v.screen = v
-  | otherwise =
-      let (c, o) = M.findWithDefault (0, 0) s v.positions
-      in v
-           & #positions %~ (M.insert v.screen (v.cursor, v.offset) . M.delete s)
-           & #previous ?~ v.screen
-           & #screen .~ s
-           & #cursor .~ c
-           & #offset .~ o
+  | otherwise = showScreen s v & #shownFrom %~ M.insert s v.screen
+
+-- | Show the screen that the view showed before the one that it shows. That
+-- screen keeps the one that it goes back to, as a popup closes onto the
+-- screen under it, so a song's lyrics opened from the queue go back to the
+-- queue also after the help opened from them. Without one, it goes back to
+-- the screen that it left.
+backScreen :: View -> Maybe View
+backScreen v = back <$> previousScreen v
+  where
+    back :: ScreenName -> View
+    back s = showScreen s v & #shownFrom %~ M.alter (Just . fromMaybe v.screen) s
+
+-- | The screen that 'backScreen' shows.
+previousScreen :: View -> Maybe ScreenName
+previousScreen v = M.lookup v.screen v.shownFrom
+
+-- | Show another screen in a view, at the position where the view left it.
+showScreen :: ScreenName -> View -> View
+showScreen s v =
+  let (c, o) = M.findWithDefault (0, 0) s v.positions
+  in v
+       & #positions %~ (M.insert v.screen (v.cursor, v.offset) . M.delete s)
+       & #screen .~ s
+       & #cursor .~ c
+       & #offset .~ o
 
 -- | The arrangement of the views. A window tree would add a split.
 newtype Layout = Single ViewId

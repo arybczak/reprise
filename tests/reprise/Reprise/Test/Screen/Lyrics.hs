@@ -120,7 +120,10 @@ test_back :: Assertion
 test_back = do
   r <- runEvents 0 [key "l", key "l"] =<< queueShown
   assertEqual "the queue" QueueScreen (focusedView r.state).screen
-  assertEqual "after the lyrics" (Just LyricsScreen) (focusedView r.state).previous
+  assertEqual "after the lyrics" (Just LyricsScreen) (previousScreen (focusedView r.state))
+  -- The lyrics keep the screen that showed them after the help.
+  detour <- runEvents 0 (map key ["l", "f1", "escape", "escape"]) =<< queueShown
+  assertEqual "the queue after the help" QueueScreen (focusedView detour.state).screen
   -- The song after "..", the first row of a directory.
   let listing reply asked = case asked.pending of
         [p] -> runEvents 0 [replyTo reply p] asked.state
@@ -350,7 +353,7 @@ test_followPlaying = do
   assertEqual
     "the same screen to go back to"
     (Just QueueScreen)
-    (focusedView three.state).previous
+    (previousScreen (focusedView three.state))
   notFollowing <-
     runEvents 0 [key "down", key "l", StatusFetched (statusOf Playing (Just 2) 3)] s
   assertEqual "not unless it follows" ["A - Two"] (askedFor notFollowing)
@@ -508,7 +511,10 @@ test_backAnywhere :: Assertion
 test_backAnywhere = do
   r <- runEvents 0 (map key ["2", ":", "b", "a", "c", "k", "enter"]) =<< queueShown
   assertEqual "the queue" QueueScreen (focusedView r.state).screen
-  assertEqual "after the browser" (Just BrowserScreen) (focusedView r.state).previous
+  assertEqual
+    "after the browser"
+    (Just BrowserScreen)
+    (previousScreen (focusedView r.state))
 
 ----------------------------------------
 -- Helpers
