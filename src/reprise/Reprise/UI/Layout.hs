@@ -137,7 +137,8 @@ whichKeyPanel env s maxRows entries =
   let (w, _) = s.terminalSize
       cells = map cell entries
       cellWidth = maximum (1 : map fst cells) + gap
-      columns = max 1 (w `div` cellWidth)
+      -- The last column needs no gap after it.
+      columns = max 1 ((w + gap) `div` cellWidth)
       rows = max 1 (min maxRows ((length cells + columns - 1) `div` columns))
       room = rows * columns
       shown

@@ -51,6 +51,7 @@ layoutTests =
     , testCase "the queue's title scrolls" test_queueTitleScrolls
     , testCase "the marker of a missing tag in columns" test_markerInColumns
     , testCase "terminals of a few cells" test_tinyTerminals
+    , testCase "the columns of the which-key panel" test_whichKeyColumns
     , testCase "columns of fixed widths" test_fixedColumns
     , testCase "columns of shares" test_shareColumns
     , testCase "columns past the end of the row" test_columnsPastTheEnd
@@ -171,6 +172,16 @@ test_helpStyles = do
         [V.attrForeColor a | (a, t') <- imageSpans (renderScreen testAppEnv s), T.strip t' == t]
   assertEqual "the key" [V.SetTo (V.ISOColor 2)] (colorOf "/")
   assertEqual "the description" [V.SetTo (V.ISOColor 3)] (colorOf "find forward")
+
+-- | The widest entry of @t@ is 26 cells and the gap 2, so 3 columns fit in
+-- 82 cells: the last needs no gap after it.
+test_whichKeyColumns :: Assertion
+test_whichKeyColumns = do
+  s <- press ["t"] =<< playing (82, 12)
+  case filter ("X  crossfade" `T.isPrefixOf`) (imageLines (renderScreen testAppEnv s)) of
+    [line] ->
+      assertBool ("the third column: " <> T.unpack line) ("s  toggle single" `T.isInfixOf` line)
+    other -> assertFailure $ "not one first row: " <> show other
 
 -- | A terminal of a few cells, e.g. while it resizes, gets a screen that
 -- fits it, with a panel, a choice or a prompt too.
