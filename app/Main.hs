@@ -152,6 +152,7 @@ main = exitOnSignal . withOpenSSL $ do
             full <- isFullTBQueue events
             unless full $ writeTBQueue events e
             pure (not full)
+        , report = emit
         , debug = config.visualizer.debug
         }
   lyrics <- newTVarIO Nothing

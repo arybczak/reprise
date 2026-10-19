@@ -37,6 +37,9 @@ data VisualizerSource = VisualizerSource
   , emit :: AppEvent -> IO Bool
   -- ^ Doesn't wait for the UI, so that a frame that it can't draw in time
   -- is dropped. Returns whether the UI took the event.
+  , report :: AppEvent -> IO ()
+  -- ^ Waits for the UI, for an event that it mustn't miss, e.g. a failure,
+  -- after which the worker waits for another wish.
   , debug :: Bool
   -- ^ Whether to send what happened to the frames each second.
   }
@@ -53,7 +56,7 @@ visualizerWorker src = do
     try @IOException openFifo >>= \case
       -- The next try comes with the next wish, e.g. another visualization.
       Left err -> liftIO $ do
-        void . src.emit . VisualizerFailed $
+        src.report . VisualizerFailed $
           "The visualizer can't read its data source: " <> exceptionText err
         atomically $ readTVar src.reading >>= check . (/= Just wanted)
       Right () -> (`finally` closeFifo) $ do

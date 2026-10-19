@@ -321,7 +321,7 @@ withWriting path pcm act = do
     writeInterval = 1000000 `div` 600
 
 -- | It tries again for another visualization, or when the visualizer shows
--- again.
+-- again. The failure comes also when the UI has no room for frames.
 test_workerFails :: Assertion
 test_workerFails = withSystemTempDirectory "visualizer" $ \dir -> do
   events <- newTQueueIO
@@ -335,8 +335,9 @@ test_workerFails = withSystemTempDirectory "visualizer" $ \dir -> do
       -- once fails the test instead of filling the memory.
       oneAtATime e = atomically $ do
         empty <- isEmptyTQueue events
-        empty <$ when empty (writeTQueue events e)
-      src = (source reading events) {emit = oneAtATime}
+        check empty
+        writeTQueue events e
+      src = (source reading events) {emit = const (pure False), report = oneAtATime}
   -- A worker that tries again at once never takes the kill, which would
   -- hang the test instead of failing it.
   bracket (forkIO . realWorker (dir </> "missing") $ src) (void . forkIO . killThread) $ \_ -> do
@@ -524,6 +525,7 @@ source reading events =
     , trail = sceneTrail
     , reading = reading
     , emit = \e -> True <$ atomically (writeTQueue events e)
+    , report = atomically . writeTQueue events
     , debug = False
     }
 
@@ -579,6 +581,9 @@ runSceneWakes sc = do
               t <- S.readIORef timeRef
               S.modifyIORef eventsRef ((t, e) :)
               pure sc.taken
+          , report = \e -> do
+              t <- S.readIORef timeRef
+              S.modifyIORef eventsRef ((t, e) :)
           , debug = sc.debug
           }
   void
