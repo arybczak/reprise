@@ -76,8 +76,9 @@ handleKey k = do
 
 -- | A step of the wheel over the volume changes it, as ncmpcpp's does. Over
 -- the focused view, it moves the cursor of a list, or scrolls text, by its
--- lines, as the screen's moves do. Elsewhere, in a prompt, or over a screen
--- without moves, it does nothing.
+-- lines, as the screen's moves do. Elsewhere, in a prompt, with the panel
+-- of a key sequence open, as for a click, or over a screen without moves,
+-- it does nothing.
 handleWheel
   :: (State AppState :> es, Input AppEnv :> es, MpdRequest :> es, UiRequest :> es)
   => MoveTarget
@@ -93,7 +94,8 @@ handleWheel t col row = do
     | isJust s.prompt -> keepScreen
     | onVolume s col row ->
         runAction . Volume . VolumeBy $ if t == MoveUp then step else negate step
-    | fmap fst (viewAt s col row) == Just s.focus
+    | isNothing s.pendingKeys
+    , fmap fst (viewAt s col row) == Just s.focus
     , Just moveOnce <- screenVerb (focusedView s).screen (Move t) -> do
         noteInput
         replicateM_ n moveOnce

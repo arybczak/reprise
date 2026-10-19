@@ -503,6 +503,9 @@ test_wheel = do
       assertEqual ("no request over " <> what) [] r.requests
   prompt <- keys [":"] s
   assertEqual "not in a prompt" (0, 0) . position =<< wheel [MoveDown] prompt.state
+  -- The panel of the keys would cover the list, as for a click.
+  pending <- keys ["t"] s
+  assertEqual "not with a key sequence" (0, 0) . position =<< wheel [MoveDown] pending.state
   visualizer <- keys ["8"] s
   r <- wheel [MoveDown] visualizer.state
   assertEqual "nothing on a screen without moves" Nothing (message r)
