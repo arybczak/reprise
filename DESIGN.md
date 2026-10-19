@@ -1468,7 +1468,8 @@ never use it directly; they go through `MpdRequest`.
   exception does. The runtime turns only SIGINT into one, so without
   handlers a `pkill` would leave the terminal raw, on the alternate screen
   and reporting the mouse. The exit code is the shell's for the signal,
-  128 and its number.
+  128 and its number. The signal comes as an asynchronous exception, so
+  that `catchSync` lets it through, e.g. while the editor runs.
 - **Logging.** Unexpected exceptions and protocol errors go to
   `$XDG_STATE_HOME/reprise/reprise.log`, never to the terminal while the UI is
   running. Each run appends to the file.

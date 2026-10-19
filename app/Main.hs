@@ -85,7 +85,7 @@ options =
       )
 
 main :: IO ()
-main = withOpenSSL $ do
+main = exitOnSignal . withOpenSSL $ do
   opts <-
     execParser $
       info
@@ -191,13 +191,10 @@ main = withOpenSSL $ do
         delaySeconds retryInterval
   -- The runtime turns only SIGINT into an exception. Without this, e.g.
   -- pkill would leave the terminal raw, on the alternate screen and
-  -- reporting the mouse. The exit code is the shell's for the signal.
+  -- reporting the mouse.
   mainThread <- myThreadId
   forM_ [sigTERM, sigHUP] $ \sig ->
-    installHandler
-      sig
-      (CatchOnce . throwTo mainThread $ ExitFailure (128 + fromIntegral sig))
-      Nothing
+    installHandler sig (CatchOnce . throwTo mainThread $ Signalled sig) Nothing
   withAsync
     (mapConcurrently_ restarted (mpdWorkers <> toList visualizer <> [lyricsFetcher]))
     $ \_ ->
@@ -224,6 +221,10 @@ main = withOpenSSL $ do
             }
           (V.mkVty V.defaultConfig)
           (initialState config) {history = savedHistory}
+  where
+    -- The exit code is the shell's for the signal.
+    exitOnSignal :: IO () -> IO ()
+    exitOnSignal = handle $ \(Signalled sig) -> exitWith (ExitFailure (128 + fromIntegral sig))
 
 sources :: Options -> IO Sources
 sources opts = do
