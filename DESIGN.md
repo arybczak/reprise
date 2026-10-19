@@ -1760,9 +1760,9 @@ each hold few lines, and more prompts are coming, e.g. the search engine's.
   one,** as bash's `beginning-of-history` and `end-of-history`.
 - **Each line is kept once,** and using it again makes it the newest.
 - **The history keeps the last 1000 lines.** The number is the author's
-  choice. It isn't an option: the recall filters the lines by what the user
-  typed, so a longer history costs nothing that shows, and the file stays
-  small.
+  choice, as enough for the lines a user types again. It isn't an option:
+  a line typed again is a recent one, which `up` reaches first, so a longer
+  history would change nothing that shows, and the file stays small.
 - **The password prompt has no history,** in either direction.
 - **A recalled find pattern finds** as a typed one does.
 - **It is kept in `$XDG_STATE_HOME/reprise/history`,** next to the log,
