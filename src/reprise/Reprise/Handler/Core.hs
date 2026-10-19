@@ -248,18 +248,29 @@ confirm question onYes =
 ----------------------------------------
 -- Editing the queue
 
--- | Change the queue at positions. The status comes in the same command
--- list, so that the mirror can make the edits itself, and input waits for
--- it, see 'PendingEdit'. Without a queue in the mirror there are no
--- positions, and so nothing to wait for.
+-- | Change the queue at positions, see 'changeQueue'.
 editQueue :: (State AppState :> es, MpdRequest :> es) => [QueueEdit] -> Eff es ()
-editQueue edits =
+editQueue edits = unless (null edits) $ changeQueue (editCommands edits) edits
+
+-- | Change the queue by a command that moves the songs of positions, with
+-- the edits that the mirror makes for it. The status comes in the same
+-- command list, so that the mirror can make the edits itself, and input
+-- waits for it, see 'PendingEdit'. A command whose edits only MPD knows,
+-- e.g. an add of a directory, has none, and the changes come instead.
+-- Without a queue in the mirror there are no positions, and so nothing to
+-- wait for.
+changeQueue
+  :: (State AppState :> es, MpdRequest :> es)
+  => Command ()
+  -> [QueueEdit]
+  -> Eff es ()
+changeQueue cmd edits =
   getsS (.mirror.queueVersion) >>= \case
-    Just _ | not (null edits) -> do
+    Just _ -> do
       let waiting = PendingEdit {heldInput = Seq.empty, queueChanged = False}
       modifyS $ #pendingEdit %~ Just . fromMaybe waiting
-      requestOr (editCommands edits *> status) QueueEditFailed (QueueEditStatus edits)
-    _ -> mutate (editCommands edits)
+      requestOr (cmd *> status) QueueEditFailed (QueueEditStatus edits)
+    Nothing -> mutate cmd
 
 ----------------------------------------
 -- Adding to the queue
@@ -292,8 +303,9 @@ addAt
   -> T.Text
   -> Eff es ()
 addAt p commands added = do
-  pos <- getsS (`addPosition` p)
-  mutate $ addCommands pos commands
+  getsS (`addPosition` p) >>= \case
+    Nothing -> mutate $ addCommands Nothing commands
+    pos -> changeQueue (addCommands pos commands) []
   showMessage added
 
 -- | Add items, by the commands of each, at the end and play the first, and

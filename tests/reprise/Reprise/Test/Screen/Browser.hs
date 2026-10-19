@@ -284,11 +284,15 @@ test_addPositions = do
   s <- root
   let added ks = (.requests) <$> press ks s
   assertEqual "end" [[Request "add" ["a"]]] =<< added ["a", "e"]
-  assertEqual "next" [[Request "add" ["a", "+0"]]] =<< added ["a", "n"]
-  assertEqual "beginning" [[Request "add" ["a", "0"]]] =<< added ["a", "b"]
+  -- Input waits for the status of an add at a position.
+  assertEqual "next" [[Request "add" ["a", "+0"], status]] =<< added ["a", "n"]
+  assertEqual "beginning" [[Request "add" ["a", "0"], status]] =<< added ["a", "b"]
   assertEqual "a playlist" [[Request "load" ["p"]]] =<< added ["end", "a", "e"]
   assertEqual "the message" (Just "Added /a") . message . (.state)
     =<< press ["a", "e"] s
+  where
+    status :: Request
+    status = Request "status" []
 
 -- | After the song under the cursor of the queue, where M moves the
 -- selection. A cursor past the end of a queue that shrank adds at the end.
@@ -297,14 +301,17 @@ test_addAtCursor = do
   inQueue <-
     testState (80, 12) (statusOf Stopped Nothing 3) [song i [] 60 | i <- [0 .. 2]]
   s <- answer rootReply =<< press ["down", "2"] inQueue
-  assertEqual "after the second song" [[Request "add" ["a", "2"]]] . (.requests)
+  assertEqual "after the second song" [[Request "add" ["a", "2"], status]] . (.requests)
     =<< press ["a", "c"] s
   let shrunk = s & #views % mapped % #positions % at QueueScreen ?~ (5, 0)
-  assertEqual "the end" [[Request "add" ["a", "3"]]] . (.requests)
+  assertEqual "the end" [[Request "add" ["a", "3"], status]] . (.requests)
     =<< press ["a", "c"] shrunk
-  assertEqual "an empty queue" [[Request "add" ["a", "0"]]] . (.requests)
+  assertEqual "an empty queue" [[Request "add" ["a", "0"], status]] . (.requests)
     =<< press ["a", "c"]
     =<< root
+  where
+    status :: Request
+    status = Request "status" []
 
 test_addAndPlay :: Assertion
 test_addAndPlay = do
@@ -354,7 +361,9 @@ test_addSelected = do
   let added ks = (.requests) <$> press ks selected
   assertEqual "at the end" [[Request "add" ["a"], Request "load" ["p"]]]
     =<< added ["a", "e"]
-  assertEqual "next" [[Request "load" ["p", "0:", "+0"], Request "add" ["a", "+0"]]]
+  assertEqual
+    "next"
+    [[Request "load" ["p", "0:", "+0"], Request "add" ["a", "+0"], Request "status" []]]
     =<< added ["a", "n"]
   assertEqual "the message" (Just "Added 2 items") . message . (.state)
     =<< press ["a", "e"] selected

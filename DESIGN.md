@@ -1213,8 +1213,8 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
   doesn't fail at once (see [Errors and logging](#errors-and-logging)).
 - Mutations (play, delete, move, ...) don't need the reply. The new state comes
   back through `idle`.
-  - **Edits of the queue at positions** (delete, move, shuffle and clear)
-    are the exception: input waits for them. An action plans from the
+  - **Edits of the queue at positions** (delete, move, shuffle, clear and
+    an add at a position) are the exception: input waits for them. An action plans from the
     positions in the mirror, so a second `delete` before the reply would
     delete the songs after the first one's. Each edit fetches the status
     in its own command list, and keys, clicks and wheel steps that come
@@ -1230,8 +1230,10 @@ Requests are asynchronous: a request carries a `Command a` and a continuation
     - **The mirror makes the edit itself,** as ncmpc does, when the
       version in the status shows that no other client changed the queue:
       MPD increments the version once for each command that changes the
-      queue, also in a command list. Otherwise, and after a shuffle, whose
-      order only MPD knows, the edit fetches the status and `plchanges`.
+      queue, also in a command list. Otherwise, and after a shuffle or an
+      add, whose order or songs only MPD knows, the edit fetches the status
+      and `plchanges`. An add at the end moves no song, so input doesn't
+      wait for it.
       After a delete in the middle of a queue of 100,000 songs, the
       `plchanges` that this saves has 50,000 songs, which took 164 ms to
       parse and 15 ms to apply. The edit in the mirror takes 1.1 ms.

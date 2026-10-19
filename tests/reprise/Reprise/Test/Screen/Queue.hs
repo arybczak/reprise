@@ -33,6 +33,7 @@ queueTests =
     , testCase "input waits for an edit of the queue" test_heldInput
     , testCase "a click during an edit goes to its song" test_heldClick
     , testCase "a fetch of the queue fails" test_fetchFailed
+    , testCase "input waits for an add at a position" test_addWaits
     , testCase "an edit after a failed fetch ends" test_editAfterFailedFetch
     , testCase "an edit after another client's change fetches the changes" test_editFetched
     , testCase "a change during an edit is fetched after it" test_editChanges
@@ -73,7 +74,7 @@ test_addCopies = do
   atStart <- keys ["insert", "down", "insert", "a", "b"] s
   assertEqual
     "in their order at the beginning"
-    [[Request "add" ["dir/2.flac", "0"], Request "add" ["dir/1.flac", "0"]]]
+    (editRequests [Request "add" ["dir/2.flac", "0"], Request "add" ["dir/1.flac", "0"]])
     atStart.requests
   assertEqual "the songs" (Just "Added 2 songs") (message atStart)
   assertEqual "one plays where it is" [[Request "playid" ["1"]]] . (.requests)
@@ -209,6 +210,28 @@ test_fetchFailed = do
     failLastWith err r = case reverse r.pending of
       p : _ -> runEvents 0 [failureOf err p] r.state
       [] -> assertFailure "no request to fail"
+
+-- | An add at a position moves the songs after it, so input waits for it as
+-- for an edit. Only MPD knows the added songs, so the changes come. A
+-- delete of the selection that came before them would delete what the
+-- selected song's position was.
+test_addWaits :: Assertion
+test_addWaits = do
+  s <- testState (80, 24) (statusOf Stopped Nothing 3) (songs 3)
+  added <- keys ["down", "down", "insert", "a", "b", "delete"] s
+  assertEqual "the add" (editRequests [Request "add" ["dir/2.flac", "0"]]) added.requests
+  assertEqual "the delete waits" (Just 1) (heldCount added)
+  let st = statusOf Stopped Nothing 4 & #playlistVersion .~ PlaylistVersion 2
+  replied <- runEvents 0 [QueueEditStatus [] st] added.state
+  assertEqual
+    "the changes"
+    [[Request "status" [], Request "plchanges" ["1"]]]
+    replied.requests
+  let copy = (songs 4 !! 3) & #file .~ "dir/2.flac" & #position ?~ SongPos 0
+      movedTo p i = (songs 3 !! i) & #position ?~ SongPos p
+  fetched <-
+    runEvents 0 [QueueEdited (st, copy : [movedTo (i + 1) i | i <- [0 .. 2]])] replied.state
+  assertEqual "the selected song" (editRequests [Request "delete" ["3:4"]]) fetched.requests
 
 -- | A fetch that fails before the reply to an edit forgets the queue, and
 -- the input that waited for the edit can't act on it. It goes, so that
