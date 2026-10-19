@@ -1006,16 +1006,21 @@ formatRenames env format contents = do
         _ -> Left $ "The songs of " <> named <> " give different names"
 
 -- | Run an action if the directories of a listing can be renamed: MPD shows
--- where those of its database are only on its socket.
+-- where those of its database are only on its socket, and no other rename
+-- runs.
 whenRenamable
   :: (State AppState :> es, UiRequest :> es)
   => Location
   -> Eff es ()
   -> Eff es ()
-whenRenamable location action = case location of
-  InDirectory _ ->
-    whenOnSocket "Renaming in MPD's database needs a connection to MPD's socket" action
-  _ -> action
+whenRenamable location action =
+  getsS (.browser.renaming) >>= \case
+    -- The event of its end would end the second instead.
+    Just _ -> showError "A rename is still running"
+    Nothing -> case location of
+      InDirectory _ ->
+        whenOnSocket "Renaming in MPD's database needs a connection to MPD's socket" action
+      _ -> action
 
 -- | Rename directories of a listing, by their paths and their new paths
 -- there. Those of MPD's database are renamed once MPD said where they are.

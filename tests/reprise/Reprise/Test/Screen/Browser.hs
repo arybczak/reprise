@@ -567,11 +567,17 @@ test_renameLocal = do
     "the rename"
     [RenameDirectories [("/home/user/Music", "/home/user/Musz")]]
     (renames r)
+  -- The end of the first would end the second instead.
+  again <- press ["e", "r"] r.state
+  assertEqual "no second rename while one runs" Nothing again.state.prompt
+  assertEqual "why" (Just "A rename is still running") (message again.state)
   done <- runEvents 0 [DirectoriesRenamed 1 Nothing] r.state
   assertEqual "no update" [] done.requests
   assertEqual "the listing again" ["/home/user"] (localListings done)
   relisted <- listedWith [localDirectory "Books", localDirectory "Musz"] done
   assertEqual "the cursor on the new name" 2 (focusedView relisted.state).cursor
+  assertBool "a rename after it" . (/= Nothing) . (.state.prompt)
+    =<< press ["e", "r"] relisted.state
 
 -- | The selected directories, by the default format, after a confirmation.
 test_renameByFormat :: Assertion

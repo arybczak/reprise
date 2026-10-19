@@ -177,6 +177,10 @@ ncmpcpp.
     listed again at once, and MPD isn't told.
   - Queued songs and stored playlists keep the old paths, which MPD then
     can't find.
+  - **A rename runs in a thread of its own,** as every call to the file
+    system does, so that a hung file system, e.g. NFS whose server went
+    away, doesn't freeze the UI. Another rename is refused until it ends, so
+    that the end of the first isn't taken for the end of the second.
 - `rename_by_format` renames the marked directories by
   `browser.rename_format`, which the prompt starts from, e.g.
   `The Beatles - Abbey Road [flac]`. It works as `rename` does otherwise.
