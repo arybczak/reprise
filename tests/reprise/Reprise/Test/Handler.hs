@@ -750,6 +750,10 @@ test_promptHistory = do
     =<< keys ([":"] <> typed "s" <> ["up", "up", "page_down"]) used.state
   edited <- keys ([":", "up"] <> typed "x" <> ["up", "down"]) used.state
   assertEqual "an edit makes the line the typed one" (Just "songx") (lineOf edited)
+  assertEqual "a move of the cursor keeps the place" (Just "1:30") . lineOf
+    =<< keys [":", "up", "left", "home", "up"] used.state
+  assertEqual "and what was typed" (Just "vol") . lineOf
+    =<< keys ([":"] <> typed "vol" <> ["up", "left", "down"]) used.state
   finding <- testState (80, 24) (statusOf Stopped Nothing 5) titled
   assertEqual "a recalled find finds" 3 . cursor
     =<< keys ["/", "up"] (finding & #history .~ ["al"])

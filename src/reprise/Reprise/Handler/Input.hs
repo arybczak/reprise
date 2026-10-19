@@ -228,9 +228,12 @@ handlePromptKey p k = case p.input of
       | k == plain PageDown = (\r -> (r.typed, Nothing)) <$> recall
       | otherwise = edited
       where
-        -- An edit makes the recalled line the typed one.
+        -- An edit makes the recalled line the typed one, as in bash. A move
+        -- of the cursor keeps the place in the history.
         edited :: Maybe (LineEdit, Maybe Recall)
-        edited = (,Nothing) <$> editLine k edit
+        edited =
+          editLine k edit <&> \edit' ->
+            (edit', if lineEditText edit' == lineEditText edit then recall else Nothing)
 
 -- | Run what a line prompt asked for. An empty line of @:@ does nothing.
 answer

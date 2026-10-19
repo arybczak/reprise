@@ -1749,7 +1749,8 @@ each hold few lines, and more prompts are coming, e.g. the search engine's.
 - **`up`/`ctrl-p` and `down`/`ctrl-n` go to the previous and the next
   line,** as in bash, whatever the user typed. Going down past the newest
   line brings back the typed one, and an edit makes the recalled line the
-  typed one.
+  typed one. A move of the cursor keeps the place in the history, so
+  `up` after it goes on to the older line.
 - **`page_up` goes to the oldest line, and `page_down` back to the typed
   one,** as bash's `beginning-of-history` and `end-of-history`.
 - **Each line is kept once,** and using it again makes it the newest.
