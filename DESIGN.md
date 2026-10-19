@@ -731,7 +731,8 @@ ncmpcpp.
   `lyrics.directory`: `<artist> - <title>.txt`, of the first artist and the
   first title, or without both the name of the song's file without its
   extension. The name leaves out the characters that Windows forbids, as
-  ncmpcpp does with its default `generate_win32_compatible_filenames`. So
+  ncmpcpp does with its default `generate_win32_compatible_filenames`, and
+  control characters, which a tag that TagLib reads may have. So
   the author's 394 lyrics from ncmpcpp show as they are, and ncmpcpp reads
   the ones that reprise stores. A file that isn't UTF-8 shows, with
   replacement characters for its bytes that aren't.

@@ -5,7 +5,7 @@ module Reprise.File
 
     -- * Names
   , fileName
-  , forbiddenInNames
+  , forbiddenInName
   , nameLimit
   ) where
 
@@ -31,8 +31,8 @@ import Reprise.Exception
 ----------------------------------------
 -- Names
 
--- | A name of a file from text, without the characters of
--- 'forbiddenInNames', in at most a number of bytes of UTF-8. A longer name
+-- | A name of a file from text, without the characters that
+-- 'forbiddenInName' forbids, in at most a number of bytes of UTF-8. A longer name
 -- is cut, at a character, and ends in a hash of the whole name, so that two
 -- long names that begin alike stay apart.
 fileName :: Int -> T.Text -> FilePath
@@ -41,7 +41,7 @@ fileName room text
   | otherwise = T.unpack $ cut (room - utf8Length suffix) name <> suffix
   where
     name :: T.Text
-    name = T.filter (`notElem` forbiddenInNames) text
+    name = T.filter (not . forbiddenInName) text
 
     -- FNV-1a is the same on every machine and in every version, as a
     -- file's name must be. 64 bits keep two long names that begin alike
@@ -67,12 +67,14 @@ fileName room text
       | ord c < 0x10000 = 3
       | otherwise = 4
 
--- | The characters that Windows forbids in a file's name, which the names
--- that reprise makes leave out, as ncmpcpp does with its default
+-- | Whether a character can't be in a file's name that reprise makes. Those
+-- that Windows forbids are left out, as ncmpcpp does with its default
 -- @generate_win32_compatible_filenames@, so that the files can move to
--- such a file system. @/@ is one, so a name is never a path.
-forbiddenInNames :: String
-forbiddenInNames = "\"*/:<>?\\|"
+-- such a file system. @/@ is one, so a name is never a path. So are control
+-- characters, e.g. a newline of a tag that TagLib read, which would also
+-- break the lines of MPD's replies that list the name.
+forbiddenInName :: Char -> Bool
+forbiddenInName c = isControl c || c `elem` ("\"*/:<>?\\|" :: String)
 
 -- | The longest name of a file, in bytes of UTF-8: Linux's @NAME_MAX@, of
 -- ext4, XFS, Btrfs and ZFS. Such a name also fits the 255 units of UTF-16

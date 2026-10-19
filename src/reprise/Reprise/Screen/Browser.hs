@@ -35,6 +35,7 @@ module Reprise.Screen.Browser
   ) where
 
 import Control.Monad
+import Data.Char
 import Data.Foldable
 import Data.List qualified as L
 import Data.Map.Strict qualified as M
@@ -854,8 +855,8 @@ nameFault :: T.Text -> Maybe T.Text
 nameFault name
   | T.null name = Just "can't be empty"
   | name `elem` [".", ".."] = Just $ "can't be " <> name
-  | Just c <- T.find (`elem` forbiddenInNames) name =
-      Just $ "can't contain " <> T.singleton c
+  | Just c <- T.find forbiddenInName name =
+      Just $ "can't contain " <> if isControl c then "a control character" else T.singleton c
   | otherwise = Nothing
 
 -- | The path of a directory after a rename to a name.

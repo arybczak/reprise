@@ -668,14 +668,16 @@ test_renameByFormatRefused = do
     . (.state)
     =<< press ["insert", "end", "insert", "e", "R"] s
 
--- | A local directory, by its music files.
+-- | A local directory, by its music files. A tag that TagLib reads may have
+-- control characters, which MPD would have made spaces, and the name leaves
+-- them out.
 test_renameByFormatLocal :: Assertion
 test_renameByFormatLocal = do
   r <- press ["down", "e", "R", "enter"] =<< inHome
   case [(token, dirs) | ListLocalContents token _ dirs <- r.commands] of
     [(token, dirs)] -> do
       assertEqual "the listing" ["/home/user/Music"] dirs
-      let tags = FileTags {properties = [("ARTIST", ["A"]), ("ALBUM", ["B"])], seconds = Nothing}
+      let tags = FileTags {properties = [("ARTIST", ["A"]), ("ALBUM", ["B\n"])], seconds = Nothing}
       confirming <-
         runEvents
           0
