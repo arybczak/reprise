@@ -176,9 +176,14 @@ withMatcher p act =
       when (now > deadline) $ throwIO ICU.u_REGEX_TIME_OUT
       Regex.setText matcher t >> Regex.find matcher 0
   where
-    -- In seconds, as a reply within 100 ms feels instant, see 'matchOptions'.
+    -- In seconds. By Nielsen's limits of response times, a reply within
+    -- 0.1 s feels instant, and one within 1 s keeps the user's flow of
+    -- thought. The first left little room to a slow machine, or to a long
+    -- queue, whose rows the first find makes. The author chose half a
+    -- second between them, so that a pattern that is too slow also holds
+    -- up the screen for less.
     searchTime :: Double
-    searchTime = 0.1
+    searchTime = 0.5
 
 -- | Run an action with a matcher of the pattern.
 --

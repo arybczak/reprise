@@ -2055,9 +2055,14 @@ Details for incremental find:
   which loses the limit. So reprise matches with the IO interface, with one
   matcher for a whole search, under `unsafePerformIO` as text-icu's pure
   interface does.
-  - The limit is of one match, so a whole search stops too after 100 ms. A
+  - The limit is of one match, so a whole search stops too after 500 ms. A
     pattern that stays within the limit on each row, e.g. `(a+)+b` on rows
-    of 16 letters, took 15 s on 4000 rows, on every key.
+    of 16 letters, took 15 s on 4000 rows, on every key. By Nielsen's limits
+    of response times, a reply within 100 ms feels instant, and one within
+    1 s keeps the user's flow of thought. The first left little room to a
+    slow machine, or to a long queue, whose rows the first find makes. The
+    author chose 500 ms between them, so that a pattern that is too slow
+    also holds up the screen for less.
 - **An empty pattern is not a pattern.** ICU rejects it with an exception
   rather than a parse error, so the empty prompt of a find must not reach
   ICU.
