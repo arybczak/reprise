@@ -244,16 +244,18 @@ spansImage attr base overlay = V.horizCat . map image
     image s = V.text' (attr (base <> fromMaybe mempty s.style <> overlay)) (sanitize s.text)
 
 -- | The widths of the columns for a row width. Fixed columns get their
--- width, relative ones share the rest by their percentages, and a space
--- separates the columns.
+-- width, relative ones share the rest in proportion, and a space separates
+-- the columns.
 columnWidths :: Int -> [Column] -> [Int]
 columnWidths width columns =
   let separators = max 0 (length columns - 1)
       fixed = sum [w | FixedWidth w <- map (.width) columns]
       rest = max 0 (width - separators - fixed)
-      percents = sum [p | RelativeWidth p <- map (.width) columns]
+      -- A share can be as large as an Int, so their sum and the products
+      -- would overflow one.
+      total = sum [toInteger p | RelativeWidth p <- map (.width) columns]
       shares =
-        [ if percents > 0 then rest * p `div` percents else 0
+        [ if total > 0 then fromInteger (toInteger rest * toInteger p `div` total) else 0
         | RelativeWidth p <- map (.width) columns
         ]
       leftover = rest - sum shares

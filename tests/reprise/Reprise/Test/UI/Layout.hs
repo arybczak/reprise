@@ -51,6 +51,7 @@ layoutTests =
     , testCase "the queue's title scrolls" test_queueTitleScrolls
     , testCase "the marker of a missing tag in columns" test_markerInColumns
     , testCase "columns of fixed widths" test_fixedColumns
+    , testCase "columns of shares" test_shareColumns
     , testCase "the marker of a missing tag in the classic display" test_markerInClassic
     , testCase "a song without a length" test_noLength
     , testCase "a selected song has the selected style" test_selected
@@ -189,6 +190,31 @@ test_fixedColumns = do
     80
     ( sum
         [ T.length t
+        | (a, t) <- imageSpans (renderScreen env s)
+        , V.attrStyle a == V.SetTo V.reverseVideo
+        ]
+    )
+
+-- | Equal shares split the row in halves, also as large as an Int, and a
+-- space separates them.
+test_shareColumns :: Assertion
+test_shareColumns = do
+  title <- either (assertFailure . show) pure $ parseStyledFormat "%{title}"
+  let share =
+        Column
+          { width = RelativeWidth maxBound
+          , style = mempty
+          , format = title
+          , title = ""
+          , align = AlignLeft
+          }
+      env = testAppEnv & #config % #songs % #columns % #list .~ [share, share]
+  s <- testState (80, 6) (statusOf Stopped Nothing 1) [song 0 [(Title, ["x"])] 60]
+  assertEqual
+    "the cursor's row"
+    (T.justifyLeft 40 ' ' "x" <> T.justifyLeft 40 ' ' "x")
+    ( T.concat
+        [ t
         | (a, t) <- imageSpans (renderScreen env s)
         , V.attrStyle a == V.SetTo V.reverseVideo
         ]

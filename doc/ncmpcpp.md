@@ -114,7 +114,12 @@ What changed in how they are written:
 - **Formats use names:** `%{artist}` instead of `%a`, `<red>...</>` for a
   style, `[...]` for a part that shows only if its tags have values, and
   `[a|b]` for the first that does. A column of `songs.columns.list` is
-  e.g. `{width: 20%, style: 221, format: '%{artist}'}`.
+  e.g. `{width: 2fr, style: 221, format: '%{artist}'}`.
+- **A relative column width is a share, not a percentage:** the `fr`
+  columns share what the fixed columns leave, in proportion, so they always
+  fill the row. ncmpcpp's `(20)` is 20% of the whole width, and the last
+  relative column takes the rest. Its default `(20)`, `(50)` and `(20)` are
+  about reprise's `2fr`, `5fr` and `2fr`.
 - **The lyrics directory** is `~/.local/share/reprise/lyrics` by default.
   Set `lyrics.directory: ~/.lyrics` to keep ncmpcpp's.
 

@@ -47,7 +47,8 @@ songs:                           # how a song looks
     list:
       - title: Artist
         format: '%{artist}'
-        width: 20%               # a share of the screen
+        # The fr columns share what the fixed ones leave, here 2:5:2.
+        width: 2fr
         style: 221
       - title: Track
         format: '[%{track_raw}]'
@@ -55,11 +56,11 @@ songs:                           # how a song looks
         style: 77
       - title: Title
         format: '[%{title}|%{filename}]'
-        width: 50%
+        width: 5fr
         style: white
       - title: Album
         format: '%{album}'
-        width: 20%
+        width: 2fr
         style: 75
       - title: Time
         format: '[%{length}|-:--]'

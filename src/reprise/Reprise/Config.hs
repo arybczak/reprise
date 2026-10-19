@@ -176,7 +176,8 @@ data Column = Column
 
 data ColumnWidth
   = FixedWidth Int
-  | -- | A percentage of the width of the list.
+  | -- | A share of the width that the fixed columns leave, in proportion to
+    -- the shares of the other relative columns.
     RelativeWidth Int
   deriving stock (Eq, Show)
 
@@ -503,10 +504,10 @@ defaultColumns =
   ColumnsConfig
     { titles = False
     , list =
-        [ column (RelativeWidth 20) "221" "%{artist}" "Artist" AlignLeft
+        [ column (RelativeWidth 2) "221" "%{artist}" "Artist" AlignLeft
         , column (FixedWidth 6) "77" "[%{track_raw}]" "Track" AlignLeft
-        , column (RelativeWidth 50) "white" "[%{title}|%{filename}]" "Title" AlignLeft
-        , column (RelativeWidth 20) "75" "%{album}" "Album" AlignLeft
+        , column (RelativeWidth 5) "white" "[%{title}|%{filename}]" "Title" AlignLeft
+        , column (RelativeWidth 2) "75" "%{album}" "Album" AlignLeft
         , column (FixedWidth 5) "203" "[%{length}|-:--]" "Time" AlignRight
         ]
     }
@@ -833,10 +834,13 @@ instance FromYaml ColumnWidth where
       | i >= 1 && i <= toInteger (maxBound @Int) -> pure . FixedWidth $ fromInteger i
       | otherwise -> failAt n "a width must be at least 1"
     StringView t
-      | Just p <- T.stripSuffix "%" t
-      , Just v <- decimalIn 1 100 p ->
+      | Just p <- T.stripSuffix "fr" t
+      , Just v <- decimalIn 1 maxBound p ->
           pure $ RelativeWidth v
-    _ -> failAt n "expected a number of columns, e.g. 6, or a percentage, e.g. 20%"
+      -- ncmpcpp's widths are percentages of the whole width.
+      | "%" `T.isSuffixOf` t ->
+          failAt n "a relative width is a share of the room that the fixed columns leave, e.g. 2fr"
+    _ -> failAt n "expected a number of columns, e.g. 6, or a share of the room left, e.g. 2fr"
 
 instance FromYaml Align where
   parseYaml = oneOf [("left", AlignLeft), ("right", AlignRight)]

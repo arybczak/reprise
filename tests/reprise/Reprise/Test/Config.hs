@@ -175,12 +175,12 @@ test_columns = do
         [ "songs:"
         , "  columns:"
         , "    list:"
-        , "    - {width: 30%, format: '%{artist}'}"
+        , "    - {width: 3fr, format: '%{artist}'}"
         , "    - {width: 7, format: '%{length}', align: right}"
         ]
   case config.songs.columns.list of
     [a, b] -> do
-      assertEqual "relative" (RelativeWidth 30) a.width
+      assertEqual "relative" (RelativeWidth 3) a.width
       assertEqual "fixed" (FixedWidth 7) b.width
       assertEqual "default alignment" AlignLeft a.align
       assertEqual "alignment" AlignRight b.align
@@ -388,6 +388,10 @@ test_errors = do
     (decode "keys:\n  global:\n    t:\n      escape: pause\n")
   assertBool "a key that cancels outside a group" . isRight $
     decode "keys:\n  global:\n    escape: pause\n"
+  assertError
+    "a percentage of a column"
+    "a relative width is a share of the room that the fixed columns leave, e.g. 2fr"
+    (decode "songs:\n  columns:\n    list:\n    - {width: 20%, format: '%{artist}'}\n")
   assertError
     "missing column format"
     "missing key \"format\""
