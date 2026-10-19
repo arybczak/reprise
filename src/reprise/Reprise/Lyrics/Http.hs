@@ -15,6 +15,8 @@ import Network.HTTP.Client
 import Network.HTTP.Types
 import System.Timeout
 
+import Reprise.Exception
+
 -- | A GET of a path of a site with the parameters of its query: the status
 -- and the body of the reply, or why there is none. The tests replace it.
 type Get = BS.ByteString -> [(T.Text, T.Text)] -> IO (Either T.Text (Int, BS.ByteString))
@@ -47,14 +49,21 @@ getWithin limit manager userAgent site base sitePath params = do
             , responseTimeout = responseTimeoutNone
             , redirectCount = 0
             }
-  timeout limit (try (httpLbs request manager)) >>= \case
-    Nothing -> pure . Left $ site <> " didn't answer in time"
-    Just (Right response) ->
-      pure $ Right (statusCode (responseStatus response), BL.toStrict (responseBody response))
-    Just (Left err) -> pure . Left $ case err of
-      HttpExceptionRequest _ ConnectionTimeout -> site <> " didn't answer in time"
-      HttpExceptionRequest _ content -> site <> " can't be reached: " <> T.pack (show content)
-      InvalidUrlException url why -> site <> "'s URL " <> T.pack url <> " is invalid: " <> T.pack why
+  -- http-client wraps the errors before the headers in an 'HttpException',
+  -- but not those of the body, e.g. a reset of the connection.
+  handled $
+    timeout limit (try (httpLbs request manager)) >>= \case
+      Nothing -> pure . Left $ site <> " didn't answer in time"
+      Just (Right response) ->
+        pure $ Right (statusCode (responseStatus response), BL.toStrict (responseBody response))
+      Just (Left err) -> pure . Left $ case err of
+        HttpExceptionRequest _ ConnectionTimeout -> site <> " didn't answer in time"
+        HttpExceptionRequest _ content -> site <> " can't be reached: " <> T.pack (show content)
+        InvalidUrlException url why -> site <> "'s URL " <> T.pack url <> " is invalid: " <> T.pack why
+  where
+    handled :: IO (Either T.Text a) -> IO (Either T.Text a)
+    handled action =
+      action `catchSync` \err -> pure . Left $ site <> " can't be reached: " <> exceptionText err
 
 -- | Why a site's reply has no lyrics, by its status, which the fetcher
 -- didn't expect.
