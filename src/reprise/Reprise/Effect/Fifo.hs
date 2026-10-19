@@ -21,10 +21,13 @@ import Control.Monad
 import Data.ByteString qualified as BS
 import Data.IORef.Strict qualified as S
 import Data.Maybe
+import Data.Word
 import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.Exception
 import Foreign.C.Error
+import Foreign.ForeignPtr
+import Foreign.Ptr
 import GHC.IO.Exception qualified as GHC
 import System.IO.Error
 import System.Posix.Files
@@ -57,6 +60,7 @@ data Open = Open Fd BS.ByteString
 runFifo :: IOE :> es => FilePath -> Eff (Fifo : es) a -> Eff es a
 runFifo path action = do
   ref <- liftIO $ S.newIORef Nothing
+  buffer <- liftIO $ mallocForeignPtrBytes pipeCapacity
   let close = S.readIORef ref >>= mapM_ (\(Open fd _) -> closeFd fd) >> S.writeIORef ref Nothing
       handled = interpretWith_ action $ \case
         -- A fifo opens at once without a writer, as it opens non-blocking.
@@ -75,19 +79,25 @@ runFifo path action = do
               Nothing -> pure BS.empty
               Just (Open fd came) -> do
                 S.writeIORef ref (Just (Open fd BS.empty))
-                (came <>) . fromMaybe BS.empty <$> readAvailable fd
+                (came <>) . fromMaybe BS.empty <$> readAvailable buffer fd
         WaitFifo cancel ->
           liftIO (S.readIORef ref) >>= \case
             Nothing -> liftIO $ Cancelled <$ atomically cancel
             Just (Open fd came)
-              | BS.null came -> waitReadable ref cancel fd
+              | BS.null came -> waitReadable buffer ref cancel fd
               | otherwise -> pure SamplesCame
         CloseFifo -> liftIO close
   handled `finally` liftIO close
   where
     -- The samples that the wait reads stay for the next read.
-    waitReadable :: IOE :> es => S.IORef (Maybe Open) -> STM () -> Fd -> Eff es Waited
-    waitReadable ref cancel fd = do
+    waitReadable
+      :: IOE :> es
+      => ForeignPtr Word8
+      -> S.IORef (Maybe Open)
+      -> STM ()
+      -> Fd
+      -> Eff es Waited
+    waitReadable buffer ref cancel fd = do
       (ready, unregister) <- liftIO $ threadWaitReadSTM fd
       readable <-
         liftIO (atomically ((True <$ ready) `orElse` (False <$ cancel)))
@@ -95,10 +105,10 @@ runFifo path action = do
       if not readable
         then pure Cancelled
         else
-          liftIO (readAvailable fd) >>= \case
+          liftIO (readAvailable buffer fd) >>= \case
             Nothing -> pure WriterGone
             Just new
-              | BS.null new -> waitReadable ref cancel fd
+              | BS.null new -> waitReadable buffer ref cancel fd
               | otherwise -> SamplesCame <$ liftIO (S.writeIORef ref (Just (Open fd new)))
 
 -- | Open the fifo, closing the one open before. Throws an 'IOException'
@@ -126,19 +136,30 @@ closeFifo = send CloseFifo
 
 -- | Read what the fifo holds, without waiting for more. 'Nothing' if the
 -- writer closed it and it holds nothing.
-readAvailable :: Fd -> IO (Maybe BS.ByteString)
-readAvailable fd = go []
+--
+-- The reads go to one buffer of 'pipeCapacity', and only what they read is
+-- copied out. A new buffer for each read was 64 KiB on every frame, also
+-- for a read of nothing: 5% of what the spectrum allocated at 90 frames a
+-- second, and 1% of what the ellipse did (measured with +RTS -s).
+readAvailable :: ForeignPtr Word8 -> Fd -> IO (Maybe BS.ByteString)
+readAvailable buffer fd = go []
   where
     go :: [BS.ByteString] -> IO (Maybe BS.ByteString)
     go chunks =
-      tryIOError (B.fdRead fd (fromIntegral pipeCapacity)) >>= \case
+      tryIOError (withForeignPtr buffer readChunk) >>= \case
         Right chunk
+          -- A read of nothing is the end, as the writer closed the fifo.
+          | BS.null chunk -> pure $ if null chunks then Nothing else Just (joined chunks)
           | BS.length chunk < pipeCapacity -> pure . Just $ joined (chunk : chunks)
           | otherwise -> go (chunk : chunks)
         Left err
-          | isEOFError err -> pure $ if null chunks then Nothing else Just (joined chunks)
           | wouldBlock err -> pure . Just $ joined chunks
           | otherwise -> ioError err
+
+    readChunk :: Ptr Word8 -> IO BS.ByteString
+    readChunk p = do
+      n <- B.fdReadBuf fd p (fromIntegral pipeCapacity)
+      BS.packCStringLen (castPtr p, fromIntegral n)
 
     joined :: [BS.ByteString] -> BS.ByteString
     joined = BS.concat . reverse
