@@ -60,7 +60,7 @@ data Open = Open Fd BS.ByteString
 runFifo :: IOE :> es => FilePath -> Eff (Fifo : es) a -> Eff es a
 runFifo path action = do
   ref <- liftIO $ S.newIORef Nothing
-  buffer <- liftIO $ mallocForeignPtrBytes pipeCapacity
+  buffer <- liftIO $ mallocForeignPtrBytes @Word8 pipeCapacity
   let close = S.readIORef ref >>= mapM_ (\(Open fd _) -> closeFd fd) >> S.writeIORef ref Nothing
       handled = interpretWith_ action $ \case
         -- A fifo opens at once without a writer, as it opens non-blocking.
