@@ -271,7 +271,11 @@ registry =
   , spec "show" "SCREEN" $ one (fmap Show . screenFromName)
   , spec "next_screen" "[SCREEN, ...]" $ screenList NextScreen
   , spec "previous_screen" "[SCREEN, ...]" $ screenList PreviousScreen
-  , ActionSpec "command" "[START OF THE LINE]" (Right . CommandPrompt)
+  , ActionSpec
+      { name = "command"
+      , usage = "[START OF THE LINE]"
+      , parse = Right . CommandPrompt
+      }
   , -- @ask@ and @command@ are prompts already.
     spec "ask" "ACTION" . one $ \name -> case findSpec name of
       Just s
@@ -282,8 +286,11 @@ registry =
   , namedSpec "add" "position" addName Add
   , spec "add_and_play" "" $ none AddAndPlay
   , -- A path can hold spaces and brackets, so it is the rest of the line.
-    ActionSpec "add_path" "PATH" $ \t ->
-      if T.null t then Left "expected a path" else Right (AddPath t)
+    ActionSpec
+      { name = "add_path"
+      , usage = "PATH"
+      , parse = \t -> if T.null t then Left "expected a path" else Right (AddPath t)
+      }
   , spec "clear" "" $ none Clear
   , spec "shuffle" "" $ none Shuffle
   , spec "save" "" $ none Save
@@ -304,7 +311,7 @@ registry =
   where
     -- An action whose arguments are words and lists.
     spec :: T.Text -> T.Text -> ([Argument] -> Either T.Text Action) -> ActionSpec
-    spec name usage f = ActionSpec name usage (tokenize >=> f)
+    spec name usage f = ActionSpec {name = name, usage = usage, parse = tokenize >=> f}
 
     -- An action whose argument names a value, e.g. @add end@.
     namedSpec

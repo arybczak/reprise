@@ -133,7 +133,13 @@ simulate speed stop short = go (newPlayout 0) 1
               new = BS.replicate (sum (writesBetween (frameTime (n - 1)) t)) 1
               shown = frameBytes * (samplesUntil n - samplesUntil (n - 1))
               (frame, stopped, p') = playout shown t new p
-          in Simulated t shown (BS.length frame) stopped (BS.length p'.buffered)
+          in Simulated
+               { time = t
+               , shown = shown
+               , frame = BS.length frame
+               , stopped = stopped
+               , buffered = BS.length p'.buffered
+               }
                : go p' (n + 1)
 
     -- The bytes of each write that comes between two times.

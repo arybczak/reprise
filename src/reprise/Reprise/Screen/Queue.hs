@@ -300,5 +300,8 @@ queueRows = do
     _ -> do
       let display = s.toggles.queueDisplay
           rows = songFindText env display <$> s.mirror.queue
-      modifyS $ #queueState % #findRows ?~ FindRows s.mirror.queueVersion display rows
+      modifyS $
+        #queueState
+          % #findRows
+          ?~ FindRows {version = s.mirror.queueVersion, display = display, rows = rows}
       pure rows

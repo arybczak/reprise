@@ -53,7 +53,10 @@ test_stale = do
       failed <-
         runEvents
           0
-          [failureOf (AckError (Ack AckNoExist 0 "readcomments" "x")) second]
+          [ failureOf
+              (AckError (Ack {code = AckNoExist, index = 0, command = "readcomments", message = "x"}))
+              second
+          ]
           stale.state
       assertEqual "a failure is no comments" [] failed.state.songInfo.comments
       assertEqual "a failure shows no error" Nothing failed.state.message

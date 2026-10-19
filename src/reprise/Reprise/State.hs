@@ -452,7 +452,13 @@ data VisualizerPicture
 -- | The visualizer reading the samples for a visualization, or not, before
 -- the first frame.
 newVisualizer :: Maybe Visualization -> VisualizerState
-newVisualizer v = VisualizerState (empty <$> v) Seq.empty Nothing Nothing
+newVisualizer v =
+  VisualizerState
+    { reading = empty <$> v
+    , drawn = Seq.empty
+    , stats = Nothing
+    , failure = Nothing
+    }
   where
     empty :: Visualization -> VisualizerPicture
     empty = \case
@@ -612,8 +618,16 @@ initialState config =
           , landOn = Nothing
           }
     , visualizer = newVisualizer Nothing
-    , lyrics = LyricsState Nothing 0 ReadingLyrics True Nothing Nothing
-    , songInfo = SongInfoState Nothing 0 []
+    , lyrics =
+        LyricsState
+          { song = Nothing
+          , token = 0
+          , status = ReadingLyrics
+          , following = True
+          , inBackground = Nothing
+          , playing = Nothing
+          }
+    , songInfo = SongInfoState {song = Nothing, token = 0, comments = []}
     , outputs = Nothing
     , toggles =
         Toggles

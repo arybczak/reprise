@@ -30,7 +30,7 @@ startFind direction s =
   in openLine
        question
        emptyLineEdit
-       (ForFind $ Finding direction (v.cursor, v.offset) Nothing)
+       (ForFind Finding {direction = direction, origin = (v.cursor, v.offset), note = Nothing})
        s
   where
     question :: T.Text

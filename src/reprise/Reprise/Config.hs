@@ -568,7 +568,7 @@ defaultStatusBar =
 defaultProgressBar :: ProgressBarConfig
 defaultProgressBar =
   ProgressBarConfig
-    { chars = ProgressChars '▅' '▅' '▅'
+    { chars = ProgressChars {elapsed = '▅', current = '▅', remaining = '▅'}
     }
 
 defaultVisualizer :: VisualizerConfig
@@ -887,7 +887,7 @@ instance FromYaml ProgressChars where
           -- The bar fills a cell with each, and the terminal would draw a
           -- control character, e.g. a tab, as something else.
           | all (\ch -> not (isControl ch) && textWidth (T.singleton ch) == 1) [e, c, r] ->
-              pure $ ProgressChars e c r
+              pure ProgressChars {elapsed = e, current = c, remaining = r}
           | otherwise -> failAt n "each character must take one column, e.g. = > -"
         _ ->
           failAt

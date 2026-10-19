@@ -95,12 +95,15 @@ test_parseAck :: Assertion
 test_parseAck = do
   assertEqual
     "full"
-    (Just $ Ack AckNoExist 2 "play" "No such song")
+    (Just $ Ack {code = AckNoExist, index = 2, command = "play", message = "No such song"})
     (parseAck "ACK [50@2] {play} No such song")
-  assertEqual "no command" (Just $ Ack AckUnknown 0 "" "x") (parseAck "ACK [5@0] {} x")
+  assertEqual
+    "no command"
+    (Just $ Ack {code = AckUnknown, index = 0, command = "", message = "x"})
+    (parseAck "ACK [5@0] {} x")
   assertEqual
     "unknown code"
-    (Just $ Ack (AckOther 99) 0 "a" "b")
+    (Just $ Ack {code = AckOther 99, index = 0, command = "a", message = "b"})
     (parseAck "ACK [99@0] {a} b")
   assertEqual "malformed" Nothing (parseAck "ACK 50 play")
 
@@ -110,7 +113,9 @@ test_displayError = do
   assertEqual
     "ACK"
     "play: Bad song index"
-    (displayException . AckError $ Ack AckArg 0 "play" "Bad song index")
+    ( displayException . AckError $
+        Ack {code = AckArg, index = 0, command = "play", message = "Bad song index"}
+    )
   assertEqual
     "too old"
     "MPD 0.22.0 is too old, 0.24.0 or newer is needed"

@@ -137,13 +137,19 @@ runEvents :: Double -> [AppEvent] -> AppState -> IO Result
 runEvents = runEventsWith testAppEnv
 
 runEventsWith :: AppEnv -> Double -> [AppEvent] -> AppState -> IO Result
-runEventsWith env now events s0 = foldM step (Result s0 [] [] []) events
+runEventsWith env now events s0 =
+  foldM step Result {state = s0, requests = [], pending = [], commands = []} events
   where
     step :: Result -> AppEvent -> IO Result
     step r e = do
       (s, ps, cs) <- runEvent env now e r.state
-      pure $
-        Result s (r.requests <> map pendingRequestLines ps) (r.pending <> ps) (r.commands <> cs)
+      pure
+        Result
+          { state = s
+          , requests = r.requests <> map pendingRequestLines ps
+          , pending = r.pending <> ps
+          , commands = r.commands <> cs
+          }
 
 -- | The event of a request's continuation, for a reply of the given lines
 -- before its @OK@.

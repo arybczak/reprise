@@ -79,7 +79,7 @@ showSongInfo
   => Eff es ()
 showSongInfo = showSongScreen SongInfoScreen $ \song -> do
   token <- newToken
-  modifyS $ #songInfo .~ SongInfoState (Just song) token []
+  modifyS $ #songInfo .~ SongInfoState {song = Just song, token = token, comments = []}
   -- A stream has no file to read, and its URL would be opened.
   unless (isStream song) $
     requestOr

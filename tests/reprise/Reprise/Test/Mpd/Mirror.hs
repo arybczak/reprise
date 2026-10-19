@@ -258,7 +258,12 @@ testSongs :: [TestSong]
 testSongs = [testSong ("s" <> show @Int i <> ".flac") | i <- [0 .. 4]]
 
 settingsOf :: TestServer -> Settings
-settingsOf server = Settings (UnixAddress server.socketPath) Nothing (Just testTimeout)
+settingsOf server =
+  Settings
+    { address = UnixAddress server.socketPath
+    , password = Nothing
+    , timeout = Just testTimeout
+    }
   where
     -- A reply from the local test server that takes this long means it
     -- hangs.

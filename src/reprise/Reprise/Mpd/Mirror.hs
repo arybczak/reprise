@@ -62,7 +62,16 @@ data Mirror = Mirror
   deriving stock (Eq, Show, Generic)
 
 emptyMirror :: Mirror
-emptyMirror = Mirror Nothing 0 Seq.empty Nothing 0 S.empty 0
+emptyMirror =
+  Mirror
+    { status = Nothing
+    , statusTime = 0
+    , queue = Seq.empty
+    , queueVersion = Nothing
+    , totalLength = 0
+    , queued = S.empty
+    , lengthFromCurrent = 0
+    }
 
 -- | Replace the whole queue.
 setQueue :: Double -> Status -> [Song] -> Mirror -> Mirror

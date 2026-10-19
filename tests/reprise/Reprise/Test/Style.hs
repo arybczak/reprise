@@ -27,24 +27,34 @@ test_parse :: Assertion
 test_parse = do
   assertEqual
     "foreground and background"
-    (Right $ Style (Just (Color 3)) (Just (Color 24)) S.empty)
+    ( Right $
+        Style {foreground = Just (Color 3), background = Just (Color 24), attributes = S.empty}
+    )
     (parseStyle "yellow on 24")
   assertEqual
     "attributes"
-    (Right $ Style (Just (Color 0)) Nothing (S.fromList [Bold]))
+    ( Right $
+        Style {foreground = Just (Color 0), background = Nothing, attributes = S.fromList [Bold]}
+    )
     (parseStyle "black bold")
   assertEqual
     "default"
-    (Right $ Style (Just DefaultColor) Nothing S.empty)
+    (Right $ Style {foreground = Just DefaultColor, background = Nothing, attributes = S.empty})
     (parseStyle "default")
   assertEqual "any order" (parseStyle "bold red on blue") (parseStyle "red on blue bold")
   assertEqual
     "only a background"
-    (Right $ Style Nothing (Just (Color 237)) S.empty)
+    (Right $ Style {foreground = Nothing, background = Just (Color 237), attributes = S.empty})
     (parseStyle "on 237")
   assertEqual
     "red, green and blue"
-    (Right $ Style (Just (Rgb 0 255 128)) (Just (Rgb 0x1a 0x2b 0x3c)) S.empty)
+    ( Right $
+        Style
+          { foreground = Just (Rgb 0 255 128)
+          , background = Just (Rgb 0x1a 0x2b 0x3c)
+          , attributes = S.empty
+          }
+    )
     (parseStyle "#00ff80 on #1A2B3C")
 
 test_parseErrors :: Assertion
@@ -88,16 +98,26 @@ test_render =
 
 test_overlay :: Assertion
 test_overlay = do
-  let base = Style (Just (Color 3)) Nothing (S.fromList [Bold])
-      cursor = Style Nothing (Just (Color 24)) S.empty
+  let base =
+        Style {foreground = Just (Color 3), background = Nothing, attributes = S.fromList [Bold]}
+      cursor = Style {foreground = Nothing, background = Just (Color 24), attributes = S.empty}
   assertEqual
     "the top changes only what it sets"
-    (Style (Just (Color 3)) (Just (Color 24)) (S.fromList [Bold]))
+    Style
+      { foreground = Just (Color 3)
+      , background = Just (Color 24)
+      , attributes = S.fromList [Bold]
+      }
     (base <> cursor)
 
 test_vtyAttributes :: Assertion
 test_vtyAttributes = do
-  let s = Style (Just (Color 3)) (Just (Color 221)) (S.fromList [Bold])
+  let s =
+        Style
+          { foreground = Just (Color 3)
+          , background = Just (Color 221)
+          , attributes = S.fromList [Bold]
+          }
   assertEqual "ISO color" (V.SetTo (V.ISOColor 3)) (V.attrForeColor (toAttr WithColors s))
   assertEqual
     "240 colors"
@@ -172,4 +192,4 @@ test_gradient = do
     styles -> assertFailure $ "styles: " <> show styles
 
 fg :: Color -> Style
-fg c = Style (Just c) Nothing S.empty
+fg c = Style {foreground = Just c, background = Nothing, attributes = S.empty}

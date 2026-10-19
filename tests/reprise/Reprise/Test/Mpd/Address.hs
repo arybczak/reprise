@@ -255,7 +255,15 @@ test_oldServer getServer = withSystemTempDirectory "mpd" $ \dir -> do
 -- Helpers
 
 noSources :: Sources
-noSources = Sources Nothing Nothing Nothing Nothing [] "/home/user"
+noSources =
+  Sources
+    { cliHost = Nothing
+    , cliPort = Nothing
+    , envHost = Nothing
+    , envPort = Nothing
+    , existingSockets = []
+    , home = "/home/user"
+    }
 
 -- | The settings that are tried first.
 settingsOf :: MpdConfig -> Sources -> IO Settings

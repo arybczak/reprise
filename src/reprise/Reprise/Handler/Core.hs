@@ -156,7 +156,7 @@ showError = message True
 message :: (State AppState :> es, UiRequest :> es) => Bool -> T.Text -> Eff es ()
 message isError text = do
   token <- newToken
-  modifyS $ #message ?~ Message text isError token
+  modifyS $ #message ?~ Message {text = text, isError = isError, token = token}
   after messageTimeout (MessageExpired token)
   where
     -- How long a status bar message stays. ncmpcpp's default
@@ -243,7 +243,11 @@ openPrompt p s =
 -- | Ask a yes or no question, and send the event on yes.
 confirm :: T.Text -> AppEvent -> AppState -> AppState
 confirm question onYes =
-  openChoice question [ChoiceOption 'y' "yes" (Just onYes), ChoiceOption 'n' "no" Nothing]
+  openChoice
+    question
+    [ ChoiceOption {letter = 'y', name = "yes", event = Just onYes}
+    , ChoiceOption {letter = 'n', name = "no", event = Nothing}
+    ]
 
 ----------------------------------------
 -- Editing the queue

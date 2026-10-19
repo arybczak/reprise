@@ -156,7 +156,12 @@ model c = map fst $ case c.operation of
 prop_model :: IO TestServer -> Property
 prop_model getServer = forAll genCase $ \c -> ioProperty $ do
   server <- getServer
-  let settings = Settings (UnixAddress server.socketPath) Nothing (Just testTimeout)
+  let settings =
+        Settings
+          { address = UnixAddress server.socketPath
+          , password = Nothing
+          , timeout = Just testTimeout
+          }
       positions = [p | (p, (_, True)) <- zip [0 ..] c.queue]
   actual <- withConnection settings $ \conn -> do
     run conn $ clear *> traverse_ (\(i, _) -> add (file i) Nothing) c.queue

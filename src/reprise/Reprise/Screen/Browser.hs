@@ -312,7 +312,7 @@ list location cursor = do
           (Nothing, Just shown) -> Just (shown, returnToCursor s)
           (Nothing, Nothing) -> Nothing
     in s
-         & #browser % #listing ?~ Listing token location cursor
+         & #browser % #listing ?~ Listing {token = token, location = location, cursor = cursor}
          & #browser % #otherMode %~ \other -> case current of
            Just c | isLocal (fst c) /= isLocal location -> Just c
            _ -> other

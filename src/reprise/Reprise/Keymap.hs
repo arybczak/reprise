@@ -202,8 +202,20 @@ whichKeyEntries layers = M.elems $ M.union (entries True layers.screen) (entries
 
     entry :: Bool -> KeySpec -> Binding -> WhichKeyEntry
     entry fromScreen k = \case
-      BindAction a -> WhichKeyEntry k (describeAction a) False fromScreen
-      BindPrefix g -> WhichKeyEntry k (maybe "+prefix" ("+" <>) g.name) True fromScreen
+      BindAction a ->
+        WhichKeyEntry
+          { key = k
+          , description = describeAction a
+          , isPrefix = False
+          , fromScreen = fromScreen
+          }
+      BindPrefix g ->
+        WhichKeyEntry
+          { key = k
+          , description = maybe "+prefix" ("+" <>) g.name
+          , isPrefix = True
+          , fromScreen = fromScreen
+          }
 
 ----------------------------------------
 -- Help

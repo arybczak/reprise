@@ -50,7 +50,14 @@ seekAction = \case
               fromIntegral (abs n) + fromIntegral (floor @Double @Int (held / seekAccelerationPeriod))
             target = max 0 . min d $ if n >= 0 then base + step else base - step
         token <- newToken
-        modifyS $ #seek ?~ SeekState target started (s.mirror.status >>= (.currentId)) token
+        modifyS $
+          #seek
+            ?~ SeekState
+              { target = target
+              , started = started
+              , songId = s.mirror.status >>= (.currentId)
+              , token = token
+              }
         after seekCommitDelay (SeekCommit token)
       _ -> noLength
   SeekToSecond n -> do

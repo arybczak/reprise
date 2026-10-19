@@ -270,7 +270,7 @@ promptLine s question edit purpose =
         | otherwise = " " <> truncateToWidth noteRoom fullNote
       room = max 1 (w - textWidth question - textWidth note)
       (shown, column) = visibleLine room shownEdit
-  in PromptLine shown (textWidth question + column) note
+  in PromptLine {shown = shown, cursorColumn = textWidth question + column, note = note}
   where
     stars :: T.Text -> T.Text
     stars = T.map (const '*')

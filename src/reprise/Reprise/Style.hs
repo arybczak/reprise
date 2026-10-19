@@ -51,7 +51,7 @@ instance Semigroup Style where
       }
 
 instance Monoid Style where
-  mempty = Style Nothing Nothing S.empty
+  mempty = Style {foreground = Nothing, background = Nothing, attributes = S.empty}
 
 -- | Bold, over any colors.
 boldStyle :: Style

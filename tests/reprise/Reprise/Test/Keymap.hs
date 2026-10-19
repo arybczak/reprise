@@ -117,12 +117,22 @@ test_whichKey = do
     Pending next -> do
       assertEqual
         "entries"
-        [ WhichKeyEntry (key "c") "move to the end" False True
-        , WhichKeyEntry (key "m") "move the selection after the cursor" False True
-        , WhichKeyEntry (key "s") "shuffle" False False
+        [ entry "c" "move to the end" True
+        , entry "m" "move the selection after the cursor" True
+        , entry "s" "shuffle" False
         ]
         (whichKeyEntries next)
     other -> assertFailure $ "expected a prefix, got " <> show other
+  where
+    -- An entry of an action, of the screen's keymap or the global one.
+    entry :: T.Text -> T.Text -> Bool -> WhichKeyEntry
+    entry k description fromScreen =
+      WhichKeyEntry
+        { key = key k
+        , description = description
+        , isPrefix = False
+        , fromScreen = fromScreen
+        }
 
 ----------------------------------------
 -- Helpers

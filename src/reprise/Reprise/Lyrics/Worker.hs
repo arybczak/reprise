@@ -119,7 +119,8 @@ lyricsWorker src = do
             t <- atomically $ writeTVar fetcher (Just name) >> readTVar answers
             traverse_ (\t' -> src.emit (LyricsFetching t' name)) t
       result <- async $ load fetching request.refetch request.song
-      S.writeIORef running . Just $ Job result request.song answers fetcher
+      S.writeIORef running . Just $
+        Job {result = result, song = request.song, answers = answers, fetcher = fetcher}
 
     -- Stop a job without waiting for it, as it may wait for a site. Its
     -- reply would be stale.

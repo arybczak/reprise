@@ -182,7 +182,11 @@ editLyrics = do
       ShowingLyrics _ ->
         let option :: Char -> T.Text -> (Song -> FilePath) -> ChoiceOption
             option letter name file =
-              ChoiceOption letter name (Just (EditLyricsFile (env.lyricsDirectory </> file song)))
+              ChoiceOption
+                { letter = letter
+                , name = name
+                , event = Just (EditLyricsFile (env.lyricsDirectory </> file song))
+                }
         in modifyS $
              openChoice
                "Edit which lyrics?"

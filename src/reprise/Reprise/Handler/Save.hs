@@ -59,8 +59,16 @@ saveChecked name source exists
       modifyS $
         openChoice
           ("The playlist " <> name <> " exists.")
-          [ ChoiceOption 'r' "replace" (Just (SaveTo name source ReplacePlaylist))
-          , ChoiceOption 'a' "append" (Just (SaveTo name source AppendToPlaylist))
+          [ ChoiceOption
+              { letter = 'r'
+              , name = "replace"
+              , event = Just (SaveTo name source ReplacePlaylist)
+              }
+          , ChoiceOption
+              { letter = 'a'
+              , name = "append"
+              , event = Just (SaveTo name source AppendToPlaylist)
+              }
           ]
   | otherwise = saveTo name source CreatePlaylist
 

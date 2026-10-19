@@ -222,7 +222,8 @@ data Playout = Playout
 
 -- | Before the first samples, which come after the time.
 newPlayout :: Double -> Playout
-newPlayout = Playout BS.empty False []
+newPlayout time =
+  Playout {buffered = BS.empty, flowing = False, recentReads = [], lastWrite = time}
 
 -- | The bytes of a write of MPD: the fewest that a recent read gave, as a
 -- pipe gives a write that short whole. Only recent reads count, as MPD's
@@ -261,7 +262,15 @@ playout shown arrival new p =
       stopped =
         isJust write
           && arrival - lastWrite > 2 * fromIntegral margin / fromIntegral (frameBytes * sampleRate)
-  in (frame, stopped, Playout buffered flowing recentReads lastWrite)
+  in ( frame
+     , stopped
+     , Playout
+         { buffered = buffered
+         , flowing = flowing
+         , recentReads = recentReads
+         , lastWrite = lastWrite
+         }
+     )
   where
     -- To whole samples of every channel.
     roundUp :: Int -> Int

@@ -423,7 +423,7 @@ test_queueChanges = do
 test_mpdError :: Assertion
 test_mpdError = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
-  let ack = Ack AckArg 0 "play" "Bad song index"
+  let ack = Ack {code = AckArg, index = 0, command = "play", message = "Bad song index"}
   assertEqual "message" (Just "play: Bad song index") . message
     =<< runEvents 0 [MpdFailed [Request "play" ["99"]] (AckError ack)] s
 
@@ -664,7 +664,14 @@ test_quit = do
   assertEqual "once MPD took the pause" [()] . halts
     =<< runEvents 0 [QuitReady] paused.state
   assertEqual "again" [()] . halts =<< keys ["q"] paused.state
-  let refusal = AckError $ Ack AckPermission 0 "pause" "you don't have permission for \"pause\""
+  let refusal =
+        AckError $
+          Ack
+            { code = AckPermission
+            , index = 0
+            , command = "pause"
+            , message = "you don't have permission for \"pause\""
+            }
   asked <- runEvents 0 [PasswordNeeded refusal] s
   assertEqual "while MPD waits for the password" [()] . halts
     =<< keys ["ctrl-q"] asked.state
@@ -672,7 +679,14 @@ test_quit = do
 test_passwordPrompt :: Assertion
 test_passwordPrompt = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
-  let refusal = AckError $ Ack AckPermission 0 "pause" "you don't have permission for \"pause\""
+  let refusal =
+        AckError $
+          Ack
+            { code = AckPermission
+            , index = 0
+            , command = "pause"
+            , message = "you don't have permission for \"pause\""
+            }
   asked <- runEvents 0 [PasswordNeeded refusal] =<< (.state) <$> keys ["t"] s
   assertEqual
     "the question"
@@ -693,7 +707,9 @@ test_passwordPrompt = do
   wrong <-
     runEvents
       0
-      [PasswordNeeded . AckError $ Ack AckPassword 0 "password" "incorrect password"]
+      [ PasswordNeeded . AckError $
+          Ack {code = AckPassword, index = 0, command = "password", message = "incorrect password"}
+      ]
       s
   assertEqual
     "a wrong password"
@@ -760,7 +776,12 @@ test_promptHistory = do
   password <-
     keys (typed "secret" <> ["up", "enter"])
       =<< (.state)
-        <$> runEvents 0 [PasswordNeeded (AckError (Ack AckPermission 0 "pause" ""))] used.state
+        <$> runEvents
+          0
+          [ PasswordNeeded
+              (AckError (Ack {code = AckPermission, index = 0, command = "pause", message = ""}))
+          ]
+          used.state
   assertEqual "no password in the history" used.state.history password.state.history
   assertEqual "no password in the file" [] [l | SaveToHistory l <- password.commands]
   assertEqual "no history in the password" [Just "secret"] (passwordAnswers password)
@@ -788,7 +809,14 @@ test_promptKeys = do
 test_passwordWaits :: Assertion
 test_passwordWaits = do
   s <- testState (80, 24) (statusOf Playing (Just 0) 3) (songs 3)
-  let refusal = AckError $ Ack AckPermission 0 "pause" "you don't have permission for \"pause\""
+  let refusal =
+        AckError $
+          Ack
+            { code = AckPermission
+            , index = 0
+            , command = "pause"
+            , message = "you don't have permission for \"pause\""
+            }
       password = Just "MPD refused pause. Password: "
       question r = (.question) <$> r.state.prompt
       saves r = [() | Request "save" _ <- concat r.requests]

@@ -198,7 +198,10 @@ test_durations = do
 test_progressChars :: Assertion
 test_progressChars = do
   let chars t = (.progressBar.chars) <$> decode ("progress_bar:\n  chars: \"" <> t <> "\"\n")
-  assertEqual "narrow" (Right (ProgressChars '=' '>' '-')) (chars "=>-")
+  assertEqual
+    "narrow"
+    (Right ProgressChars {elapsed = '=', current = '>', remaining = '-'})
+    (chars "=>-")
   assertBool "wide" . isLeft $ chars "日日本"
   assertBool "a tab" . isLeft $ chars "=\\t-"
   assertBool "a combining mark" . isLeft $ chars "=\\u0301-"

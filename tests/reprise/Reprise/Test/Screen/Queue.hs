@@ -169,7 +169,9 @@ test_heldInput = do
   failed <-
     runEvents
       0
-      [QueueEditFailed (AckError (Ack AckArg 0 "delete" "Bad song index"))]
+      [ QueueEditFailed
+          (AckError (Ack {code = AckArg, index = 0, command = "delete", message = "Bad song index"}))
+      ]
       twice.state
   assertEqual "a failure drops it" [] failed.requests
   assertEqual "nothing waits" Nothing failed.state.pendingEdit
@@ -300,7 +302,9 @@ test_editChanges = do
   failed <-
     runEvents
       0
-      [QueueEditFailed (AckError (Ack AckArg 0 "delete" "Bad song index"))]
+      [ QueueEditFailed
+          (AckError (Ack {code = AckArg, index = 0, command = "delete", message = "Bad song index"}))
+      ]
       changed.state
   assertEqual
     "the changes after a failed edit"
@@ -313,7 +317,14 @@ test_heldPassword :: Assertion
 test_heldPassword = do
   s <- testState (80, 24) (statusOf Stopped Nothing 5) (songs 5)
   deleted <- keys ["delete"] s
-  let refusal = AckError $ Ack AckPermission 0 "delete" "you don't have permission for \"delete\""
+  let refusal =
+        AckError $
+          Ack
+            { code = AckPermission
+            , index = 0
+            , command = "delete"
+            , message = "you don't have permission for \"delete\""
+            }
   asked <- runEvents 0 [PasswordNeeded refusal] deleted.state
   answered <- keys (typed "secret" <> ["enter"]) asked.state
   assertEqual "the answer" [Just "secret"] (passwordAnswers answered)

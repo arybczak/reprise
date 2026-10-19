@@ -286,7 +286,7 @@ marked markerStyle =
     & #config % #styles % #missingTag .~ markerStyle
 
 cyan :: Style
-cyan = Style (Just (Color 6)) Nothing mempty
+cyan = Style {foreground = Just (Color 6), background = Nothing, attributes = mempty}
 
 -- | The color of the marker, with the cursor hidden, so that its style
 -- doesn't cover the row's.
@@ -307,7 +307,12 @@ test_titleStyle = do
   let titleAttrs = [a | (a, t) <- imageSpans (renderScreen testAppEnv s), "Queue (" `T.isPrefixOf` t]
   assertEqual "bold by default" [V.SetTo V.bold] (map V.attrStyle titleAttrs)
   let red =
-        testAppEnv & #config % #styles % #header % #title .~ Style (Just (Color 1)) Nothing mempty
+        testAppEnv
+          & #config
+            % #styles
+            % #header
+            % #title
+            .~ Style {foreground = Just (Color 1), background = Nothing, attributes = mempty}
       redAttrs = [a | (a, t) <- imageSpans (renderScreen red s), "Queue (" `T.isPrefixOf` t]
   assertEqual "configured" [V.SetTo (V.ISOColor 1)] (map V.attrForeColor redAttrs)
 

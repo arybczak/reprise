@@ -61,7 +61,7 @@ test_retryClosed = do
 
 test_failed :: Assertion
 test_failed = do
-  let ack = Ack AckArg 0 "play" "Bad song index"
+  let ack = Ack {code = AckArg, index = 0, command = "play", message = "Bad song index"}
   r <- runWorker [Left (AckError ack)] [play (Just 99)] []
   assertEqual "events" [MpdFailed [Request "play" ["99"]] (AckError ack)] r.events
   assertEqual "the connection stays" ["run play"] r.calls
@@ -270,10 +270,19 @@ untilEvent :: TQueue AppEvent -> (AppEvent -> Bool) -> IO AppEvent
 untilEvent events p = atomically (readTQueue events) >>= \e -> if p e then pure e else untilEvent events p
 
 refusal :: MpdError
-refusal = AckError $ Ack AckPermission 0 "stop" "you don't have permission for \"stop\""
+refusal =
+  AckError $
+    Ack
+      { code = AckPermission
+      , index = 0
+      , command = "stop"
+      , message = "you don't have permission for \"stop\""
+      }
 
 wrongPassword :: MpdError
-wrongPassword = AckError $ Ack AckPassword 0 "password" "incorrect password"
+wrongPassword =
+  AckError $
+    Ack {code = AckPassword, index = 0, command = "password", message = "incorrect password"}
 
 -- | Wait for what the workers do at once, failing instead of hanging if it
 -- never comes.

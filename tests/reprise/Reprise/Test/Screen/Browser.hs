@@ -174,14 +174,24 @@ test_reconnect = do
 
 test_gone :: Assertion
 test_gone = do
-  let gone = AckError (Ack AckNoExist 0 "lsinfo" "No such directory")
+  let gone =
+        AckError
+          (Ack {code = AckNoExist, index = 0, command = "lsinfo", message = "No such directory"})
   r <- failLast gone =<< press ["down", "enter"] =<< root
   assertEqual "the listing of the root" [[Request "lsinfo" []]] r.requests
   assertEqual "no error" Nothing r.state.message
 
 test_listingError :: Assertion
 test_listingError = do
-  let denied = AckError (Ack AckPermission 0 "lsinfo" "you don't have permission")
+  let denied =
+        AckError
+          ( Ack
+              { code = AckPermission
+              , index = 0
+              , command = "lsinfo"
+              , message = "you don't have permission"
+              }
+          )
   r <- failLast denied =<< press ["down", "enter"] =<< root
   assertEqual "no listing" [] r.requests
   assertEqual "the error" (Just True) ((.isError) <$> r.state.message)
@@ -865,7 +875,8 @@ test_localAdd = do
   added <- answerLast [] r
   assertEqual "the message" (Just "Added: a.flac") (message added.state)
   two <- press ["down", "down", "insert", "down", "insert", "a", "e"] =<< inHome
-  let refused = AckError (Ack AckNoExist 0 "add" "No such song")
+  let refused =
+        AckError (Ack {code = AckNoExist, index = 0, command = "add", message = "No such song"})
   failed <- failLast refused two
   assertEqual "the song after it" [[Request "add" ["/home/user/b.mod"]]] failed.requests
   done <- answerLast [] failed
@@ -929,7 +940,8 @@ test_localAddDirectory = do
         ]
     ]
     walked.requests
-  let refused = AckError (Ack AckNoExist 1 "add" "No such song")
+  let refused =
+        AckError (Ack {code = AckNoExist, index = 1, command = "add", message = "No such song"})
   failed <- failLast refused walked
   assertEqual
     "the adds after the file that MPD can't read"
@@ -1005,7 +1017,15 @@ test_localAddRefused :: Assertion
 test_localAddRefused = do
   r <- press ["down", "a", "e"] =<< inHome
   walked <- runEvents 0 [LocalWalked (lastWalkToken r) [take 1 musicFiles]] r.state
-  let refused = AckError (Ack AckPermission 0 "add" "Access to local files via TCP is not allowed")
+  let refused =
+        AckError
+          ( Ack
+              { code = AckPermission
+              , index = 0
+              , command = "add"
+              , message = "Access to local files via TCP is not allowed"
+              }
+          )
   failed <- failLast refused walked
   assertEqual
     "the error"
