@@ -59,6 +59,9 @@ test_scroll = do
   assertEqual "a step" "bcd" (scrollText 3 1 "abcd")
   assertEqual "round" "d *" (scrollText 3 3 "abcd")
   assertEqual "again" "abc" (scrollText 3 8 "abcd")
+  -- An é of a letter and its accent, as in a name from macOS, is one step.
+  assertEqual "a letter with its accent" "bcd" (scrollText 3 1 "e\x301\&bcd")
+  assertEqual "the steps of a round" "e\x301\&bc" (scrollText 3 8 "e\x301\&bcd")
 
 -- | vty takes only the characters that GHC's Unicode has, and the built-in
 -- width of the ones that the C library doesn't know.
