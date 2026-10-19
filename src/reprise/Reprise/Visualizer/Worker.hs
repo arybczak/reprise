@@ -118,16 +118,17 @@ visualizerWorker src = do
               continue = frames' arrival p'
 
               -- What the last samples show falls through silence, for a
-              -- number of frames, after which the picture is silent.
-              lastSamples
-                :: (BS.ByteString -> IO ()) -> (Int -> IO ()) -> Int -> IO () -> Eff es Bool
-              lastSamples push pushSilent fading draw
+              -- number of frames, after which the picture is silent. The
+              -- spectrum and the wave keep the samples whichever shows, so
+              -- that a switch to one shows the samples before it.
+              lastSamples :: Int -> IO () -> Eff es Bool
+              lastSamples fading draw
                 | not (BS.null frame) = do
-                    liftIO $ push frame >> draw
+                    liftIO $ pushSamples window frame >> pushWave wave frame >> draw
                     continue 0
                 | stopped && quiet >= fading = pure True
                 | stopped = do
-                    liftIO $ pushSilent shown >> draw
+                    liftIO $ pushSilence window shown >> pushWaveSilence wave shown >> draw
                     continue (quiet + 1)
                 | otherwise = continue quiet
           liftIO . count arrival $ \st ->
@@ -140,18 +141,10 @@ visualizerWorker src = do
           case v of
             -- The ellipse keeps the samples of its trail, so it only sends
             -- each frame's.
-            Ellipse ->
-              lastSamples (const (pure ())) (const (pure ())) src.trail $
-                send (VisualizerSamples frame)
-            Spectrum ->
-              lastSamples
-                (pushSamples window)
-                (pushSilence window)
-                (silentFrames windowSamples)
-                spectrum
+            Ellipse -> lastSamples src.trail $ send (VisualizerSamples frame)
+            Spectrum -> lastSamples (silentFrames windowSamples) spectrum
             Wave ->
-              lastSamples (pushWave wave) (pushWaveSilence wave) (silentFrames historySamples) $
-                send . VisualizerWave =<< waveOf wave
+              lastSamples (silentFrames historySamples) $ send . VisualizerWave =<< waveOf wave
       where
         -- A frame that came late doesn't make the next ones late.
         frames' :: Double -> Playout -> Int -> Eff es Bool

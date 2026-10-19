@@ -44,6 +44,7 @@ visualizerWorkerTests =
     , testCase "a dropped frame counts in its own second" test_workerDropped
     , testCase "the worker sends the spectrum" test_workerSpectrum
     , testCase "the spectrum stays until its window is silent" test_workerSilence
+    , testCase "a switch shows the samples since it" test_workerSwitch
     , testCase "the worker sends the wave" test_workerWave
     , testCase "the worker reports a data source that it can't read" test_workerFails
     , testCase "a data source that isn't a fifo" test_workerRegularFile
@@ -265,6 +266,23 @@ test_workerSpectrum = do
       assertBool "the left channel" (VS.maximum left > 0)
       assertEqual "the right channel" 0 (VS.maximum right)
     [] -> assertFailure "no spectrum of the samples"
+
+-- | Loud samples show on the spectrum, then silence on the wave for longer
+-- than the spectrum's window. Back on the spectrum, it shows the silence,
+-- not the samples from before the switch.
+test_workerSwitch :: Assertion
+test_workerSwitch = do
+  let silent = samples (replicate (sampleRate `div` 60) (0, 0))
+      writes = [(time k, if k < 20 then write k else silent) | k <- [0 ..]]
+  events <-
+    runScene
+      (scene Spectrum writes) {seconds = 1.5, switches = [(0.3, Wave), (1, Spectrum)]}
+  case [VS.maximum l + VS.maximum r | (t, VisualizerSpectrum l r) <- events, t > 1] of
+    back : _ -> assertEqual "silent" 0 back
+    [] -> assertFailure "no spectrum after the switch back"
+  assertBool
+    "loud before the switch"
+    (any (> 0) [VS.maximum l | (t, VisualizerSpectrum l _) <- events, t < 0.3])
 
 -- | MPD writes for half a second. The frames show the last write 2 frames
 -- later, after which the samples fall out of the window, a frame's worth
@@ -545,6 +563,8 @@ data Scene = Scene
   , debug :: Bool
   , seconds :: Double
   -- ^ How long the scene lasts.
+  , switches :: [(Double, Visualization)]
+  -- ^ The visualizations that the user switches to, by their times.
   }
 
 scene :: Visualization -> [(Double, BS.ByteString)] -> Scene
@@ -556,6 +576,7 @@ scene v ws =
     , taken = True
     , debug = False
     , seconds = 1
+    , switches = []
     }
 
 -- | The worker's events in a scene, with their times. Time passes only when
@@ -589,25 +610,31 @@ runSceneWakes sc = do
   void
     . try @SceneEnded
     . runEff
-    . runScriptedClock timeRef wakesRef
+    . runScriptedClock timeRef wakesRef reading
     . runScriptedFifo timeRef writesRef
     $ visualizerWorker src
   (,) <$> (reverse <$> S.readIORef eventsRef) <*> (reverse <$> S.readIORef wakesRef)
   where
-    -- A sleep moves the time to its end, or ends the scene.
+    -- A sleep moves the time to its end, or ends the scene. The user
+    -- switches to the visualization of the last switch until then.
     runScriptedClock
       :: IOE :> es
       => S.IORef Double
       -> S.IORef [Double]
+      -> TVar (Maybe Visualization)
       -> Eff (Clock : es) a
       -> Eff es a
-    runScriptedClock timeRef wakesRef = interpret_ $ \case
+    runScriptedClock timeRef wakesRef reading = interpret_ $ \case
       MonotonicTime -> liftIO $ S.readIORef timeRef
       SleepUntil t
         | t > sc.seconds -> liftIO $ throwIO SceneEnded
         | otherwise -> liftIO $ do
             S.modifyIORef wakesRef (t :)
             S.modifyIORef timeRef $ \now -> max now t + sc.lateness t
+            now <- S.readIORef timeRef
+            case reverse [v | (at, v) <- sc.switches, at <= now] of
+              v : _ -> atomically . writeTVar reading $ Just v
+              [] -> pure ()
 
     -- A read takes the writes that came until the time, and a wait moves
     -- the time to the next write.
