@@ -67,6 +67,9 @@ helpLineSpans styles keyWidth = \case
        ]
   Blank -> []
   where
+    -- Two spaces after the keys, so that the description doesn't start at
+    -- their edge, which is harder to read. The which-key panel leaves the
+    -- same.
     gap :: Int
     gap = 2
 

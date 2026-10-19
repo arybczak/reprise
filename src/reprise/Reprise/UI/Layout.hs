@@ -147,6 +147,8 @@ whichKeyPanel env s maxRows entries =
       columnImage c = V.vertCat [V.resizeWidth cellWidth img | (_, img) <- c]
   in V.resize w rows $ V.horizCat (map columnImage byColumn)
   where
+    -- Two spaces after each column, so that the next one doesn't start at
+    -- its edge, which is harder to read. The help leaves the same.
     gap :: Int
     gap = 2
 
