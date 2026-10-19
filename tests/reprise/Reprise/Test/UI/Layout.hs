@@ -50,6 +50,7 @@ layoutTests =
     , testCase "the title has its own style" test_titleStyle
     , testCase "the queue's title scrolls" test_queueTitleScrolls
     , testCase "the marker of a missing tag in columns" test_markerInColumns
+    , testCase "terminals of a few cells" test_tinyTerminals
     , testCase "columns of fixed widths" test_fixedColumns
     , testCase "columns of shares" test_shareColumns
     , testCase "columns past the end of the row" test_columnsPastTheEnd
@@ -170,6 +171,22 @@ test_helpStyles = do
         [V.attrForeColor a | (a, t') <- imageSpans (renderScreen testAppEnv s), T.strip t' == t]
   assertEqual "the key" [V.SetTo (V.ISOColor 2)] (colorOf "/")
   assertEqual "the description" [V.SetTo (V.ISOColor 3)] (colorOf "find forward")
+
+-- | A terminal of a few cells, e.g. while it resizes, gets a screen that
+-- fits it, with a panel, a choice or a prompt too.
+test_tinyTerminals :: Assertion
+test_tinyTerminals =
+  forM_ [(w, h) | w <- [0 .. 3], h <- [0 .. 4]] $ \size -> do
+    shown <- playing size
+    forM_ [[], ["t", "d"], ["t"], ["f1"], ["e", "c"], [":"]] $ \keys -> do
+      s <- press keys shown
+      let image = renderScreen testAppEnv s
+          what = show size <> " after " <> show keys
+      assertBool ("the width at " <> what) (V.imageWidth image <= fst size)
+      assertBool ("the height at " <> what) (V.imageHeight image <= snd size)
+      assertBool
+        ("the lines at " <> what)
+        (all ((<= fst size) . T.length) (imageLines image) && length (imageLines image) <= snd size)
 
 -- | Columns of fixed widths leave room after them, which the row's style
 -- fills to its end, e.g. the cursor's.

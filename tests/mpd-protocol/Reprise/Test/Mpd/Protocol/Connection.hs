@@ -20,6 +20,7 @@ import Test.Tasty.HUnit
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Connection
 import Reprise.Mpd.Protocol.Idle
+import Reprise.Mpd.Protocol.Response
 import Reprise.Mpd.Protocol.Types
 import Reprise.Mpd.TestServer
 
@@ -76,6 +77,18 @@ closedTests =
         let path = dir </> "socket"
         assertClosed $ FakeServer N.AF_UNIX (N.SockAddrUnix path) (\_ -> pure $ UnixAddress path)
     , testCase "a closed TCP connection" $ assertClosed localTcp
+    , testCase "a reset of a TCP connection with the request unread" $ do
+        -- MPD's close for an unused connection crossed the request, which
+        -- the closed socket answers with a reset.
+        let reset sock = do
+              _ <- N.recv sock 4096
+              N.setSockOpt sock N.Linger (N.StructLinger 1 0)
+        r <- withFakeServer localTcp reset $ \address ->
+          try @MpdError
+            . withConnection
+              Settings {address = address, password = Nothing, timeout = Just testTimeout}
+            $ (`run` ping)
+        assertEqual "the error" (Left (ConnectionError Closed)) r
     , testCase "a reply cut off in its first line" $ do
         -- MPD began the reply, so it ran the command, which mustn't run again.
         let cutOff sock = N.recv sock 4096 >> N.sendAll sock "key: va"
@@ -112,6 +125,9 @@ timeoutTests =
     , testCase "a reply that stops" $ do
         r <- withFakeServer localTcp stall (`withShortTimeout` (`run` fields))
         assertEqual "the error" (Left (ConnectionError TimedOut)) r
+    , testCase "a line that comes in two parts" $ do
+        r <- withFakeServer localTcp split (`withShortTimeout` (`run` values))
+        assertEqual "the line whole" (Right ["value"]) r
     ]
   where
     -- Each part comes well within the timeout, and all of them after it.
@@ -140,6 +156,17 @@ timeoutTests =
       _ <- N.recv sock 4096
       N.sendAll sock "key: value\n"
       threadDelay maxBound
+
+    values :: Command [BS8.ByteString]
+    values = command "values" [] (Right . map (.value))
+
+    -- The gap lets the client read the first part before the second comes.
+    split :: N.Socket -> IO ()
+    split sock = do
+      _ <- N.recv sock 4096
+      N.sendAll sock "key: va"
+      threadDelay gap
+      N.sendAll sock "lue\nOK\n"
 
 -- | Where a fake server listens: the family and the address of its socket,
 -- and the address that a client connects to, from the socket.
