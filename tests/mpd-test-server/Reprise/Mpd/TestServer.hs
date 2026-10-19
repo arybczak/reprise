@@ -32,6 +32,7 @@ import System.FilePath
 import System.IO
 import System.IO.Temp
 import System.Process
+import System.Timeout
 
 ----------------------------------------
 -- Songs
@@ -77,42 +78,43 @@ startTestServerWith config songs = do
       logFile = directory </> "log"
       outputFile = directory </> "output"
       configFile = directory </> "mpd.conf"
-  createDirectoryIfMissing True musicDir
-  createDirectoryIfMissing True playlistDir
-  forM_ songs $ writeSong musicDir
-  port <- freePort
-  let socketPath = directory </> "socket"
-  writeFile configFile . unlines $
-    [ "music_directory " <> show musicDir
-    , "playlist_directory " <> show playlistDir
-    , "db_file " <> show (directory </> "db")
-    , "log_file " <> show logFile
-    , "bind_to_address " <> show socketPath
-    , "bind_to_address \"127.0.0.1\""
-    , "port " <> show (show port)
-    , "auto_update \"no\""
-    , "audio_output {"
-    , "  type \"null\""
-    , "  name \"null\""
-    , "  mixer_type \"software\""
-    , "}"
-    ]
-      <> config
-  -- mpd prints its first messages before it opens the log file.
-  (_, _, _, process) <- withFile outputFile WriteMode $ \output ->
-    createProcess
-      (proc "mpd" ["--no-daemon", configFile])
-        { std_out = UseHandle output
-        , std_err = UseHandle output
-        }
-  let server =
-        TestServer
-          { directory = directory
-          , socketPath = socketPath
-          , port = port
-          , process = process
+      socketPath = directory </> "socket"
+  server <- flip onException (removeDirectoryRecursive directory) $ do
+    createDirectoryIfMissing True musicDir
+    createDirectoryIfMissing True playlistDir
+    forM_ songs $ writeSong musicDir
+    port <- freePort
+    writeFile configFile . unlines $
+      [ "music_directory " <> show musicDir
+      , "playlist_directory " <> show playlistDir
+      , "db_file " <> show (directory </> "db")
+      , "log_file " <> show logFile
+      , "bind_to_address " <> show socketPath
+      , "bind_to_address \"127.0.0.1\""
+      , "port " <> show (show port)
+      , "auto_update \"no\""
+      , "audio_output {"
+      , "  type \"null\""
+      , "  name \"null\""
+      , "  mixer_type \"software\""
+      , "}"
+      ]
+        <> config
+    -- mpd prints its first messages before it opens the log file.
+    (_, _, _, process) <- withFile outputFile WriteMode $ \output ->
+      createProcess
+        (proc "mpd" ["--no-daemon", configFile])
+          { std_out = UseHandle output
+          , std_err = UseHandle output
           }
-  flip onException (stopTestServer server) $ do
+    pure
+      TestServer
+        { directory = directory
+        , socketPath = socketPath
+        , port = port
+        , process = process
+        }
+  flip onException (stopTestServer server) . bounded "the start of mpd" $ do
     waitUntilListening server [outputFile, logFile]
     waitForDatabase server
   pure server
@@ -144,10 +146,24 @@ resetTestServer server =
 -- | Send one command line on a new connection, and return the lines of the
 -- reply before @OK@. An @ACK@ throws an exception.
 rawCommand :: TestServer -> BS.ByteString -> IO [BS.ByteString]
-rawCommand server line = withRawConnection server $ \conn -> rawExchange conn line
+rawCommand server line =
+  bounded ("the reply to " <> show line) . withRawConnection server $ \conn ->
+    rawExchange conn line
 
 ----------------------------------------
 -- Helpers
+
+-- | Run an action on the server, failing instead of hanging if it takes so
+-- long that the server must hang.
+bounded :: String -> IO a -> IO a
+bounded what action =
+  timeout limit action
+    >>= maybe (throwIO . userError $ "test server: " <> what <> " took too long") pure
+  where
+    -- In microseconds. mpd starts listening in about 40 ms, and the other
+    -- waits are as short, so 10 s means a hang on a loaded machine too.
+    limit :: Int
+    limit = 10000000
 
 data RawConnection = RawConnection N.Socket (S.MVar BS.ByteString)
 
