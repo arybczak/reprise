@@ -1043,6 +1043,10 @@ mountsListed location renames mounts =
     onDisk (old, new) = do
       forM_ [old, new] $ \path ->
         when (any ((== path) . (.path)) mounts) . Left $ path <> " is a mount point of MPD"
+      -- MPD's update would delete the directory of the old name, with the
+      -- database of the mount in it.
+      forM_ (L.find (((old <> "/") `T.isPrefixOf`) . (.path)) mounts) $ \m ->
+        Left $ old <> " holds " <> m.path <> ", a mount point of MPD"
       -- Both are in the same directory, so in the same storage.
       let deepest = listToMaybe $ L.sortOn (Down . T.length . (.path)) (filter (holds old) mounts)
       case (deepest, (.storage) =<< deepest) of

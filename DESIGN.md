@@ -172,8 +172,9 @@ ncmpcpp.
     The cursor goes to the new name once the update found it. It needs a
     connection to MPD's socket, where MPD shows the paths of its storages. A
     storage that isn't a local path, e.g. `nfs://server/music`, is refused,
-    and so is a mount point. A local directory is listed again at once, and
-    MPD isn't told.
+    and so is a mount point. So is a directory that holds one, as MPD's
+    update would delete it with the mount's songs. A local directory is
+    listed again at once, and MPD isn't told.
   - Queued songs and stored playlists keep the old paths, which MPD then
     can't find.
 - `rename_by_format` renames the marked directories by

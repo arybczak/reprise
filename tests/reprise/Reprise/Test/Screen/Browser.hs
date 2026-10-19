@@ -528,6 +528,12 @@ test_renameInStorages = do
   mountPoint <- renamedWith (musicMount <> ["mount: a", "storage: /mnt/a"])
   assertEqual "a mount point: no rename" [] (renames mountPoint)
   assertEqual "a mount point" (Just "a is a mount point of MPD") (message mountPoint.state)
+  mountBelow <- renamedWith (musicMount <> ["mount: a/nas", "storage: /mnt/nas"])
+  assertEqual "a mount below: no rename" [] (renames mountBelow)
+  assertEqual
+    "a mount below"
+    (Just "a holds a/nas, a mount point of MPD")
+    (message mountBelow.state)
   inA <- answer ["directory: a/c"] =<< press ["enter"] s
   inMount <-
     answerLast (musicMount <> ["mount: a", "storage: /mnt/a"])
