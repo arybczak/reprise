@@ -59,19 +59,18 @@ bars colorMode cfg w h = \case
                   Rising -> rows - 1 - i
                   Hanging -> i
                 color = shade colors (fromIntegral fromFoot / fromIntegral (max 1 (rows - 1)))
-            in rowImage colors [cell growth rows fromFoot color l | l <- ls]
+            in rowImage colors w (block growth rows fromFoot . (ls VU.!)) (const color)
       in V.vertCat (map row [0 .. rows - 1])
 
-    -- The part of a bar in a row, from the foot of the bar, with the index
-    -- of the row's color.
-    cell :: Growth -> Int -> Int -> Int -> Double -> Maybe (Int, Char)
-    cell growth rows fromFoot color level =
+    -- The part of a bar in a row, from the foot of the bar, or a space.
+    block :: Growth -> Int -> Int -> Double -> Char
+    block growth rows fromFoot level =
       let filled = level * fromIntegral rows - fromIntegral fromFoot
           eighths = floor @Double @Int (filled * fromIntegral eighthsPerCell)
       in if
-           | filled >= 1 -> Just (color, fullBlock)
-           | eighths <= 0 -> Nothing
-           | otherwise -> Just . (color,) $ case growth of
+           | filled >= 1 -> fullBlock
+           | eighths <= 0 -> ' '
+           | otherwise -> case growth of
                Rising -> lowerBlock eighths
                Hanging -> upperBlock eighths
 
@@ -80,8 +79,8 @@ bars colorMode cfg w h = \case
 -- ncmpcpp. A column has the mean of the magnitudes of its bins. The low
 -- columns are narrower than a bin, so they interpolate between the bins
 -- around their middles.
-levels :: Int -> VS.Vector Double -> [Double]
-levels w magnitudes = map level [0 .. w - 1]
+levels :: Int -> VS.Vector Double -> VU.Vector Double
+levels w magnitudes = VU.generate w level
   where
     level :: Int -> Double
     level x =
@@ -291,12 +290,12 @@ braille colors w h draw = V.vertCat (map row [0 .. h - 1])
       (,) <$> VU.unsafeFreeze dotsM <*> VU.unsafeFreeze colorsM
 
     row :: Int -> V.Image
-    row y = rowImage colors [cellAt (y * w + x) | x <- [0 .. w - 1]]
+    row y = rowImage colors w (charAt . (y * w +)) ((cellColors VU.!) . (y * w +))
 
-    cellAt :: Int -> Maybe (Int, Char)
-    cellAt i = case dots VU.! i of
-      0 -> Nothing
-      d -> Just (cellColors VU.! i, chr (brailleBlank + fromIntegral d))
+    charAt :: Int -> Char
+    charAt i = case dots VU.! i of
+      0 -> ' '
+      d -> chr (brailleBlank + fromIntegral d)
 -- The drawing then plots its dots in a loop of its own instead of calling an
 -- unknown function for each: in the benchmarks, a frame of the ellipse took
 -- 393 µs without the pragma and 215 µs with it.
@@ -366,27 +365,38 @@ shade colors loudness =
 nearest :: Double -> Int
 nearest x = floor (x + 0.5)
 
--- | A row of cells, each a character in one of the colors, by its index, or
--- blank. A run of a color is a text of its own, so that vty has as few to
--- write as it can. When no color shows on a space, a blank joins the run
--- that it is in, e.g. a row of the spectrum is one run.
-rowImage :: Palette -> [Maybe (Int, Char)] -> V.Image
-rowImage colors = V.horizCat . go Nothing ""
+-- | A row of a number of cells, each a character in one of the colors, by
+-- the cell's column, or a space for a blank, whose color doesn't count. A
+-- run of a color is a text of its own, so that vty has as few to write as
+-- it can. When no color shows on a space, a blank joins the run that it is
+-- in, e.g. a row of the spectrum is one run.
+rowImage :: Palette -> Int -> (Int -> Char) -> (Int -> Int) -> V.Image
+rowImage colors w charAt colorAt = V.horizCat (runs 0)
   where
-    go :: Maybe Int -> String -> [Maybe (Int, Char)] -> [V.Image]
-    go color reversed = \case
-      [] -> flush color reversed
-      Just (c, ch) : rest
-        | color == Just c -> go color (ch : reversed) rest
-        | colors.blanksJoin, Nothing <- color -> go (Just c) (ch : reversed) rest
-        | otherwise -> flush color reversed <> go (Just c) [ch] rest
-      Nothing : rest
-        | colors.blanksJoin || isNothing color -> go color (' ' : reversed) rest
-        | otherwise -> flush color reversed <> go Nothing [' '] rest
+    runs :: Int -> [V.Image]
+    runs start
+      | start >= w = []
+      | otherwise =
+          let (color, end) = runFrom (colorOf start) (start + 1)
+              attr = if color == blankRun then colors.blank else colors.attrs VB.! color
+              text = T.unfoldrN (end - start) (\i -> Just (charAt i, i + 1)) start
+          in V.text' attr text : runs end
 
-    -- The characters of a run, from the last.
-    flush :: Maybe Int -> String -> [V.Image]
-    flush color reversed =
-      [ V.text' (maybe colors.blank (colors.attrs VB.!) color) (T.pack (reverse reversed))
-      | not (null reversed)
-      ]
+    -- The color of the run from a cell and where it ends.
+    runFrom :: Int -> Int -> (Int, Int)
+    runFrom color i
+      | i >= w = (color, i)
+      | c == color = runFrom color (i + 1)
+      | c == blankRun, colors.blanksJoin || color == blankRun = runFrom color (i + 1)
+      | colors.blanksJoin, color == blankRun = runFrom c (i + 1)
+      | otherwise = (color, i)
+      where
+        c :: Int
+        c = colorOf i
+
+    colorOf :: Int -> Int
+    colorOf i = if charAt i == ' ' then blankRun else colorAt i
+
+    -- The color of a run of blanks, which no index has.
+    blankRun :: Int
+    blankRun = -1
