@@ -248,12 +248,12 @@ readTime = either (const Nothing) Just . parseUTCTime . decode
 -- | Parse one song. The first field must be @file@.
 parseSong :: [Field] -> Either T.Text Song
 parseSong = parseSingle song
-
--- | A song, before it is evaluated.
-song :: [Field] -> Either T.Text Song
-song = \case
-  Field "file" file : rest -> songFrom file (L.foldl' addSongField noSongFields rest)
-  _ -> Left "a song doesn't start with the file key"
+  where
+    -- A song, before it is evaluated.
+    song :: [Field] -> Either T.Text Song
+    song = \case
+      Field "file" file : rest -> songFrom file (L.foldl' addSongField noSongFields rest)
+      _ -> Left "a song doesn't start with the file key"
 
 -- | Parse a list of songs, e.g. the reply to @playlistinfo@.
 --
@@ -323,7 +323,18 @@ data SongFields = SongFields
   }
 
 noSongFields :: SongFields
-noSongFields = SongFields Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing []
+noSongFields =
+  SongFields
+    { rawDuration = Nothing
+    , rawTime = Nothing
+    , rawRange = Nothing
+    , rawLastModified = Nothing
+    , rawPosition = Nothing
+    , rawId = Nothing
+    , rawPriority = Nothing
+    , rawFormat = Nothing
+    , rawTags = []
+    }
 
 addSongField :: SongFields -> Field -> SongFields
 addSongField s (Field k v) = case k of

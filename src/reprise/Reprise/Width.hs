@@ -161,7 +161,13 @@ installWidthTable = do
 widthRanges :: (Char -> IO (Maybe Int)) -> Char -> IO [V.WidthTableRange]
 widthRanges width upper = go 0 0 0 0 []
   where
-    go :: Int -> Word32 -> Word32 -> Word8 -> [V.WidthTableRange] -> IO [V.WidthTableRange]
+    go
+      :: Int
+      -> Word32
+      -> Word32
+      -> Word8
+      -> [V.WidthTableRange]
+      -> IO [V.WidthTableRange]
     go !i !start !size !columns done
       | i > fromEnum upper = pure . reverse $ close start size columns done
       | not (considered (toEnum i)) = go (i + 1) start size columns done

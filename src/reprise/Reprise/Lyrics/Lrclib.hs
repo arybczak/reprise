@@ -38,7 +38,7 @@ lrclibLyrics get song = byArtistAndTitle song $ \artist title -> do
     lookupTitle artist title = do
       let named = [("artist_name", artist), ("track_name", title)]
           album = [("album_name", a) | Just a <- [firstTag Album song]]
-          duration = [("duration", T.pack (show (round @_ @Int d))) | Just d <- [song.duration]]
+          duration = [("duration", T.pack (show (round d :: Int))) | Just d <- [song.duration]]
       get "/api/get" (named <> album <> duration) >>= \case
         Right (200, body) -> pure $ Just <$> decoded body
         Right (404, _) ->

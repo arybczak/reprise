@@ -144,7 +144,7 @@ commandRequests :: Command a -> [Request]
 commandRequests (Command requests _) = requests
 
 -- | Parse the reply to a command from the parts that 'parseReply' returns.
-parseCommandReply :: Command a -> [[Field]] -> Either MpdError a
+parseCommandReply :: forall a. Command a -> [[Field]] -> Either MpdError a
 parseCommandReply (Command requests parse) parts = case requests of
   [] -> run []
   [_] -> run parts
@@ -152,6 +152,7 @@ parseCommandReply (Command requests parse) parts = case requests of
     [] : listParts -> run (reverse listParts)
     _ -> Left $ ProtocolError "a command list reply doesn't end with list_OK"
   where
+    run :: [[Field]] -> Either MpdError a
     run ps = case parse ps of
       Right (a, []) -> Right a
       Right (_, _ : _) -> Left $ ProtocolError "the reply has more parts than commands"

@@ -32,7 +32,7 @@ import Network.Socket qualified as N
 import Network.Socket.ByteString qualified as N
 import Network.Socket.ByteString.Lazy qualified as NL
 import System.IO.Error
-import System.Timeout qualified as T
+import System.Timeout qualified as Timeout
 
 import Reprise.Mpd.Protocol.Command
 import Reprise.Mpd.Protocol.Request
@@ -111,7 +111,7 @@ connect settings = withTimeout settings.timeout . convertIO connectFailed $ do
     firstSuccessful = \case
       [] -> throwIO . userError $ "no address for " <> show settings.address
       [a] -> openAddr a
-      a : as -> openAddr a `catch` \(_ :: IOException) -> firstSuccessful as
+      a : as -> catch @IOException (openAddr a) (\_ -> firstSuccessful as)
 
     openAddr :: N.AddrInfo -> IO N.Socket
     openAddr a = do
@@ -141,10 +141,12 @@ exchange timeout conn request = do
   -- MPD runs a request only once its last line break arrives, so it ran
   -- nothing of a request that failed to send. On a unix socket that MPD
   -- closed, the send fails rather than the read.
-  for_
-    (BL.toChunks (B.toLazyByteString request))
-    (withTimeout timeout . N.sendAll conn.socket)
-    `catch` \(_ :: IOException) -> throwIO $ ConnectionError Closed
+  catch @IOException
+    ( for_
+        (BL.toChunks (B.toLazyByteString request))
+        (withTimeout timeout . N.sendAll conn.socket)
+    )
+    (\_ -> throwIO $ ConnectionError Closed)
   convertIO broken $ go True []
   where
     go :: Bool -> [BS.ByteString] -> IO [[Field]]
@@ -166,7 +168,7 @@ exchange timeout conn request = do
     -- connection crossed the request.
     readReplyLine :: Bool -> IO (Maybe BS.ByteString)
     readReplyLine first =
-      readLine timeout conn.socket conn.chunkSize conn.buffer `catch` \(e :: IOException) -> do
+      catch @IOException (readLine timeout conn.socket conn.chunkSize conn.buffer) $ \e -> do
         received <- S.readIORef conn.buffer
         if first && BS.null received && isResourceVanishedError e
           then throwIO $ ConnectionError Closed
@@ -211,7 +213,7 @@ withTimeout :: Maybe Seconds -> IO a -> IO a
 withTimeout = \case
   Nothing -> id
   Just s -> \action ->
-    T.timeout (fromInteger (min (toInteger (maxBound @Int)) microseconds)) action
+    Timeout.timeout (fromInteger (min (toInteger (maxBound @Int)) microseconds)) action
       >>= maybe (throwIO $ ConnectionError TimedOut) pure
     where
       -- A timeout too long for an Int waits as long as one can.

@@ -46,19 +46,19 @@ compilePattern t
     folded :: T.Text
     folded = foldPattern t
 
--- | Fold the diacritics of a pattern, but not the character after a
--- backslash, as its escape could become another: @\\ñ@ folded as text is
--- @\\n@, a line break. An escaped character outside ASCII is a literal, so
--- it is folded and loses its backslash.
-foldPattern :: T.Text -> T.Text
-foldPattern t = case T.breakOn "\\" t of
-  (plain, escaped) ->
-    foldDiacritics plain <> case T.uncons (T.drop 1 escaped) of
-      Just (c, rest)
-        | isAscii c -> T.pack ['\\', c] <> foldPattern rest
-        | otherwise -> foldDiacritics (T.singleton c) <> foldPattern rest
-      -- Nothing escaped, or a backslash at the end, which ICU rejects.
-      Nothing -> escaped
+    -- Fold the diacritics of a pattern, but not the character after a
+    -- backslash, as its escape could become another: \ñ folded as text is
+    -- \n, a line break. An escaped character outside ASCII is a literal,
+    -- so it is folded and loses its backslash.
+    foldPattern :: T.Text -> T.Text
+    foldPattern p = case T.breakOn "\\" p of
+      (plain, escaped) ->
+        foldDiacritics plain <> case T.uncons (T.drop 1 escaped) of
+          Just (c, rest)
+            | isAscii c -> T.pack ['\\', c] <> foldPattern rest
+            | otherwise -> foldDiacritics (T.singleton c) <> foldPattern rest
+          -- Nothing escaped, or a backslash at the end, which ICU rejects.
+          Nothing -> escaped
 
 -- | Text that patterns match, with its diacritics folded, so that text
 -- matched more than once is folded once.
@@ -233,40 +233,40 @@ foldAfter accents t =
         | dropping -> dropAccents dropping cs
         | otherwise -> (c :) <$> dropAccents dropping cs
 
--- | Whether a letter's combining marks are accents, which a find ignores:
--- of Latin, Greek and Cyrillic, and the vowel points of Hebrew and Arabic,
--- which most text leaves out. In other scripts a mark makes another letter
--- or a vowel, e.g. the dakuten of Japanese makes が of か, and the marks of
--- Devanagari are its vowels. ICU's blocks stand for the scripts, as
--- text-icu has no scripts. The two newest blocks of Cyrillic and Arabic
--- are left out, as text-icu 0.8.0.2 doesn't have them; they hold modifier
--- letters.
-hasAccents :: Char -> Bool
-hasAccents c =
-  UChar.blockCode c
-    `elem` [ UChar.BasicLatin
-           , UChar.Latin1Supplement
-           , UChar.LatinExtendedA
-           , UChar.LatinExtendedB
-           , UChar.IPAExtensions
-           , UChar.LatinExtendedAdditional
-           , UChar.LatinExtendedC
-           , UChar.LatinExtendedD
-           , UChar.LatinExtendedE
-           , UChar.LatinExtendedF
-           , UChar.LatinExtendedG
-           , UChar.GreekAndCoptic
-           , UChar.GreekExtended
-           , UChar.Cyrillic
-           , UChar.CyrillicSupplement
-           , UChar.CyrillicExtendedA
-           , UChar.CyrillicExtendedB
-           , UChar.CyrillicExtendedC
-           , UChar.Hebrew
-           , UChar.Arabic
-           , UChar.ArabicSupplement
-           , UChar.ArabicExtendedA
-           , UChar.ArabicExtendedB
-           , UChar.ArabicPresentationFormsA
-           , UChar.ArabicPresentationFormsB
-           ]
+    -- Whether a letter's combining marks are accents, which a find ignores:
+    -- of Latin, Greek and Cyrillic, and the vowel points of Hebrew and
+    -- Arabic, which most text leaves out. In other scripts a mark makes
+    -- another letter or a vowel, e.g. the dakuten of Japanese makes が of か,
+    -- and the marks of Devanagari are its vowels. ICU's blocks stand for the
+    -- scripts, as text-icu has no scripts. The two newest blocks of Cyrillic
+    -- and Arabic are left out, as text-icu 0.8.0.2 doesn't have them; they
+    -- hold modifier letters.
+    hasAccents :: Char -> Bool
+    hasAccents c =
+      UChar.blockCode c
+        `elem` [ UChar.BasicLatin
+               , UChar.Latin1Supplement
+               , UChar.LatinExtendedA
+               , UChar.LatinExtendedB
+               , UChar.IPAExtensions
+               , UChar.LatinExtendedAdditional
+               , UChar.LatinExtendedC
+               , UChar.LatinExtendedD
+               , UChar.LatinExtendedE
+               , UChar.LatinExtendedF
+               , UChar.LatinExtendedG
+               , UChar.GreekAndCoptic
+               , UChar.GreekExtended
+               , UChar.Cyrillic
+               , UChar.CyrillicSupplement
+               , UChar.CyrillicExtendedA
+               , UChar.CyrillicExtendedB
+               , UChar.CyrillicExtendedC
+               , UChar.Hebrew
+               , UChar.Arabic
+               , UChar.ArabicSupplement
+               , UChar.ArabicExtendedA
+               , UChar.ArabicExtendedB
+               , UChar.ArabicPresentationFormsA
+               , UChar.ArabicPresentationFormsB
+               ]
