@@ -136,15 +136,13 @@ handleEvent = \case
         & #terminalSize .~ (w, h)
         & layoutViews
     modifyWithEnv (modifyView id)
-  -- The reply to an edit may be lost, e.g. with a restarted worker, and
-  -- the input that waited for it was meant for the queue before the
-  -- connection broke. MPD gives the ids of the songs anew when it
-  -- restarts, so the ids of the selection could be of other songs now.
+  -- An edit still waits: the command worker answers every request, on its
+  -- own connection. MPD gives the ids of the songs anew when it restarts,
+  -- so the ids of the selection could be of other songs now.
   MpdConnected v address -> do
     modifyS $ \s ->
       s
         & #connection .~ Connected v address
-        & #pendingEdit .~ Nothing
         & #queueState % #selection .~ noSelection
         -- MPD may have restarted with other decoders.
         & #browser % #suffixes .~ Nothing

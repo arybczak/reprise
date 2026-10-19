@@ -173,8 +173,13 @@ test_heldInput = do
       twice.state
   assertEqual "a failure drops it" [] failed.requests
   assertEqual "nothing waits" Nothing failed.state.pendingEdit
-  reconnected <- runEvents 0 [MpdConnected (Version 0 24 0) mpdSocket] twice.state
-  assertEqual "a new connection drops it" Nothing reconnected.state.pendingEdit
+  -- The edit's reply still comes, and a key after the new connection would
+  -- act on the positions before the edit.
+  reconnected <-
+    keys ["delete"] . (.state)
+      =<< runEvents 0 [MpdConnected (Version 0 24 0) mpdSocket] twice.state
+  assertEqual "a new connection keeps it" (Just 2) (heldCount reconnected)
+  assertEqual "no delete" [] [() | Request "delete" _ <- concat reconnected.requests]
 
 -- | A click on the queue during an edit goes to the song that the screen
 -- showed under it, which the edit may move or delete. Row 2 shows the first
